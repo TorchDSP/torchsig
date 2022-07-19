@@ -1,2 +1,6 @@
-# torchsig
-TorchSig is an open-source signal processing machine learning toolkit based on the PyTorch data handling pipeline.
+<p align="center">
+   <img src="docs/logo.png" alt="drawing" width="500"/>
+<\p>
+
+TorchSig is coming soon...
+
