@@ -1,0 +1,15 @@
+torch
+tqdm
+numpy
+scipy
+h5py
+matplotlib
+numba
+ipdb
+PyWavelets
+pandas
+lmdb
+scikit-learn
+gdown
+icecream
+timm
