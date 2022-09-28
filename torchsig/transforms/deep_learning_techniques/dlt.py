@@ -23,7 +23,7 @@ class DatasetBasebandMixUp(SignalTransform):
     than zero.
     
     This transform is loosely based on 
-    `"mixup: Beyond Emperical Risk Minimization" <https://arxiv.org/pdf/1710.09412.pdf>`_.
+    `"mixup: Beyond Empirical Risk Minimization" <https://arxiv.org/pdf/1710.09412.pdf>`_.
 
     
     Args:
