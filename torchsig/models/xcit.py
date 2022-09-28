@@ -8,8 +8,8 @@ from torch import nn
 __all__ = ["xcit_nano", "xcit_tiny12"]
 
 file_ids = {
-    "xcit_nano": "https://drive.google.com/file/d/1c347oGdOd2vQD3vzTqKIv1rxXKfW1Ak6/view?usp=sharing",
-    "xcit_tiny12": "https://drive.google.com/file/d/1DKd5E3WwEZxt99qCeSIzvgc1AWEEfdue/view?usp=sharing",
+    "xcit_nano": "1c347oGdOd2vQD3vzTqKIv1rxXKfW1Ak6",
+    "xcit_tiny12": "1DKd5E3WwEZxt99qCeSIzvgc1AWEEfdue",
 }
 
 
