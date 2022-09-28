@@ -9,9 +9,9 @@ from torch import nn
 __all__ = ["efficientnet_b0", "efficientnet_b2", "efficientnet_b4"]
 
 file_ids = {
-    "efficientnet_b0": "https://drive.google.com/file/d/1ZQIBRZJiwwjeP4rB7HxxFzFro7RbxihG/view?usp=sharing",
-    "efficientnet_b2": "https://drive.google.com/file/d/1yaPZS5bbf6npHfUVdswvUnsJb8rDHlaa/view?usp=sharing",
-    "efficientnet_b4": "https://drive.google.com/file/d/1KCoLY5X0rIc_6ArmZRdkxZOOusIHN6in/view?usp=sharing",
+    "efficientnet_b0": "1ZQIBRZJiwwjeP4rB7HxxFzFro7RbxihG",
+    "efficientnet_b2": "1yaPZS5bbf6npHfUVdswvUnsJb8rDHlaa",
+    "efficientnet_b4": "1KCoLY5X0rIc_6ArmZRdkxZOOusIHN6in",
 }
 
 
