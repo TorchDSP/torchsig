@@ -27,7 +27,7 @@ NoTransform
 ^^^^^^^^^^^^^
 .. autoclass:: NoTransform
 
-Lamda
+Lambda
 ^^^^^^^^^
 .. autoclass:: Lambda
 
