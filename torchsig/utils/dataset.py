@@ -20,7 +20,7 @@ class SignalDataset(torch.utils.data.Dataset):
         self,
         transform: Optional[Callable] = None,
         target_transform: Optional[Callable] = None,
-        seed: int = None
+        seed: Optional[int] = None
     ):
         super(SignalDataset, self).__init__()
         self.random_generator = np.random.RandomState(seed)

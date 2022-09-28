@@ -4,7 +4,7 @@ from scipy import ndimage
 from scipy import signal as sp
 from matplotlib import pyplot as plt
 from matplotlib.figure import Figure
-from torch.utils.data import dataloader
+from torch.utils.data import DataLoader
 from typing import Optional, Callable, Iterable, Union, Tuple, List
 
 
@@ -24,7 +24,7 @@ class Visualizer:
     """
     def __init__(
         self,
-        data_loader: dataloader,
+        data_loader: DataLoader,
         visualize_transform: Optional[Callable] = None,
         visualize_target_transform: Optional[Callable] = None
     ):
@@ -358,7 +358,7 @@ def onehot_label_format(tensor: np.ndarray) -> List[str]:
     return label
 
 
-def multihot_label_format(tensor: np.ndarray, class_list: List[str]) -> List[str]:
+def multihot_label_format(tensor: np.ndarray, class_list: List[str]) -> List[List[str]]:
     """Target Transform: Format multihot labels for titles in visualizer
     
     """
