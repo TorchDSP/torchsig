@@ -13,3 +13,4 @@ scikit-learn
 gdown
 icecream
 timm==0.5.4
+pytorch_lightning
