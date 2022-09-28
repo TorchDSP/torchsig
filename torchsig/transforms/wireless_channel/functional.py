@@ -161,3 +161,27 @@ def phase_offset(tensor: np.ndarray, phase: float) -> np.ndarray:
 
     """
     return tensor*np.exp(1j*phase)
+
+
+@njit(cache=False)
+def impulsive_interference(tensor: np.ndarray, amp: float, per_offset: float):
+    """ Applies an impulsive interferer to tensor
+
+    Args:
+        tensor: (:class:`numpy.ndarray`):
+            (batch_size, vector_length, ...)-sized tensor.
+
+        amp (:obj:`float`):
+            Maximum vector magnitude of complex interferer signal
+        
+        per_offset (:obj:`float`)
+            Interferer offset into the tensor as expressed in a fraction of the tensor length.
+
+    """
+    beta = .3
+    num_samps = len(tensor)
+    sinc_pulse = make_sinc_filter(beta, num_samps, .1, 0)
+    imp = amp*np.roll(sinc_pulse / np.max(sinc_pulse), int(per_offset * num_samps))
+    rand_phase = np.random.uniform(0, 2 * np.pi)
+    imp = np.exp(1j * rand_phase) * imp
+    return tensor + imp
