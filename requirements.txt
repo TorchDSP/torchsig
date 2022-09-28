@@ -12,4 +12,4 @@ lmdb
 scikit-learn
 gdown
 icecream
-timm
+timm==0.5.4
