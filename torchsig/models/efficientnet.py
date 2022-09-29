@@ -78,7 +78,7 @@ class GBN(torch.nn.Module):
     
 def replace_bn(parent):
     for n, m in parent.named_children():
-        if type(m) is nn.BatchNorm2d:
+        if isinstance(m, nn.BatchNorm2d):
             setattr(
                 parent,
                 n,
@@ -90,7 +90,7 @@ def replace_bn(parent):
 
 def replace_se(parent):
     for n, m in parent.named_children():
-        if type(m) is timm.models.efficientnet_blocks.SqueezeExcite:
+        if isinstance(m, timm.models.efficientnet_blocks.SqueezeExcite):
             setattr(
                 parent,
                 n,
