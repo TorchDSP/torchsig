@@ -91,7 +91,7 @@ class SignalData:
     """
     def __init__(
         self,
-        data: bytes,
+        data: Optional[bytes],
         item_type: np.dtype,
         data_type: np.dtype,
         signal_description: Optional[Union[List[SignalDescription], SignalDescription]] = None

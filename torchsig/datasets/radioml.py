@@ -37,7 +37,7 @@ class RadioML2016(SignalDataset):
     def __init__(
         self,
         root: str,
-        classes: list = None,
+        classes: Optional[List[str]] = None,
         use_class_idx: bool = False,
         include_snr: bool = False,
         snr_threshold: int = -2,

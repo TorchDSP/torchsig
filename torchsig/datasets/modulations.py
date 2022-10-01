@@ -1,5 +1,5 @@
 import numpy as np
-from typing import Optional, Callable
+from typing import Optional, Callable, List
 from torch.utils.data import ConcatDataset
 
 from torchsig.datasets import DigitalModulationDataset, OFDMDataset
@@ -120,7 +120,7 @@ class ModulationsDataset(ConcatDataset):
 
     def __init__(
         self,
-        classes: list = None,    
+        classes: Optional[List[str]] = None,
         use_class_idx: bool = False,
         level: int = 0,
         num_iq_samples: int = 2048,
