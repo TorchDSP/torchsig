@@ -613,9 +613,12 @@ def agc(
     """
     output = np.zeros_like(tensor)
     gain_db = initial_gain_db
+    level_db = 0.0
     for sample_idx, sample in enumerate(tensor):
         if np.abs(sample) == 0:
             level_db = -200
+        elif sample_idx == 0:  # first sample, no smoothing
+            level_db = np.log(np.abs(sample))
         else:
             level_db = level_db*alpha_smooth + np.log(np.abs(sample))*(1 - alpha_smooth)
         output_db = level_db + gain_db
