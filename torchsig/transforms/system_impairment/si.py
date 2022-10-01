@@ -1,7 +1,7 @@
 import numpy as np
 from copy import deepcopy
 from scipy import signal as sp
-from typing import Optional, Any, Union, List
+from typing import Optional, Any, Union, List, Callable
 
 from torchsig.utils.types import SignalData, SignalDescription
 from torchsig.transforms.transforms import SignalTransform
@@ -945,7 +945,7 @@ class RandomDropSamples(SignalTransform):
         self,
         drop_rate: NumericParameter = uniform_continuous_distribution(0.01,0.05),
         size: NumericParameter = uniform_discrete_distribution(np.arange(1,10)),
-        fill: Union[List, str] = uniform_discrete_distribution(["ffill", "bfill", "mean", "zero"]),
+        fill: Union[Callable, List, str] = uniform_discrete_distribution(["ffill", "bfill", "mean", "zero"]),
     ):
         super(RandomDropSamples, self).__init__()
         self.drop_rate = to_distribution(drop_rate, self.random_generator)
