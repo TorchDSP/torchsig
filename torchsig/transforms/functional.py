@@ -1,6 +1,7 @@
 from typing import Callable, List, Protocol, Sequence, Tuple, Union
 from functools import partial
 import numpy as np
+import numpy.typing as npt
 
 FloatParameter = Union[Callable[[int], float], float, Tuple[float, float], List]
 IntParameter = Union[Callable[[int], int], int, Tuple[int, int], List]
@@ -18,7 +19,7 @@ class RandomStatePartial(Protocol):
     See: https://peps.python.org/pep-0544/
     See: https://mypy.readthedocs.io/en/stable/protocols.html#callback-protocols
     """
-    def __call__(self, size: Union[int, Sequence[int]] = ...) -> np.typing.ArrayLike:
+    def __call__(self, size: Union[int, Sequence[int]] = ...) -> npt.ArrayLike:
         ...
 
 
