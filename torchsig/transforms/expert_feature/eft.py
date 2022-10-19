@@ -2,7 +2,7 @@ import numpy as np
 from typing import Callable, Tuple, Any
 
 from torchsig.utils.types import SignalData
-from torchsig.transforms.expert_feature import functional as F
+from torchsig.transforms.expert_feature import eft_functional as F
 from torchsig.transforms.transforms import SignalTransform
 
 

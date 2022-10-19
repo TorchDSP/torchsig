@@ -1,2 +1,2 @@
 from .dlt import *
-from .functional import *
+from .dlt_functional import *

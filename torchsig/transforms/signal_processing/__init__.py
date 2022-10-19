@@ -1,2 +1,2 @@
 from .sp import *
-from .functional import *
+from .sp_functional import *

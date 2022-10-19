@@ -4,7 +4,7 @@ from typing import Optional, Tuple, List, Union, Any
 
 from torchsig.utils.types import SignalData, SignalDescription
 from torchsig.transforms.transforms import SignalTransform
-from torchsig.transforms.wireless_channel import functional as F
+from torchsig.transforms.wireless_channel import wce_functional as F
 from torchsig.transforms.functional import NumericParameter, FloatParameter, IntParameter
 from torchsig.transforms.functional import to_distribution, uniform_continuous_distribution, uniform_discrete_distribution
 

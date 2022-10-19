@@ -1,2 +1,2 @@
 from .wce import *
-from .functional import *
+from .wce_functional import *
