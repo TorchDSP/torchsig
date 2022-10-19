@@ -1,2 +1,2 @@
 from .si import *
-from .functional import *
+from .si_functional import *

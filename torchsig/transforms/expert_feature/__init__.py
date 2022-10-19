@@ -1,2 +1,2 @@
 from .eft import *
-from .functional import *
+from .eft_functional import *
