@@ -5,7 +5,7 @@ from typing import Optional, Any, Union, List, Callable
 
 from torchsig.utils.types import SignalData, SignalDescription
 from torchsig.transforms.transforms import SignalTransform
-from torchsig.transforms.system_impairment import functional
+from torchsig.transforms.system_impairment import si_functional
 from torchsig.transforms.functional import NumericParameter, IntParameter, FloatParameter
 from torchsig.transforms.functional import to_distribution, uniform_continuous_distribution, uniform_discrete_distribution
 
@@ -67,13 +67,13 @@ class RandomTimeShift(SignalTransform):
             )            
             
             # Apply data transformation
-            new_data.iq_data = functional.fractional_shift(
+            new_data.iq_data = si_functional.fractional_shift(
                 data.iq_data,
                 self.taps,
                 self.interp_rate,
                 -decimal_part  # this needed to be negated to be consistent with the previous implementation
             )
-            new_data.iq_data = functional.time_shift(new_data.iq_data, int(integer_part))
+            new_data.iq_data = si_functional.time_shift(new_data.iq_data, int(integer_part))
             
             # Update SignalDescription
             new_signal_description = []
@@ -91,13 +91,13 @@ class RandomTimeShift(SignalTransform):
             new_data.signal_description = new_signal_description
             
         else:
-            new_data = functional.fractional_shift(
+            new_data = si_functional.fractional_shift(
                 data,
                 self.taps,
                 self.interp_rate,
                 -decimal_part  # this needed to be negated to be consistent with the previous implementation
             )
-            new_data = functional.time_shift(new_data, int(integer_part))
+            new_data = si_functional.time_shift(new_data, int(integer_part))
         return new_data
 
 
@@ -167,7 +167,7 @@ class TimeCrop(SignalTransform):
             )   
             
             # Perform data augmentation
-            new_data.iq_data = functional.time_crop(iq_data, start, self.length)
+            new_data.iq_data = si_functional.time_crop(iq_data, start, self.length)
             
             # Update SignalDescription
             new_signal_description = []
@@ -190,7 +190,7 @@ class TimeCrop(SignalTransform):
             new_data.signal_description = new_signal_description
             
         else:
-            new_data = functional.time_crop(data, start, self.length)
+            new_data = si_functional.time_crop(data, start, self.length)
         return new_data
     
     
@@ -228,10 +228,10 @@ class TimeReversal(SignalTransform):
             )
             
             # Perform data augmentation
-            new_data.iq_data = functional.time_reversal(data.iq_data)
+            new_data.iq_data = si_functional.time_reversal(data.iq_data)
             if undo_spec_inversion:
                 # If spectral inversion not desired, reverse effect
-                new_data.iq_data = functional.spectral_inversion(new_data.iq_data)
+                new_data.iq_data = si_functional.spectral_inversion(new_data.iq_data)
             
             # Update SignalDescription
             new_signal_description = []
@@ -258,10 +258,10 @@ class TimeReversal(SignalTransform):
             new_data.signal_description = new_signal_description
                 
         else:
-            new_data = functional.time_reversal(data)
+            new_data = si_functional.time_reversal(data)
             if undo_spec_inversion:
                 # If spectral inversion not desired, reverse effect
-                new_data = functional.spectral_inversion(new_data)
+                new_data = si_functional.spectral_inversion(new_data)
         return new_data
 
 
@@ -284,10 +284,10 @@ class AmplitudeReversal(SignalTransform):
             )
             
             # Perform data augmentation
-            new_data.iq_data = functional.amplitude_reversal(data.iq_data)
+            new_data.iq_data = si_functional.amplitude_reversal(data.iq_data)
                 
         else:
-            new_data = functional.amplitude_reversal(data)
+            new_data = si_functional.amplitude_reversal(data)
         return new_data
     
     
@@ -373,13 +373,13 @@ class RandomFrequencyShift(SignalTransform):
             # Apply data augmentation
             if avoid_aliasing:
                 # If any potential aliasing detected, perform shifting at higher sample rate
-                new_data.iq_data = functional.freq_shift_avoid_aliasing(data.iq_data, freq_shift)
+                new_data.iq_data = si_functional.freq_shift_avoid_aliasing(data.iq_data, freq_shift)
             else:
                 # Otherwise, use faster freq shifter
-                new_data.iq_data = functional.freq_shift(data.iq_data, freq_shift)
+                new_data.iq_data = si_functional.freq_shift(data.iq_data, freq_shift)
             
         else:
-            new_data = functional.freq_shift(data, freq_shift)
+            new_data = si_functional.freq_shift(data, freq_shift)
         return new_data
 
 
@@ -600,7 +600,7 @@ class AutomaticGainControl(SignalTransform):
 
         ref_level_db = np.random.uniform(-.5 + self.ref_level_db, .5 + self.ref_level_db, 1)
         
-        iq_data = functional.agc(
+        iq_data = si_functional.agc(
             np.ascontiguousarray(iq_data, dtype=np.complex64),
             np.float64(self.initial_gain_db),
             np.float64(alpha_smooth),
@@ -677,14 +677,14 @@ class IQImbalance(SignalTransform):
         dc_offset = self.dc_offset()
 
         if isinstance(data, SignalData):
-            data.iq_data = functional.iq_imbalance(
+            data.iq_data = si_functional.iq_imbalance(
                 data.iq_data,
                 amp_imbalance,
                 phase_imbalance,
                 dc_offset
             )
         else:
-            data = functional.iq_imbalance(
+            data = si_functional.iq_imbalance(
                 data,
                 amp_imbalance,
                 phase_imbalance,
@@ -742,9 +742,9 @@ class RollOff(SignalTransform):
         upper_freq = self.upper_freq() if np.random.rand() < self.upper_cut_apply else 1.0
         order = self.order()
         if isinstance(data, SignalData):
-            data.iq_data = functional.roll_off(data.iq_data, low_freq, upper_freq, int(order))
+            data.iq_data = si_functional.roll_off(data.iq_data, low_freq, upper_freq, int(order))
         else:
-            data = functional.roll_off(data, low_freq, upper_freq, int(order))
+            data = si_functional.roll_off(data, low_freq, upper_freq, int(order))
         return data
 
     
@@ -767,10 +767,10 @@ class AddSlope(SignalTransform):
             )
             
             # Apply data augmentation
-            new_data.iq_data = functional.add_slope(data.iq_data)
+            new_data.iq_data = si_functional.add_slope(data.iq_data)
             
         else:
-            new_data = functional.add_slope(data)
+            new_data = si_functional.add_slope(data)
         return new_data
     
     
@@ -792,7 +792,7 @@ class SpectralInversion(SignalTransform):
             )
             
             # Perform data augmentation
-            new_data.iq_data = functional.spectral_inversion(data.iq_data)
+            new_data.iq_data = si_functional.spectral_inversion(data.iq_data)
             
             # Update SignalDescription
             new_signal_description = []
@@ -812,7 +812,7 @@ class SpectralInversion(SignalTransform):
             new_data.signal_description = new_signal_description
                 
         else:
-            new_data = functional.spectral_inversion(data)
+            new_data = si_functional.spectral_inversion(data)
         return new_data
     
     
@@ -851,10 +851,10 @@ class ChannelSwap(SignalTransform):
             new_data.signal_description = new_signal_description
             
             # Perform data augmentation
-            new_data.iq_data = functional.channel_swap(data.iq_data)
+            new_data.iq_data = si_functional.channel_swap(data.iq_data)
                 
         else:
-            new_data = functional.channel_swap(data)
+            new_data = si_functional.channel_swap(data)
         return new_data
     
     
@@ -901,10 +901,10 @@ class RandomMagRescale(SignalTransform):
             )
             
             # Perform data augmentation
-            new_data.iq_data = functional.mag_rescale(data.iq_data, start, scale)
+            new_data.iq_data = si_functional.mag_rescale(data.iq_data, start, scale)
                 
         else:
-            new_data = functional.mag_rescale(data, start, scale)
+            new_data = si_functional.mag_rescale(data, start, scale)
         return new_data
     
     
@@ -970,14 +970,14 @@ class RandomDropSamples(SignalTransform):
             drop_sizes = self.size(drop_instances).astype(int)
             drop_starts = np.random.uniform(1, data.iq_data.shape[0]-max(drop_sizes)-1, drop_instances).astype(int)
             
-            new_data.iq_data = functional.drop_samples(data.iq_data, drop_starts, drop_sizes, fill)
+            new_data.iq_data = si_functional.drop_samples(data.iq_data, drop_starts, drop_sizes, fill)
                 
         else:
             drop_instances = int(data.shape[0] * drop_rate)
             drop_sizes = self.size(drop_instances).astype(int)
             drop_starts = np.random.uniform(0, data.shape[0]-max(drop_sizes), drop_instances).astype(int)
             
-            new_data = functional.drop_samples(data, drop_starts, drop_sizes, fill)
+            new_data = si_functional.drop_samples(data, drop_starts, drop_sizes, fill)
         return new_data
     
     
@@ -1022,10 +1022,10 @@ class Quantize(SignalTransform):
             )
             
             # Perform data augmentation
-            new_data.iq_data = functional.quantize(data.iq_data, num_levels, round_type)
+            new_data.iq_data = si_functional.quantize(data.iq_data, num_levels, round_type)
                 
         else:
-            new_data = functional.quantize(data, num_levels, round_type)
+            new_data = si_functional.quantize(data, num_levels, round_type)
         return new_data
     
 
@@ -1063,10 +1063,10 @@ class Clip(SignalTransform):
             )
             
             # Apply data augmentation
-            new_data.iq_data = functional.clip(data.iq_data, clip_percentage)
+            new_data.iq_data = si_functional.clip(data.iq_data, clip_percentage)
             
         else:
-            new_data = functional.clip(data, clip_percentage)
+            new_data = si_functional.clip(data, clip_percentage)
         return new_data
     
 
@@ -1117,8 +1117,8 @@ class RandomConvolve(SignalTransform):
             )
             
             # Apply data augmentation
-            new_data.iq_data = functional.random_convolve(data.iq_data, num_taps, alpha)
+            new_data.iq_data = si_functional.random_convolve(data.iq_data, num_taps, alpha)
             
         else:
-            new_data = functional.random_convolve(data, num_taps, alpha)
+            new_data = si_functional.random_convolve(data, num_taps, alpha)
         return new_data

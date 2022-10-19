@@ -7,7 +7,7 @@ from torchsig.transforms.transforms import SignalTransform
 from torchsig.transforms.wireless_channel import TargetSNR
 from torchsig.transforms.functional import to_distribution, uniform_continuous_distribution, uniform_discrete_distribution
 from torchsig.transforms.functional import NumericParameter, FloatParameter
-from torchsig.transforms.deep_learning_techniques import functional
+from torchsig.transforms.deep_learning_techniques import dlt_functional
 
 
 class DatasetBasebandMixUp(SignalTransform):
@@ -356,10 +356,10 @@ class CutOut(SignalTransform):
             new_data.signal_description = new_signal_description
             
             # Perform data augmentation
-            new_data.iq_data = functional.cut_out(data.iq_data, cut_start, cut_dur, cut_type)
+            new_data.iq_data = dlt_functional.cut_out(data.iq_data, cut_start, cut_dur, cut_type)
                 
         else:
-            new_data = functional.cut_out(data, cut_start, cut_dur, cut_type)
+            new_data = dlt_functional.cut_out(data, cut_start, cut_dur, cut_type)
         return new_data
     
 
@@ -408,9 +408,9 @@ class PatchShuffle(SignalTransform):
             )
             
             # Perform data augmentation
-            new_data.iq_data = functional.patch_shuffle(data.iq_data, patch_size, shuffle_ratio)
+            new_data.iq_data = dlt_functional.patch_shuffle(data.iq_data, patch_size, shuffle_ratio)
                 
         else:
-            new_data = functional.patch_shuffle(data, patch_size, shuffle_ratio)
+            new_data = dlt_functional.patch_shuffle(data, patch_size, shuffle_ratio)
         return new_data
     
