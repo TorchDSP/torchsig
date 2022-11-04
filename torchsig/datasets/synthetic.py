@@ -1,9 +1,23 @@
+import torch
+import pickle
 import itertools
 import numpy as np
+from copy import deepcopy
 from scipy import signal as sp
 from collections import OrderedDict
 from torch.utils.data import ConcatDataset
 from typing import Tuple, Any, List, Union, Optional
+
+try:
+    import cusignal
+    import cupy as xp
+    CUSIGNAL = True
+    CUPY = True
+except ImportError:  
+    import numpy as cp
+    CUSIGNAL = False
+    CUPY = False
+    pass
 
 from torchsig.utils.dataset import SignalDataset
 from torchsig.utils.types import SignalData, SignalDescription
@@ -16,7 +30,7 @@ def remove_corners(const):
     return [p for p in const if np.abs(np.real(p)) < 1.0 - cutoff or np.abs(np.imag(p)) < 1.0 - cutoff]
 
 
-const_map = OrderedDict({
+default_const_map = OrderedDict({
     "ook": np.add(*map(np.ravel, np.meshgrid(np.linspace(0, 1, 2), 0j))),
     "bpsk": np.add(*map(np.ravel, np.meshgrid(np.linspace(-1, 1, 2), 0j))),
     "4pam": np.add(*map(np.ravel, np.meshgrid(np.linspace(0, 1, 4), 0j))),
@@ -81,11 +95,17 @@ class DigitalModulationDataset(ConcatDataset):
         num_samples_per_class (:obj:`int`):
             number of samples to be kept for each class
 
-        random_data (:obj:`bool`):self.num_samples_per_class/num_subcarriers/len(cycle_prefix_ratios)
+        iq_samples_per_symbol (:obj:`Optional[int]`):
+            number of IQ samples per symbol
+            
+        random_data (:obj:`bool`):
             whether the modulated binary utils should be random each time, or seeded by index
 
-        transform (:obj:`Callable`, optional):
-            A function/transform that takes in an IQ vector and returns a transformed version.
+        random_pulse_shaping (:obj:`bool`):
+            boolean to enable/disable randomized pulse shaping
+            
+        user_const_map (:obj:`Optional[OrderedDict]`):
+            optional user-defined constellation map, defaults to Sig53 modulations 
 
     """
     def __init__(
@@ -96,8 +116,10 @@ class DigitalModulationDataset(ConcatDataset):
         iq_samples_per_symbol: Optional[int] = None,
         random_data: bool = False,
         random_pulse_shaping: bool = False,
+        user_const_map: Optional[OrderedDict] = None,
         **kwargs
     ):
+        const_map = user_const_map if user_const_map else default_const_map
         modulations = list(const_map.keys()) + list(freq_map.keys()) if modulations is None else modulations
         constellations = [m for m in map(str.lower, modulations) if m in const_map.keys()]
         freqs = [m for m in map(str.lower, modulations) if m in freq_map.keys()]
@@ -193,6 +215,9 @@ class ConstellationDataset(SyntheticDataset):
         random_data (:obj:`bool`):
             whether the modulated binary utils should be random each time, or seeded by index
 
+        user_const_map (:obj:`bool`):
+            user constellation dict
+
     """
     def __init__(
         self,
@@ -203,14 +228,18 @@ class ConstellationDataset(SyntheticDataset):
         pulse_shape_filter: bool = None,
         random_pulse_shaping: bool = False,
         random_data: bool = False,
+        use_gpu: bool = False,
+        user_const_map: bool = None,
         **kwargs
     ):
         super(ConstellationDataset, self).__init__(**kwargs)
-        self.constellations = list(const_map.keys()) if constellations is None else constellations
+        self.const_map = default_const_map if user_const_map is None else user_const_map
+        self.constellations = list(self.const_map.keys()) if constellations is None else constellations
         self.num_iq_samples = num_iq_samples
         self.iq_samples_per_symbol = iq_samples_per_symbol
         self.num_samples_per_class = num_samples_per_class
         self.random_pulse_shaping = random_pulse_shaping
+        self.use_gpu = use_gpu and torch.cuda.is_available() and CUPY and CUSIGNAL
         
         num_constellations = len(self.constellations)
         total_num_samples = int(num_constellations*self.num_samples_per_class)
@@ -230,7 +259,7 @@ class ConstellationDataset(SyntheticDataset):
             for idx in range(self.num_samples_per_class):
                 signal_description = SignalDescription(
                     sample_rate=0,
-                    bits_per_symbol=np.log2(len(const_map[const_name])),
+                    bits_per_symbol=np.log2(len(self.const_map[const_name])),
                     samples_per_symbol=iq_samples_per_symbol,
                     class_name=const_name,
                     excess_bandwidth=alphas[int(const_idx*self.num_samples_per_class+idx)],
@@ -245,13 +274,14 @@ class ConstellationDataset(SyntheticDataset):
         if not self.random_data:
             np.random.seed(index)
 
-        const = const_map[class_name] / np.mean(np.abs(const_map[class_name]))
+        const = self.const_map[class_name] / np.mean(np.abs(self.const_map[class_name]))
         symbol_nums = np.random.randint(0, len(const), 2 * int(self.num_iq_samples / self.iq_samples_per_symbol))
         symbols = const[symbol_nums]
         zero_padded = np.zeros((self.iq_samples_per_symbol * len(symbols),), dtype=np.complex64)
         zero_padded[::self.iq_samples_per_symbol] = symbols
         self.pulse_shape_filter = self._rrc_taps(11, signal_description.excess_bandwidth)
-        filtered = np.convolve(zero_padded, self.pulse_shape_filter, "same")
+        xp = cp if self.use_gpu else np
+        filtered = xp.convolve(xp.array(zero_padded), xp.array(self.pulse_shape_filter), "same")
 
         if not self.random_data:
             np.random.set_state(orig_state)  # return numpy back to its previous state
@@ -303,19 +333,30 @@ class OFDMDataset(SyntheticDataset):
             
         sidelobe_suppression_methods (:obj:`tuple`):
             Tuple of possible sidelobe suppression methods. The options are:
-             * `none` ~ Perform no sidelobe suppression methods
-             * `lpf` ~ Apply a static low pass filter to the OFDM signal
-             * `rand_lpf` ~ Apply a low pass filter with a randomized cutoff frequency to the OFDM signal
-             * `win_start` ~ Apply a windowing method starting at the symbol boundary
-             * `win_center` ~ Apply a windowing method centered at the symbol boundary
-             
+                - `none` ~ Perform no sidelobe suppression methods
+                - `lpf` ~ Apply a static low pass filter to the OFDM signal
+                - `rand_lpf` ~ Apply a low pass filter with a randomized cutoff frequency to the OFDM signal
+                - `win_start` ~ Apply a windowing method starting at the symbol boundary
+                - `win_center` ~ Apply a windowing method centered at the symbol boundary
             For more details on the windowing method options, please see:
             http://zone.ni.com/reference/en-XX/help/373725J-01/wlangen/windowing/
             
         dc_subcarrier (:obj:`tuple`):
             Tuple of possible DC subcarrier options:
-             * `on` ~ Always leave the DC subcarrier on
-             * `off` ~ Always turn the DC subcarrier off
+                - `(on,)` ~ Always leave the DC subcarrier on
+                - `(off,)` ~ Always turn the DC subcarrier off
+                - `(on, off)` ~ Half with DC subcarrier on and half off
+                
+        time_varying_realism (:obj:`tuple`):
+            Tuple of on/off/both options for adding time-varying realistic effects in the form of
+            bursts, pilot carriers, and resource blocks. Options:
+                - `(on,)` ~ Leave the time-varying effects on, with half under full bursty effects and half under partial
+                - `(off,)` ~ Always leave the time-varying effects off
+                - `(on, off)` ~ One third with full bursty effects, one third with partial, and one third off
+                - `(full_bursty,)` ~ All signals are bursty with consistent pattern throughout
+                - `(partial_bursty,)` ~ All signals are mixed with bursty and continuous regions
+            Note: The partial bursty behavior occurs prior to time slicing, and as such, is more interesting in longer
+            duration examples
 
         transform (:obj:`Callable`, optional):
             A function/transform that takes in an IQ vector and returns a transformed version.
@@ -331,6 +372,8 @@ class OFDMDataset(SyntheticDataset):
         random_data: bool = False,
         sidelobe_suppression_methods: tuple = ('none', 'lpf', 'rand_lpf', 'win_start', 'win_center'),
         dc_subcarrier: tuple = ('on', 'off'),
+        time_varying_realism: tuple = ('off',),
+        use_gpu: bool = False,
         **kwargs
     ):
         super(OFDMDataset, self).__init__(**kwargs)
@@ -338,6 +381,7 @@ class OFDMDataset(SyntheticDataset):
         self.num_iq_samples = num_iq_samples
         self.num_samples_per_class = num_samples_per_class
         self.random_data = random_data
+        self.use_gpu = use_gpu and torch.cuda.is_available() and CUPY and CUSIGNAL
         self.index = []
         if 'lpf' in sidelobe_suppression_methods:
             # Precompute LPF
@@ -354,16 +398,30 @@ class OFDMDataset(SyntheticDataset):
         # Precompute all possible random symbols for speed at sample generation
         self.random_symbols = []
         for const_name in self.constellations:
-            const = const_map[const_name] / np.mean(np.abs(const_map[const_name]))
+            const = default_const_map[const_name] / np.mean(np.abs(default_const_map[const_name]))
             self.random_symbols.append(const)
         
         subcarrier_modulation_types = ("fixed", "random")
-        combinations = list(itertools.product(constellations, subcarrier_modulation_types, cyclic_prefix_ratios, sidelobe_suppression_methods, dc_subcarrier))
+        if 'on' in time_varying_realism:
+            if 'off' in time_varying_realism:
+                time_varying_realism = ('off', 'full_bursty', 'partial_bursty')
+            else:
+                time_varying_realism = ('full_bursty', 'partial_bursty')
+        combinations = list(itertools.product(
+            constellations, 
+            subcarrier_modulation_types, 
+            cyclic_prefix_ratios, 
+            sidelobe_suppression_methods, 
+            dc_subcarrier, 
+            time_varying_realism
+        ))
 
         for class_idx, num_subcarrier in enumerate(num_subcarriers):
             class_name = "ofdm-{}".format(num_subcarrier)
             for idx in range(self.num_samples_per_class):
-                const_name, mod_type, cyclic_prefix_ratio, sidelobe_suppression_method, dc_subcarrier = combinations[np.random.randint(len(combinations))]
+                const_name, mod_type, cyclic_prefix_ratio, sidelobe_suppression_method, dc_subcarrier, time_varying_realism = combinations[
+                    np.random.randint(len(combinations))
+                ]
                 signal_description = SignalDescription(
                     sample_rate=0,
                     bits_per_symbol=2,
@@ -379,6 +437,7 @@ class OFDMDataset(SyntheticDataset):
                     mod_type,
                     sidelobe_suppression_method,
                     dc_subcarrier,
+                    time_varying_realism,
                     signal_description
                 ))
                 
@@ -390,22 +449,43 @@ class OFDMDataset(SyntheticDataset):
         mod_type = item[5]
         sidelobe_suppression_method = item[6]
         dc_subcarrier = item[7]
+        time_varying_realism = item[8]
         orig_state = np.random.get_state()
         if not self.random_data:
             np.random.seed(index)
 
+        # Symbol multiplier: we want to be able to randomly index into 
+        # generated IQ samples such that we can see symbol transitions.
+        # This multiplier ensures enough OFDM symbols are generated for
+        # this randomness.
+        # Check against max possible requirements
+        #     2x for symbol length
+        #     2x for number of symbols for at least 1 transition
+        #     4x for largest burst duration option
+        if self.num_iq_samples <= 4*2*2*num_subcarriers:
+            sym_mult = self.num_iq_samples/(2*2*num_subcarriers) + 1e-6
+            sym_mult = int(np.ceil(sym_mult**-1)) if sym_mult < 1.0 else int(np.ceil(sym_mult))
+        else:
+            sym_mult = 1
+        if self.num_iq_samples > 32768:
+            # assume wideband task and reduce data for speed
+            sym_mult = 0.3
+            wideband = True
+        else:
+            wideband = False
+            
         if mod_type == "random":
             # Randomized subcarrier modulations
             symbols = []
             for subcarrier_idx in range(num_subcarriers):
                 curr_const = np.random.randint(len(self.random_symbols))
-                symbols.extend(np.random.choice(self.random_symbols[curr_const], size=int(2*self.num_iq_samples/num_subcarriers)))
+                symbols.extend(np.random.choice(self.random_symbols[curr_const], size=int(2*sym_mult*self.num_iq_samples/num_subcarriers)))
             symbols = np.asarray(symbols)
         else:
             # Fixed modulation across all subcarriers
             const_name = np.random.choice(self.constellations)
-            const = const_map[const_name] / np.mean(np.abs(const_map[const_name]))
-            symbol_nums = np.random.randint(0, len(const), 2 * self.num_iq_samples)
+            const = default_const_map[const_name] / np.mean(np.abs(default_const_map[const_name]))
+            symbol_nums = np.random.randint(0, len(const), int(2*sym_mult*self.num_iq_samples))
             symbols = const[symbol_nums]
         divisible_index = -(len(symbols) % num_subcarriers)
         if divisible_index != 0:
@@ -424,29 +504,82 @@ class OFDMDataset(SyntheticDataset):
         if dc_subcarrier == 'off':
             dc_center = int(zero_pad.shape[0]//2)
             zero_pad[dc_center,:] = np.zeros((zero_pad.shape[1]))
-
-        ofdm_symbols = np.fft.ifft(np.fft.ifftshift(zero_pad, axes=0), axis=0)
-        symbol_dur = ofdm_symbols.shape[0]
         
-        cyclic_prefixed = np.pad(ofdm_symbols, ((int(cyclic_prefix_len), 0), (0, 0)), 'wrap')
+        # Add time-varying realism with randomized bursts, pilots, and resource blocks
+        burst_dur = 1
+        original_on = False
+        if time_varying_realism == 'full_bursty' or time_varying_realism == 'partial_bursty':
+            # Bursty
+            if time_varying_realism == 'full_bursty':
+                burst_region_start = 0
+                burst_region_stop = zero_pad.shape[1]
+            else:
+                burst_region_start = np.random.uniform(0.0,0.9)
+                burst_region_dur = min(1.0-burst_region_start, np.random.uniform(0.25,1.0))
+                burst_region_start = int(burst_region_start*zero_pad.shape[1]//4)
+                burst_region_dur = int(burst_region_dur*zero_pad.shape[1]//4)
+                burst_region_stop = burst_region_start + burst_region_dur
+            #bursty = deepcopy(zero_pad)
+            bursty = pickle.loads(pickle.dumps(zero_pad, -1)) # no random hangs like deepcopy
+            
+            burst_dur = np.random.choice([1,2,4])
+            original_on = True if np.random.rand() <= 0.5 else False
+            for subcarrier_idx in range(bursty.shape[0]):
+                on = original_on
+                for time_idx in range(bursty.shape[1]):
+                    if time_idx%burst_dur == 0:
+                        on = not on
+                    if (not on) and (time_idx >= burst_region_start and time_idx <= burst_region_stop):
+                        bursty[subcarrier_idx, time_idx] = 0 + 1j*0
+            
+            # Pilots
+            min_num_pilots = 4
+            max_num_pilots = int(num_subcarriers//8)
+            num_pilots = np.random.randint(min_num_pilots, max_num_pilots)
+            pilot_indices = np.random.choice(range(num_subcarriers), num_pilots, replace=False)
+            bursty[pilot_indices+num_subcarriers//2,:] = zero_pad[pilot_indices+num_subcarriers//2,:]
+            
+            # Resource blocks
+            min_num_blocks = 2
+            max_num_blocks = 16
+            num_blocks = np.random.randint(min_num_blocks, max_num_blocks)
+            for block_idx in range(num_blocks):
+                block_start = np.random.uniform(0.0,0.9)
+                block_dur = np.random.uniform(0.05,1.0-block_start)
+                block_start = int(block_start*zero_pad.shape[1])
+                block_dur = int(block_dur*zero_pad.shape[1]//4)
+                block_stop = block_start + block_dur
+
+                block_low_carrier = np.random.randint(0, num_subcarriers-4)
+                block_num_carriers = np.random.randint(1, num_subcarriers//8)
+                block_high_carrier = min(block_low_carrier+block_num_carriers, num_subcarriers)
+                
+                bursty[
+                    block_low_carrier+num_subcarriers//2:block_high_carrier+num_subcarriers//2,
+                    block_start:block_stop
+                ] = zero_pad[
+                    block_low_carrier+num_subcarriers//2:block_high_carrier+num_subcarriers//2,
+                    block_start:block_stop
+                ]
+            zero_pad = bursty
+            
+        xp = cp if self.use_gpu else np
+        ofdm_symbols = xp.fft.ifft(xp.fft.ifftshift(zero_pad, axes=0), axis=0)
+        symbol_dur = ofdm_symbols.shape[0]
+        cyclic_prefixed = xp.pad(ofdm_symbols, ((int(cyclic_prefix_len), 0), (0, 0)), 'wrap')
         
         if sidelobe_suppression_method == 'none':
-            # randomize the start index
-            start_idx = np.random.randint(0,symbol_dur)
-            return cyclic_prefixed.T.flatten()[start_idx:start_idx+self.num_iq_samples]
-        
+            output = cyclic_prefixed.T.flatten()
+                    
         elif sidelobe_suppression_method == 'lpf':
             flattened = cyclic_prefixed.T.flatten()
             # Apply pre-computed LPF
-            filtered = sp.fftconvolve(flattened, self.taps, mode="same")
-            # randomize the start index
-            start_idx = np.random.randint(0,symbol_dur)
-            return filtered[start_idx:start_idx+self.num_iq_samples]
+            output = xp.convolve(xp.array(flattened), xp.array(self.taps), mode="same")[:-50]
             
         elif sidelobe_suppression_method == 'rand_lpf':
             flattened = cyclic_prefixed.T.flatten()
             # Generate randomized LPF
-            cutoff = np.random.uniform(0.50,0.95)
+            cutoff = np.random.uniform(0.95,0.95)
             num_taps = int(np.ceil(50*2*np.pi/cutoff/.125/22)) # fred harris rule of thumb
             taps = sp.firwin(
                 num_taps,
@@ -456,17 +589,14 @@ class OFDMDataset(SyntheticDataset):
                 scale=True
             )
             # Apply random LPF
-            filtered = sp.fftconvolve(flattened, taps, mode="same")
-            # randomize the start index
-            start_idx = np.random.randint(0,symbol_dur)
-            return filtered[start_idx:start_idx+self.num_iq_samples]
-            
+            output = xp.convolve(xp.array(flattened), xp.array(taps), mode="same")[:-num_taps]
+
         else:
             # Apply appropriate windowing technique
             window_len = cyclic_prefix_len
             half_window_len = int(window_len / 2)
             if sidelobe_suppression_method == 'win_center':
-                windowed = np.pad(cyclic_prefixed, ((half_window_len, half_window_len), (0, 0)), 'constant', constant_values=0) 
+                windowed = xp.pad(cyclic_prefixed, ((half_window_len, half_window_len), (0, 0)), 'constant', constant_values=0) 
                 windowed[-half_window_len:, :] = windowed[
                     int(half_window_len)+int(cyclic_prefix_len):int(half_window_len)+int(cyclic_prefix_len)+int(half_window_len),
                     :
@@ -476,32 +606,45 @@ class OFDMDataset(SyntheticDataset):
                     :
                 ]
             elif sidelobe_suppression_method == 'win_start':
-                windowed = np.pad(cyclic_prefixed, ((0, int(window_len)), (0, 0)), 'constant', constant_values=0) 
+                windowed = xp.pad(cyclic_prefixed, ((0, int(window_len)), (0, 0)), 'constant', constant_values=0) 
                 windowed[-int(window_len):,:] = windowed[int(cyclic_prefix_len):int(cyclic_prefix_len)+int(window_len),:]
             else:
-                raise ValueError('Expected window method to be: none, center, or start. Received: {}'.format(self.window_method))
+                raise ValueError('Expected window method to be: none, win_center, or win_start. Received: {}'.format(self.window_method))
 
             # window the tails
-            front_window = np.blackman(int(window_len*2))[:int(window_len)].reshape(-1, 1)
-            tail_window = np.blackman(int(window_len*2))[-int(window_len):].reshape(-1, 1)
+            front_window = xp.blackman(int(window_len*2))[:int(window_len)].reshape(-1, 1)
+            tail_window = xp.blackman(int(window_len*2))[-int(window_len):].reshape(-1, 1)
             windowed[:int(window_len), :] = front_window * windowed[:int(window_len), :]
             windowed[-int(window_len):, :] = tail_window * windowed[-int(window_len):, :]
 
-            if not self.random_data:
-                np.random.set_state(orig_state)  # return numpy back to its previous state
-
-            combined = np.zeros((windowed.shape[0]*windowed.shape[1],), dtype=complex)
+            combined = xp.zeros((windowed.shape[0]*windowed.shape[1],), dtype=complex)
             start_idx = 0
             for symbol_idx in range(windowed.shape[1]):
                 combined[start_idx:start_idx+windowed.shape[0]] += windowed[:,symbol_idx]
-                start_idx += (symbol_dur+int(window_len))
+                start_idx += (symbol_dur+int(window_len))                
+            output = combined[:int(cyclic_prefixed.shape[0]*cyclic_prefixed.shape[1])]
 
-            # randomize the start index while bypassing the initial windowing
-            start_idx = np.random.randint(window_len,symbol_dur+window_len)
+        output = xp.asnumpy(output) if self.use_gpu else output
+            
+        # Randomize the start index (while bypassing the initial windowing if present)
+        if sym_mult == 1 and num_subcarriers*4*burst_dur < self.num_iq_samples:
+            start_idx = np.random.randint(0,output.shape[0]-self.num_iq_samples)
+        else:
+            if original_on:
+                lower = max(0,int(symbol_dur*burst_dur)-self.num_iq_samples*0.7)
+                upper = min(int(symbol_dur*burst_dur), output.shape[0]-self.num_iq_samples)
+                start_idx = np.random.randint(lower, upper)
+            elif 'win' in sidelobe_suppression_method:
+                start_idx = np.random.randint(window_len,int(symbol_dur*burst_dur)+window_len)
+            else:
+                start_idx = np.random.randint(0,int(symbol_dur*burst_dur))
 
-            return combined[start_idx:start_idx+self.num_iq_samples]
+        if not self.random_data:
+            np.random.set_state(orig_state)  # return numpy back to its previous state
 
-        
+        return output[start_idx:start_idx+self.num_iq_samples]
+
+
 class FSKDataset(SyntheticDataset):
     """FSK Dataset
 
@@ -533,6 +676,7 @@ class FSKDataset(SyntheticDataset):
         iq_samples_per_symbol: int = 2,
         random_data: bool = False,
         random_pulse_shaping: bool = False,
+        use_gpu: bool = False,
         **kwargs
     ):
         super(FSKDataset, self).__init__(**kwargs)
@@ -542,6 +686,7 @@ class FSKDataset(SyntheticDataset):
         self.iq_samples_per_symbol = iq_samples_per_symbol
         self.random_data = random_data
         self.random_pulse_shaping = random_pulse_shaping
+        self.use_gpu = use_gpu and torch.cuda.is_available() and CUPY and CUSIGNAL
         self.index = []
 
         for freq_idx, freq_name in enumerate(map(str.lower, self.modulations)):
@@ -573,39 +718,61 @@ class FSKDataset(SyntheticDataset):
             np.random.seed(index)
 
         const = freq_map[const_name]
-        symbol_nums = np.random.randint(0, len(const), int(self.num_iq_samples)) # Create extra symbols and truncate later
+        symbol_nums = np.random.randint(0, len(const), int(self.num_iq_samples))
+
+        xp = cp if self.use_gpu else np
+
         symbols = const[symbol_nums]
-        symbols_repeat = np.repeat(symbols, self.iq_samples_per_symbol)
+        symbols_repeat = xp.repeat(symbols, self.iq_samples_per_symbol)
+
         filtered = symbols_repeat
         if "g" in const_name:
             taps = self._gaussian_taps(bandwidth)
             signal_description.excess_bandwidth = bandwidth
-            filtered = np.convolve(symbols_repeat, taps, "same")
+            filtered = xp.convolve(xp.array(symbols_repeat), xp.array(taps), "same")
 
         mod_idx = 1.0 if "fsk" in const_name else .5
-        phase = np.cumsum(filtered * 1j / self.iq_samples_per_symbol * mod_idx * np.pi)
-        modulated = np.exp(phase)
+        phase = xp.cumsum(xp.array(filtered) * 1j / self.iq_samples_per_symbol * mod_idx * np.pi)
+        modulated = xp.exp(phase)
 
         if "g" not in const_name and self.random_pulse_shaping:
             # Apply a randomized LPF simulating a noisy detector/burst extractor, then downsample to ~fs/2 bw
             lpf_bandwidth = bandwidth
             num_taps = int(np.ceil(50 * 2 * np.pi / lpf_bandwidth / .125 / 22))
-            taps = sp.firwin(
-                num_taps,
-                lpf_bandwidth,
-                width=lpf_bandwidth * .02,
-                window=sp.get_window("blackman", num_taps),
-                scale=True
-            )
-            modulated = sp.fftconvolve(modulated, taps, mode="same")
+            if self.use_gpu:
+                taps = cusignal.firwin(
+                    num_taps,
+                    lpf_bandwidth,
+                    width=lpf_bandwidth * .02,
+                    window=sp.get_window("blackman", num_taps),
+                    scale=True
+                )                
+            else:
+                taps = sp.firwin(
+                    num_taps,
+                    lpf_bandwidth,
+                    width=lpf_bandwidth * .02,
+                    window=sp.get_window("blackman", num_taps),
+                    scale=True
+                )
+            modulated = xp.convolve(xp.array(modulated), xp.array(taps), mode="same")
             new_rate = lpf_bandwidth * 2
-            modulated = sp.resample_poly(
-                modulated, 
-                up=np.floor(new_rate*100).astype(np.int32), 
-                down=100,
-            )
+            if self.use_gpu:
+                modulated = cusignal.resample_poly(
+                    modulated, 
+                    up=np.floor(new_rate*100).astype(np.int32), 
+                    down=100,
+                )
+            else:
+                modulated = sp.resample_poly(
+                    modulated, 
+                    up=np.floor(new_rate*100).astype(np.int32), 
+                    down=100,
+                )
             signal_description.samples_per_symbol = 2 # Effective samples per symbol at half bandwidth
             signal_description.excess_bandwidth = 0 # Reset excess bandwidth due to LPF
+                                    
+        modulated = xp.asnumpy(modulated) if self.use_gpu else modulated
         
         if not self.random_data:
             np.random.set_state(orig_state)  # return numpy back to its previous state
@@ -613,12 +780,13 @@ class FSKDataset(SyntheticDataset):
         return modulated[-self.num_iq_samples:]
 
     def _gaussian_taps(self, BT: float = 0.35) -> np.ndarray:
+        xp = cp if self.use_gpu else np
         # pre-modulation Bb*T product which sets the bandwidth of the Gaussian lowpass filter
         M = 4  # duration in symbols
         Ns = self.iq_samples_per_symbol
-        n = np.arange(-M * Ns, M * Ns + 1)
-        p = np.exp(-2 * np.pi ** 2 * BT ** 2 / np.log(2) * (n / float(Ns)) ** 2)
-        p = p / np.sum(p)
+        n = xp.arange(-M * Ns, M * Ns + 1)
+        p = xp.exp(-2 * np.pi ** 2 * BT ** 2 / np.log(2) * (n / float(Ns)) ** 2)
+        p = p / xp.sum(p)
         return p
 
 

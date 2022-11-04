@@ -72,6 +72,22 @@ CutOut
 ^^^^^^^^^
 .. autoclass:: CutOut
 
+PatchShuffle
+^^^^^^^^^^^^^
+.. autoclass:: PatchShuffle
+
+DatasetWidebandMixUp
+^^^^^^^^^^^^^^^^^^^^^
+.. autoclass:: DatasetWidebandMixUp
+
+DatasetWidebandCutMix
+^^^^^^^^^^^^^^^^^^^^^^^^^
+.. autoclass:: DatasetWidebandCutMix
+
+SpectrogramRandomResizeCrop
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.. autoclass:: SpectrogramRandomResizeCrop
+
 
 Expert Feature Transforms
 -------------------------
@@ -159,6 +175,10 @@ RandomFrequencyShift
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 .. autoclass:: RandomFrequencyShift
 
+RandomDelayedFrequencyShift
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.. autoclass:: RandomDelayedFrequencyShift
+
 LocalOscillatorDrift
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 .. autoclass:: LocalOscillatorDrift
@@ -239,3 +259,32 @@ ImpulseInterferer
 RandomPhaseShift
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 .. autoclass:: RandomPhaseShift
+
+
+Spectrogram Transforms
+----------------------------
+.. currentmodule:: torchsig.transforms.spectrogram_transforms.spec
+
+SpectrogramResize
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.. autoclass:: SpectrogramResize
+
+SpectrogramDropSamples
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.. autoclass:: SpectrogramDropSamples
+
+SpectrogramPatchShuffle
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.. autoclass:: SpectrogramPatchShuffle
+
+SpectrogramTranslation
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.. autoclass:: SpectrogramTranslation
+
+SpectrogramMosaicCrop
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.. autoclass:: SpectrogramMosaicCrop
+
+SpectrogramMosaicDownsample
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.. autoclass:: SpectrogramMosaicDownsample
