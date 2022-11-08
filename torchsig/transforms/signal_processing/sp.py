@@ -4,7 +4,7 @@ from typing import Optional, Any
 
 from torchsig.utils.types import SignalData, SignalDescription
 from torchsig.transforms.transforms import SignalTransform
-from torchsig.transforms.signal_processing import sp_functional as F
+from torchsig.transforms.signal_processing import functional as F
 from torchsig.transforms.functional import NumericParameter, to_distribution
 
 

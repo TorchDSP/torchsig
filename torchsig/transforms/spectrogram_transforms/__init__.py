@@ -1,2 +1,2 @@
-from .si import *
+from .spec import *
 from .functional import *

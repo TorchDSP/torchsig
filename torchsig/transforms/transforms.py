@@ -225,3 +225,33 @@ class RandAugment(SignalTransform):
         for t in transforms:
             data = t(data)
         return data
+
+    
+class RandChoice(SignalTransform):
+    """RandChoice inputs a list of transforms and their associated
+    probabilities. When called, a single transform will be sampled from the
+    list using the probabilities provided, and then the selected transform
+    will operate on the input data.
+
+    Args:
+        transforms (:obj:`list`):
+            List of transforms to sample from and then apply
+        probabilities (:obj:`list`):
+            Probabilities used when sampling the above list of transforms
+
+    """
+    def __init__(
+        self, 
+        transforms: List[SignalTransform], 
+        probabilities: Optional[List[float]] = None, 
+        **kwargs,
+    ):
+        super(RandChoice, self).__init__(**kwargs)
+        self.transforms = transforms
+        self.probabilities = probabilities if probabilities else np.ones(len(self.transforms))/len(self.transforms)
+        if sum(self.probabilities) != 1.0:
+            self.probabilities /= sum(self.probabilities)
+
+    def __call__(self, data: Any) -> Any:
+        t = self.random_generator.choice(self.transforms, p=self.probabilities)
+        return t(data)
