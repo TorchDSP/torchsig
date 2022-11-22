@@ -61,3 +61,43 @@ class Sig53ImpairedEbNoValConfig(Sig53ImpairedTrainConfig):
     seed: int = 1234567893
     eb_no: bool = True
     num_samples: int = 106_000
+
+
+@dataclass
+class WidebandSig53Config:
+    name: str
+    num_samples: int
+    level: int
+    seed: int
+    num_iq_samples: int = int(512*512)
+    use_gpu: bool = True
+
+
+@dataclass
+class WidebandSig53CleanTrainConfig(WidebandSig53Config):
+    name: str = "wideband_sig53_clean_train"
+    seed: int = 1234567890
+    num_samples: int = 250_000
+    level: int = 1
+
+
+@dataclass
+class WidebandSig53CleanValConfig(WidebandSig53CleanTrainConfig):
+    name: str = "wideband_sig53_clean_val"
+    seed: int = 1234567891
+    num_samples: int = 25_000
+
+
+@dataclass
+class WidebandSig53ImpairedTrainConfig(WidebandSig53Config):
+    name: str = "wideband_sig53_impaired_train"
+    seed: int = 1234567892
+    num_samples: int = 250_000
+    level: int = 2
+
+
+@dataclass
+class WidebandSig53ImpairedValConfig(WidebandSig53ImpairedTrainConfig):
+    name: str = "wideband_sig53_impaired_val"
+    seed: int = 1234567893
+    num_samples: int = 25_000
