@@ -2,7 +2,7 @@ import numpy as np
 from typing import Callable, Tuple, Any
 
 from torchsig.utils.types import SignalData
-from torchsig.transforms.expert_feature import eft_functional as F
+from torchsig.transforms.expert_feature import functional as F
 from torchsig.transforms.transforms import SignalTransform
 
 
@@ -170,7 +170,7 @@ class ChannelConcatIQDFT(SignalTransform):
 
     
 class Spectrogram(SignalTransform):
-    """ Calculates power spectral density over time
+    """Calculates power spectral density over time
 
     Args:
         nperseg (:obj:`int`):
@@ -224,14 +224,14 @@ class Spectrogram(SignalTransform):
 
     def __call__(self, data: Any) -> Any:
         if isinstance(data, SignalData):
-            data.iq_data = F.spectrogram(data.iq_data)
+            data.iq_data = F.spectrogram(data.iq_data, self.nperseg, self.noverlap, self.nfft, self.window_fcn, self.mode)
             if self.mode == "complex":
                 new_tensor = np.zeros((2, data.iq_data.shape[0], data.iq_data.shape[1]), dtype=np.float32)
                 new_tensor[0, :, :] = np.real(data.iq_data).astype(np.float32)
                 new_tensor[1, :, :] = np.imag(data.iq_data).astype(np.float32)
                 data.iq_data = new_tensor
         else:
-            data = F.spectrogram(data)
+            data = F.spectrogram(data, self.nperseg, self.noverlap, self.nfft, self.window_fcn, self.mode)
             if self.mode == "complex":
                 new_tensor = np.zeros((2, data.shape[0], data.shape[1]), dtype=np.float32)
                 new_tensor[0, :, :] = np.real(data).astype(np.float32)

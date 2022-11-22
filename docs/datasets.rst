@@ -28,10 +28,22 @@ Sig53
 .. autoclass:: Sig53
 
 
+WidebandSig53
+~~~~~~~~~~~~~~
+
+.. autoclass:: WidebandSig53
+
+
 ModulationsDataset
 ~~~~~~~~~~~~~~~~~~~~
 
 .. autoclass:: ModulationsDataset
+
+
+WidebandModulationsDataset
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. autoclass:: WidebandModulationsDataset
 
 
 DigitalModulationDataset
@@ -68,6 +80,24 @@ FMDataset
 ~~~~~~~~~~~~~~
 
 .. autoclass:: FMDataset
+
+
+WidebandDataset
+~~~~~~~~~~~~~~~~~~
+
+.. autoclass:: WidebandDataset
+
+
+SyntheticBurstSourceDataset
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. autoclass:: SyntheticBurstSourceDataset
+
+
+FileBurstSourceDataset
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. autoclass:: FileBurstSourceDataset
 
 
 RadioML2016

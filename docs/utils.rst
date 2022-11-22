@@ -53,3 +53,15 @@ Signal Visualizers
 .. autoclass:: TimeSeriesVisualizer
 
 .. autoclass:: ImageVisualizer
+
+.. autoclass:: PSDVisualizer
+
+.. autoclass:: MaskVisualizer
+
+.. autoclass:: MaskClassVisualizer
+
+.. autoclass:: SemanticMaskClassVisualizer
+
+.. autoclass:: BoundingBoxVisualizer
+
+.. autoclass:: AnchorBoxVisualizer

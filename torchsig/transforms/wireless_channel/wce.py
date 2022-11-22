@@ -1,10 +1,10 @@
-from copy import deepcopy
 import numpy as np
+from copy import deepcopy
 from typing import Optional, Tuple, List, Union, Any
 
 from torchsig.utils.types import SignalData, SignalDescription
 from torchsig.transforms.transforms import SignalTransform
-from torchsig.transforms.wireless_channel import wce_functional as F
+from torchsig.transforms.wireless_channel import functional as F
 from torchsig.transforms.functional import NumericParameter, FloatParameter, IntParameter
 from torchsig.transforms.functional import to_distribution, uniform_continuous_distribution, uniform_discrete_distribution
 
@@ -81,11 +81,11 @@ class TargetSNR(SignalTransform):
             
     
 class AddNoise(SignalTransform):
-    """ Add random AWGN at specified power levels
+    """Add random AWGN at specified power levels
     
     Note:
-        Differs from the TargetSNR() transform in that this transform adds
-        noise at a specified power level, whereas AddNoise() 
+        Differs from the TargetSNR() in that this transform adds
+        noise at a specified power level, whereas TargetSNR() 
         assumes a basebanded signal and adds noise to achieve a specified SNR
         level for the signal of interest. This transform, 
         AddNoise() is useful for simply adding a randomized
@@ -100,6 +100,9 @@ class AddNoise(SignalTransform):
             * If int or float, target_snr is fixed at the value provided
             * If list, target_snr is any element in the list
             * If tuple, target_snr is in range of (tuple[0], tuple[1])
+            
+        input_noise_floor_db (:obj:`float`):
+            The noise floor of the input data in dB
         
         linear (:obj:`bool`):
             If True, target_snr and signal_power is on linear scale not dB.
@@ -107,18 +110,19 @@ class AddNoise(SignalTransform):
     Example:
         >>> import torchsig.transforms as ST
         >>> # Added AWGN power range is (-40, -20) dB
-        >>> transform = ST.AddNoiseTransform((-40, -20))
+        >>> transform = ST.AddRandomNoiseTransform((-40, -20))
     
     """
-    
     def __init__(
         self,
-        noise_power_db : NumericParameter = uniform_continuous_distribution(-80, -60),
+        noise_power_db: NumericParameter = uniform_continuous_distribution(-80, -60),
+        input_noise_floor_db: float = 0.0,
         linear: Optional[bool] = False,
         **kwargs,
     ):
         super(AddNoise, self).__init__(**kwargs)
-        self.noise_power_db = to_distribution(noise_power_db)
+        self.noise_power_db = to_distribution(noise_power_db, self.random_generator)
+        self.input_noise_floor_db = input_noise_floor_db
         self.linear = linear
 
     def __call__(self, data: Any) -> Any:
@@ -131,9 +135,17 @@ class AddNoise(SignalTransform):
                 signal_description=[],
             )
             
-            # Apply data augmentation
+            # Retrieve random noise power value
             noise_power_db = self.noise_power_db()
             noise_power_db = 10*np.log10(noise_power_db) if self.linear else noise_power_db
+            
+            if self.input_noise_floor_db:
+                noise_floor = self.input_noise_floor_db
+            else:
+                # TODO: implement fast noise floor estimation technique?
+                noise_floor = 0 # Assumes 0dB noise floor
+            
+            # Apply data augmentation
             new_data.iq_data = F.awgn(data.iq_data, noise_power_db)
             
             # Update SignalDescription
@@ -141,7 +153,7 @@ class AddNoise(SignalTransform):
             signal_description = [data.signal_description] if isinstance(data.signal_description, SignalDescription) else data.signal_description
             for signal_desc in signal_description:
                 new_signal_desc = deepcopy(signal_desc)
-                new_signal_desc.snr -= noise_power_db
+                new_signal_desc.snr = (new_signal_desc.snr - noise_power_db) if noise_power_db > noise_floor else new_signal_desc.snr
                 new_signal_description.append(new_signal_desc)
             new_data.signal_description = new_signal_description
             

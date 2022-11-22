@@ -1,10 +1,11 @@
 import pywt
 import numpy as np
+from copy import deepcopy
 from scipy import ndimage
 from scipy import signal as sp
 from matplotlib import pyplot as plt
 from matplotlib.figure import Figure
-from torch.utils.data import DataLoader
+from torch.utils.data import dataloader
 from typing import Optional, Callable, Iterable, Union, Tuple, List
 
 
@@ -24,7 +25,7 @@ class Visualizer:
     """
     def __init__(
         self,
-        data_loader: DataLoader,
+        data_loader: dataloader,
         visualize_transform: Optional[Callable] = None,
         visualize_target_transform: Optional[Callable] = None
     ):
@@ -278,6 +279,346 @@ class ImageVisualizer(Visualizer):
 
         return figure
 
+
+class PSDVisualizer(Visualizer):
+    """ Visualize a PSD
+
+    Args:
+        fft_size:
+        **kwargs:
+    """
+
+    def __init__(self, fft_size: int = 1024, **kwargs):
+        super(PSDVisualizer, self).__init__(**kwargs)
+        self.fft_size = fft_size
+
+    def _visualize(self, iq_data: np.ndarray, targets: np.ndarray) -> Figure:
+        batch_size = iq_data.shape[0]
+        figure = plt.figure()
+        for sample_idx in range(batch_size):
+            plt.subplot(int(np.ceil(np.sqrt(batch_size))),
+                        int(np.sqrt(batch_size)), sample_idx + 1)
+            Pxx, freqs = plt.psd(iq_data[sample_idx], NFFT=self.fft_size, Fs=1)
+            plt.xticks()
+            plt.yticks()
+            plt.title(str(targets[sample_idx]))
+        return figure
+    
+    
+class MaskVisualizer(Visualizer):
+    """ Visualize data with mask label information overlaid
+    
+    Args:
+        **kwargs:
+    """
+    def __init__(self, **kwargs):
+        super(MaskVisualizer, self).__init__(**kwargs)
+    
+    def __next__(self) -> Figure:
+        iq_data, targets = next(self.data_iter)
+        if self.visualize_transform:
+            iq_data = self.visualize_transform(deepcopy(iq_data))
+
+        if self.visualize_target_transform:
+            targets = self.visualize_target_transform(deepcopy(targets))
+        else:
+            targets = None
+
+        return self._visualize(iq_data, targets)
+    
+    def _visualize(self, data: np.ndarray, targets: np.ndarray) -> Figure:
+        batch_size = data.shape[0]
+        figure = plt.figure(frameon=False)
+        for sample_idx in range(batch_size):
+            plt.subplot(int(np.ceil(np.sqrt(batch_size))), 
+                        int(np.sqrt(batch_size)), sample_idx + 1)
+            extent = 0, data.shape[1], 0, data.shape[2]
+            data_img = plt.imshow(
+                data[sample_idx],
+                vmin=np.min(data[sample_idx]),
+                vmax=np.max(data[sample_idx]),
+                cmap="jet",
+                extent=extent,
+            )
+            if targets is not None:
+                label = targets[sample_idx]
+                label_img = plt.imshow(
+                    label,
+                    vmin=np.min(label),
+                    vmax=np.max(label),
+                    cmap="gray",
+                    alpha=0.5,
+                    interpolation="none",
+                    extent=extent,
+                )
+            plt.xticks([])
+            plt.yticks([])
+            plt.title("Data")
+           
+        return figure
+
+    
+class MaskClassVisualizer(Visualizer):
+    """ 
+    Visualize data with mask label information overlaid and the class of the
+    mask included in the title
+    
+    Args:
+        **kwargs:
+    """
+    def __init__(self, class_list, **kwargs):
+        super(MaskClassVisualizer, self).__init__(**kwargs)
+        self.class_list = class_list
+    
+    def __next__(self) -> Figure:
+        iq_data, targets = next(self.data_iter)
+        if self.visualize_transform:
+            iq_data = self.visualize_transform(deepcopy(iq_data))
+
+        if self.visualize_target_transform:
+            classes, targets = self.visualize_target_transform(deepcopy(targets))
+        else:
+            targets = None
+
+        return self._visualize(iq_data, targets, classes)
+    
+    def _visualize(self, data: np.ndarray, targets: np.ndarray, classes: List) -> Figure:
+        batch_size = data.shape[0]
+        figure = plt.figure(frameon=False)
+        for sample_idx in range(batch_size):
+            plt.subplot(int(np.ceil(np.sqrt(batch_size))), 
+                        int(np.sqrt(batch_size)), sample_idx + 1)
+            extent = 0, data.shape[1], 0, data.shape[2]
+            data_img = plt.imshow(
+                data[sample_idx],
+                vmin=np.min(data[sample_idx]),
+                vmax=np.max(data[sample_idx]),
+                cmap="jet",
+                extent=extent,
+            )
+            title = []
+            if targets is not None:
+                class_idx = classes[sample_idx]
+                mask = targets[sample_idx]
+                mask_img = plt.imshow(
+                    mask,
+                    vmin=np.min(mask),
+                    vmax=np.max(mask),
+                    cmap="gray",
+                    alpha=0.5,
+                    interpolation="none",
+                    extent=extent,
+                )
+                title = [self.class_list[idx] for idx in class_idx]
+            else:
+                title = "Data"
+            plt.xticks([])
+            plt.yticks([])
+            plt.title(title)
+           
+        return figure
+    
+    
+class SemanticMaskClassVisualizer(Visualizer):
+    """ 
+    Visualize data with mask label information overlaid and the class of the
+    mask included in the title
+    
+    Args:
+        **kwargs:
+    """
+    def __init__(self, class_list, **kwargs):
+        super(SemanticMaskClassVisualizer, self).__init__(**kwargs)
+        self.class_list = class_list
+    
+    def __next__(self) -> Figure:
+        iq_data, targets = next(self.data_iter)
+        if self.visualize_transform:
+            iq_data = self.visualize_transform(deepcopy(iq_data))
+
+        if self.visualize_target_transform:
+            targets = self.visualize_target_transform(deepcopy(targets))
+
+        return self._visualize(iq_data, targets)
+    
+    def _visualize(self, data: np.ndarray, targets: np.ndarray) -> Figure:
+        batch_size = data.shape[0]
+        figure = plt.figure(frameon=False)
+        for sample_idx in range(batch_size):
+            plt.subplot(int(np.ceil(np.sqrt(batch_size))), 
+                        int(np.sqrt(batch_size)), sample_idx + 1)
+            extent = 0, data.shape[1], 0, data.shape[2]
+            data_img = plt.imshow(
+                data[sample_idx],
+                vmin=np.min(data[sample_idx]),
+                vmax=np.max(data[sample_idx]),
+                cmap="jet",
+                extent=extent,
+            )
+            title = []
+            if targets is not None:
+                mask = np.ma.masked_where(targets[sample_idx] < 1, targets[sample_idx])
+                mask_img = plt.imshow(
+                    mask,
+                    alpha=0.5,
+                    interpolation="none",
+                    extent=extent,
+                )
+                classes_present = list(set(targets[sample_idx].flatten().tolist()))
+                classes_present.remove(0.0) # Remove 'background' class
+                title = [self.class_list[int(class_idx-1)] for class_idx in classes_present]
+            else:
+                title = "Data"
+            plt.xticks([])
+            plt.yticks([])
+            plt.title(title)
+           
+        return figure 
+    
+    
+class BoundingBoxVisualizer(Visualizer):
+    """ Visualize data with bounding box label information overlaid
+    
+    Args:
+        **kwargs:
+    """
+    def __init__(self, **kwargs):
+        super(BoundingBoxVisualizer, self).__init__(**kwargs)
+    
+    def __next__(self) -> Figure:
+        iq_data, targets = next(self.data_iter)
+        
+        if self.visualize_transform:
+            iq_data = self.visualize_transform(deepcopy(iq_data))
+
+        if self.visualize_target_transform:
+            targets = self.visualize_target_transform(deepcopy(targets))
+        else:
+            targets = targets
+
+        return self._visualize(iq_data, targets)
+    
+    def _visualize(self, data: np.ndarray, targets: np.ndarray) -> Figure:
+        batch_size = data.shape[0]
+        figure = plt.figure(frameon=False)
+        for sample_idx in range(batch_size):
+            ax = plt.subplot(int(np.ceil(np.sqrt(batch_size))), 
+                        int(np.sqrt(batch_size)), sample_idx + 1)
+            
+            # Retrieve individual label
+            ax.imshow(
+                data[sample_idx], 
+                vmin=np.min(data[sample_idx]),
+                vmax=np.max(data[sample_idx]),
+                cmap="jet",
+            )
+            label = targets[sample_idx]
+            pixels_per_cell_x = data[sample_idx].shape[0] / label.shape[0]
+            pixels_per_cell_y = data[sample_idx].shape[1] / label.shape[1]
+
+            for grid_cell_x_idx in range(label.shape[0]):
+                for grid_cell_y_idx in range(label.shape[1]):
+                    if label[grid_cell_x_idx, grid_cell_y_idx, 0] == 1:
+                        duration = label[grid_cell_x_idx, grid_cell_y_idx, 2]*data[sample_idx].shape[0]
+                        bandwidth = label[grid_cell_x_idx, grid_cell_y_idx, 4]*data[sample_idx].shape[1]
+                        start_pixel = (grid_cell_x_idx*pixels_per_cell_x) + (label[grid_cell_x_idx, grid_cell_y_idx, 1]*pixels_per_cell_x) - duration/2
+                        low_freq = (grid_cell_y_idx*pixels_per_cell_y) + (label[grid_cell_x_idx, grid_cell_y_idx, 3]*pixels_per_cell_y) \
+                            - (label[grid_cell_x_idx, grid_cell_y_idx, 4]/2 * data[sample_idx].shape[1])
+
+                        rect = patches.Rectangle(
+                            (start_pixel,low_freq),
+                            duration,
+                            bandwidth, # Bandwidth (pixels)
+                            linewidth=3,
+                            edgecolor='b',
+                            facecolor='none'
+                        )
+                        ax.add_patch(rect)
+            plt.imshow(data[sample_idx], aspect='auto', cmap="jet",vmin=np.min(data[sample_idx]),vmax=np.max(data[sample_idx]))
+            plt.xticks([])
+            plt.yticks([])
+            plt.title("Data")
+           
+        return figure
+    
+    
+class AnchorBoxVisualizer(Visualizer):
+    """ Visualize data with anchor box label information overlaid
+    
+    Args:
+        **kwargs:
+    """
+    def __init__(
+        self,
+        data_loader: dataloader,
+        visualize_transform: Optional[Callable] = None,
+        visualize_target_transform: Optional[Callable] = None,
+        anchor_boxes: List = None,
+    ):
+        self.data_loader = iter(data_loader)
+        self.visualize_transform = visualize_transform
+        self.visualize_target_transform = visualize_target_transform
+        self.anchor_boxes = anchor_boxes
+        self.num_anchor_boxes = len(anchor_boxes)
+        
+    def __next__(self) -> Figure:
+        iq_data, targets = next(self.data_iter)
+        
+        if self.visualize_transform:
+            iq_data = self.visualize_transform(deepcopy(iq_data))
+
+        if self.visualize_target_transform:
+            targets = self.visualize_target_transform(deepcopy(targets))
+        else:
+            targets = targets
+
+        return self._visualize(iq_data, targets)
+    
+    def _visualize(self, data: np.ndarray, targets: np.ndarray) -> Figure:
+        batch_size = data.shape[0]
+        figure = plt.figure(frameon=False)
+        for sample_idx in range(batch_size):
+            ax = plt.subplot(int(np.ceil(np.sqrt(batch_size))), 
+                        int(np.sqrt(batch_size)), sample_idx + 1)
+            
+            # Retrieve individual label
+            ax.imshow(
+                data[sample_idx], 
+                vmin=np.min(data[sample_idx]),
+                vmax=np.max(data[sample_idx]),
+                cmap="jet",
+            )
+            label = targets[sample_idx]
+            pixels_per_cell_x = data[sample_idx].shape[0] / label.shape[0]
+            pixels_per_cell_y = data[sample_idx].shape[1] / label.shape[1]
+
+            for grid_cell_x_idx in range(label.shape[0]):
+                for grid_cell_y_idx in range(label.shape[1]):
+                    for anchor_idx in range(self.num_anchor_boxes):
+                        if label[grid_cell_x_idx, grid_cell_y_idx, 0+5*anchor_idx] == 1:
+                            duration = label[grid_cell_x_idx, grid_cell_y_idx, 2+5*anchor_idx]*self.anchor_boxes[anchor_idx][0]*data[sample_idx].shape[0]
+                            bandwidth = label[grid_cell_x_idx, grid_cell_y_idx, 4+5*anchor_idx]*self.anchor_boxes[anchor_idx][1]*data[sample_idx].shape[1]
+                            start_pixel = (grid_cell_x_idx*pixels_per_cell_x) + (label[grid_cell_x_idx, grid_cell_y_idx, 1+5*anchor_idx]*pixels_per_cell_x) - duration/2
+                            low_freq = (grid_cell_y_idx*pixels_per_cell_y) + (label[grid_cell_x_idx, grid_cell_y_idx, 3+5*anchor_idx]*pixels_per_cell_y) \
+                                - (label[grid_cell_x_idx, grid_cell_y_idx, 4+5*anchor_idx]*self.anchor_boxes[anchor_idx][1]/2 * data[sample_idx].shape[1])
+
+                            rect = patches.Rectangle(
+                                (start_pixel,low_freq),
+                                duration,
+                                bandwidth, # Bandwidth (pixels)
+                                linewidth=3,
+                                edgecolor='b',
+                                facecolor='none'
+                            )
+                            ax.add_patch(rect)
+                        
+            plt.imshow(data[sample_idx], aspect='auto', cmap="jet",vmin=np.min(data[sample_idx]),vmax=np.max(data[sample_idx]))
+            plt.xticks([])
+            plt.yticks([])
+            plt.title("Data")
+           
+        return figure
+    
     
 ###############################################################################
 # Visualizer Transform Functions
@@ -358,7 +699,7 @@ def onehot_label_format(tensor: np.ndarray) -> List[str]:
     return label
 
 
-def multihot_label_format(tensor: np.ndarray, class_list: List[str]) -> List[List[str]]:
+def multihot_label_format(tensor: np.ndarray, class_list: List[str]) -> List[str]:
     """Target Transform: Format multihot labels for titles in visualizer
     
     """
@@ -371,3 +712,87 @@ def multihot_label_format(tensor: np.ndarray, class_list: List[str]) -> List[Lis
                 curr_label.append(class_list[class_idx])
         label.append(curr_label)
     return label
+
+
+def mask_to_outline(tensor: np.ndarray) -> List[str]:
+    """Target Transform: Transforms masks for all bursts to outlines for the 
+    MaskVisualizer. Overlapping mask outlines are represented as a single 
+    polygon.
+    
+    """
+    batch_size = tensor.shape[0]
+    labels = []
+    struct = ndimage.generate_binary_structure(2,2)
+    for idx in range(batch_size):
+        label = tensor[idx].numpy()
+        label = np.sum(label, axis=0)
+        label[label>0] = 1
+        label = label - ndimage.binary_erosion(label)
+        label = ndimage.binary_dilation(label, structure=struct, iterations=3).astype(label.dtype)
+        label = np.ma.masked_where(label == 0, label)
+        labels.append(label)
+    return labels
+
+
+def mask_to_outline_overlap(tensor: np.ndarray) -> List[str]:
+    """Target Transform: Transforms masks for each burst to individual outlines
+    for the MaskVisualizer. Overlapping mask outlines are still shown as 
+    overlapping.
+    
+    """
+    batch_size = tensor.shape[0]
+    labels = []
+    struct = ndimage.generate_binary_structure(2,2)
+    for idx in range(batch_size):
+        label = tensor[idx].numpy()
+        for individual_burst_idx in range(label.shape[0]):
+            label[individual_burst_idx] = label[individual_burst_idx] - \
+                ndimage.binary_erosion(label[individual_burst_idx])
+        label = np.sum(label, axis=0)
+        label[label>0] = 1
+        label = ndimage.binary_dilation(label, structure=struct, iterations=2).astype(label.dtype)
+        label = np.ma.masked_where(label == 0, label)
+        labels.append(label)
+    return labels
+
+
+def overlay_mask(tensor: np.ndarray) -> List[str]:
+    """Target Transform: Transforms multi-dimensional mask to binary overlay of
+    full mask.
+    
+    """
+    batch_size = tensor.shape[0]
+    labels = []
+    for idx in range(batch_size):
+        label = torch.sum(tensor[idx], axis=0).numpy()
+        label[label>0] = 1
+        label = np.ma.masked_where(label == 0, label)
+        labels.append(label)
+    return labels
+
+
+def mask_class_to_outline(tensor: np.ndarray) -> List[str]:
+    """Target Transform: Transforms masks for each burst to individual outlines
+    for the MaskClassVisualizer. Overlapping mask outlines are still shown as
+    overlapping. Each bursts' class index is also returned.
+    
+    """
+    batch_size = tensor.shape[0]
+    labels = []
+    class_idx = []
+    struct = ndimage.generate_binary_structure(2,2)
+    for idx in range(batch_size):
+        label = tensor[idx].numpy()
+        class_idx_curr = []
+        for individual_burst_idx in range(label.shape[0]):
+            if np.count_nonzero(label[individual_burst_idx]) > 0:
+                class_idx_curr.append(individual_burst_idx)
+            label[individual_burst_idx] = label[individual_burst_idx] - \
+                ndimage.binary_erosion(label[individual_burst_idx])
+        label = np.sum(label, axis=0)
+        label[label>0] = 1
+        label = ndimage.binary_dilation(label, structure=struct, iterations=2).astype(label.dtype)
+        label = np.ma.masked_where(label == 0, label)
+        class_idx.append(class_idx_curr)
+        labels.append(label)
+    return class_idx, labels

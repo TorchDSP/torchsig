@@ -1,11 +1,11 @@
 import numpy as np
 from copy import deepcopy
 from scipy import signal as sp
-from typing import Optional, Any, Union, List, Callable
+from typing import Optional, Any, Union, List
 
 from torchsig.utils.types import SignalData, SignalDescription
 from torchsig.transforms.transforms import SignalTransform
-from torchsig.transforms.system_impairment import si_functional
+from torchsig.transforms.system_impairment import functional
 from torchsig.transforms.functional import NumericParameter, IntParameter, FloatParameter
 from torchsig.transforms.functional import to_distribution, uniform_continuous_distribution, uniform_discrete_distribution
 
@@ -67,13 +67,13 @@ class RandomTimeShift(SignalTransform):
             )            
             
             # Apply data transformation
-            new_data.iq_data = si_functional.fractional_shift(
+            new_data.iq_data = functional.fractional_shift(
                 data.iq_data,
                 self.taps,
                 self.interp_rate,
                 -decimal_part  # this needed to be negated to be consistent with the previous implementation
             )
-            new_data.iq_data = si_functional.time_shift(new_data.iq_data, int(integer_part))
+            new_data.iq_data = functional.time_shift(new_data.iq_data, int(integer_part))
             
             # Update SignalDescription
             new_signal_description = []
@@ -91,13 +91,13 @@ class RandomTimeShift(SignalTransform):
             new_data.signal_description = new_signal_description
             
         else:
-            new_data = si_functional.fractional_shift(
+            new_data = functional.fractional_shift(
                 data,
                 self.taps,
                 self.interp_rate,
                 -decimal_part  # this needed to be negated to be consistent with the previous implementation
             )
-            new_data = si_functional.time_shift(new_data, int(integer_part))
+            new_data = functional.time_shift(new_data, int(integer_part))
         return new_data
 
 
@@ -167,7 +167,7 @@ class TimeCrop(SignalTransform):
             )   
             
             # Perform data augmentation
-            new_data.iq_data = si_functional.time_crop(iq_data, start, self.length)
+            new_data.iq_data = functional.time_crop(iq_data, start, self.length)
             
             # Update SignalDescription
             new_signal_description = []
@@ -190,7 +190,7 @@ class TimeCrop(SignalTransform):
             new_data.signal_description = new_signal_description
             
         else:
-            new_data = si_functional.time_crop(data, start, self.length)
+            new_data = functional.time_crop(data, start, self.length)
         return new_data
     
     
@@ -228,10 +228,10 @@ class TimeReversal(SignalTransform):
             )
             
             # Perform data augmentation
-            new_data.iq_data = si_functional.time_reversal(data.iq_data)
+            new_data.iq_data = functional.time_reversal(data.iq_data)
             if undo_spec_inversion:
                 # If spectral inversion not desired, reverse effect
-                new_data.iq_data = si_functional.spectral_inversion(new_data.iq_data)
+                new_data.iq_data = functional.spectral_inversion(new_data.iq_data)
             
             # Update SignalDescription
             new_signal_description = []
@@ -258,10 +258,10 @@ class TimeReversal(SignalTransform):
             new_data.signal_description = new_signal_description
                 
         else:
-            new_data = si_functional.time_reversal(data)
+            new_data = functional.time_reversal(data)
             if undo_spec_inversion:
                 # If spectral inversion not desired, reverse effect
-                new_data = si_functional.spectral_inversion(new_data)
+                new_data = functional.spectral_inversion(new_data)
         return new_data
 
 
@@ -284,10 +284,10 @@ class AmplitudeReversal(SignalTransform):
             )
             
             # Perform data augmentation
-            new_data.iq_data = si_functional.amplitude_reversal(data.iq_data)
+            new_data.iq_data = functional.amplitude_reversal(data.iq_data)
                 
         else:
-            new_data = si_functional.amplitude_reversal(data)
+            new_data = functional.amplitude_reversal(data)
         return new_data
     
     
@@ -373,16 +373,134 @@ class RandomFrequencyShift(SignalTransform):
             # Apply data augmentation
             if avoid_aliasing:
                 # If any potential aliasing detected, perform shifting at higher sample rate
-                new_data.iq_data = si_functional.freq_shift_avoid_aliasing(data.iq_data, freq_shift)
+                new_data.iq_data = functional.freq_shift_avoid_aliasing(data.iq_data, freq_shift)
             else:
                 # Otherwise, use faster freq shifter
-                new_data.iq_data = si_functional.freq_shift(data.iq_data, freq_shift)
+                new_data.iq_data = functional.freq_shift(data.iq_data, freq_shift)
             
         else:
-            new_data = si_functional.freq_shift(data, freq_shift)
+            new_data = functional.freq_shift(data, freq_shift)
         return new_data
 
 
+class RandomDelayedFrequencyShift(SignalTransform):
+    """Apply a delayed frequency shift to the input data
+    
+    Args:
+         start_shift (:py:class:`~Callable`, :obj:`int`, :obj:`float`, :obj:`list`, :obj:`tuple`):
+            start_shift sets the start time of the delayed shift
+            * If Callable, produces a sample by calling start_shift()
+            * If int, start_shift is fixed at the value provided
+            * If list, start_shift is any element in the list
+            * If tuple, start_shift is in range of (tuple[0], tuple[1])
+            
+        freq_shift (:py:class:`~Callable`, :obj:`int`, :obj:`float`, :obj:`list`, :obj:`tuple`):
+            freq_shift sets the translation along the freq-axis
+            * If Callable, produces a sample by calling freq_shift()
+            * If int, freq_shift is fixed at the value provided
+            * If list, freq_shift is any element in the list
+            * If tuple, freq_shift is in range of (tuple[0], tuple[1])
+    
+    """
+    def __init__(
+        self,
+        start_shift: IntParameter = uniform_continuous_distribution(0.1,0.9),
+        freq_shift: IntParameter = uniform_continuous_distribution(-0.2,0.2),
+    ):
+        super(RandomDelayedFrequencyShift, self).__init__()
+        self.start_shift = to_distribution(start_shift, self.random_generator)
+        self.freq_shift = to_distribution(freq_shift, self.random_generator)
+
+    def __call__(self, data: Any) -> Any:
+        start_shift = self.start_shift()
+        # Randomly generate a freq shift that is not near the original fc
+        freq_shift = 0
+        while freq_shift < 0.05 and freq_shift > -0.05:
+            freq_shift = self.freq_shift()
+        
+        if isinstance(data, SignalData):
+            # Create new SignalData object for transformed data
+            new_data = SignalData(
+                data=None,
+                item_type=np.dtype(np.float64),
+                data_type=np.dtype(np.complex128),
+                signal_description=[],
+            )
+            new_data.iq_data = data.iq_data
+            num_iq_samples = data.iq_data.shape[0]
+
+            # Setup new SignalDescription object
+            new_signal_description = []
+            signal_description = [data.signal_description] if isinstance(data.signal_description, SignalDescription) else data.signal_description
+            avoid_aliasing = False
+            for signal_desc in signal_description:
+                new_signal_desc_first_seg = deepcopy(signal_desc)
+                new_signal_desc_sec_seg = deepcopy(signal_desc)
+                # Check bounds for partial signals
+                new_signal_desc_first_seg.lower_frequency = -0.5 if new_signal_desc_first_seg.lower_frequency < -0.5 else new_signal_desc_first_seg.lower_frequency
+                new_signal_desc_first_seg.upper_frequency = 0.5 if new_signal_desc_first_seg.upper_frequency > 0.5 else new_signal_desc_first_seg.upper_frequency
+                new_signal_desc_first_seg.bandwidth = new_signal_desc_first_seg.upper_frequency - new_signal_desc_first_seg.lower_frequency
+                new_signal_desc_first_seg.center_frequency = new_signal_desc_first_seg.lower_frequency + new_signal_desc_first_seg.bandwidth * 0.5
+                
+                # Update time for original segment if present in segment and add to list
+                if new_signal_desc_first_seg.start < start_shift:
+                    new_signal_desc_first_seg.stop = start_shift if new_signal_desc_first_seg.stop > start_shift else new_signal_desc_first_seg.stop
+                    new_signal_desc_first_seg.duration = new_signal_desc_first_seg.stop - new_signal_desc_first_seg.start
+                    # Append SignalDescription to list
+                    new_signal_description.append(new_signal_desc_first_seg)                
+
+                # Begin second segment processing
+                new_signal_desc_sec_seg.lower_frequency = -0.5 if new_signal_desc_sec_seg.lower_frequency < -0.5 else new_signal_desc_sec_seg.lower_frequency
+                new_signal_desc_sec_seg.upper_frequency = 0.5 if new_signal_desc_sec_seg.upper_frequency > 0.5 else new_signal_desc_sec_seg.upper_frequency
+                new_signal_desc_sec_seg.bandwidth = new_signal_desc_sec_seg.upper_frequency - new_signal_desc_sec_seg.lower_frequency
+                new_signal_desc_sec_seg.center_frequency = new_signal_desc_sec_seg.lower_frequency + new_signal_desc_sec_seg.bandwidth * 0.5
+                    
+                # Update freqs for next segment
+                new_signal_desc_sec_seg.lower_frequency += freq_shift
+                new_signal_desc_sec_seg.upper_frequency += freq_shift
+                new_signal_desc_sec_seg.center_frequency += freq_shift
+
+                # Check bounds for aliasing
+                if new_signal_desc_sec_seg.lower_frequency >= 0.5 or new_signal_desc_sec_seg.upper_frequency <= -0.5:
+                    avoid_aliasing = True
+                    continue
+                if new_signal_desc_sec_seg.lower_frequency < -0.45 or new_signal_desc_sec_seg.upper_frequency > 0.45:
+                    avoid_aliasing = True
+                new_signal_desc_sec_seg.lower_frequency = -0.5 if new_signal_desc_sec_seg.lower_frequency < -0.5 else new_signal_desc_sec_seg.lower_frequency
+                new_signal_desc_sec_seg.upper_frequency = 0.5 if new_signal_desc_sec_seg.upper_frequency > 0.5 else new_signal_desc_sec_seg.upper_frequency
+
+                # Update bw & fc
+                new_signal_desc_sec_seg.bandwidth = new_signal_desc_sec_seg.upper_frequency - new_signal_desc_sec_seg.lower_frequency
+                new_signal_desc_sec_seg.center_frequency = new_signal_desc_sec_seg.lower_frequency + new_signal_desc_sec_seg.bandwidth * 0.5
+                
+                # Update time for shifted segment if present in segment and add to list
+                if new_signal_desc_sec_seg.stop > start_shift:
+                    new_signal_desc_sec_seg.start = start_shift if new_signal_desc_sec_seg.start < start_shift else new_signal_desc_sec_seg.start
+                    new_signal_desc_sec_seg.stop = new_signal_desc_sec_seg.stop
+                    new_signal_desc_sec_seg.duration = new_signal_desc_sec_seg.stop - new_signal_desc_sec_seg.start
+                    # Append SignalDescription to list
+                    new_signal_description.append(new_signal_desc_sec_seg)
+                    
+            # Update with the new SignalDescription
+            new_data.signal_description = new_signal_description
+
+            # Perform augmentation
+            if avoid_aliasing:
+                # If any potential aliasing detected, perform shifting at higher sample rate
+                new_data.iq_data[int(start_shift*num_iq_samples):] = functional.freq_shift_avoid_aliasing(
+                    data.iq_data[int(start_shift*num_iq_samples):], 
+                    freq_shift
+                )
+            else:
+                # Otherwise, use faster freq shifter
+                new_data.iq_data[int(start_shift*num_iq_samples):] = functional.freq_shift(
+                    data.iq_data[int(start_shift*num_iq_samples):], 
+                    freq_shift
+                )
+            
+        return new_data
+    
+    
 class LocalOscillatorDrift(SignalTransform):
     """LocalOscillatorDrift is a transform modelling a local oscillator's drift in frequency by
     a random walk in frequency.
@@ -600,7 +718,7 @@ class AutomaticGainControl(SignalTransform):
 
         ref_level_db = np.random.uniform(-.5 + self.ref_level_db, .5 + self.ref_level_db, 1)
         
-        iq_data = si_functional.agc(
+        iq_data = functional.agc(
             np.ascontiguousarray(iq_data, dtype=np.complex64),
             np.float64(self.initial_gain_db),
             np.float64(alpha_smooth),
@@ -677,14 +795,14 @@ class IQImbalance(SignalTransform):
         dc_offset = self.dc_offset()
 
         if isinstance(data, SignalData):
-            data.iq_data = si_functional.iq_imbalance(
+            data.iq_data = functional.iq_imbalance(
                 data.iq_data,
                 amp_imbalance,
                 phase_imbalance,
                 dc_offset
             )
         else:
-            data = si_functional.iq_imbalance(
+            data = functional.iq_imbalance(
                 data,
                 amp_imbalance,
                 phase_imbalance,
@@ -742,9 +860,9 @@ class RollOff(SignalTransform):
         upper_freq = self.upper_freq() if np.random.rand() < self.upper_cut_apply else 1.0
         order = self.order()
         if isinstance(data, SignalData):
-            data.iq_data = si_functional.roll_off(data.iq_data, low_freq, upper_freq, int(order))
+            data.iq_data = functional.roll_off(data.iq_data, low_freq, upper_freq, int(order))
         else:
-            data = si_functional.roll_off(data, low_freq, upper_freq, int(order))
+            data = functional.roll_off(data, low_freq, upper_freq, int(order))
         return data
 
     
@@ -767,10 +885,10 @@ class AddSlope(SignalTransform):
             )
             
             # Apply data augmentation
-            new_data.iq_data = si_functional.add_slope(data.iq_data)
+            new_data.iq_data = functional.add_slope(data.iq_data)
             
         else:
-            new_data = si_functional.add_slope(data)
+            new_data = functional.add_slope(data)
         return new_data
     
     
@@ -792,7 +910,7 @@ class SpectralInversion(SignalTransform):
             )
             
             # Perform data augmentation
-            new_data.iq_data = si_functional.spectral_inversion(data.iq_data)
+            new_data.iq_data = functional.spectral_inversion(data.iq_data)
             
             # Update SignalDescription
             new_signal_description = []
@@ -812,7 +930,7 @@ class SpectralInversion(SignalTransform):
             new_data.signal_description = new_signal_description
                 
         else:
-            new_data = si_functional.spectral_inversion(data)
+            new_data = functional.spectral_inversion(data)
         return new_data
     
     
@@ -851,10 +969,10 @@ class ChannelSwap(SignalTransform):
             new_data.signal_description = new_signal_description
             
             # Perform data augmentation
-            new_data.iq_data = si_functional.channel_swap(data.iq_data)
+            new_data.iq_data = functional.channel_swap(data.iq_data)
                 
         else:
-            new_data = si_functional.channel_swap(data)
+            new_data = functional.channel_swap(data)
         return new_data
     
     
@@ -901,10 +1019,10 @@ class RandomMagRescale(SignalTransform):
             )
             
             # Perform data augmentation
-            new_data.iq_data = si_functional.mag_rescale(data.iq_data, start, scale)
+            new_data.iq_data = functional.mag_rescale(data.iq_data, start, scale)
                 
         else:
-            new_data = si_functional.mag_rescale(data, start, scale)
+            new_data = functional.mag_rescale(data, start, scale)
         return new_data
     
     
@@ -945,7 +1063,7 @@ class RandomDropSamples(SignalTransform):
         self,
         drop_rate: NumericParameter = uniform_continuous_distribution(0.01,0.05),
         size: NumericParameter = uniform_discrete_distribution(np.arange(1,10)),
-        fill: Union[Callable, List, str] = uniform_discrete_distribution(["ffill", "bfill", "mean", "zero"]),
+        fill: Union[List, str] = uniform_discrete_distribution(["ffill", "bfill", "mean", "zero"]),
     ):
         super(RandomDropSamples, self).__init__()
         self.drop_rate = to_distribution(drop_rate, self.random_generator)
@@ -970,14 +1088,14 @@ class RandomDropSamples(SignalTransform):
             drop_sizes = self.size(drop_instances).astype(int)
             drop_starts = np.random.uniform(1, data.iq_data.shape[0]-max(drop_sizes)-1, drop_instances).astype(int)
             
-            new_data.iq_data = si_functional.drop_samples(data.iq_data, drop_starts, drop_sizes, fill)
+            new_data.iq_data = functional.drop_samples(data.iq_data, drop_starts, drop_sizes, fill)
                 
         else:
             drop_instances = int(data.shape[0] * drop_rate)
             drop_sizes = self.size(drop_instances).astype(int)
             drop_starts = np.random.uniform(0, data.shape[0]-max(drop_sizes), drop_instances).astype(int)
             
-            new_data = si_functional.drop_samples(data, drop_starts, drop_sizes, fill)
+            new_data = functional.drop_samples(data, drop_starts, drop_sizes, fill)
         return new_data
     
     
@@ -1022,10 +1140,10 @@ class Quantize(SignalTransform):
             )
             
             # Perform data augmentation
-            new_data.iq_data = si_functional.quantize(data.iq_data, num_levels, round_type)
+            new_data.iq_data = functional.quantize(data.iq_data, num_levels, round_type)
                 
         else:
-            new_data = si_functional.quantize(data, num_levels, round_type)
+            new_data = functional.quantize(data, num_levels, round_type)
         return new_data
     
 
@@ -1063,10 +1181,10 @@ class Clip(SignalTransform):
             )
             
             # Apply data augmentation
-            new_data.iq_data = si_functional.clip(data.iq_data, clip_percentage)
+            new_data.iq_data = functional.clip(data.iq_data, clip_percentage)
             
         else:
-            new_data = si_functional.clip(data, clip_percentage)
+            new_data = functional.clip(data, clip_percentage)
         return new_data
     
 
@@ -1117,8 +1235,8 @@ class RandomConvolve(SignalTransform):
             )
             
             # Apply data augmentation
-            new_data.iq_data = si_functional.random_convolve(data.iq_data, num_taps, alpha)
+            new_data.iq_data = functional.random_convolve(data.iq_data, num_taps, alpha)
             
         else:
-            new_data = si_functional.random_convolve(data, num_taps, alpha)
+            new_data = functional.random_convolve(data, num_taps, alpha)
         return new_data

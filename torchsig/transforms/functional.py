@@ -1,32 +1,13 @@
-from typing import Callable, List, Protocol, Sequence, Tuple, Union
+from typing import Callable, Union, Tuple, List
 from functools import partial
 import numpy as np
-import numpy.typing as npt
 
 FloatParameter = Union[Callable[[int], float], float, Tuple[float, float], List]
 IntParameter = Union[Callable[[int], int], int, Tuple[int, int], List]
 NumericParameter = Union[FloatParameter, IntParameter]
 
 
-class RandomStatePartial(Protocol):
-    """Type definition for the partially applied random distribution function
-    returned by the functions in this module.
-
-    These partials can be either called with zero arguments, in which case a
-    single value is returned, or by passing in a size parameter, in which case
-    a np.ndarray of the specified shape is returned.
-
-    See: https://peps.python.org/pep-0544/
-    See: https://mypy.readthedocs.io/en/stable/protocols.html#callback-protocols
-    """
-    def __call__(self, size: Union[int, Sequence[int]] = ...) -> npt.ArrayLike:
-        ...
-
-
-def uniform_discrete_distribution(
-        choices: List,
-        random_generator: np.random.RandomState = np.random.RandomState()
-) -> RandomStatePartial:
+def uniform_discrete_distribution(choices: List, random_generator: np.random.RandomState = np.random.RandomState()):
     return partial(random_generator.choice, choices)
 
 
@@ -34,14 +15,11 @@ def uniform_continuous_distribution(
         lower: Union[int, float],
         upper: Union[int, float],
         random_generator: np.random.RandomState = np.random.RandomState()
-) -> RandomStatePartial:
+):
     return partial(random_generator.uniform, lower, upper)
 
 
-def to_distribution(
-        param: NumericParameter,
-        random_generator: np.random.RandomState = np.random.RandomState()
-) -> RandomStatePartial:
+def to_distribution(param, random_generator: np.random.RandomState = np.random.RandomState()):
     if isinstance(param, Callable):
         return param
 

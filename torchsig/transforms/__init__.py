@@ -2,6 +2,7 @@ from . import expert_feature
 from . import system_impairment
 from . import wireless_channel
 from . import signal_processing
+from . import spectrogram_transforms
 from . import deep_learning_techniques
 from . import target_transforms
 from .functional import *
@@ -10,5 +11,6 @@ from torchsig.transforms.system_impairment import *
 from torchsig.transforms.wireless_channel import *
 from torchsig.transforms.expert_feature import *
 from torchsig.transforms.signal_processing import *
+from torchsig.transforms.spectrogram_transforms import *
 from torchsig.transforms.deep_learning_techniques import *
 from torchsig.transforms.target_transforms import *
