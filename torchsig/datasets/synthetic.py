@@ -63,19 +63,19 @@ default_const_map = OrderedDict({
 
 # This is probably redundant.
 freq_map = OrderedDict({
-    "2fsk": np.linspace(-1, 1, 2, endpoint=True),
+    "2fsk": np.linspace(-1+(1/2), 1-(1/2), 2, endpoint=True),
     "2gfsk": np.linspace(-1, 1, 2, endpoint=True),
     "2msk": np.linspace(-1, 1, 2, endpoint=True),
     "2gmsk": np.linspace(-1, 1, 2, endpoint=True),
-    "4fsk": np.linspace(-1, 1, 4, endpoint=True),
+    "4fsk": np.linspace(-1+(1/4), 1-(1/4), 4, endpoint=True),
     "4gfsk": np.linspace(-1, 1, 4, endpoint=True),
     "4msk": np.linspace(-1, 1, 4, endpoint=True),
     "4gmsk": np.linspace(-1, 1, 4, endpoint=True),
-    "8fsk": np.linspace(-1, 1, 8, endpoint=True),
+    "8fsk": np.linspace(-1+(1/8), 1-(1/8), 8, endpoint=True),
     "8gfsk": np.linspace(-1, 1, 8, endpoint=True),
     "8msk": np.linspace(-1, 1, 8, endpoint=True),
     "8gmsk": np.linspace(-1, 1, 8, endpoint=True),
-    "16fsk": np.linspace(-1, 1, 16, endpoint=True),
+    "16fsk": np.linspace(-1+(1/16), 1-(1/16), 16, endpoint=True),
     "16gfsk": np.linspace(-1, 1, 16, endpoint=True),
     "16msk": np.linspace(-1, 1, 16, endpoint=True),
     "16gmsk": np.linspace(-1, 1, 16, endpoint=True),
@@ -712,18 +712,33 @@ class FSKDataset(SyntheticDataset):
         index = item[1]
         bandwidth = item[2]
         signal_description = item[3]
-    
+
+        # calculate the modulation order, ex: the "4" in "4-FSK"
+        const = freq_map[const_name]
+        mod_order = len(const)
+
+        # samples per symbol presumably used as a bandwidth measure (ex: BW=1/SPS), 
+        # but does not work for FSK. samples per symbol is redefined into
+        # the "oversampling rate", and samples per symbol is instead derived
+        # from the modulation order
+        oversampling_rate = np.copy(self.iq_samples_per_symbol)
+        samples_per_symbol_FSK = mod_order*oversampling_rate
+
+        # scale the frequency map by the oversampling rate such that the tones 
+        # are packed tighter around f=0 the larger the oversampling rate
+        const_oversampled = const/oversampling_rate
+
         orig_state = np.random.get_state()
         if not self.random_data:
             np.random.seed(index)
 
-        const = freq_map[const_name]
-        symbol_nums = np.random.randint(0, len(const), int(self.num_iq_samples))
+        symbol_nums = np.random.randint(0, len(const_oversampled), int(self.num_iq_samples))
 
         xp = cp if self.use_gpu else np
 
-        symbols = const[symbol_nums]
-        symbols_repeat = xp.repeat(symbols, self.iq_samples_per_symbol)
+        symbols = const_oversampled[symbol_nums]
+        symbols_repeat = xp.repeat(symbols, samples_per_symbol_FSK)
+        symbols_repeat = xp.insert(symbols_repeat,0,0) # start at zero phase
 
         filtered = symbols_repeat
         if "g" in const_name:
@@ -732,7 +747,7 @@ class FSKDataset(SyntheticDataset):
             filtered = xp.convolve(xp.array(symbols_repeat), xp.array(taps), "same")
 
         mod_idx = 1.0 if "fsk" in const_name else .5
-        phase = xp.cumsum(xp.array(filtered) * 1j / self.iq_samples_per_symbol * mod_idx * np.pi)
+        phase = xp.cumsum(xp.array(filtered) * 1j * mod_idx * np.pi)
         modulated = xp.exp(phase)
 
         if "g" not in const_name and self.random_pulse_shaping:
