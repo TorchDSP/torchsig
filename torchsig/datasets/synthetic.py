@@ -63,20 +63,20 @@ default_const_map = OrderedDict({
 
 # This is probably redundant.
 freq_map = OrderedDict({
-    "2fsk": np.linspace(-1+(1/2), 1-(1/2), 2, endpoint=True),
-    "2gfsk": np.linspace(-1, 1, 2, endpoint=True),
+    "2fsk" : np.linspace(-1+(1/2), 1-(1/2), 2, endpoint=True),
+    "2gfsk": np.linspace(-1+(1/2), 1-(1/2), 2, endpoint=True),
     "2msk": np.linspace(-1, 1, 2, endpoint=True),
     "2gmsk": np.linspace(-1, 1, 2, endpoint=True),
-    "4fsk": np.linspace(-1+(1/4), 1-(1/4), 4, endpoint=True),
-    "4gfsk": np.linspace(-1, 1, 4, endpoint=True),
+    "4fsk" : np.linspace(-1+(1/4), 1-(1/4), 4, endpoint=True),
+    "4gfsk": np.linspace(-1+(1/4), 1-(1/4), 4, endpoint=True),
     "4msk": np.linspace(-1, 1, 4, endpoint=True),
     "4gmsk": np.linspace(-1, 1, 4, endpoint=True),
-    "8fsk": np.linspace(-1+(1/8), 1-(1/8), 8, endpoint=True),
-    "8gfsk": np.linspace(-1, 1, 8, endpoint=True),
+    "8fsk" : np.linspace(-1+(1/8), 1-(1/8), 8, endpoint=True),
+    "8gfsk": np.linspace(-1+(1/8), 1-(1/8), 8, endpoint=True),
     "8msk": np.linspace(-1, 1, 8, endpoint=True),
     "8gmsk": np.linspace(-1, 1, 8, endpoint=True),
-    "16fsk": np.linspace(-1+(1/16), 1-(1/16), 16, endpoint=True),
-    "16gfsk": np.linspace(-1, 1, 16, endpoint=True),
+    "16fsk" : np.linspace(-1+(1/16), 1-(1/16), 16, endpoint=True),
+    "16gfsk": np.linspace(-1+(1/16), 1-(1/16), 16, endpoint=True),
     "16msk": np.linspace(-1, 1, 16, endpoint=True),
     "16gmsk": np.linspace(-1, 1, 16, endpoint=True),
 })
