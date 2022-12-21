@@ -742,7 +742,7 @@ class FSKDataset(SyntheticDataset):
 
         filtered = symbols_repeat
         if "g" in const_name:
-            taps = self._gaussian_taps(bandwidth)
+            taps = self._gaussian_taps(samples_per_symbol_FSK,bandwidth)
             signal_description.excess_bandwidth = bandwidth
             filtered = xp.convolve(xp.array(symbols_repeat), xp.array(taps), "same")
 
@@ -794,13 +794,12 @@ class FSKDataset(SyntheticDataset):
             
         return modulated[-self.num_iq_samples:]
 
-    def _gaussian_taps(self, BT: float = 0.35) -> np.ndarray:
+    def _gaussian_taps(self, samples_per_symbol, BT: float = 0.35) -> np.ndarray:
         xp = cp if self.use_gpu else np
         # pre-modulation Bb*T product which sets the bandwidth of the Gaussian lowpass filter
         M = 4  # duration in symbols
-        Ns = self.iq_samples_per_symbol
-        n = xp.arange(-M * Ns, M * Ns + 1)
-        p = xp.exp(-2 * np.pi ** 2 * BT ** 2 / np.log(2) * (n / float(Ns)) ** 2)
+        n = xp.arange(-M * samples_per_symbol, M * samples_per_symbol + 1)
+        p = xp.exp(-2 * np.pi ** 2 * BT ** 2 / np.log(2) * (n / float(samples_per_symbol)) ** 2)
         p = p / xp.sum(p)
         return p
 
