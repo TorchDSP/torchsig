@@ -2,3 +2,4 @@ __pycache__/
 *.pyc
 *.mdb
 *.swp
+torchsig.egg-info
