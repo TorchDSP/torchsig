@@ -749,7 +749,7 @@ class FSKDataset(SyntheticDataset):
         if ("gfsk" in const_name):
             # bluetooth
             mod_idx = 0.32
-        elif ("msk" in cost_name):
+        elif ("msk" in const_name):
             # MSK, GMSK
             mod_idx = 0.5
         else:
