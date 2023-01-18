@@ -746,7 +746,16 @@ class FSKDataset(SyntheticDataset):
             signal_description.excess_bandwidth = bandwidth
             filtered = xp.convolve(xp.array(symbols_repeat), xp.array(taps), "same")
 
-        mod_idx = 1.0 if "fsk" in const_name else .5
+        if ("gfsk" in const_name):
+            # bluetooth
+            mod_idx = 0.32
+        elif ("msk" in cost_name):
+            # MSK, GMSK
+            mod_idx = 0.5
+        else:
+            # FSK
+            mod_idx = 1.0
+
         phase = xp.cumsum(xp.array(filtered) * 1j * mod_idx * np.pi)
         modulated = xp.exp(phase)
 
