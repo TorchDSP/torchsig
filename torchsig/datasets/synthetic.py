@@ -722,7 +722,7 @@ class FSKDataset(SyntheticDataset):
         # the "oversampling rate", and samples per symbol is instead derived
         # from the modulation order
         oversampling_rate = np.copy(self.iq_samples_per_symbol)
-        samples_per_symbol_FSK = mod_order*oversampling_rate
+        samples_per_symbol_recalculated = mod_order*oversampling_rate
 
         # scale the frequency map by the oversampling rate such that the tones 
         # are packed tighter around f=0 the larger the oversampling rate
@@ -737,12 +737,12 @@ class FSKDataset(SyntheticDataset):
         xp = cp if self.use_gpu else np
 
         symbols = const_oversampled[symbol_nums]
-        symbols_repeat = xp.repeat(symbols, samples_per_symbol_FSK)
+        symbols_repeat = xp.repeat(symbols, samples_per_symbol_recalculated)
         symbols_repeat = xp.insert(symbols_repeat,0,0) # start at zero phase
 
         filtered = symbols_repeat
         if "g" in const_name:
-            taps = self._gaussian_taps(samples_per_symbol_FSK,bandwidth)
+            taps = self._gaussian_taps(samples_per_symbol_recalculated,bandwidth)
             signal_description.excess_bandwidth = bandwidth
             filtered = xp.convolve(xp.array(symbols_repeat), xp.array(taps), "same")
 
