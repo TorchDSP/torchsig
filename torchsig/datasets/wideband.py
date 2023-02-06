@@ -12,6 +12,7 @@ from typing import Tuple, Any, List, Optional, Callable, Union
 try:
     import cusignal
     import cupy as xp
+    import cupy as cp
     CUSIGNAL = True
     CUPY = True
 except ImportError:
