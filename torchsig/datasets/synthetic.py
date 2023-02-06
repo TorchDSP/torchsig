@@ -63,22 +63,22 @@ default_const_map = OrderedDict({
 
 # This is probably redundant.
 freq_map = OrderedDict({
-    "2fsk" : np.linspace(-1+(1/2), 1-(1/2), 2, endpoint=True),
-    "2gfsk": np.linspace(-1+(1/2), 1-(1/2), 2, endpoint=True),
-    "2msk": np.linspace(-1, 1, 2, endpoint=True),
-    "2gmsk": np.linspace(-1, 1, 2, endpoint=True),
-    "4fsk" : np.linspace(-1+(1/4), 1-(1/4), 4, endpoint=True),
-    "4gfsk": np.linspace(-1+(1/4), 1-(1/4), 4, endpoint=True),
-    "4msk": np.linspace(-1, 1, 4, endpoint=True),
-    "4gmsk": np.linspace(-1, 1, 4, endpoint=True),
-    "8fsk" : np.linspace(-1+(1/8), 1-(1/8), 8, endpoint=True),
-    "8gfsk": np.linspace(-1+(1/8), 1-(1/8), 8, endpoint=True),
-    "8msk": np.linspace(-1, 1, 8, endpoint=True),
-    "8gmsk": np.linspace(-1, 1, 8, endpoint=True),
+    "2fsk"  : np.linspace(-1+(1/2), 1-(1/2), 2, endpoint=True),
+    "2gfsk" : np.linspace(-1+(1/2), 1-(1/2), 2, endpoint=True),
+    "2msk"  : np.linspace(-1+(1/2), 1-(1/2), 2, endpoint=True),
+    "2gmsk" : np.linspace(-1+(1/2), 1-(1/2), 2, endpoint=True),
+    "4fsk"  : np.linspace(-1+(1/4), 1-(1/4), 4, endpoint=True),
+    "4gfsk" : np.linspace(-1+(1/4), 1-(1/4), 4, endpoint=True),
+    "4msk"  : np.linspace(-1+(1/4), 1-(1/4), 4, endpoint=True),
+    "4gmsk" : np.linspace(-1+(1/4), 1-(1/4), 4, endpoint=True),
+    "8fsk"  : np.linspace(-1+(1/8), 1-(1/8), 8, endpoint=True),
+    "8gfsk" : np.linspace(-1+(1/8), 1-(1/8), 8, endpoint=True),
+    "8msk"  : np.linspace(-1+(1/8), 1-(1/8), 8, endpoint=True),
+    "8gmsk" : np.linspace(-1+(1/8), 1-(1/8), 8, endpoint=True),
     "16fsk" : np.linspace(-1+(1/16), 1-(1/16), 16, endpoint=True),
     "16gfsk": np.linspace(-1+(1/16), 1-(1/16), 16, endpoint=True),
-    "16msk": np.linspace(-1, 1, 16, endpoint=True),
-    "16gmsk": np.linspace(-1, 1, 16, endpoint=True),
+    "16msk" : np.linspace(-1+(1/16), 1-(1/16), 16, endpoint=True),
+    "16gmsk": np.linspace(-1+(1/16), 1-(1/16), 16, endpoint=True),
 })
 
 
@@ -722,7 +722,7 @@ class FSKDataset(SyntheticDataset):
         # the "oversampling rate", and samples per symbol is instead derived
         # from the modulation order
         oversampling_rate = np.copy(self.iq_samples_per_symbol)
-        samples_per_symbol_FSK = mod_order*oversampling_rate
+        samples_per_symbol_recalculated = mod_order*oversampling_rate
 
         # scale the frequency map by the oversampling rate such that the tones 
         # are packed tighter around f=0 the larger the oversampling rate
@@ -737,12 +737,12 @@ class FSKDataset(SyntheticDataset):
         xp = cp if self.use_gpu else np
 
         symbols = const_oversampled[symbol_nums]
-        symbols_repeat = xp.repeat(symbols, samples_per_symbol_FSK)
+        symbols_repeat = xp.repeat(symbols, samples_per_symbol_recalculated)
         symbols_repeat = xp.insert(symbols_repeat,0,0) # start at zero phase
 
         filtered = symbols_repeat
         if "g" in const_name:
-            taps = self._gaussian_taps(samples_per_symbol_FSK,bandwidth)
+            taps = self._gaussian_taps(samples_per_symbol_recalculated,bandwidth)
             signal_description.excess_bandwidth = bandwidth
             filtered = xp.convolve(xp.array(symbols_repeat), xp.array(taps), "same")
 
