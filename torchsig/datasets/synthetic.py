@@ -11,6 +11,7 @@ from typing import Tuple, Any, List, Union, Optional
 try:
     import cusignal
     import cupy as xp
+    import cupy as cp
     CUSIGNAL = True
     CUPY = True
 except ImportError:  
@@ -738,7 +739,7 @@ class FSKDataset(SyntheticDataset):
 
         symbols = const_oversampled[symbol_nums]
         symbols_repeat = xp.repeat(symbols, samples_per_symbol_recalculated)
-        symbols_repeat = xp.insert(symbols_repeat,0,0) # start at zero phase
+        symbols_repeat = np.insert(symbols_repeat,0,0) # start at zero phase
 
         filtered = symbols_repeat
         if "g" in const_name:
