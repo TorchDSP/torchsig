@@ -739,16 +739,21 @@ class FSKDataset(SyntheticDataset):
 
         symbols = const_oversampled[symbol_nums]
         symbols_repeat = xp.repeat(symbols, samples_per_symbol_recalculated)
-        symbols_repeat = np.insert(symbols_repeat,0,0) # start at zero phase
 
-        filtered = symbols_repeat
         if "g" in const_name:
+            # GMSK, GFSK
             taps = self._gaussian_taps(samples_per_symbol_recalculated,bandwidth)
             signal_description.excess_bandwidth = bandwidth
             filtered = xp.convolve(xp.array(symbols_repeat), xp.array(taps), "same")
+        else:
+            # FSK, MSK
+            filtered = symbols_repeat
+
+        # insert a zero at first sample to start at zero phase
+        filtered = xp.insert(filtered,0,0)
 
         if ("gfsk" in const_name):
-            # bluetooth
+            # from the Bluetooth BR specification
             mod_idx = 0.32
         elif ("msk" in const_name):
             # MSK, GMSK
