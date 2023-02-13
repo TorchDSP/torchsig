@@ -750,7 +750,7 @@ class FSKDataset(SyntheticDataset):
             filtered = symbols_repeat
 
         # insert a zero at first sample to start at zero phase
-        filtered = xp.insert(filtered,0,0)
+        filtered = np.insert(filtered,0,0)
 
         if ("gfsk" in const_name):
             # from the Bluetooth BR specification
