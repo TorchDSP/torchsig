@@ -1,1 +1,0 @@
-from .mask2former import *
