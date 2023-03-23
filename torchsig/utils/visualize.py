@@ -1,9 +1,11 @@
 import pywt
 import numpy as np
+import torch
 from copy import deepcopy
 from scipy import ndimage
 from scipy import signal as sp
 from matplotlib import pyplot as plt
+from matplotlib import patches
 from matplotlib.figure import Figure
 from torch.utils.data import dataloader
 from typing import Optional, Callable, Iterable, Union, Tuple, List
