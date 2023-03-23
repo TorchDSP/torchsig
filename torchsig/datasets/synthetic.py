@@ -280,7 +280,12 @@ class ConstellationDataset(SyntheticDataset):
         symbols = const[symbol_nums]
         zero_padded = np.zeros((self.iq_samples_per_symbol * len(symbols),), dtype=np.complex64)
         zero_padded[::self.iq_samples_per_symbol] = symbols
-        self.pulse_shape_filter = self._rrc_taps(11, signal_description.excess_bandwidth)
+
+        # estimate total filter length for pulse shape
+        AdB = 72 # sidelobe attenuation level, 72 dB -> 12 bit dynamic range
+        pulse_shape_filter_length = estimate_filter_length(AdB,1,signal_description.excess_bandwidth)
+        pulse_shape_filter_span = int((pulse_shape_filter_length-1)/2) # convert filter length into the span
+        self.pulse_shape_filter = self._rrc_taps(pulse_shape_filter_span, signal_description.excess_bandwidth)
         xp = cp if self.use_gpu else np
         filtered = xp.convolve(xp.array(zero_padded), xp.array(self.pulse_shape_filter), "same")
 
@@ -926,3 +931,23 @@ class FMDataset(SyntheticDataset):
             np.random.set_state(orig_state)  # return numpy back to its previous state
 
         return modulated[-self.num_iq_samples:]
+
+
+def estimate_filter_length ( AdB, fs, transitionBandwidth ):
+    # estimate the length of an FIR filter using harris' approximaion,
+	# N ~= (sampling rate/transition bandwidth)*(sidelobe attenuation in dB / 22)
+    # fred harris, Multirate Signal Processing for Communication Systems,
+    # Second Edition, p.59
+    filter_length = int(np.round((fs/transitionBandwidth)*(AdB/22)))
+
+    # odd-length filters are desirable because they do not introduce a half-sample delay
+    if (np.mod(filter_length,2) == 0):
+        filter_length += 1
+
+    return filter_length
+
+
+
+
+
+
