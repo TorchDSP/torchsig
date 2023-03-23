@@ -296,7 +296,8 @@ class ConstellationDataset(SyntheticDataset):
         n = np.arange(-M * Ns, M * Ns + 1)
         taps = np.zeros(int(2 * M * Ns + 1))
         for i in range(int(2 * M * Ns + 1)):
-            if abs(1 - 16 * alpha ** 2 * (n[i] / Ns) ** 2) <= np.finfo(np.float64).eps / 2:
+            # handle the discontinuity at t=+-Ns/(4*alpha)
+            if (n[i]*4*alpha == Ns or n[i]*4*alpha == -Ns):
                 taps[i] = 1 / 2. * ((1 + alpha) * np.sin((1 + alpha) * np.pi / (4. * alpha)) - (1 - alpha) * np.cos(
                     (1 - alpha) * np.pi / (4. * alpha)) + (4 * alpha) / np.pi * np.sin(
                     (1 - alpha) * np.pi / (4. * alpha)))
