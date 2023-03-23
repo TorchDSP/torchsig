@@ -7,20 +7,21 @@ from torchsig.utils.types import SignalData, SignalCapture
 
 class SignalDataset(torch.utils.data.Dataset):
     """An abstract dataset class to be sub-classed by SignalDatasets
-    
+
     Args:
-        transform: 
+        transform:
             Transforms to be applied to SignalData Objects
-            
-        target_transform: 
+
+        target_transform:
             Transforms to be applied to dataset targets
-        
+
     """
+
     def __init__(
         self,
         transform: Optional[Callable] = None,
         target_transform: Optional[Callable] = None,
-        seed: Optional[int] = None
+        seed: Optional[int] = None,
     ):
         super(SignalDataset, self).__init__()
         self.random_generator = np.random.RandomState(seed)
@@ -39,30 +40,29 @@ class SignalFileDataset(SignalDataset):
     a set of files
 
     Args:
-        root: 
+        root:
             Root file path to search recursively for files
-            
-        indexer: 
+
+        indexer:
             Using root, constructs an index of data/meta-data
-            
-        reader: 
+
+        reader:
             Given a file path, produces an SignalData object
-            
-        index_filter: 
+
+        index_filter:
             Given an index, remove certain elements
-            
-        **\*\*kwargs:**
+
+        *\\*kwargs:**
             Keyword arguments
-        
+
     """
+
     def __init__(
         self,
         root: str,
         indexer: Callable[[str], List[Tuple[Any, SignalCapture]]],
         reader: Callable[[SignalCapture], SignalData],
-        index_filter: Optional[
-            Callable[[Tuple[Any, SignalCapture]], bool]
-        ] = None,
+        index_filter: Optional[Callable[[Tuple[Any, SignalCapture]], bool]] = None,
         **kwargs
     ):
         super(SignalFileDataset, self).__init__(**kwargs)
@@ -89,21 +89,22 @@ class SignalFileDataset(SignalDataset):
 
 class SignalTensorDataset(torch.utils.data.TensorDataset):
     """SignalTensorDataset converts Tensors to dataset of SignalData
-    
+
     Args:
-        transform: 
+        transform:
             Transforms to be applied to SignalData Objects
-            
-        target_transform: 
+
+        target_transform:
             Transforms to be applied to dataset targets
-            
-        **\*args:**
+
+        ***args:**
             Args
-        
-        **\*\*kwargs:**
-            \*tensors is passed on to the TensorDataset superclass
-        
+
+        ***kwargs:**
+            *tensors is passed on to the TensorDataset superclass
+
     """
+
     def __init__(
         self,
         transform: Optional[Callable] = None,
@@ -116,12 +117,14 @@ class SignalTensorDataset(torch.utils.data.TensorDataset):
         self.target_transform = target_transform
 
     def __getitem__(self, index: int) -> Tuple[SignalData, Any]:
-        # We assume that single-precision Tensors are provided we return 
+        # We assume that single-precision Tensors are provided we return
         # double-precision numpy arrays for usage in the transform pipeline.
         signal_data = SignalData(
             data=deepcopy(self.tensors[0].numpy().tobytes()),
             item_type=np.dtype(np.float32),
-            data_type=np.dtype(np.float64) if self.tensors[0].dtype == torch.float else np.dtype(np.complex128)
+            data_type=np.dtype(np.float64)
+            if self.tensors[0].dtype == torch.float
+            else np.dtype(np.complex128),
         )
         target = tuple(self.tensors[idx][index] for idx in range(1, len(self.tensors)))
 

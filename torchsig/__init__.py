@@ -2,4 +2,5 @@ from torchsig import transforms
 from torchsig import datasets
 from torchsig import utils
 from torchsig import models
-from .version import __version__
+
+__version__ = "0.1.0"
