@@ -3,6 +3,7 @@
 </p>
 
 -----
+![build](https://github.com/torchDSP/torchsig/actions/workflows/pip_build.yml/badge.svg?branch=37-automate-install-tests)
 
 
 TorchSig is an open-source signal processing machine learning toolkit based on the PyTorch data handling pipeline. The user-friendly toolkit simplifies common digital signal processing operations, augmentations, and transformations when dealing with both real and complex-valued signals. TorchSig streamlines the integration process of these signals processing tools building on PyTorch, enabling faster and easier development and research for machine learning techniques applied to signals data, particularly within (but not limited to) the radio frequency domain. An example dataset, Sig53, based on many unique communication signal modulations is included to accelerate the field of modulation classification. Additionally, an example wideband dataset, WidebandSig53, is also included that extends Sig53 with larger data example sizes containing multiple signals enabling accelerated research in the fields of wideband signal detection and recognition.
