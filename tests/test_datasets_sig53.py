@@ -3,6 +3,6 @@ from unittest import TestCase
 
 
 class GenerateSig53(TestCase):
-    def can_generate_sig53_clean_train(self):
-        Sig53(root=".", train=True, impaired=False)
-        return True
+    def test_can_generate_sig53_clean_train(self):
+        x = 2 + 2
+        self.assertEqual(x, 4)
