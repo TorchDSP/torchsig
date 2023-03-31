@@ -14,6 +14,15 @@ class Sig53Config:
 
 
 @dataclass
+class Sig53GenerationTestConfig(Sig53Config):
+    name: str = "sig53_generation_test"
+    seed: int = 1234567890
+    eb_no: bool = False
+    num_samples: int = 106
+    level: int = 2
+
+
+@dataclass
 class Sig53CleanTrainConfig(Sig53Config):
     name: str = "sig53_clean_train"
     seed: int = 1234567890
@@ -69,7 +78,7 @@ class WidebandSig53Config:
     num_samples: int
     level: int
     seed: int
-    num_iq_samples: int = int(512*512)
+    num_iq_samples: int = int(512 * 512)
     use_gpu: bool = True
 
 
