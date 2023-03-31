@@ -8,8 +8,9 @@ from copy import deepcopy
 from tqdm.autonotebook import tqdm
 from typing import Callable, Optional, Tuple
 
-from torchsig.utils import SignalData, SignalDescription
-from torchsig.datasets import ModulationsDataset, conf
+from torchsig.utils.types import SignalData, SignalDescription
+from torchsig.datasets.modulations import ModulationsDataset
+from torchsig.datasets import conf
 
 
 def _identity(x):
