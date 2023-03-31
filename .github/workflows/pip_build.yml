@@ -18,11 +18,7 @@ jobs:
       - uses: actions/cache@v2
         with:
           path: ${{ env.pythonLocation }}
-          key: ${{ env.pythonLocation }}-${{ hashFiles('setup.py') }}-${{ hashFiles('requirements.txt') }}
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip --upgrade-strategy eager
-          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+          key: ${{ env.pythonLocation }}-${{ hashFiles('pyproject.toml') }}
       - name: Build Package
         run: |
           python -m pip install .
