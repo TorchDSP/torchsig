@@ -20,38 +20,38 @@ class Sig53:
     """The Official Sig53 dataset
 
     Args:
-        root (string): 
-            Root directory of dataset. A folder will be created for the 
-            requested version of the dataset, an mdb file inside contains the 
+        root (string):
+            Root directory of dataset. A folder will be created for the
+            requested version of the dataset, an mdb file inside contains the
             data and labels.
-            
-        train (bool, optional): 
-            If True, constructs the corresponding training set, otherwise 
+
+        train (bool, optional):
+            If True, constructs the corresponding training set, otherwise
             constructs the corresponding val set
-            
-        impaired (bool, optional): 
-            If True, will construct the impaired version of the dataset, with 
+
+        impaired (bool, optional):
+            If True, will construct the impaired version of the dataset, with
             data passed through a seeded channel model
-            
-        eb_no (bool, optional): 
+
+        eb_no (bool, optional):
             If True, will define SNR as Eb/No; If False, will define SNR as Es/No
-        
-        transform (callable, optional): 
-            A function/transform that takes in a complex64 ndarray and returns 
+
+        transform (callable, optional):
+            A function/transform that takes in a complex64 ndarray and returns
             a transformed version
-            
-        target_transform (callable, optional): 
-            A function/transform that takes in the target class (int) and 
+
+        target_transform (callable, optional):
+            A function/transform that takes in the target class (int) and
             returns a transformed version
-            
-        regenerate (bool, optional): 
+
+        regenerate (bool, optional):
             If True, data will be generated from scratch, otherwise the version
             on disk will be used if it exists.
-            
-        use_signal_data (bool, optional): 
-            If True, data will be converted to SignalData objects as read in. 
+
+        use_signal_data (bool, optional):
+            If True, data will be converted to SignalData objects as read in.
             Default: False.
-            
+
     """
 
     @staticmethod
@@ -72,6 +72,7 @@ class Sig53:
         target_transform: Optional[Callable] = None,
         regenerate: bool = False,
         use_signal_data: bool = False,
+        generation_test: bool = False,
     ):
         self.root = Path(root)
         self.train = train
@@ -87,14 +88,16 @@ class Sig53:
             + ("Impaired" if impaired else "Clean")
             + ("EbNo" if (impaired and eb_no) else "")
             + ("Train" if train else "Val")
+            + ("QA" if generation_test else "")
             + "Config"
         )
+
         cfg = getattr(conf, cfg)()
 
         self.path = self.root / cfg.name
         self.length = cfg.num_samples
         regenerate = regenerate or not os.path.isdir(self.path)
-        
+
         if regenerate and os.path.isdir(self.path):
             shutil.rmtree(self.path)
 
