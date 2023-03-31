@@ -3,3 +3,4 @@ __pycache__/
 *.mdb
 *.swp
 torchsig.egg-info
+.vscode/
