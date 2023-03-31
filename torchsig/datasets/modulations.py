@@ -1,15 +1,14 @@
 import numpy as np
 from typing import Optional, Callable, List
 from torch.utils.data import ConcatDataset
-
-from torchsig.datasets import DigitalModulationDataset, OFDMDataset
+from torchsig.datasets.synthetic import DigitalModulationDataset, OFDMDataset
 import torchsig.transforms as ST
 
 
 class ModulationsDataset(ConcatDataset):
-    """ModulationsDataset serves as a standard dataset for many RF machine 
+    """ModulationsDataset serves as a standard dataset for many RF machine
     learning tasks in the modulation recognition/classification domain.
-    
+
     Args:
         level (:obj:`str` int):
             * level 0 represents perfect modulations as if they synthesized by a transmitter
@@ -62,60 +61,61 @@ class ModulationsDataset(ConcatDataset):
             more simple channel impairments.
 
     """
+
     default_classes = [
-        'ook',
-        'bpsk',
-        '4pam',
-        '4ask',
-        'qpsk',
-        '8pam',
-        '8ask',
-        '8psk',
-        '16qam',
-        '16pam',
-        '16ask',
-        '16psk',
-        '32qam',
-        '32qam_cross',
-        '32pam',
-        '32ask',
-        '32psk',
-        '64qam',
-        '64pam',
-        '64ask',
-        '64psk',
-        '128qam_cross',
-        '256qam',
-        '512qam_cross',
-        '1024qam',
-        '2fsk',
-        '2gfsk',
-        '2msk',
-        '2gmsk',
-        '4fsk',
-        '4gfsk',
-        '4msk',
-        '4gmsk',
-        '8fsk',
-        '8gfsk',
-        '8msk',
-        '8gmsk',
-        '16fsk',
-        '16gfsk',
-        '16msk',
-        '16gmsk',
-        'ofdm-64',
-        'ofdm-72',
-        'ofdm-128',
-        'ofdm-180',
-        'ofdm-256',
-        'ofdm-300',
-        'ofdm-512',
-        'ofdm-600',
-        'ofdm-900',
-        'ofdm-1024',
-        'ofdm-1200',
-        'ofdm-2048'
+        "ook",
+        "bpsk",
+        "4pam",
+        "4ask",
+        "qpsk",
+        "8pam",
+        "8ask",
+        "8psk",
+        "16qam",
+        "16pam",
+        "16ask",
+        "16psk",
+        "32qam",
+        "32qam_cross",
+        "32pam",
+        "32ask",
+        "32psk",
+        "64qam",
+        "64pam",
+        "64ask",
+        "64psk",
+        "128qam_cross",
+        "256qam",
+        "512qam_cross",
+        "1024qam",
+        "2fsk",
+        "2gfsk",
+        "2msk",
+        "2gmsk",
+        "4fsk",
+        "4gfsk",
+        "4msk",
+        "4gmsk",
+        "8fsk",
+        "8gfsk",
+        "8msk",
+        "8gmsk",
+        "16fsk",
+        "16gfsk",
+        "16msk",
+        "16gmsk",
+        "ofdm-64",
+        "ofdm-72",
+        "ofdm-128",
+        "ofdm-180",
+        "ofdm-256",
+        "ofdm-300",
+        "ofdm-512",
+        "ofdm-600",
+        "ofdm-900",
+        "ofdm-1024",
+        "ofdm-1200",
+        "ofdm-2048",
     ]
 
     def __init__(
@@ -144,10 +144,10 @@ class ModulationsDataset(ConcatDataset):
                     target_transform = ST.DescToClassNameSNR()
                 else:
                     target_transform = ST.DescToClassName()
-        num_samples_per_class = int(num_samples/len(classes))
+        num_samples_per_class = int(num_samples / len(classes))
         self.class_dict = dict(zip(classes, range(len(classes))))
         self.include_snr = include_snr
-        
+
         # Extract class info
         ofdm_classes = []
         digital_classes = []
@@ -163,41 +163,68 @@ class ModulationsDataset(ConcatDataset):
 
         if level == 0:
             random_pulse_shaping = False
-            internal_transforms = ST.Compose([
-                ST.TargetSNR((100,100), eb_no=eb_no),
-                ST.Normalize(norm=np.inf),
-            ])
+            internal_transforms = ST.Compose(
+                [
+                    ST.TargetSNR((100, 100), eb_no=eb_no),
+                    ST.Normalize(norm=np.inf),
+                ]
+            )
         elif level == 1:
             random_pulse_shaping = True
-            internal_transforms = ST.Compose([
-                ST.RandomPhaseShift((-1, 1)),
-                ST.RandomTimeShift((-.5, .5)),
-                ST.RandomFrequencyShift((-.16, .16)),
-                ST.IQImbalance((-3, 3), (-np.pi * 1.0 / 180.0, np.pi * 1.0 / 180.0), (-.1, .1)),
-                ST.RandomResample((0.75, 1.5), num_iq_samples=num_iq_samples),
-                ST.TargetSNR((80,80), eb_no=eb_no),
-                ST.Normalize(norm=np.inf),
-            ])
+            internal_transforms = ST.Compose(
+                [
+                    ST.RandomPhaseShift((-1, 1)),
+                    ST.RandomTimeShift((-0.5, 0.5)),
+                    ST.RandomFrequencyShift((-0.16, 0.16)),
+                    ST.IQImbalance(
+                        (-3, 3),
+                        (-np.pi * 1.0 / 180.0, np.pi * 1.0 / 180.0),
+                        (-0.1, 0.1),
+                    ),
+                    ST.RandomResample((0.75, 1.5), num_iq_samples=num_iq_samples),
+                    ST.TargetSNR((80, 80), eb_no=eb_no),
+                    ST.Normalize(norm=np.inf),
+                ]
+            )
         elif level == 2:
             random_pulse_shaping = True
-            internal_transforms = ST.Compose([
-                ST.RandomApply(ST.RandomPhaseShift((-1, 1)),0.9),
-                ST.RandomApply(ST.RandomTimeShift((-32, 32)),0.9),
-                ST.RandomApply(ST.RandomFrequencyShift((-.16, .16)),0.7),
-                ST.RandomApply(ST.RayleighFadingChannel((.05, .5), power_delay_profile=(1.0, .5, .1)), .5),
-                ST.RandomApply(ST.IQImbalance((-3, 3), (-np.pi * 1.0 / 180.0, np.pi * 1.0 / 180.0), (-.1, .1)),0.9),
-                ST.RandomApply(ST.RandomResample((0.75, 1.5), num_iq_samples=num_iq_samples),0.5), 
-                ST.TargetSNR((-2, 30), eb_no=eb_no),
-                ST.Normalize(norm=np.inf),
-            ])
+            internal_transforms = ST.Compose(
+                [
+                    ST.RandomApply(ST.RandomPhaseShift((-1, 1)), 0.9),
+                    ST.RandomApply(ST.RandomTimeShift((-32, 32)), 0.9),
+                    ST.RandomApply(ST.RandomFrequencyShift((-0.16, 0.16)), 0.7),
+                    ST.RandomApply(
+                        ST.RayleighFadingChannel(
+                            (0.05, 0.5), power_delay_profile=(1.0, 0.5, 0.1)
+                        ),
+                        0.5,
+                    ),
+                    ST.RandomApply(
+                        ST.IQImbalance(
+                            (-3, 3),
+                            (-np.pi * 1.0 / 180.0, np.pi * 1.0 / 180.0),
+                            (-0.1, 0.1),
+                        ),
+                        0.9,
+                    ),
+                    ST.RandomApply(
+                        ST.RandomResample((0.75, 1.5), num_iq_samples=num_iq_samples),
+                        0.5,
+                    ),
+                    ST.TargetSNR((-2, 30), eb_no=eb_no),
+                    ST.Normalize(norm=np.inf),
+                ]
+            )
         else:
             raise ValueError("Level is unrecognized. Should be 0, 1 or 2.")
-        
+
         if transform is not None:
-            internal_transforms = ST.Compose([
-                internal_transforms,
-                transform,
-            ])
+            internal_transforms = ST.Compose(
+                [
+                    internal_transforms,
+                    transform,
+                ]
+            )
 
         if num_digital > 0:
             digital_dataset = DigitalModulationDataset(
@@ -212,19 +239,28 @@ class ModulationsDataset(ConcatDataset):
             )
 
         if num_ofdm > 0:
-            sidelobe_suppression_methods = ('lpf','win_start')
+            sidelobe_suppression_methods = ("lpf", "win_start")
             ofdm_dataset = OFDMDataset(
-                constellations=('bpsk', 'qpsk', '16qam', '64qam', '256qam', '1024qam'),  # sub-carrier modulations
-                num_subcarriers=tuple(num_subcarriers), # possible number of subcarriers
+                constellations=(
+                    "bpsk",
+                    "qpsk",
+                    "16qam",
+                    "64qam",
+                    "256qam",
+                    "1024qam",
+                ),  # sub-carrier modulations
+                num_subcarriers=tuple(
+                    num_subcarriers
+                ),  # possible number of subcarriers
                 num_iq_samples=num_iq_samples,
                 num_samples_per_class=num_samples_per_class,
                 random_data=True,
                 sidelobe_suppression_methods=sidelobe_suppression_methods,
-                dc_subcarrier=('on', 'off'),
+                dc_subcarrier=("on", "off"),
                 transform=internal_transforms,
                 target_transform=target_transform,
             )
-            
+
         if num_digital > 0 and num_ofdm > 0:
             super(ModulationsDataset, self).__init__([digital_dataset, ofdm_dataset])
         elif num_digital > 0:
