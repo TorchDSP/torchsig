@@ -8,20 +8,7 @@ from itertools import chain
 from ast import literal_eval
 from functools import partial
 from typing import Tuple, Any, List, Optional, Callable, Union
-
-try:
-    import cusignal
-    import cupy as xp
-    import cupy as cp
-
-    CUSIGNAL = True
-    CUPY = True
-except ImportError:
-    import numpy as cp
-
-    CUSIGNAL = False
-    CUPY = False
-    pass
+import numpy as cp
 
 from torchsig.utils.dataset import SignalDataset
 from torchsig.utils.types import SignalData, SignalDescription
@@ -179,7 +166,7 @@ class ModulatedSignalBurst(SignalBurst):
         **kwargs,
     ):
         super(ModulatedSignalBurst, self).__init__(**kwargs)
-        self.use_gpu = use_gpu and torch.cuda.is_available() and CUPY and CUSIGNAL
+        self.use_gpu = use_gpu and torch.cuda.is_available()
         # Read in full modulation list
         default_class_list = [
             "ook",
@@ -365,12 +352,7 @@ class ModulatedSignalBurst(SignalBurst):
         up_rate = np.floor(new_rate * 100 * oversample).astype(np.int32)
         down_rate = 100
         xp = cp if self.use_gpu else np
-        if self.use_gpu:
-            iq_samples = cusignal.resample_poly(
-                xp.array(iq_samples), up_rate, down_rate
-            )
-        else:
-            iq_samples = signal.resample_poly(iq_samples, up_rate, down_rate)
+        iq_samples = signal.resample_poly(iq_samples, up_rate, down_rate)
 
         # Freq shift to desired center freq
         time_vector = xp.arange(iq_samples.shape[0], dtype=float)
@@ -391,33 +373,19 @@ class ModulatedSignalBurst(SignalBurst):
             num_taps = int(
                 2 * np.ceil(50 * 2 * np.pi / 0.5 / 0.125 / 22)
             )  # fred harris rule of thumb * 2
-            if self.use_gpu:
-                taps = cusignal.firwin(
-                    num_taps,
-                    1 / oversample,
-                    width=1 / oversample * 0.02,
-                    window=signal.get_window("blackman", num_taps),
-                    scale=True,
-                )
-                iq_samples = xp.convolve(
-                    xp.array(iq_samples), xp.array(taps), mode="same"
-                )
-                # Decimate back down to correct sample rate
-                iq_samples = cusignal.resample_poly(xp.array(iq_samples), 1, oversample)
-                iq_samples = iq_samples[-int(self.num_iq_samples * self.duration) :]
-            else:
-                taps = signal.firwin(
-                    num_taps,
-                    1 / oversample,
-                    width=1 / oversample * 0.02,
-                    window=signal.get_window("blackman", num_taps),
-                    scale=True,
-                )
-                iq_samples = np.convolve(iq_samples, taps, mode="same")
 
-                # Decimate back down to correct sample rate
-                iq_samples = signal.resample_poly(iq_samples, 1, oversample)
-                iq_samples = iq_samples[-int(self.num_iq_samples * self.duration) :]
+            taps = signal.firwin(
+                num_taps,
+                1 / oversample,
+                width=1 / oversample * 0.02,
+                window=signal.get_window("blackman", num_taps),
+                scale=True,
+            )
+            iq_samples = np.convolve(iq_samples, taps, mode="same")
+
+            # Decimate back down to correct sample rate
+            iq_samples = signal.resample_poly(iq_samples, 1, oversample)
+            iq_samples = iq_samples[-int(self.num_iq_samples * self.duration) :]
 
         # Set power
         iq_samples = iq_samples / xp.sqrt(xp.mean(xp.abs(iq_samples) ** 2))
@@ -741,7 +709,7 @@ class SyntheticBurstSourceDataset(BurstSourceDataset):
         self.num_iq_samples = num_iq_samples
         self.num_samples = num_samples
         self.burst_class = burst_class
-        self.use_gpu = use_gpu and torch.cuda.is_available() and CUPY and CUSIGNAL
+        self.use_gpu = use_gpu and torch.cuda.is_available()
         self.bandwidths = to_distribution(
             bandwidths, random_generator=self.random_generator
         )
@@ -995,7 +963,7 @@ class WidebandModulationsDataset(SignalDataset):
         self.ofdm_ratio = (self.num_ofdm / self.num_modulations) * 2.0
         self.num_iq_samples = num_iq_samples
         self.num_samples = num_samples
-        self.use_gpu = use_gpu and torch.cuda.is_available() and CUPY and CUSIGNAL
+        self.use_gpu = use_gpu and torch.cuda.is_available()
 
         # Set level-specific parameters
         if level == 0:

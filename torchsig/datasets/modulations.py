@@ -2,7 +2,27 @@ import numpy as np
 from typing import Optional, Callable, List
 from torch.utils.data import ConcatDataset
 from torchsig.datasets.synthetic import DigitalModulationDataset, OFDMDataset
-import torchsig.transforms as ST
+from torchsig.transforms.target_transforms.target_transforms import (
+    DescToClassIndexSNR,
+    DescToClassIndex,
+    DescToClassNameSNR,
+    DescToClassName,
+)
+from torchsig.transforms.transforms import (
+    Compose,
+    RandomApply,
+)
+from torchsig.transforms.wireless_channel.wce import (
+    RandomPhaseShift,
+    RayleighFadingChannel,
+    TargetSNR,
+)
+from torchsig.transforms.signal_processing.sp import Normalize, RandomResample
+from torchsig.transforms.system_impairment.si import (
+    RandomTimeShift,
+    RandomFrequencyShift,
+    IQImbalance,
+)
 
 
 class ModulationsDataset(ConcatDataset):
@@ -136,14 +156,14 @@ class ModulationsDataset(ConcatDataset):
         if not target_transform:
             if use_class_idx:
                 if include_snr:
-                    target_transform = ST.DescToClassIndexSNR(class_list=classes)
+                    target_transform = DescToClassIndexSNR(class_list=classes)
                 else:
-                    target_transform = ST.DescToClassIndex(class_list=classes)
+                    target_transform = DescToClassIndex(class_list=classes)
             else:
                 if include_snr:
-                    target_transform = ST.DescToClassNameSNR()
+                    target_transform = DescToClassNameSNR()
                 else:
-                    target_transform = ST.DescToClassName()
+                    target_transform = DescToClassName()
         num_samples_per_class = int(num_samples / len(classes))
         self.class_dict = dict(zip(classes, range(len(classes))))
         self.include_snr = include_snr
@@ -163,63 +183,63 @@ class ModulationsDataset(ConcatDataset):
 
         if level == 0:
             random_pulse_shaping = False
-            internal_transforms = ST.Compose(
+            internal_transforms = Compose(
                 [
-                    ST.TargetSNR((100, 100), eb_no=eb_no),
-                    ST.Normalize(norm=np.inf),
+                    TargetSNR((100, 100), eb_no=eb_no),
+                    Normalize(norm=np.inf),
                 ]
             )
         elif level == 1:
             random_pulse_shaping = True
-            internal_transforms = ST.Compose(
+            internal_transforms = Compose(
                 [
-                    ST.RandomPhaseShift((-1, 1)),
-                    ST.RandomTimeShift((-0.5, 0.5)),
-                    ST.RandomFrequencyShift((-0.16, 0.16)),
-                    ST.IQImbalance(
+                    RandomPhaseShift((-1, 1)),
+                    RandomTimeShift((-0.5, 0.5)),
+                    RandomFrequencyShift((-0.16, 0.16)),
+                    IQImbalance(
                         (-3, 3),
                         (-np.pi * 1.0 / 180.0, np.pi * 1.0 / 180.0),
                         (-0.1, 0.1),
                     ),
-                    ST.RandomResample((0.75, 1.5), num_iq_samples=num_iq_samples),
-                    ST.TargetSNR((80, 80), eb_no=eb_no),
-                    ST.Normalize(norm=np.inf),
+                    RandomResample((0.75, 1.5), num_iq_samples=num_iq_samples),
+                    TargetSNR((80, 80), eb_no=eb_no),
+                    Normalize(norm=np.inf),
                 ]
             )
         elif level == 2:
             random_pulse_shaping = True
-            internal_transforms = ST.Compose(
+            internal_transforms = Compose(
                 [
-                    ST.RandomApply(ST.RandomPhaseShift((-1, 1)), 0.9),
-                    ST.RandomApply(ST.RandomTimeShift((-32, 32)), 0.9),
-                    ST.RandomApply(ST.RandomFrequencyShift((-0.16, 0.16)), 0.7),
-                    ST.RandomApply(
-                        ST.RayleighFadingChannel(
+                    RandomApply(RandomPhaseShift((-1, 1)), 0.9),
+                    RandomApply(RandomTimeShift((-32, 32)), 0.9),
+                    RandomApply(RandomFrequencyShift((-0.16, 0.16)), 0.7),
+                    RandomApply(
+                        RayleighFadingChannel(
                             (0.05, 0.5), power_delay_profile=(1.0, 0.5, 0.1)
                         ),
                         0.5,
                     ),
-                    ST.RandomApply(
-                        ST.IQImbalance(
+                    RandomApply(
+                        IQImbalance(
                             (-3, 3),
                             (-np.pi * 1.0 / 180.0, np.pi * 1.0 / 180.0),
                             (-0.1, 0.1),
                         ),
                         0.9,
                     ),
-                    ST.RandomApply(
-                        ST.RandomResample((0.75, 1.5), num_iq_samples=num_iq_samples),
+                    RandomApply(
+                        RandomResample((0.75, 1.5), num_iq_samples=num_iq_samples),
                         0.5,
                     ),
-                    ST.TargetSNR((-2, 30), eb_no=eb_no),
-                    ST.Normalize(norm=np.inf),
+                    TargetSNR((-2, 30), eb_no=eb_no),
+                    Normalize(norm=np.inf),
                 ]
             )
         else:
             raise ValueError("Level is unrecognized. Should be 0, 1 or 2.")
 
         if transform is not None:
-            internal_transforms = ST.Compose(
+            internal_transforms = Compose(
                 [
                     internal_transforms,
                     transform,

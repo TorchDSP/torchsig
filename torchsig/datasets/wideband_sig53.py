@@ -12,7 +12,10 @@ from multiprocessing import Pool
 
 from torchsig.datasets import conf
 from torchsig.datasets.wideband import WidebandModulationsDataset
-import torchsig.transforms as ST
+from torchsig.transforms.target_transforms.target_transforms import (
+    DescToListTuple,
+    ListTupleToDesc,
+)
 from torchsig.utils.types import SignalData
 
 
@@ -27,7 +30,7 @@ def _get_data(idx, cfg):
         level=cfg.level,
         num_iq_samples=cfg.num_iq_samples,
         num_samples=1,  # Dataset is randomly generated when indexed, so length here does not matter
-        target_transform=ST.DescToListTuple(),
+        target_transform=DescToListTuple(),
         seed=cfg.seed + idx * 53,
         use_gpu=cfg.use_gpu,
     )
@@ -142,7 +145,7 @@ class WidebandSig53:
         cfg.use_gpu = use_gpu if use_gpu is not None else cfg.use_gpu
 
         self.use_signal_data = use_signal_data
-        self.signal_desc_transform = ST.ListTupleToDesc(
+        self.signal_desc_transform = ListTupleToDesc(
             num_iq_samples=cfg.num_iq_samples,
             class_list=self.modulation_list,
         )
@@ -219,7 +222,7 @@ class WidebandSig53:
                     level=cfg.level,
                     num_iq_samples=cfg.num_iq_samples,
                     num_samples=1,  # Dataset is randomly generated when indexed, so length here does not matter
-                    target_transform=ST.DescToListTuple(),
+                    target_transform=DescToListTuple(),
                     seed=cfg.seed + i * 53,
                     use_gpu=cfg.use_gpu,
                 )

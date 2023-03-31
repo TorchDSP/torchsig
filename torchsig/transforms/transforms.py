@@ -1,7 +1,7 @@
 import warnings
 import numpy as np
 from copy import deepcopy
-from typing import Any, List, Callable, Optional, Union
+from typing import Any, List, Callable, Optional
 
 from torchsig.utils.types import SignalData
 
@@ -9,14 +9,17 @@ from torchsig.utils.types import SignalData
 class Transform:
     """An abstract class representing a Transform that can either work on
     targets or data
-    
+
     """
+
     def __init__(self, seed: Optional[int] = None):
         if seed is not None:
-            warnings.warn("Seeding transforms is deprecated and does nothing", DeprecationWarning)
+            warnings.warn(
+                "Seeding transforms is deprecated and does nothing", DeprecationWarning
+            )
 
         self.random_generator = np.random
-        
+
     def __call__(self, data: Any) -> Any:
         raise NotImplementedError
 
@@ -36,6 +39,7 @@ class Compose(Transform):
         >>> transform = ST.Compose([ST.AddNoise(10), ST.InterleaveComplex()])
 
     """
+
     def __init__(self, transforms: List[Transform], **kwargs):
         super(Compose, self).__init__(**kwargs)
         self.transforms = transforms
@@ -57,6 +61,7 @@ class NoTransform(Transform):
         >>> transform = ST.NoTransform()
 
     """
+
     def __init__(self, **kwargs):
         super(NoTransform, self).__init__(**kwargs)
 
@@ -75,6 +80,7 @@ class Lambda(Transform):
         >>> transform = ST.Lambda(lambda x: x**2)  # A transform that squares all inputs.
 
     """
+
     def __init__(self, func: Callable, **kwargs):
         super(Lambda, self).__init__(**kwargs)
         self.func = func
@@ -84,8 +90,8 @@ class Lambda(Transform):
 
 
 class FixedRandom(Transform):
-    """ Restricts a randomized transform to apply only a fixed set of seeds. 
-    For example, this could be used to add noise randomly from among 1000 
+    """Restricts a randomized transform to apply only a fixed set of seeds.
+    For example, this could be used to add noise randomly from among 1000
     possible sets of noise or add fading from 1000 possible channels.
 
     Args:
@@ -100,6 +106,7 @@ class FixedRandom(Transform):
         >>> transform = ST.FixedRandom(ST.AddNoise(10), num_seeds=10)
 
     """
+
     def __init__(self, transform: Transform, num_seeds: int, **kwargs):
         super(FixedRandom, self).__init__(**kwargs)
         self.transform = transform
@@ -107,7 +114,9 @@ class FixedRandom(Transform):
 
     def __call__(self, data: Any) -> Any:
         seed = self.random_generator.choice(self.num_seeds)
-        orig_state = np.random.get_state()  # we do not want to somehow fix other random number generation processes.
+        orig_state = (
+            np.random.get_state()
+        )  # we do not want to somehow fix other random number generation processes.
         np.random.seed(seed)
         data = self.transform(data)
         np.random.set_state(orig_state)  # return numpy back to its previous state
@@ -115,7 +124,7 @@ class FixedRandom(Transform):
 
 
 class RandomApply(Transform):
-    """ Randomly applies a set of transforms with probability p
+    """Randomly applies a set of transforms with probability p
 
     Args:
         transform (``Transform`` objects):
@@ -129,23 +138,29 @@ class RandomApply(Transform):
         >>> transform = ST.RandomApply(ST.AddNoise(10), probability=.5)  # Add 10dB noise with probability .5
 
     """
+
     def __init__(self, transform: Transform, probability: float, **kwargs):
         super(RandomApply, self).__init__(**kwargs)
         self.transform = transform
         self.probability = probability
 
     def __call__(self, data: Any) -> Any:
-        return self.transform(data) if self.random_generator.rand() < self.probability else data
+        return (
+            self.transform(data)
+            if self.random_generator.rand() < self.probability
+            else data
+        )
 
 
 class SignalTransform(Transform):
-    """ An abstract base class which explicitly only operates on Signal data
-    
+    """An abstract base class which explicitly only operates on Signal data
+
     Args:
-        time_dim (:obj:`int`): 
+        time_dim (:obj:`int`):
             Dimension along which to index time for a signal
-        
+
     """
+
     def __init__(self, time_dim: int = 0, **kwargs):
         super(SignalTransform, self).__init__(**kwargs)
         self.time_dim = time_dim
@@ -166,6 +181,7 @@ class Concatenate(SignalTransform):
         >>> transform = Concatenate([ST.AddNoise(10), ST.DiscreteFourierTransform()])
 
     """
+
     def __init__(self, transforms: List[SignalTransform], **kwargs):
         super(Concatenate, self).__init__(**kwargs)
         self.transforms = transforms
@@ -174,12 +190,12 @@ class Concatenate(SignalTransform):
         if isinstance(data, SignalData):
             data.iq_data = np.concatenate(
                 [transform(deepcopy(data.iq_data)) for transform in self.transforms],
-                axis=self.time_dim
+                axis=self.time_dim,
             )
         else:
             data = np.concatenate(
                 [transform(deepcopy(data)) for transform in self.transforms],
-                axis=self.time_dim
+                axis=self.time_dim,
             )
         return data
 
@@ -195,6 +211,7 @@ class TargetConcatenate(SignalTransform):
             List of transforms to concatenate
 
     """
+
     def __init__(self, transforms: List[Transform], **kwargs):
         super(TargetConcatenate, self).__init__(**kwargs)
         self.transforms = transforms
@@ -204,29 +221,34 @@ class TargetConcatenate(SignalTransform):
 
 
 class RandAugment(SignalTransform):
-    """RandAugment transform loosely based on: 
+    """RandAugment transform loosely based on:
     `"RandAugment: Practical automated data augmentation with a reduced search space" <https://arxiv.org/pdf/1909.13719.pdf>`_.
 
     Args:
         transforms (list of `Transform` objects):
             List of transforms to choose from
-            
+
         num_transforms (:obj: `int`):
             Number of transforms to randomly select
-        
+
     """
-    def __init__(self, transforms: List[SignalTransform], num_transforms: int = 2, **kwargs):
+
+    def __init__(
+        self, transforms: List[SignalTransform], num_transforms: int = 2, **kwargs
+    ):
         super(RandAugment, self).__init__(**kwargs)
         self.transforms = transforms
         self.num_transforms = num_transforms
 
     def __call__(self, data: Any) -> Any:
-        transforms = self.random_generator.choice(self.transforms, size=self.num_transforms)
+        transforms = self.random_generator.choice(
+            self.transforms, size=self.num_transforms
+        )
         for t in transforms:
             data = t(data)
         return data
 
-    
+
 class RandChoice(SignalTransform):
     """RandChoice inputs a list of transforms and their associated
     probabilities. When called, a single transform will be sampled from the
@@ -240,15 +262,20 @@ class RandChoice(SignalTransform):
             Probabilities used when sampling the above list of transforms
 
     """
+
     def __init__(
-        self, 
-        transforms: List[SignalTransform], 
-        probabilities: Optional[List[float]] = None, 
+        self,
+        transforms: List[SignalTransform],
+        probabilities: Optional[List[float]] = None,
         **kwargs,
     ):
         super(RandChoice, self).__init__(**kwargs)
         self.transforms = transforms
-        self.probabilities = probabilities if probabilities else np.ones(len(self.transforms))/len(self.transforms)
+        self.probabilities = (
+            probabilities
+            if probabilities
+            else np.ones(len(self.transforms)) / len(self.transforms)
+        )
         if sum(self.probabilities) != 1.0:
             self.probabilities /= sum(self.probabilities)
 
