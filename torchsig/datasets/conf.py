@@ -14,15 +14,6 @@ class Sig53Config:
 
 
 @dataclass
-class Sig53GenerationTestConfig(Sig53Config):
-    name: str = "sig53_generation_test"
-    seed: int = 1234567890
-    eb_no: bool = False
-    num_samples: int = 106
-    level: int = 2
-
-
-@dataclass
 class Sig53CleanTrainConfig(Sig53Config):
     name: str = "sig53_clean_train"
     seed: int = 1234567890
@@ -32,11 +23,21 @@ class Sig53CleanTrainConfig(Sig53Config):
 
 
 @dataclass
+class Sig53CleanTrainQAConfig(Sig53CleanTrainConfig):
+    num_samples: int = 106
+
+
+@dataclass
 class Sig53CleanValConfig(Sig53CleanTrainConfig):
     name: str = "sig53_clean_val"
     seed: int = 1234567891
     eb_no: bool = False
     num_samples: int = 106_000
+
+
+@dataclass
+class Sig53CleanValQAConfig(Sig53CleanValConfig):
+    num_samples: int = 106
 
 
 @dataclass
@@ -49,10 +50,20 @@ class Sig53ImpairedTrainConfig(Sig53Config):
 
 
 @dataclass
+class Sig53ImpairedTrainQAConfig(Sig53ImpairedTrainConfig):
+    num_samples: int = 106
+
+
+@dataclass
 class Sig53ImpairedValConfig(Sig53ImpairedTrainConfig):
     name: str = "sig53_impaired_val"
     seed: int = 1234567893
     num_samples: int = 106_000
+
+
+@dataclass
+class Sig53ImpairedValQAConfig(Sig53ImpairedValConfig):
+    num_samples: int = 106
 
 
 @dataclass
@@ -65,11 +76,21 @@ class Sig53ImpairedEbNoTrainConfig(Sig53Config):
 
 
 @dataclass
+class Sig53ImpairedEbNoTrainQAConfig(Sig53ImpairedEbNoTrainConfig):
+    num_samples: int = 106
+
+
+@dataclass
 class Sig53ImpairedEbNoValConfig(Sig53ImpairedTrainConfig):
     name: str = "sig53_impaired_ebno_val"
     seed: int = 1234567893
     eb_no: bool = True
     num_samples: int = 106_000
+
+
+@dataclass
+class Sig53ImpairedEbNoValQAConfig(Sig53ImpairedEbNoValConfig):
+    num_samples: int = 106
 
 
 @dataclass

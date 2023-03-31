@@ -88,10 +88,9 @@ class Sig53:
             + ("Impaired" if impaired else "Clean")
             + ("EbNo" if (impaired and eb_no) else "")
             + ("Train" if train else "Val")
+            + ("QA" if generation_test else "")
             + "Config"
         )
-        if generation_test:
-            cfg = "Sig53GenerationTestConfig"
 
         cfg = getattr(conf, cfg)()
 
