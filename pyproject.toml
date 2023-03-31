@@ -1,0 +1,44 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "torchsig"
+description = "Signal Processing Machine Learning Toolkit"
+authors = [
+    {name = "TorchSig Team"},
+]
+readme = "README.md"
+requires-python = ">=3.7"
+license = {text = "MIT"}
+dependencies = [
+    "torch",
+    "torchvision>=0.10.0",
+    "tqdm",
+    "numpy",
+    "scipy",
+    "h5py",
+    "matplotlib",
+    "numba",
+    "ipdb",
+    "PyWavelets",
+    "pandas",
+    "lmdb",
+    "scikit-learn",
+    "gdown",
+    "icecream",
+    "timm==0.5.4",
+    "segmentation_models_pytorch",
+    "pytorch_lightning",
+    "sympy",
+    "numba",
+    "torchmetrics",
+]
+dynamic = ["version"]
+
+[tool.setuptools.dynamic]
+version = {attr = "torchsig.__version__"}
+
+# [project.optional-dependencies]
+# pdf = ["ReportLab>=1.2", "RXP"]
+# rest = ["docutils>=0.3", "pack ==1.1, ==1.3"]
