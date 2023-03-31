@@ -2,7 +2,7 @@ import torch
 import numpy as np
 from typing import Tuple, List, Any, Union, Optional
 
-from torchsig.utils import SignalDescription
+from torchsig.utils.types import SignalDescription
 from torchsig.transforms.transforms import Transform
 
 
