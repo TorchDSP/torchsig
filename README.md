@@ -37,7 +37,6 @@ firefox build/html/index.html
 Clone the `torchsig` repository and simply install using the following commands:
 ```
 cd torchsig
-pip install -r requirements.txt
 pip install .
 ```
 
