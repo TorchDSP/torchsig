@@ -4,3 +4,4 @@ __pycache__/
 *.swp
 torchsig.egg-info
 .vscode/
+*.png
