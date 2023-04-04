@@ -5,6 +5,7 @@ from torchsig.datasets import conf
 from copy import deepcopy
 from pathlib import Path
 import numpy as np
+import shutil
 import pickle
 import tqdm
 import lmdb
@@ -97,7 +98,7 @@ class Sig53:
             os.mkdir(self.root)
 
         if os.path.isdir(self.path) and regenerate:
-            os.rmdir(self.path)
+            shutil.rmtree(self.path)
             os.mkdir(self.path)
 
         if not os.path.isdir(self.path) and regenerate:
