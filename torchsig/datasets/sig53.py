@@ -1,20 +1,14 @@
-import os
-import lmdb
-import shutil
-import pickle
-import numpy as np
-from pathlib import Path
-from copy import deepcopy
-from tqdm.autonotebook import tqdm
-from typing import Callable, Optional, Tuple
-
 from torchsig.utils.types import SignalData, SignalDescription
 from torchsig.datasets.modulations import ModulationsDataset
+from torchsig.transforms.transforms import NoTransform
 from torchsig.datasets import conf
-
-
-def _identity(x):
-    return x
+from copy import deepcopy
+from pathlib import Path
+import numpy as np
+import pickle
+import tqdm
+import lmdb
+import os
 
 
 class Sig53:
@@ -69,8 +63,8 @@ class Sig53:
         train: bool = True,
         impaired: bool = True,
         eb_no: bool = False,
-        transform: Optional[Callable] = None,
-        target_transform: Optional[Callable] = None,
+        transform: callable = None,
+        target_transform: callable = None,
         regenerate: bool = False,
         use_signal_data: bool = False,
         generation_test: bool = False,
@@ -81,10 +75,10 @@ class Sig53:
         self.eb_no = eb_no
         self.use_signal_data = use_signal_data
 
-        self.T = transform if transform else _identity
-        self.TT = target_transform if target_transform else _identity
+        self.T = transform if transform else NoTransform()
+        self.TT = target_transform if target_transform else NoTransform()
 
-        cfg = (
+        cfg: conf.Sig53Config = (
             "Sig53"
             + ("Impaired" if impaired else "Clean")
             + ("EbNo" if (impaired and eb_no) else "")
@@ -97,12 +91,22 @@ class Sig53:
 
         self.path = self.root / cfg.name
         self.length = cfg.num_samples
-        regenerate = regenerate or not os.path.isdir(self.path)
 
-        if regenerate and os.path.isdir(self.path):
-            shutil.rmtree(self.path)
+        # Must at least have root directory
+        if not os.path.isdir(self.root):
+            os.mkdir(self.root)
 
-        self._env = lmdb.open(
+        if os.path.isdir(self.path) and regenerate:
+            os.rmdir(self.path)
+            os.mkdir(self.path)
+
+        if not os.path.isdir(self.path) and regenerate:
+            os.mkdir(self.path)
+
+        if not os.path.isdir(self.path) and not regenerate:
+            regenerate = True
+
+        self._env: lmdb.Environment = lmdb.open(
             str(self.path).encode(),
             max_dbs=3,
             map_size=int(1e12),
@@ -127,7 +131,7 @@ class Sig53:
     def __len__(self) -> int:
         return self.length
 
-    def __getitem__(self, idx: int) -> Tuple[np.ndarray, int]:
+    def __getitem__(self, idx: int) -> tuple:
         idx = str(idx).encode()
         x = pickle.loads(self._sample_txn.get(idx))
         y = int(self._modulation_txn.get(idx))
@@ -177,7 +181,7 @@ class Sig53:
         with self._env.begin(write=True) as txn:
             txn.put(b"metadata", pickle.dumps(metadata))
 
-        for i in tqdm(range(len(mds))):
+        for i in tqdm.tqdm(range(len(mds))):
             data, (mod, snr) = mds[i]
 
             data_c64 = data.astype(np.complex64)
