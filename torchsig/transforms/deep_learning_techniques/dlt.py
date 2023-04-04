@@ -2,9 +2,10 @@ import numpy as np
 from copy import deepcopy
 from typing import List, Any, Union, Callable
 
-from torchsig.utils import SignalDescription, SignalData, SignalDataset
+from torchsig.utils.types import SignalDescription, SignalData
+from torchsig.utils.dataset import SignalDataset
 from torchsig.transforms.transforms import SignalTransform
-from torchsig.transforms.wireless_channel import TargetSNR
+from torchsig.transforms.wireless_channel.wce import TargetSNR
 from torchsig.transforms.functional import (
     to_distribution,
     uniform_continuous_distribution,
