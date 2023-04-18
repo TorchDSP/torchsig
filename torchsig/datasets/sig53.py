@@ -2,14 +2,12 @@ from torchsig.utils.types import SignalData, SignalDescription
 from torchsig.datasets.modulations import ModulationsDataset
 from torchsig.transforms.transforms import NoTransform
 from torchsig.datasets import conf
+from torch.utils.data import Subset
 from copy import deepcopy
 from pathlib import Path
 import numpy as np
-import shutil
 import pickle
-import tqdm
 import lmdb
-import os
 
 
 class Sig53:
@@ -40,15 +38,14 @@ class Sig53:
             A function/transform that takes in the target class (int) and
             returns a transformed version
 
-        regenerate (bool, optional):
-            If True, data will be generated from scratch, otherwise the version
-            on disk will be used if it exists.
-
         use_signal_data (bool, optional):
             If True, data will be converted to SignalData objects as read in.
             Default: False.
 
     """
+
+    _idx_to_name_dict = dict(zip(range(53), ModulationsDataset.default_classes))
+    _name_to_idx_dict = dict(zip(ModulationsDataset.default_classes, range(53)))
 
     @staticmethod
     def convert_idx_to_name(idx: int) -> str:
@@ -66,9 +63,7 @@ class Sig53:
         eb_no: bool = False,
         transform: callable = None,
         target_transform: callable = None,
-        regenerate: bool = False,
         use_signal_data: bool = False,
-        generation_test: bool = False,
     ):
         self.root = Path(root)
         self.train = train
@@ -84,67 +79,36 @@ class Sig53:
             + ("Impaired" if impaired else "Clean")
             + ("EbNo" if (impaired and eb_no) else "")
             + ("Train" if train else "Val")
-            + ("QA" if generation_test else "")
             + "Config"
         )
 
         cfg = getattr(conf, cfg)()
 
         self.path = self.root / cfg.name
-        self.length = cfg.num_samples
-
-        # Must at least have root directory
-        if not os.path.isdir(self.root):
-            os.mkdir(self.root)
-
-        if os.path.isdir(self.path) and regenerate:
-            shutil.rmtree(self.path)
-            os.mkdir(self.path)
-
-        if not os.path.isdir(self.path) and regenerate:
-            os.mkdir(self.path)
-
-        if not os.path.isdir(self.path) and not regenerate:
-            regenerate = True
-
-        self._env: lmdb.Environment = lmdb.open(
-            str(self.path).encode(),
-            max_dbs=3,
-            map_size=int(1e12),
-            max_readers=512,
-            readahead=False,
+        self.env = lmdb.Environment(
+            str(self.path).encode(), map_size=int(1e12), max_dbs=2
         )
-
-        self._sample_db = self._env.open_db(b"iq_samples")
-        self._modulation_db = self._env.open_db(b"modulation")
-        self._snr_db = self._env.open_db(b"snr")
-
-        if regenerate:
-            print("Generating dataset...")
-            self._generate_data(cfg)
-        else:
-            print("Existing data found, skipping data generation")
-
-        self._sample_txn = self._env.begin(db=self._sample_db)
-        self._modulation_txn = self._env.begin(db=self._modulation_db)
-        self._snr_txn = self._env.begin(db=self._snr_db)
+        self.data_db = self.env.open_db(b"data")
+        with self.env.begin(db=self.data_db, write=True) as data_txn:
+            self.length = data_txn.stat()["entries"]
 
     def __len__(self) -> int:
         return self.length
 
     def __getitem__(self, idx: int) -> tuple:
-        idx = str(idx).encode()
-        x = pickle.loads(self._sample_txn.get(idx))
-        y = int(self._modulation_txn.get(idx))
-        snr = float(self._snr_txn.get(idx))
+        with self.env.begin(db=self.data_db) as data_txn:
+            idx = pickle.dumps(idx)
+            item = pickle.loads(data_txn.get(idx))
+
+        iq_data, mod, snr = item
         if self.use_signal_data:
             signal_desc = SignalDescription(
-                class_name=self._idx_to_name_dict[y],
-                class_index=y,
+                class_name=self._idx_to_name_dict[mod],
+                class_index=mod,
                 snr=snr,
             )
             data = SignalData(
-                data=deepcopy(x.tobytes()),
+                data=deepcopy(iq_data.tobytes()),
                 item_type=np.dtype(np.float64),
                 data_type=np.dtype(np.complex64),
                 signal_description=[signal_desc],
@@ -153,46 +117,52 @@ class Sig53:
             target = self.TT(data.signal_description)
             data = data.iq_data
         else:
-            data = self.T(x)
-            target = (self.TT(y), snr)
+            data = self.T(iq_data)
+            target = (self.TT(mod), snr)
+
         return data, target
 
-    def _generate_data(self, cfg: conf.Sig53Config) -> None:
-        state = np.random.get_state()
-        np.random.seed(cfg.seed)
-        mds = ModulationsDataset(
-            level=cfg.level,
-            num_samples=cfg.num_samples,
-            num_iq_samples=cfg.num_iq_samples,
-            use_class_idx=cfg.use_class_idx,
-            include_snr=cfg.include_snr,
-            eb_no=cfg.eb_no,
-        )
 
-        metadata = {
-            "impaired": self.impaired,
-            "train": self.train,
-            "eb_no": self.eb_no,
-            "num_samples": cfg.num_samples,
-            "num_iq_samples": cfg.num_iq_samples,
-            "idx_to_name": Sig53._idx_to_name_dict,
-            "num_classes": 53,
-        }
+if __name__ == "__main__":
+    from torchsig.utils.writer import DatasetLoader, LMDBDatasetWriter, DatasetCreator
 
-        with self._env.begin(write=True) as txn:
-            txn.put(b"metadata", pickle.dumps(metadata))
+    cfg = conf.Sig53CleanTrainConfig
 
-        for i in tqdm.tqdm(range(len(mds))):
-            data, (mod, snr) = mds[i]
+    dataset = ModulationsDataset(
+        level=cfg.level,
+        num_samples=cfg.num_samples,
+        num_iq_samples=cfg.num_iq_samples,
+        use_class_idx=cfg.use_class_idx,
+        include_snr=cfg.include_snr,
+        eb_no=cfg.eb_no,
+    )
 
-            data_c64 = data.astype(np.complex64)
+    # metadata = {
+    #     "impaired": True,
+    #     "train": True,
+    #     "eb_no": False,
+    #     "num_samples": cfg.num_samples,
+    #     "num_iq_samples": cfg.num_iq_samples,
+    #     "idx_to_name": Sig53._idx_to_name_dict,
+    #     "num_classes": 53,
+    # }
 
-            with self._env.begin(write=True) as txn:
-                txn.put(str(i).encode(), pickle.dumps(data_c64), db=self._sample_db)
-                txn.put(str(i).encode(), str(mod).encode(), db=self._modulation_db)
-                txn.put(str(i).encode(), str(snr).encode(), db=self._snr_db)
+    loader = DatasetLoader(
+        Subset(dataset, np.arange(1000).tolist()),
+        seed=12345678,
+        num_workers=16,
+        batch_size=16,
+    )
+    writer = LMDBDatasetWriter(path="torchsig/datasets/test1")
+    creator = DatasetCreator(loader, writer)
+    creator.create()
 
-        np.random.set_state(state)
-
-    _idx_to_name_dict = dict(zip(range(53), ModulationsDataset.default_classes))
-    _name_to_idx_dict = dict(zip(ModulationsDataset.default_classes, range(53)))
+    loader2 = DatasetLoader(
+        Subset(dataset, np.arange(1000).tolist()),
+        seed=12345678,
+        num_workers=16,
+        batch_size=16,
+    )
+    writer = LMDBDatasetWriter(path="torchsig/datasets/test2")
+    creator = DatasetCreator(loader2, writer)
+    creator.create()
