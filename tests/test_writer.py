@@ -12,20 +12,20 @@ import os
 
 class SeedModulationDataset(TestCase):
     def setUp(self) -> None:
-        if os.path.exists("tests/test1"):
-            shutil.rmtree("tests/test1")
+        if os.path.exists("tests/test1_writer"):
+            shutil.rmtree("tests/test1_writer")
 
-        if os.path.exists("tests/test2"):
-            shutil.rmtree("tests/test2")
+        if os.path.exists("tests/test2_writer"):
+            shutil.rmtree("tests/test2_writer")
 
         return super().setUp()
 
     def tearDown(self) -> None:
-        if os.path.exists("tests/test1"):
-            shutil.rmtree("tests/test1")
+        if os.path.exists("tests/test1_writer"):
+            shutil.rmtree("tests/test1_writer")
 
-        if os.path.exists("tests/test2"):
-            shutil.rmtree("tests/test2")
+        if os.path.exists("tests/test2_writer"):
+            shutil.rmtree("tests/test2_writer")
 
         return super().tearDown()
 
@@ -33,30 +33,30 @@ class SeedModulationDataset(TestCase):
         transform = AddNoise(noise_power_db=(5, 10))
         # Create first dataset
         dataset = DigitalModulationDataset(
-            num_samples_per_class=1000,
+            num_samples_per_class=10000,
             transform=transform,
             target_transform=DescToClassIndex(["bpsk", "2gfsk"]),
         )
         loader = DatasetLoader(dataset, seed=12345678, num_workers=16)
-        writer = LMDBDatasetWriter(path="tests/test1")
+        writer = LMDBDatasetWriter(path="tests/test1_writer")
         creator = DatasetCreator(loader, writer)
         creator.create()
 
         # Create second dataset
         dataset = DigitalModulationDataset(
-            num_samples_per_class=1000,
+            num_samples_per_class=10000,
             transform=transform,
             target_transform=DescToClassIndex(["bpsk", "2gfsk"]),
         )
         loader = DatasetLoader(dataset, seed=12345678, num_workers=8)
-        writer = LMDBDatasetWriter(path="tests/test2")
+        writer = LMDBDatasetWriter(path="tests/test2_writer")
         creator = DatasetCreator(loader, writer)
         creator.create()
 
         # See if they're the same
-        env1 = lmdb.Environment("tests/test1", map_size=int(1e12), max_dbs=2)
+        env1 = lmdb.Environment("tests/test1_writer", map_size=int(1e12), max_dbs=2)
         data_db1 = env1.open_db(b"data")
-        env2 = lmdb.Environment("tests/test2", map_size=int(1e12), max_dbs=2)
+        env2 = lmdb.Environment("tests/test2_writer", map_size=int(1e12), max_dbs=2)
         data_db2 = env2.open_db(b"data")
 
         with env1.begin(db=data_db1) as txn1:

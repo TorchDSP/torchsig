@@ -81,11 +81,16 @@ class LMDBDatasetWriter(DatasetWriter):
                     data, labels = item
                     for item_idx in range(len(data)):
                         item = [data[item_idx]]
-                        for label_idx in range(len(labels)):
-                            item.append(labels[label_idx][item_idx])
+                        if isinstance(labels, list):
+                            for label_idx in range(len(labels)):
+                                item.append(labels[label_idx][item_idx])
+                        else:
+                            item.append(labels[item_idx])
 
                         last_idx = data_txn.stat()["entries"]
                         data_txn.put(pickle.dumps(last_idx), pickle.dumps(tuple(item)))
+
+        os.remove(os.path.join(self.path, "raw.bin"))
 
 
 class DatasetCreator:
