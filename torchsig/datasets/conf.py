@@ -24,7 +24,7 @@ class Sig53CleanTrainConfig(Sig53Config):
 
 @dataclass
 class Sig53CleanTrainQAConfig(Sig53CleanTrainConfig):
-    num_samples: int = 106
+    num_samples: int = 1_000
 
 
 @dataclass

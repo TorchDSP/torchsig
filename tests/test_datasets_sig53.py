@@ -45,7 +45,7 @@ class GenerateSig53(TestCase):
         )
 
         loader = DatasetLoader(
-            Subset(ds, np.arange(10000).tolist()),
+            Subset(ds, np.arange(1000).tolist()),
             seed=12345678,
             num_workers=16,
             batch_size=16,
@@ -77,7 +77,7 @@ class GenerateSig53(TestCase):
         )
 
         loader = DatasetLoader(
-            Subset(ds, np.arange(10000).tolist()),
+            Subset(ds, np.arange(1000).tolist()),
             seed=12345678,
             num_workers=16,
             batch_size=16,
@@ -109,7 +109,7 @@ class GenerateSig53(TestCase):
         )
 
         loader = DatasetLoader(
-            Subset(ds, np.arange(10000).tolist()),
+            Subset(ds, np.arange(1000).tolist()),
             seed=12345678,
             num_workers=16,
             batch_size=16,
@@ -141,7 +141,7 @@ class GenerateSig53(TestCase):
         )
 
         loader = DatasetLoader(
-            Subset(ds, np.arange(10000).tolist()),
+            Subset(ds, np.arange(1000).tolist()),
             seed=12345678,
             num_workers=16,
             batch_size=16,
