@@ -74,9 +74,9 @@ class LMDBDatasetWriter(DatasetWriter):
             self.pickle_sizes.append(len(raw_binary))
 
     def finalize(self):
-        with self.env.begin(db=self.data_db, write=True) as data_txn:
-            with open(os.path.join(self.path, "raw.bin"), "rb") as binary_file:
-                for size in tqdm.tqdm(self.pickle_sizes, total=len(self.pickle_sizes)):
+        with open(os.path.join(self.path, "raw.bin"), "rb") as binary_file:
+            for size in tqdm.tqdm(self.pickle_sizes, total=len(self.pickle_sizes)):
+                with self.env.begin(db=self.data_db, write=True) as data_txn:
                     item = pickle.loads(binary_file.read(size))
                     data, labels = item
                     for item_idx in range(len(data)):
