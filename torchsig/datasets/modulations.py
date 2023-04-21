@@ -23,8 +23,6 @@ from torchsig.transforms.system_impairment.si import (
     RandomFrequencyShift,
     IQImbalance,
 )
-import pickle
-import logging
 
 
 class ModulationsDataset(ConcatDataset):
@@ -153,11 +151,6 @@ class ModulationsDataset(ConcatDataset):
         target_transform: Optional[Callable] = None,
         **kwargs
     ):
-        self.worker_id = np.random.get_state()[1][0]
-
-        # Print doesn't work in multi-processing contexts very well
-        # Trying using logging.
-        logging.error("{}".format(self.worker_id))
         classes = self.default_classes if classes is None else classes
         # Set the target transform based on input options if none provided
         if not target_transform:
@@ -289,11 +282,13 @@ class ModulationsDataset(ConcatDataset):
             )
 
         if num_digital > 0 and num_ofdm > 0:
-            super(ModulationsDataset, self).__init__([digital_dataset, ofdm_dataset])
+            super(ModulationsDataset, self).__init__(
+                [digital_dataset, ofdm_dataset], **kwargs
+            )
         elif num_digital > 0:
-            super(ModulationsDataset, self).__init__([digital_dataset])
+            super(ModulationsDataset, self).__init__([digital_dataset], **kwargs)
         elif num_ofdm > 0:
-            super(ModulationsDataset, self).__init__([ofdm_dataset])
+            super(ModulationsDataset, self).__init__([ofdm_dataset], **kwargs)
         else:
             raise ValueError("Input classes must contain at least 1 valid class")
 

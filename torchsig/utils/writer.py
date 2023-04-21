@@ -2,7 +2,6 @@ from torchsig.utils.dataset import SignalDataset
 from torch.utils.data import DataLoader
 from functools import partial
 import numpy as np
-import tempfile
 import pickle
 import random
 import torch
@@ -12,17 +11,30 @@ import os
 
 
 class DatasetLoader:
+    """Dataset Loader takes on the responsibility of defining how a SignalDataset
+    is loaded into memory (usually in parallel)
+
+    Args:
+        dataset (SignalDataset): _description_
+        seed (int): _description_
+        num_workers (int, optional): _description_. Defaults to os.cpu_count().
+        batch_size (int, optional): _description_. Defaults to os.cpu_count().
+    """
+
     def __init__(
         self,
         dataset: SignalDataset,
         seed: int,
-        num_workers: int = 16,
-        batch_size: int = 128,
+        num_workers: int = os.cpu_count(),
+        batch_size: int = os.cpu_count(),
     ) -> None:
+
         self.loader = DataLoader(
             dataset,
+            shuffle=True,
             batch_size=batch_size,
             num_workers=num_workers,
+            prefetch_factor=2,
             worker_init_fn=partial(DatasetLoader.worker_init_fn, seed=seed),
         )
         self.seed = seed
@@ -60,37 +72,26 @@ class LMDBDatasetWriter(DatasetWriter):
         self.path = path
         self.env = lmdb.Environment(path, subdir=True, map_size=int(1e12), max_dbs=2)
         self.data_db = self.env.open_db(b"data")
-
-        # This is where we have to store information about
-        # reading and writing the data.
-        self.metadata_db = self.env.open_db(b"metadata")
-        self.itemsize = 0
-        self.pickle_sizes = []
+        self.label_db = self.env.open_db(b"label")
 
     def write(self, batch):
-        with open(os.path.join(self.path, "raw.bin"), "ab+") as binary_file:
-            raw_binary = pickle.dumps(batch)
-            binary_file.write(raw_binary)
-            self.pickle_sizes.append(len(raw_binary))
+        data, labels = batch
+        with self.env.begin(write=True) as txn:
+            last_idx = txn.stat(db=self.data_db)["entries"]
+            for element_idx in range(len(data)):
+                txn.put(
+                    pickle.dumps(last_idx + element_idx),
+                    pickle.dumps(data[element_idx]),
+                    db=self.data_db,
+                )
+                txn.put(
+                    pickle.dumps(last_idx + element_idx),
+                    pickle.dumps((labels[0][element_idx], labels[1][element_idx])),
+                    db=self.label_db,
+                )
 
     def finalize(self):
-        with open(os.path.join(self.path, "raw.bin"), "rb") as binary_file:
-            for size in tqdm.tqdm(self.pickle_sizes, total=len(self.pickle_sizes)):
-                with self.env.begin(db=self.data_db, write=True) as data_txn:
-                    item = pickle.loads(binary_file.read(size))
-                    data, labels = item
-                    for item_idx in range(len(data)):
-                        item = [data[item_idx]]
-                        if isinstance(labels, list):
-                            for label_idx in range(len(labels)):
-                                item.append(labels[label_idx][item_idx])
-                        else:
-                            item.append(labels[item_idx])
-
-                        last_idx = data_txn.stat()["entries"]
-                        data_txn.put(pickle.dumps(last_idx), pickle.dumps(tuple(item)))
-
-        os.remove(os.path.join(self.path, "raw.bin"))
+        pass
 
 
 class DatasetCreator:

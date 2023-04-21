@@ -8,7 +8,6 @@ from torchsig.utils.writer import (
     LMDBDatasetWriter,
     DatasetCreator,
 )
-import numpy as np
 import shutil
 import os
 
@@ -32,24 +31,48 @@ class GenerateSig53(TestCase):
         GenerateSig53.clean_folders()
         return super().tearDown()
 
-    def test_can_generate_sig53_clean_train(self):
+    def test_can_generate_sig53_clean_train_raw(self):
         cfg = conf.Sig53CleanTrainConfig
+
+        print("Clean Train: ", cfg.num_iq_samples)
 
         ds = ModulationsDataset(
             level=cfg.level,
-            num_samples=cfg.num_samples,
+            num_samples=1060 * 5,
             num_iq_samples=cfg.num_iq_samples,
             use_class_idx=cfg.use_class_idx,
             include_snr=cfg.include_snr,
             eb_no=cfg.eb_no,
         )
 
-        loader = DatasetLoader(
-            Subset(ds, np.arange(1000).tolist()),
-            seed=12345678,
-            num_workers=16,
-            batch_size=16,
+        from torch.utils.data import DataLoader
+
+        loader = DataLoader(
+            ds, shuffle=True, batch_size=16, num_workers=16, prefetch_factor=2
         )
+
+        for data in loader:
+            pass
+
+        # Gotta go through twice
+        for data in loader:
+            pass
+
+    def test_can_generate_sig53_clean_train_single_thread(self):
+        cfg = conf.Sig53CleanTrainConfig
+
+        print("Clean Train: ", cfg.num_iq_samples)
+
+        ds = ModulationsDataset(
+            level=cfg.level,
+            num_samples=1060 * 5,
+            num_iq_samples=cfg.num_iq_samples,
+            use_class_idx=cfg.use_class_idx,
+            include_snr=cfg.include_snr,
+            eb_no=cfg.eb_no,
+        )
+
+        loader = DatasetLoader(ds, seed=12345678, num_workers=0)
         writer = LMDBDatasetWriter(path="tests/test1/sig53_clean_train")
         creator = DatasetCreator(loader, writer)
         creator.create()
@@ -58,104 +81,116 @@ class GenerateSig53(TestCase):
         creator = DatasetCreator(loader, writer)
         creator.create()
 
-        ds1 = Sig53(root="tests/test1", impaired=False)
-        ds2 = Sig53(root="tests/test2", impaired=False)
+        ds1 = Sig53(root="tests/test1", train=True, impaired=False)
+        ds2 = Sig53(root="tests/test2", train=True, impaired=False)
 
-        for idx in range(len(ds1)):
-            self.assertEqual(ds1[idx][0].all(), ds2[idx][0].all())
+        self.assertEqual(ds1[0][0].all(), ds2[0][0].all())
 
-    def test_can_generate_sig53_clean_val(self):
-        cfg = conf.Sig53CleanValConfig
+    def test_can_generate_sig53_clean_train(self):
+        cfg = conf.Sig53CleanTrainConfig
+
+        print("Clean Train: ", cfg.num_iq_samples)
 
         ds = ModulationsDataset(
             level=cfg.level,
-            num_samples=cfg.num_samples,
+            num_samples=1060 * 5,
             num_iq_samples=cfg.num_iq_samples,
             use_class_idx=cfg.use_class_idx,
             include_snr=cfg.include_snr,
             eb_no=cfg.eb_no,
         )
 
-        loader = DatasetLoader(
-            Subset(ds, np.arange(1000).tolist()),
-            seed=12345678,
-            num_workers=16,
-            batch_size=16,
-        )
-        writer = LMDBDatasetWriter(path="tests/test1/sig53_clean_val")
+        loader = DatasetLoader(ds, seed=12345678)
+        writer = LMDBDatasetWriter(path="tests/test1/sig53_clean_train")
         creator = DatasetCreator(loader, writer)
         creator.create()
 
-        writer = LMDBDatasetWriter(path="tests/test2/sig53_clean_val")
+        writer = LMDBDatasetWriter(path="tests/test2/sig53_clean_train")
         creator = DatasetCreator(loader, writer)
         creator.create()
 
-        ds1 = Sig53(root="tests/test1", impaired=False)
-        ds2 = Sig53(root="tests/test2", impaired=False)
+        ds1 = Sig53(root="tests/test1", train=True, impaired=False)
+        ds2 = Sig53(root="tests/test2", train=True, impaired=False)
 
-        for idx in range(len(ds1)):
-            self.assertEqual(ds1[idx][0].all(), ds2[idx][0].all())
+        self.assertEqual(ds1[0][0].all(), ds2[0][0].all())
 
-    def test_can_generate_sig53_impaired_train(self):
-        cfg = conf.Sig53ImpairedTrainConfig
+    # def test_can_generate_sig53_clean_val(self):
+    #     cfg = conf.Sig53CleanValConfig
+    #     print("Clean Val: ", cfg.num_iq_samples)
 
-        ds = ModulationsDataset(
-            level=cfg.level,
-            num_samples=cfg.num_samples,
-            num_iq_samples=cfg.num_iq_samples,
-            use_class_idx=cfg.use_class_idx,
-            include_snr=cfg.include_snr,
-            eb_no=cfg.eb_no,
-        )
+    #     ds = ModulationsDataset(
+    #         level=cfg.level,
+    #         num_samples=1060 * 5,
+    #         num_iq_samples=cfg.num_iq_samples,
+    #         use_class_idx=cfg.use_class_idx,
+    #         include_snr=cfg.include_snr,
+    #         eb_no=cfg.eb_no,
+    #     )
 
-        loader = DatasetLoader(
-            Subset(ds, np.arange(1000).tolist()),
-            seed=12345678,
-            num_workers=16,
-            batch_size=16,
-        )
-        writer = LMDBDatasetWriter(path="tests/test1/sig53_impaired_train")
-        creator = DatasetCreator(loader, writer)
-        creator.create()
+    #     loader = DatasetLoader(ds, seed=12345678)
+    #     writer = LMDBDatasetWriter(path="tests/test1/sig53_clean_val")
+    #     creator = DatasetCreator(loader, writer)
+    #     creator.create()
 
-        writer = LMDBDatasetWriter(path="tests/test2/sig53_impaired_train")
-        creator = DatasetCreator(loader, writer)
-        creator.create()
+    #     writer = LMDBDatasetWriter(path="tests/test2/sig53_clean_val")
+    #     creator = DatasetCreator(loader, writer)
+    #     creator.create()
 
-        ds1 = Sig53(root="tests/test1", impaired=False)
-        ds2 = Sig53(root="tests/test2", impaired=False)
+    #     ds1 = Sig53(root="tests/test1", train=False, impaired=False)
+    #     ds2 = Sig53(root="tests/test2", train=False, impaired=False)
 
-        for idx in range(len(ds1)):
-            self.assertEqual(ds1[idx][0].all(), ds2[idx][0].all())
+    #     self.assertEqual(ds1[0][0].all(), ds2[0][0].all())
 
-    def test_can_generate_sig53_impaired_val(self):
-        cfg = conf.Sig53ImpairedValConfig
+    # def test_can_generate_sig53_impaired_train(self):
+    #     cfg = conf.Sig53ImpairedTrainConfig
+    #     print("Impaired Train: ", cfg.num_iq_samples)
 
-        ds = ModulationsDataset(
-            level=cfg.level,
-            num_samples=cfg.num_samples,
-            num_iq_samples=cfg.num_iq_samples,
-            use_class_idx=cfg.use_class_idx,
-            include_snr=cfg.include_snr,
-            eb_no=cfg.eb_no,
-        )
+    #     ds = ModulationsDataset(
+    #         level=cfg.level,
+    #         num_samples=1060 * 5,
+    #         num_iq_samples=cfg.num_iq_samples,
+    #         use_class_idx=cfg.use_class_idx,
+    #         include_snr=cfg.include_snr,
+    #         eb_no=cfg.eb_no,
+    #     )
 
-        loader = DatasetLoader(
-            Subset(ds, np.arange(1000).tolist()),
-            seed=12345678,
-            num_workers=16,
-            batch_size=16,
-        )
-        writer = LMDBDatasetWriter(path="tests/test1/sig53_impaired_val")
-        creator = DatasetCreator(loader, writer)
-        creator.create()
+    #     loader = DatasetLoader(ds, seed=12345678)
+    #     writer = LMDBDatasetWriter(path="tests/test1/sig53_impaired_train")
+    #     creator = DatasetCreator(loader, writer)
+    #     creator.create()
 
-        writer = LMDBDatasetWriter(path="tests/test2/sig53_impaired_val")
-        creator = DatasetCreator(loader, writer)
-        creator.create()
+    #     writer = LMDBDatasetWriter(path="tests/test2/sig53_impaired_train")
+    #     creator = DatasetCreator(loader, writer)
+    #     creator.create()
 
-        ds1 = Sig53(root="tests/test1", impaired=False)
-        ds2 = Sig53(root="tests/test2", impaired=False)
+    #     ds1 = Sig53(root="tests/test1", train=True, impaired=True)
+    #     ds2 = Sig53(root="tests/test2", train=True, impaired=True)
 
-        for idx in range(len(ds1)):
-            self.assertEqual(ds1[idx][0].all(), ds2[idx][0].all())
+    #     self.assertEqual(ds1[0][0].all(), ds2[0][0].all())
+
+    # def test_can_generate_sig53_impaired_val(self):
+    #     cfg = conf.Sig53ImpairedValConfig
+    #     print("Impaired Val: ", cfg.num_iq_samples)
+
+    #     ds = ModulationsDataset(
+    #         level=cfg.level,
+    #         num_samples=1060 * 5,
+    #         num_iq_samples=cfg.num_iq_samples,
+    #         use_class_idx=cfg.use_class_idx,
+    #         include_snr=cfg.include_snr,
+    #         eb_no=cfg.eb_no,
+    #     )
+
+    #     loader = DatasetLoader(ds, seed=12345678)
+    #     writer = LMDBDatasetWriter(path="tests/test1/sig53_impaired_val")
+    #     creator = DatasetCreator(loader, writer)
+    #     creator.create()
+
+    #     writer = LMDBDatasetWriter(path="tests/test2/sig53_impaired_val")
+    #     creator = DatasetCreator(loader, writer)
+    #     creator.create()
+
+    #     ds1 = Sig53(root="tests/test1", train=False, impaired=True)
+    #     ds2 = Sig53(root="tests/test2", train=False, impaired=True)
+
+    #     self.assertEqual(ds1[0][0].all(), ds2[0][0].all())

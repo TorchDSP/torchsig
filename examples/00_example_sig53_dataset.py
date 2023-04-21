@@ -9,6 +9,7 @@ from torchsig.utils.writer import DatasetLoader, DatasetCreator, LMDBDatasetWrit
 from torchsig.utils.visualize import IQVisualizer, SpectrogramVisualizer
 from torchsig.datasets.modulations import ModulationsDataset
 from torchsig.datasets.sig53 import Sig53
+from torchsig.utils.dataset import SignalDataset
 from torchsig.datasets import conf
 from torch.utils.data import DataLoader
 from matplotlib import pyplot as plt
@@ -47,23 +48,18 @@ cfg = conf.Sig53CleanTrainConfig
 
 ds = ModulationsDataset(
     level=cfg.level,
-    num_samples=cfg.num_samples,
+    num_samples=1060,
     num_iq_samples=cfg.num_iq_samples,
     use_class_idx=cfg.use_class_idx,
     include_snr=cfg.include_snr,
     eb_no=cfg.eb_no,
 )
 
-loader = DatasetLoader(
-    ds,
-    seed=12345678,
-    num_workers=16,
-    batch_size=16,
-)
-writer = LMDBDatasetWriter(path="examples/sig53")
+loader = DatasetLoader(ds, seed=12345678)
+writer = LMDBDatasetWriter(path="examples/sig53/sig53_clean_train")
 creator = DatasetCreator(loader, writer)
 creator.create()
-sig53 = Sig53("examples/sig53", train=True, impaired=True)
+sig53 = Sig53("examples/sig53", train=True, impaired=False)
 
 # Retrieve a sample and print out information
 idx = np.random.randint(len(sig53))

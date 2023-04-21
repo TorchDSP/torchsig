@@ -2,7 +2,6 @@ from torchsig.utils.types import SignalData, SignalDescription
 from torchsig.datasets.modulations import ModulationsDataset
 from torchsig.transforms.transforms import NoTransform
 from torchsig.datasets import conf
-from torch.utils.data import Subset
 from copy import deepcopy
 from pathlib import Path
 import numpy as np
@@ -89,6 +88,7 @@ class Sig53:
             str(self.path).encode(), map_size=int(1e12), max_dbs=2
         )
         self.data_db = self.env.open_db(b"data")
+        self.label_db = self.env.open_db(b"label")
         with self.env.begin(db=self.data_db, write=True) as data_txn:
             self.length = data_txn.stat()["entries"]
 
@@ -96,11 +96,14 @@ class Sig53:
         return self.length
 
     def __getitem__(self, idx: int) -> tuple:
+        encoded_idx = pickle.dumps(idx)
         with self.env.begin(db=self.data_db) as data_txn:
-            idx = pickle.dumps(idx)
-            item = pickle.loads(data_txn.get(idx))
+            iq_data = pickle.loads(data_txn.get(encoded_idx))
 
-        iq_data, mod, snr = item
+        with self.env.begin(db=self.label_db) as label_txn:
+            mod, snr = pickle.loads(label_txn.get(encoded_idx))
+
+        mod = int(mod.numpy())
         if self.use_signal_data:
             signal_desc = SignalDescription(
                 class_name=self._idx_to_name_dict[mod],
@@ -110,14 +113,15 @@ class Sig53:
             data = SignalData(
                 data=deepcopy(iq_data.tobytes()),
                 item_type=np.dtype(np.float64),
-                data_type=np.dtype(np.complex64),
+                data_type=np.dtype(np.complex128),
                 signal_description=[signal_desc],
             )
             data = self.T(data)
             target = self.TT(data.signal_description)
             data = data.iq_data
-        else:
-            data = self.T(iq_data)
-            target = (self.TT(mod), snr)
+            return data, target
+
+        data = self.T(iq_data)
+        target = (self.TT(mod), snr)
 
         return data, target
