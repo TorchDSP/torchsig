@@ -5,7 +5,7 @@
 # ### Import Libraries
 # First, import all the necessary public libraries as well as a few classes from the `torchsig` toolkit.
 
-from torchsig.utils.writer import DatasetLoader, DatasetCreator, LMDBDatasetWriter
+from torchsig.utils.writer import DatasetCreator
 from torchsig.utils.visualize import IQVisualizer, SpectrogramVisualizer
 from torchsig.datasets.modulations import ModulationsDataset
 from torchsig.datasets.sig53 import Sig53
@@ -55,9 +55,7 @@ ds = ModulationsDataset(
     eb_no=cfg.eb_no,
 )
 
-loader = DatasetLoader(ds, seed=12345678)
-writer = LMDBDatasetWriter(path="examples/sig53/sig53_clean_train")
-creator = DatasetCreator(loader, writer)
+creator = DatasetCreator(ds, seed=12345678, path="examples/sig53/sig53_clean_train")
 creator.create()
 sig53 = Sig53("examples/sig53", train=True, impaired=False)
 

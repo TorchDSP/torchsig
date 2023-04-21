@@ -15,11 +15,18 @@ class DatasetLoader:
     is loaded into memory (usually in parallel)
 
     Args:
-        dataset (SignalDataset): _description_
-        seed (int): _description_
+        dataset (SignalDataset): Dataset from which to pull data
+        seed (int): seed for the underlying dataset
         num_workers (int, optional): _description_. Defaults to os.cpu_count().
         batch_size (int, optional): _description_. Defaults to os.cpu_count().
     """
+
+    @staticmethod
+    def worker_init_fn(worker_id: int, seed: int):
+        seed = seed + worker_id
+        torch.manual_seed(seed)
+        np.random.seed(seed)
+        random.seed(seed)
 
     def __init__(
         self,
@@ -37,18 +44,10 @@ class DatasetLoader:
             prefetch_factor=2,
             worker_init_fn=partial(DatasetLoader.worker_init_fn, seed=seed),
         )
-        self.seed = seed
         self.length = int(len(dataset) / batch_size)
 
     def __len__(self):
         return self.length
-
-    @staticmethod
-    def worker_init_fn(worker_id: int, seed: int):
-        seed = seed + worker_id
-        torch.manual_seed(seed)
-        np.random.seed(seed)
-        random.seed(seed)
 
     def __next__(self):
         data, label = next(self.loader)
@@ -59,20 +58,34 @@ class DatasetLoader:
 
 
 class DatasetWriter:
-    def write(self, batch):
+    """The Interface for DatasetWriter classes to override"""
+
+    def exists(self):
         raise NotImplementedError
 
-    def finalize(self):
+    def write(self, batch):
         raise NotImplementedError
 
 
 class LMDBDatasetWriter(DatasetWriter):
+    """A DatasetWriter for lmdb databases
+
+    Args:
+        path (str): directory in which to keep the database files
+    """
+
     def __init__(self, path: str, *args, **kwargs):
         super(LMDBDatasetWriter, self).__init__(*args, **kwargs)
         self.path = path
         self.env = lmdb.Environment(path, subdir=True, map_size=int(1e12), max_dbs=2)
         self.data_db = self.env.open_db(b"data")
         self.label_db = self.env.open_db(b"label")
+
+    def exists(self):
+        with lmdb.Transaction(self.env, self.data_db) as txn:
+            if txn.stat()["entries"] > 0:
+                return True
+        return False
 
     def write(self, batch):
         data, labels = batch
@@ -98,16 +111,38 @@ class LMDBDatasetWriter(DatasetWriter):
                         db=self.label_db,
                     )
 
-    def finalize(self):
-        pass
-
 
 class DatasetCreator:
-    def __init__(self, loader: DatasetLoader, writer: DatasetWriter) -> None:
-        self.loader = loader
-        self.writer = writer
+    """Class is whose sole responsibility is to interface a dataset (a generator)
+    with a DatasetLoader and a DatasetWriter to produce a static dataset with a
+    parallelized generation scheme and some specified storage format.
+
+    Args:
+        dataset (SignalDataset): dataset class
+        seed (int): seed for the dataset
+        path (str): path to store the static dataset
+        writer (DatasetWriter, optional): DatasetWriter. Defaults to LMDBDatasetWriter.
+        loader (DatasetLoader, optional): DatasetLoader. Defaults to DatasetLoader.
+    """
+
+    def __init__(
+        self,
+        dataset: SignalDataset,
+        seed: int,
+        path: str,
+        writer: DatasetWriter = None,
+        loader: DatasetLoader = None,
+    ) -> None:
+        self.loader = DatasetLoader(dataset=dataset, seed=seed)
+        self.loader = self.loader if not loader else loader
+        self.writer = LMDBDatasetWriter(path=path)
+        self.writer = self.writer if not writer else writer
+        self.path = path
 
     def create(self):
+        if self.writer.exists():
+            print("Dataset already exists in {}. Not regenerating".format(self.path))
+            return
+
         for batch in tqdm.tqdm(self.loader, total=len(self.loader)):
             self.writer.write(batch)
-        self.writer.finalize()

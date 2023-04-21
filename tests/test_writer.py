@@ -37,20 +37,10 @@ class SeedModulationDataset(TestCase):
             transform=transform,
             target_transform=DescToClassIndex(["bpsk", "2gfsk"]),
         )
-        loader = DatasetLoader(dataset, seed=12345678, num_workers=16)
-        writer = LMDBDatasetWriter(path="tests/test1_writer")
-        creator = DatasetCreator(loader, writer)
+        creator = DatasetCreator(dataset, seed=12345678, path="tests/test1_writer")
         creator.create()
 
-        # Create second dataset
-        dataset = DigitalModulationDataset(
-            num_samples_per_class=1060,
-            transform=transform,
-            target_transform=DescToClassIndex(["bpsk", "2gfsk"]),
-        )
-        loader = DatasetLoader(dataset, seed=12345678, num_workers=8)
-        writer = LMDBDatasetWriter(path="tests/test2_writer")
-        creator = DatasetCreator(loader, writer)
+        creator = DatasetCreator(dataset, seed=12345678, path="tests/test2_writer")
         creator.create()
 
         # See if they're the same

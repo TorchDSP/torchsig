@@ -7,7 +7,7 @@
 
 from torchsig.transforms.target_transforms.target_transforms import DescToClassIndex
 from torchsig.models.iq_models.efficientnet.efficientnet import efficientnet_b4
-from torchsig.utils.writer import DatasetLoader, DatasetCreator, LMDBDatasetWriter
+from torchsig.utils.writer import DatasetCreator
 from torchsig.transforms.wireless_channel.wce import RandomPhaseShift
 from torchsig.transforms.signal_processing.sp import Normalize
 from torchsig.transforms.expert_feature.eft import ComplexTo2D
@@ -61,9 +61,8 @@ ds = ModulationsDataset(
     eb_no=cfg.eb_no,
 )
 
-loader = DatasetLoader(ds, seed=12345678)
-writer = LMDBDatasetWriter(path="examples/sig53/sig53_clean_train")
-creator = DatasetCreator(loader, writer)
+creator = DatasetCreator(ds, seed=12345678, path="examples/sig53/sig53_clean_train")
+
 creator.create()
 sig53_clean_train = Sig53(
     "examples/sig53",
@@ -86,9 +85,8 @@ ds = ModulationsDataset(
     eb_no=cfg.eb_no,
 )
 
-loader = DatasetLoader(ds, seed=12345678)
-writer = LMDBDatasetWriter(path="examples/sig53/sig53_clean_val")
-creator = DatasetCreator(loader, writer)
+creator = DatasetCreator(ds, seed=12345678, path="examples/sig53/sig53_clean_val")
+
 creator.create()
 sig53_clean_val = Sig53(
     "examples/sig53",
@@ -146,18 +144,18 @@ model = model.to(device)
 class ExampleNetwork(LightningModule):
     def __init__(self, model, data_loader, val_data_loader):
         super(ExampleNetwork, self).__init__()
-        self.mdl = model
-        self.data_loader = data_loader
-        self.val_data_loader = val_data_loader
+        self.mdl: torch.nn.Module = model
+        self.data_loader: DataLoader = data_loader
+        self.val_data_loader: DataLoader = val_data_loader
 
         # Hyperparameters
         self.lr = 0.001
         self.batch_size = data_loader.batch_size
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor):
         return self.mdl(x.float())
 
-    def predict(self, x):
+    def predict(self, x: torch.Tensor):
         with torch.no_grad():
             out = self.forward(x.float())
         return out
@@ -168,25 +166,22 @@ class ExampleNetwork(LightningModule):
     def train_dataloader(self):
         return self.data_loader
 
-    def training_step(self, batch, batch_nb):
-        x, y = batch
-        y = torch.squeeze(y.to(torch.int64))
-        loss = F.cross_entropy(self(x.float()), y)
-        self.log("loss", loss)
-
     def val_dataloader(self):
         return self.val_data_loader
 
-    def validation_step(self, batch, batch_nb):
+    def training_step(self, batch: torch.Tensor, batch_nb: int):
         x, y = batch
         y = torch.squeeze(y.to(torch.int64))
         loss = F.cross_entropy(self(x.float()), y)
-        self.log("val_loss", loss)
+        self.log("loss", loss, on_step=True, prog_bar=True, logger=True)
+        return loss
 
-    def on_validation_epoch_end(self) -> None:
-        # val_loss_mean = sum([o["val_loss"] for o in outputs]) / len(outputs)
-        # self.log("val_loss", val_loss_mean, prog_bar=True)
-        return super().on_validation_epoch_end()
+    def validation_step(self, batch: torch.Tensor, batch_nb: int):
+        x, y = batch
+        y = torch.squeeze(y.to(torch.int64))
+        loss = F.cross_entropy(self(x.float()), y)
+        self.log("val_loss", loss, on_epoch=True, prog_bar=True, logger=True)
+        return loss
 
 
 example_model = ExampleNetwork(model, train_dataloader, val_dataloader)
@@ -201,7 +196,6 @@ checkpoint_filename = "{}/examples/checkpoints/checkpoint".format(os.getcwd())
 checkpoint_callback = ModelCheckpoint(
     filename=checkpoint_filename,
     save_top_k=True,
-    verbose=True,
     monitor="val_loss",
     mode="min",
 )
