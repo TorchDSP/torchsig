@@ -5,9 +5,12 @@
 # ### Import Libraries
 # First, import all the necessary public libraries as well as a few classes from the `torchsig` toolkit.
 
+from torchsig.utils.writer import DatasetCreator
 from torchsig.utils.visualize import IQVisualizer, SpectrogramVisualizer
-from torchsig.datasets.synthetic import SignalDataset
+from torchsig.datasets.modulations import ModulationsDataset
 from torchsig.datasets.sig53 import Sig53
+from torchsig.utils.dataset import SignalDataset
+from torchsig.datasets import conf
 from torch.utils.data import DataLoader
 from matplotlib import pyplot as plt
 from tqdm import tqdm
@@ -41,20 +44,21 @@ figure_dir = "examples/figures"
 if not os.path.isdir(figure_dir):
     os.mkdir(figure_dir)
 
-# Specify Sig53 Options
-train = False
-impaired = True
-transform = None
-target_transform = None
+cfg = conf.Sig53CleanTrainQAConfig
+# cfg = conf.Sig53CleanTrainConfig  # uncomment to run for real
 
-# Instantiate the Sig53 Dataset
-sig53 = Sig53(
-    root="examples/sig53",
-    train=train,
-    impaired=impaired,
-    transform=transform,
-    target_transform=target_transform,
+ds = ModulationsDataset(
+    level=cfg.level,
+    num_samples=cfg.num_samples,
+    num_iq_samples=cfg.num_iq_samples,
+    use_class_idx=cfg.use_class_idx,
+    include_snr=cfg.include_snr,
+    eb_no=cfg.eb_no,
 )
+
+creator = DatasetCreator(ds, seed=12345678, path="examples/sig53/sig53_clean_train")
+creator.create()
+sig53 = Sig53("examples/sig53", train=True, impaired=False)
 
 # Retrieve a sample and print out information
 idx = np.random.randint(len(sig53))
