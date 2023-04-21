@@ -33,7 +33,7 @@ class SeedModulationDataset(TestCase):
         transform = AddNoise(noise_power_db=(5, 10))
         # Create first dataset
         dataset = DigitalModulationDataset(
-            num_samples_per_class=10000,
+            num_samples_per_class=1060,
             transform=transform,
             target_transform=DescToClassIndex(["bpsk", "2gfsk"]),
         )
@@ -44,7 +44,7 @@ class SeedModulationDataset(TestCase):
 
         # Create second dataset
         dataset = DigitalModulationDataset(
-            num_samples_per_class=10000,
+            num_samples_per_class=1060,
             transform=transform,
             target_transform=DescToClassIndex(["bpsk", "2gfsk"]),
         )

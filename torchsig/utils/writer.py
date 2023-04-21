@@ -78,17 +78,25 @@ class LMDBDatasetWriter(DatasetWriter):
         data, labels = batch
         with self.env.begin(write=True) as txn:
             last_idx = txn.stat(db=self.data_db)["entries"]
+            if isinstance(labels, list):
+                for label_idx, label in enumerate(zip(*labels)):
+                    txn.put(
+                        pickle.dumps(last_idx + label_idx),
+                        pickle.dumps(label),
+                        db=self.label_db,
+                    )
             for element_idx in range(len(data)):
                 txn.put(
                     pickle.dumps(last_idx + element_idx),
                     pickle.dumps(data[element_idx]),
                     db=self.data_db,
                 )
-                txn.put(
-                    pickle.dumps(last_idx + element_idx),
-                    pickle.dumps((labels[0][element_idx], labels[1][element_idx])),
-                    db=self.label_db,
-                )
+                if not isinstance(labels, list):
+                    txn.put(
+                        pickle.dumps(last_idx + element_idx),
+                        pickle.dumps(labels),
+                        db=self.label_db,
+                    )
 
     def finalize(self):
         pass
