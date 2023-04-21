@@ -7,6 +7,7 @@
 
 from torchsig.transforms.target_transforms.target_transforms import DescToClassIndex
 from torchsig.models.iq_models.efficientnet.efficientnet import efficientnet_b4
+from torchsig.utils.writer import DatasetLoader, DatasetCreator, LMDBDatasetWriter
 from torchsig.transforms.wireless_channel.wce import RandomPhaseShift
 from torchsig.transforms.signal_processing.sp import Normalize
 from torchsig.transforms.expert_feature.eft import ComplexTo2D
@@ -16,8 +17,10 @@ from pytorch_lightning import LightningModule, Trainer
 from sklearn.metrics import classification_report
 from cm_plotter import plot_confusion_matrix
 from torchsig.datasets.sig53 import Sig53
+from torchsig.datasets.modulations import ModulationsDataset
 from torch.utils.data import DataLoader
 from matplotlib import pyplot as plt
+from torchsig.datasets import conf
 from torch import optim
 from tqdm import tqdm
 import torch.nn.functional as F
@@ -47,24 +50,53 @@ transform = Compose(
 target_transform = DescToClassIndex(class_list=class_list)
 
 # Instantiate the Sig53 Clean Training Dataset
+cfg = conf.Sig53CleanTrainQAConfig
+
+ds = ModulationsDataset(
+    level=cfg.level,
+    num_samples=cfg.num_samples,
+    num_iq_samples=cfg.num_iq_samples,
+    use_class_idx=cfg.use_class_idx,
+    include_snr=cfg.include_snr,
+    eb_no=cfg.eb_no,
+)
+
+loader = DatasetLoader(ds, seed=12345678)
+writer = LMDBDatasetWriter(path="examples/sig53/sig53_clean_train")
+creator = DatasetCreator(loader, writer)
+creator.create()
 sig53_clean_train = Sig53(
-    root=root,
-    train=train,
-    impaired=impaired,
+    "examples/sig53",
+    train=True,
+    impaired=False,
     transform=transform,
     target_transform=target_transform,
     use_signal_data=True,
 )
 
 # Instantiate the Sig53 Clean Validation Dataset
-train = False
+cfg = conf.Sig53CleanValQAConfig
+
+ds = ModulationsDataset(
+    level=cfg.level,
+    num_samples=cfg.num_samples,
+    num_iq_samples=cfg.num_iq_samples,
+    use_class_idx=cfg.use_class_idx,
+    include_snr=cfg.include_snr,
+    eb_no=cfg.eb_no,
+)
+
+loader = DatasetLoader(ds, seed=12345678)
+writer = LMDBDatasetWriter(path="examples/sig53/sig53_clean_val")
+creator = DatasetCreator(loader, writer)
+creator.create()
 sig53_clean_val = Sig53(
-    root=root,
-    train=train,
-    impaired=impaired,
+    "examples/sig53",
+    train=True,
+    impaired=False,
+    use_signal_data=True,
     transform=transform,
     target_transform=target_transform,
-    use_signal_data=True,
 )
 
 # Retrieve a sample and print out information to verify
@@ -187,11 +219,12 @@ trainer.fit(example_model)
 # After the model is trained, the checkpoint's weights are loaded into the model and the model is put into evaluation mode. The validation set is looped through, inferring results for each example and saving the predictions and the labels. Finally, the labels and predictions are passed into our confusion matrix plotting function to view the results and also passed into the `sklearn.metrics.classification_report` method to print metrics of interest.
 
 # Load best checkpoint
+device = "cuda" if torch.cuda.is_available() else "cpu"
 checkpoint = torch.load(
     checkpoint_filename + ".ckpt", map_location=lambda storage, loc: storage
 )
 example_model.load_state_dict(checkpoint["state_dict"])
-example_model = example_model.eval()
+example_model = example_model.to(device=device).eval()
 
 # Infer results over validation set
 num_test_examples = len(sig53_clean_val)
@@ -205,8 +238,7 @@ for i in tqdm(range(0, num_test_examples)):
     idx = i  # Use index if evaluating over full dataset
     data, label = sig53_clean_val[idx]
     # Infer
-    data = torch.from_numpy(np.expand_dims(data, 0)).float()
-    data = data.cuda() if torch.cuda.is_available() else data
+    data = torch.from_numpy(np.expand_dims(data, 0)).float().to(device)
     pred_tmp = example_model.predict(data)
     pred_tmp = pred_tmp.cpu().numpy() if torch.cuda.is_available() else pred_tmp
     # Argmax

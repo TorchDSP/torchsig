@@ -85,11 +85,11 @@ class Sig53:
 
         self.path = self.root / cfg.name
         self.env = lmdb.Environment(
-            str(self.path).encode(), map_size=int(1e12), max_dbs=2
+            str(self.path).encode(), map_size=int(1e12), max_dbs=2, lock=False
         )
         self.data_db = self.env.open_db(b"data")
         self.label_db = self.env.open_db(b"label")
-        with self.env.begin(db=self.data_db, write=True) as data_txn:
+        with self.env.begin(db=self.data_db) as data_txn:
             self.length = data_txn.stat()["entries"]
 
     def __len__(self) -> int:
@@ -98,7 +98,7 @@ class Sig53:
     def __getitem__(self, idx: int) -> tuple:
         encoded_idx = pickle.dumps(idx)
         with self.env.begin(db=self.data_db) as data_txn:
-            iq_data = pickle.loads(data_txn.get(encoded_idx))
+            iq_data = pickle.loads(data_txn.get(encoded_idx)).numpy()
 
         with self.env.begin(db=self.label_db) as label_txn:
             mod, snr = pickle.loads(label_txn.get(encoded_idx))
