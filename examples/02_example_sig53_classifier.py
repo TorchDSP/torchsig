@@ -7,6 +7,7 @@
 
 from torchsig.transforms.target_transforms.target_transforms import DescToClassIndex
 from torchsig.models.iq_models.efficientnet.efficientnet import efficientnet_b4
+from torchsig.utils.writer import DatasetCreator
 from torchsig.transforms.wireless_channel.wce import RandomPhaseShift
 from torchsig.transforms.signal_processing.sp import Normalize
 from torchsig.transforms.expert_feature.eft import ComplexTo2D
@@ -16,8 +17,10 @@ from pytorch_lightning import LightningModule, Trainer
 from sklearn.metrics import classification_report
 from cm_plotter import plot_confusion_matrix
 from torchsig.datasets.sig53 import Sig53
+from torchsig.datasets.modulations import ModulationsDataset
 from torch.utils.data import DataLoader
 from matplotlib import pyplot as plt
+from torchsig.datasets import conf
 from torch import optim
 from tqdm import tqdm
 import torch.nn.functional as F
@@ -47,24 +50,53 @@ transform = Compose(
 target_transform = DescToClassIndex(class_list=class_list)
 
 # Instantiate the Sig53 Clean Training Dataset
+cfg = conf.Sig53CleanTrainQAConfig
+# cfg = conf.Sig53CleanTrainConfig  # uncomment to run for real
+
+ds = ModulationsDataset(
+    level=cfg.level,
+    num_samples=cfg.num_samples,
+    num_iq_samples=cfg.num_iq_samples,
+    use_class_idx=cfg.use_class_idx,
+    include_snr=cfg.include_snr,
+    eb_no=cfg.eb_no,
+)
+
+creator = DatasetCreator(ds, seed=12345678, path="examples/sig53/sig53_clean_train")
+
+creator.create()
 sig53_clean_train = Sig53(
-    root=root,
-    train=train,
-    impaired=impaired,
+    "examples/sig53",
+    train=True,
+    impaired=False,
     transform=transform,
     target_transform=target_transform,
     use_signal_data=True,
 )
 
 # Instantiate the Sig53 Clean Validation Dataset
-train = False
+cfg = conf.Sig53CleanValQAConfig
+# cfg = conf.Sig53CleanValConfig  # uncomment to run for real
+
+ds = ModulationsDataset(
+    level=cfg.level,
+    num_samples=cfg.num_samples,
+    num_iq_samples=cfg.num_iq_samples,
+    use_class_idx=cfg.use_class_idx,
+    include_snr=cfg.include_snr,
+    eb_no=cfg.eb_no,
+)
+
+creator = DatasetCreator(ds, seed=12345678, path="examples/sig53/sig53_clean_val")
+
+creator.create()
 sig53_clean_val = Sig53(
-    root=root,
-    train=train,
-    impaired=impaired,
+    "examples/sig53",
+    train=True,
+    impaired=False,
+    use_signal_data=True,
     transform=transform,
     target_transform=target_transform,
-    use_signal_data=True,
 )
 
 # Retrieve a sample and print out information to verify
@@ -114,18 +146,18 @@ model = model.to(device)
 class ExampleNetwork(LightningModule):
     def __init__(self, model, data_loader, val_data_loader):
         super(ExampleNetwork, self).__init__()
-        self.mdl = model
-        self.data_loader = data_loader
-        self.val_data_loader = val_data_loader
+        self.mdl: torch.nn.Module = model
+        self.data_loader: DataLoader = data_loader
+        self.val_data_loader: DataLoader = val_data_loader
 
         # Hyperparameters
         self.lr = 0.001
         self.batch_size = data_loader.batch_size
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor):
         return self.mdl(x.float())
 
-    def predict(self, x):
+    def predict(self, x: torch.Tensor):
         with torch.no_grad():
             out = self.forward(x.float())
         return out
@@ -136,25 +168,22 @@ class ExampleNetwork(LightningModule):
     def train_dataloader(self):
         return self.data_loader
 
-    def training_step(self, batch, batch_nb):
-        x, y = batch
-        y = torch.squeeze(y.to(torch.int64))
-        loss = F.cross_entropy(self(x.float()), y)
-        self.log("loss", loss)
-
     def val_dataloader(self):
         return self.val_data_loader
 
-    def validation_step(self, batch, batch_nb):
+    def training_step(self, batch: torch.Tensor, batch_nb: int):
         x, y = batch
         y = torch.squeeze(y.to(torch.int64))
         loss = F.cross_entropy(self(x.float()), y)
-        self.log("val_loss", loss)
+        self.log("loss", loss, on_step=True, prog_bar=True, logger=True)
+        return loss
 
-    def on_validation_epoch_end(self) -> None:
-        # val_loss_mean = sum([o["val_loss"] for o in outputs]) / len(outputs)
-        # self.log("val_loss", val_loss_mean, prog_bar=True)
-        return super().on_validation_epoch_end()
+    def validation_step(self, batch: torch.Tensor, batch_nb: int):
+        x, y = batch
+        y = torch.squeeze(y.to(torch.int64))
+        loss = F.cross_entropy(self(x.float()), y)
+        self.log("val_loss", loss, on_epoch=True, prog_bar=True, logger=True)
+        return loss
 
 
 example_model = ExampleNetwork(model, train_dataloader, val_dataloader)
@@ -169,7 +198,6 @@ checkpoint_filename = "{}/examples/checkpoints/checkpoint".format(os.getcwd())
 checkpoint_callback = ModelCheckpoint(
     filename=checkpoint_filename,
     save_top_k=True,
-    verbose=True,
     monitor="val_loss",
     mode="min",
 )
@@ -187,11 +215,12 @@ trainer.fit(example_model)
 # After the model is trained, the checkpoint's weights are loaded into the model and the model is put into evaluation mode. The validation set is looped through, inferring results for each example and saving the predictions and the labels. Finally, the labels and predictions are passed into our confusion matrix plotting function to view the results and also passed into the `sklearn.metrics.classification_report` method to print metrics of interest.
 
 # Load best checkpoint
+device = "cuda" if torch.cuda.is_available() else "cpu"
 checkpoint = torch.load(
     checkpoint_filename + ".ckpt", map_location=lambda storage, loc: storage
 )
 example_model.load_state_dict(checkpoint["state_dict"])
-example_model = example_model.eval()
+example_model = example_model.to(device=device).eval()
 
 # Infer results over validation set
 num_test_examples = len(sig53_clean_val)
@@ -205,8 +234,7 @@ for i in tqdm(range(0, num_test_examples)):
     idx = i  # Use index if evaluating over full dataset
     data, label = sig53_clean_val[idx]
     # Infer
-    data = torch.from_numpy(np.expand_dims(data, 0)).float()
-    data = data.cuda() if torch.cuda.is_available() else data
+    data = torch.from_numpy(np.expand_dims(data, 0)).float().to(device)
     pred_tmp = example_model.predict(data)
     pred_tmp = pred_tmp.cpu().numpy() if torch.cuda.is_available() else pred_tmp
     # Argmax
