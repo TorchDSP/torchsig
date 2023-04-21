@@ -51,6 +51,7 @@ target_transform = DescToClassIndex(class_list=class_list)
 
 # Instantiate the Sig53 Clean Training Dataset
 cfg = conf.Sig53CleanTrainQAConfig
+# cfg = conf.Sig53CleanTrainConfig  # uncomment to run for real
 
 ds = ModulationsDataset(
     level=cfg.level,
@@ -75,6 +76,7 @@ sig53_clean_train = Sig53(
 
 # Instantiate the Sig53 Clean Validation Dataset
 cfg = conf.Sig53CleanValQAConfig
+# cfg = conf.Sig53CleanValConfig  # uncomment to run for real
 
 ds = ModulationsDataset(
     level=cfg.level,

@@ -44,11 +44,12 @@ figure_dir = "examples/figures"
 if not os.path.isdir(figure_dir):
     os.mkdir(figure_dir)
 
-cfg = conf.Sig53CleanTrainConfig
+cfg = conf.Sig53CleanTrainQAConfig
+# cfg = conf.Sig53CleanTrainConfig  # uncomment to run for real
 
 ds = ModulationsDataset(
     level=cfg.level,
-    num_samples=1060,
+    num_samples=cfg.num_samples,
     num_iq_samples=cfg.num_iq_samples,
     use_class_idx=cfg.use_class_idx,
     include_snr=cfg.include_snr,
