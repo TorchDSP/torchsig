@@ -1008,7 +1008,7 @@ class FSKDataset(SyntheticDataset):
             # allows for a larger transition bandwidth
             transition_bandwidth = (sample_rate / 2 - (cutoff_frequency)) / 4
             # estimate number of taps needed to implement filter
-            num_taps = estimate_filter_length(
+            num_taps = DigitalModulationDataset.estimate_filter_length(
                 attenuation_db, sample_rate, transition_bandwidth
             )
 
