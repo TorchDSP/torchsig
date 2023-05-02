@@ -742,7 +742,7 @@ class FSKDataset(SyntheticDataset):
         if not self.random_data:
             np.random.seed(index)
 
-        symbol_nums = np.random.randint(0, len(const_oversampled), int(self.num_iq_samples)/samples_per_symbol_recalculated)
+        symbol_nums = np.random.randint(0, len(const_oversampled), int(self.num_iq_samples/samples_per_symbol_recalculated))
 
         xp = cp if self.use_gpu else np
 
@@ -768,11 +768,6 @@ class FSKDataset(SyntheticDataset):
 
         if self.random_pulse_shaping:
             # Apply a randomized LPF simulating a noisy detector/burst extractor, then downsample to ~fs/2 bw
-
-
-            import matplotlib.pyplot as plt
-            import scipy.signal
-
             # accept the cutoff-frequency of the filter as external 
             # parameter, randomized as part of outer framework
             cutoff_frequency = bandwidth
