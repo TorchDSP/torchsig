@@ -701,11 +701,12 @@ class FSKDataset(SyntheticDataset):
                 # modulation index scales the bandwidth of the signal, and
                 # iq_samples_per_symbol is used as an oversampling rate in 
                 # FSKDataset class, therefore the signal bandwidth can be 
-                # approximated by mod_idx/iq_samples_per_symbol
+                # approximated by mod_idx/iq_samples_per_symbol.
                 mod_idx = self._mod_index(freq_name)
+                bandwidth_cutoff = mod_idx / self.iq_samples_per_symbol
                 bandwidth = np.random.uniform(
-                    (mod_idx / self.iq_samples_per_symbol) * 1.25,
-                    (mod_idx / self.iq_samples_per_symbol) * 3.75,
+                    bandwidth_cutoff,
+                    0.5-bandwidth_cutoff # normalized sampling rate fs=1
                 ) if self.random_pulse_shaping else 0.0
                 signal_description = SignalDescription(
                     sample_rate=0,
@@ -764,43 +765,50 @@ class FSKDataset(SyntheticDataset):
         phase = xp.cumsum(xp.array(filtered) * 1j * mod_idx * np.pi)
         modulated = xp.exp(phase)
 
+
         if self.random_pulse_shaping:
             # Apply a randomized LPF simulating a noisy detector/burst extractor, then downsample to ~fs/2 bw
-            lpf_bandwidth = bandwidth
-            num_taps = int(np.ceil(50 * 2 * np.pi / lpf_bandwidth / .125 / 22))
+
+
+            import matplotlib.pyplot as plt
+            import scipy.signal
+
+            # accept the cutoff-frequency of the filter as external 
+            # parameter, randomized as part of outer framework
+            cutoff_frequency = bandwidth
+            # define the sidelobe levels of the filter (in dB)
+            AdB = 72
+            # using a normalized sampling rate of 1 such that fs/2 = 1/2
+            fs = 1
+            # calculate transition bandwidth. a larger cutoff frequency requires 
+            # a smaller transition bandwidth, and a smaller cutoff frequency
+            # allows for a larger transition bandwidth
+            transitionBandwidth = (fs/2-(cutoff_frequency))/4
+            # estimate number of taps needed to implement filter
+            num_taps = estimate_filter_length ( AdB, fs, transitionBandwidth )
+
+            # design the filter
             if self.use_gpu:
                 taps = cusignal.firwin(
                     num_taps,
-                    lpf_bandwidth,
-                    width=lpf_bandwidth * .02,
+                    cutoff_frequency,
+                    width=transitionBandwidth,
                     window=sp.get_window("blackman", num_taps),
-                    scale=True
+                    scale=True,
+                    fs=fs
                 )                
             else:
                 taps = sp.firwin(
                     num_taps,
-                    lpf_bandwidth,
-                    width=lpf_bandwidth * .02,
+                    cutoff_frequency,
+                    width=transitionBandwidth,
                     window=sp.get_window("blackman", num_taps),
-                    scale=True
+                    scale=True,
+                    fs=fs
                 )
+            # apply the filter
             modulated = xp.convolve(xp.array(modulated), xp.array(taps), mode="same")
-            new_rate = lpf_bandwidth * 2
-            if self.use_gpu:
-                modulated = cusignal.resample_poly(
-                    modulated, 
-                    up=np.floor(new_rate*100).astype(np.int32), 
-                    down=100,
-                )
-            else:
-                modulated = sp.resample_poly(
-                    modulated, 
-                    up=np.floor(new_rate*100).astype(np.int32), 
-                    down=100,
-                )
-            signal_description.samples_per_symbol = 2 # Effective samples per symbol at half bandwidth
-            signal_description.excess_bandwidth = 0 # Reset excess bandwidth due to LPF
-                                    
+
         modulated = xp.asnumpy(modulated) if self.use_gpu else modulated
         
         if not self.random_data:
