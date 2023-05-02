@@ -175,7 +175,6 @@ class WidebandSig53:
                 print("Rounding batch size down to {}".format(gen_batch_size))
             self.gen_batch_size = gen_batch_size
 
-            print("Generating dataset...")
             self._generate_data(cfg)
         else:
             print("Existing data found, skipping data generation")
