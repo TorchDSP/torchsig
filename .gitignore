@@ -5,3 +5,7 @@ __pycache__/
 torchsig.egg-info
 .vscode/
 *.png
+build/
+checkpoints/
+lightning_logs/
+*.pt
