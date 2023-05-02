@@ -772,22 +772,22 @@ class FSKDataset(SyntheticDataset):
             # parameter, randomized as part of outer framework
             cutoff_frequency = bandwidth
             # define the sidelobe levels of the filter (in dB)
-            AdB = 72
+            attenuation_db = 72
             # using a normalized sampling rate of 1 such that fs/2 = 1/2
-            fs = 1
+            sample_rate = 1
             # calculate transition bandwidth. a larger cutoff frequency requires 
             # a smaller transition bandwidth, and a smaller cutoff frequency
             # allows for a larger transition bandwidth
-            transitionBandwidth = (fs/2-(cutoff_frequency))/4
+            transition_bandwidth = (fs/2-(cutoff_frequency))/4
             # estimate number of taps needed to implement filter
-            num_taps = estimate_filter_length ( AdB, fs, transitionBandwidth )
+            num_taps = estimate_filter_length ( attenuation_db, sample_rate, transition_bandwidth )
 
             # design the filter
             if self.use_gpu:
                 taps = cusignal.firwin(
                     num_taps,
                     cutoff_frequency,
-                    width=transitionBandwidth,
+                    width=transition_bandwidth,
                     window=sp.get_window("blackman", num_taps),
                     scale=True,
                     fs=fs
@@ -796,7 +796,7 @@ class FSKDataset(SyntheticDataset):
                 taps = sp.firwin(
                     num_taps,
                     cutoff_frequency,
-                    width=transitionBandwidth,
+                    width=transition_bandwidth,
                     window=sp.get_window("blackman", num_taps),
                     scale=True,
                     fs=fs
