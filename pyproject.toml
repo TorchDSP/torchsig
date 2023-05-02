@@ -12,8 +12,8 @@ readme = "README.md"
 requires-python = ">=3.7"
 license = {text = "MIT"}
 dependencies = [
-    "torch",
-    "torchvision>=0.10.0",
+    "torch==1.13.0",
+    "torchvision",
     "tqdm",
     "numpy",
     "scipy",
