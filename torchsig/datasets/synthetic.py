@@ -742,7 +742,7 @@ class FSKDataset(SyntheticDataset):
         if not self.random_data:
             np.random.seed(index)
 
-        symbol_nums = np.random.randint(0, len(const_oversampled), int(self.num_iq_samples))
+        symbol_nums = np.random.randint(0, len(const_oversampled), int(self.num_iq_samples)/samples_per_symbol_recalculated)
 
         xp = cp if self.use_gpu else np
 
