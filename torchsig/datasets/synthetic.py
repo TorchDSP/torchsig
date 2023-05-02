@@ -377,9 +377,9 @@ class ConstellationDataset(SyntheticDataset):
         zero_padded[:: self.iq_samples_per_symbol] = symbols
 
         # estimate total filter length for pulse shape
-        AdB = 72  # sidelobe attenuation level, 72 dB -> 12 bit dynamic range
+        attenuation_db = 72  # sidelobe attenuation level, 72 dB -> 12 bit dynamic range
         pulse_shape_filter_length = DigitalModulationDataset.estimate_filter_length(
-            AdB, 1, signal_description.excess_bandwidth
+            attenuation_db, 1, signal_description.excess_bandwidth
         )
         pulse_shape_filter_span = int(
             (pulse_shape_filter_length - 1) / 2
