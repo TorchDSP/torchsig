@@ -187,6 +187,7 @@ class ExampleNetwork(LightningModule):
 
 
 example_model = ExampleNetwork(model, train_dataloader, val_dataloader)
+example_model = example_model.to(device)
 
 
 # ----
