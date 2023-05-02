@@ -92,7 +92,7 @@ creator = DatasetCreator(ds, seed=12345678, path="examples/sig53/sig53_clean_val
 creator.create()
 sig53_clean_val = Sig53(
     "examples/sig53",
-    train=True,
+    train=False,
     impaired=False,
     use_signal_data=True,
     transform=transform,
