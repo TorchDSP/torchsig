@@ -349,7 +349,6 @@ class ModulatedSignalBurst(SignalBurst):
             oversample = 1
         up_rate = np.floor(new_rate * 100 * oversample).astype(np.int32)
         down_rate = 100
-        xp = cp if self.use_gpu else np
         iq_samples = signal.resample_poly(iq_samples, up_rate, down_rate)
 
         # Freq shift to desired center freq

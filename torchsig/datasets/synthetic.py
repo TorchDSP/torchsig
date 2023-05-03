@@ -327,7 +327,7 @@ class ConstellationDataset(SyntheticDataset):
         self.iq_samples_per_symbol = iq_samples_per_symbol
         self.num_samples_per_class = num_samples_per_class
         self.random_pulse_shaping = random_pulse_shaping
-        self.use_gpu = use_gpu and torch.cuda.is_available() and CUPY and CUSIGNAL
+        self.use_gpu = use_gpu
 
         num_constellations = len(self.constellations)
         total_num_samples = int(num_constellations * self.num_samples_per_class)
@@ -513,7 +513,7 @@ class OFDMDataset(SyntheticDataset):
         self.num_iq_samples = num_iq_samples
         self.num_samples_per_class = num_samples_per_class
         self.random_data = random_data
-        self.use_gpu = use_gpu and torch.cuda.is_available() and CUPY and CUSIGNAL
+        self.use_gpu = use_gpu
         self.index = []
         if "lpf" in sidelobe_suppression_methods:
             # Precompute LPF
@@ -903,7 +903,7 @@ class FSKDataset(SyntheticDataset):
         self.iq_samples_per_symbol = iq_samples_per_symbol
         self.random_data = random_data
         self.random_pulse_shaping = random_pulse_shaping
-        self.use_gpu = use_gpu and torch.cuda.is_available() and CUPY and CUSIGNAL
+        self.use_gpu = use_gpu
         self.index = []
 
         for freq_idx, freq_name in enumerate(map(str.lower, self.modulations)):
