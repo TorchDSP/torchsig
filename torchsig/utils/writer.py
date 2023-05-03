@@ -35,7 +35,6 @@ class DatasetLoader:
         num_workers: int = os.cpu_count(),
         batch_size: int = os.cpu_count(),
     ) -> None:
-
         self.loader = DataLoader(
             dataset,
             shuffle=True,

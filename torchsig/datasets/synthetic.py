@@ -15,6 +15,7 @@ from torchsig.transforms.functional import IntParameter, FloatParameter
 def torchsig_convolve(
     signal: np.ndarray, taps: np.ndarray, gpu: bool = False
 ) -> np.ndarray:
+    # This will run into issues is signal is smaller than taps
     torch_signal = torch.from_numpy(signal.astype(np.complex128)).reshape(1, -1)
     torch_taps = torch.flip(
         torch.from_numpy(taps.astype(np.complex128)).reshape(1, 1, -1), dims=(2,)
@@ -392,7 +393,7 @@ class ConstellationDataset(SyntheticDataset):
             pulse_shape_filter_span, signal_description.excess_bandwidth
         )
         filtered = torchsig_convolve(
-            zero_padded, self.pulse_shape_filter.astype(np.complex64), gpu=self.use_gpu
+            zero_padded, self.pulse_shape_filter, gpu=self.use_gpu
         )
 
         if not self.random_data:
@@ -750,7 +751,7 @@ class OFDMDataset(SyntheticDataset):
         elif sidelobe_suppression_method == "lpf":
             flattened = cyclic_prefixed.T.flatten()
             # Apply pre-computed LPF
-            output = torchsig_convolve(flattened, self.taps.astype(np.complex64))[:-50]
+            output = torchsig_convolve(flattened, self.taps, gpu=self.use_gpu)[:-50]
 
         elif sidelobe_suppression_method == "rand_lpf":
             flattened = cyclic_prefixed.T.flatten()
@@ -767,8 +768,7 @@ class OFDMDataset(SyntheticDataset):
                 scale=True,
             )
             # Apply random LPF
-            output = torchsig_convolve(flattened, taps.astype(np.complex64))[:-num_taps]
-
+            output = torchsig_convolve(flattened, taps, gpu=self.use_gpu)[:-num_taps]
         else:
             # Apply appropriate windowing technique
             window_len = cyclic_prefix_len
@@ -966,7 +966,7 @@ class FSKDataset(SyntheticDataset):
         symbol_nums = np.random.randint(
             0,
             len(const_oversampled),
-            int(self.num_iq_samples / samples_per_symbol_recalculated),
+            int(2 * self.num_iq_samples / samples_per_symbol_recalculated),
         )
 
         symbols = const_oversampled[symbol_nums]
@@ -976,7 +976,7 @@ class FSKDataset(SyntheticDataset):
             # GMSK, GFSK
             taps = self._gaussian_taps(samples_per_symbol_recalculated, bandwidth)
             signal_description.excess_bandwidth = bandwidth
-            filtered = torchsig_convolve(symbols_repeat, taps.astype(np.complex64))
+            filtered = torchsig_convolve(symbols_repeat, taps, gpu=self.use_gpu)
         else:
             # FSK, MSK
             filtered = symbols_repeat
@@ -1016,9 +1016,7 @@ class FSKDataset(SyntheticDataset):
                 fs=sample_rate,
             )
             # apply the filter
-            modulated = torchsig_convolve(
-                modulated, taps.astype(np.complex64), gpu=self.use_gpu
-            )
+            modulated = torchsig_convolve(modulated, taps, gpu=self.use_gpu)
 
         if not self.random_data:
             np.random.set_state(orig_state)  # return numpy back to its previous state

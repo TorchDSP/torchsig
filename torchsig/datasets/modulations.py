@@ -149,7 +149,7 @@ class ModulationsDataset(ConcatDataset):
         eb_no: bool = False,
         transform: Optional[Callable] = None,
         target_transform: Optional[Callable] = None,
-        **kwargs
+        **kwargs,
     ):
         classes = self.default_classes if classes is None else classes
         # Set the target transform based on input options if none provided
