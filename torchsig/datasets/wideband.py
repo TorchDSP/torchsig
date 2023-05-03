@@ -8,8 +8,6 @@ from itertools import chain
 from ast import literal_eval
 from functools import partial
 from typing import Tuple, Any, List, Optional, Callable, Union
-import numpy as cp
-
 from torchsig.utils.dataset import SignalDataset
 from torchsig.utils.types import SignalData, SignalDescription
 from torchsig.datasets.synthetic import OFDMDataset, ConstellationDataset, FSKDataset
@@ -250,12 +248,12 @@ class ModulatedSignalBurst(SignalBurst):
             self.class_name if isinstance(self.class_name, list) else [self.class_name]
         )
         approx_samp_per_sym = (
-            int(np.ceil(self.bandwidth ** -1))
+            int(np.ceil(self.bandwidth**-1))
             if self.bandwidth < 1.0
             else int(np.ceil(self.bandwidth))
         )
         approx_bandwidth = (
-            approx_samp_per_sym ** -1
+            approx_samp_per_sym**-1
             if self.bandwidth < 1.0
             else int(np.ceil(self.bandwidth))
         )
@@ -355,8 +353,8 @@ class ModulatedSignalBurst(SignalBurst):
         iq_samples = signal.resample_poly(iq_samples, up_rate, down_rate)
 
         # Freq shift to desired center freq
-        time_vector = xp.arange(iq_samples.shape[0], dtype=float)
-        iq_samples = iq_samples * xp.exp(
+        time_vector = np.arange(iq_samples.shape[0], dtype=float)
+        iq_samples = iq_samples * np.exp(
             2j * np.pi * self.center_frequency / oversample * time_vector
         )
 
@@ -388,16 +386,16 @@ class ModulatedSignalBurst(SignalBurst):
             iq_samples = iq_samples[-int(self.num_iq_samples * self.duration) :]
 
         # Set power
-        iq_samples = iq_samples / xp.sqrt(xp.mean(xp.abs(iq_samples) ** 2))
+        iq_samples = iq_samples / np.sqrt(np.mean(np.abs(iq_samples) ** 2))
         iq_samples = (
-            xp.sqrt(self.bandwidth)
+            np.sqrt(self.bandwidth)
             * (10 ** (self.snr / 20.0))
             * iq_samples
-            / xp.sqrt(2)
+            / np.sqrt(2)
         )
 
         if iq_samples.shape[0] > 50:
-            window = xp.blackman(50) / xp.max(xp.blackman(50))
+            window = np.blackman(50) / np.max(np.blackman(50))
             iq_samples[:25] *= window[:25]
             iq_samples[-25:] *= window[-25:]
 
@@ -406,15 +404,12 @@ class ModulatedSignalBurst(SignalBurst):
         trailing_silence = self.num_iq_samples - len(iq_samples) - leading_silence
         trailing_silence = 0 if trailing_silence < 0 else trailing_silence
 
-        iq_samples = xp.pad(
-            xp.array(iq_samples),
+        iq_samples = np.pad(
+            np.array(iq_samples),
             pad_width=(leading_silence, trailing_silence),
             mode="constant",
             constant_values=0,
         )
-
-        iq_samples = xp.asnumpy(iq_samples) if self.use_gpu else iq_samples
-
         return iq_samples[: self.num_iq_samples]
 
 

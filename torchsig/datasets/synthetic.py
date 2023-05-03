@@ -7,24 +7,28 @@ from scipy import signal as sp
 from collections import OrderedDict
 from torch.utils.data import ConcatDataset
 from typing import Tuple, Any, List, Union, Optional
-
-try:
-    import cusignal
-    import cupy as xp
-    import cupy as cp
-
-    CUSIGNAL = True
-    CUPY = True
-except ImportError:
-    import numpy as cp
-
-    CUSIGNAL = False
-    CUPY = False
-    pass
-
 from torchsig.utils.dataset import SignalDataset
 from torchsig.utils.types import SignalData, SignalDescription
 from torchsig.transforms.functional import IntParameter, FloatParameter
+
+
+def torchsig_convolve(
+    signal: np.ndarray, taps: np.ndarray, gpu: bool = False
+) -> np.ndarray:
+    torch_signal = torch.from_numpy(signal.astype(np.complex128)).reshape(1, -1)
+    torch_taps = torch.flip(
+        torch.from_numpy(taps.astype(np.complex128)).reshape(1, 1, -1), dims=(2,)
+    )
+    if gpu:
+        result = torch.nn.functional.conv1d(
+            torch_signal.cuda(), torch_taps.cuda(), padding=torch_signal.shape[0] - 1
+        )
+        return result.cpu().numpy()[0]
+
+    result = torch.nn.functional.conv1d(
+        torch_signal, torch_taps, padding=torch_signal.shape[0] - 1
+    )
+    return result.numpy()[0]
 
 
 def remove_corners(const):
@@ -387,9 +391,8 @@ class ConstellationDataset(SyntheticDataset):
         self.pulse_shape_filter = self._rrc_taps(
             pulse_shape_filter_span, signal_description.excess_bandwidth
         )
-        xp = cp if self.use_gpu else np
-        filtered = xp.convolve(
-            xp.array(zero_padded), xp.array(self.pulse_shape_filter), "same"
+        filtered = torchsig_convolve(
+            zero_padded, self.pulse_shape_filter.astype(np.complex64), gpu=self.use_gpu
         )
 
         if not self.random_data:
@@ -735,10 +738,9 @@ class OFDMDataset(SyntheticDataset):
                 ]
             zero_pad = bursty
 
-        xp = cp if self.use_gpu else np
-        ofdm_symbols = xp.fft.ifft(xp.fft.ifftshift(zero_pad, axes=0), axis=0)
+        ofdm_symbols = np.fft.ifft(np.fft.ifftshift(zero_pad, axes=0), axis=0)
         symbol_dur = ofdm_symbols.shape[0]
-        cyclic_prefixed = xp.pad(
+        cyclic_prefixed = np.pad(
             ofdm_symbols, ((int(cyclic_prefix_len), 0), (0, 0)), "wrap"
         )
 
@@ -748,9 +750,7 @@ class OFDMDataset(SyntheticDataset):
         elif sidelobe_suppression_method == "lpf":
             flattened = cyclic_prefixed.T.flatten()
             # Apply pre-computed LPF
-            output = xp.convolve(xp.array(flattened), xp.array(self.taps), mode="same")[
-                :-50
-            ]
+            output = torchsig_convolve(flattened, self.taps.astype(np.complex64))[:-50]
 
         elif sidelobe_suppression_method == "rand_lpf":
             flattened = cyclic_prefixed.T.flatten()
@@ -767,16 +767,14 @@ class OFDMDataset(SyntheticDataset):
                 scale=True,
             )
             # Apply random LPF
-            output = xp.convolve(xp.array(flattened), xp.array(taps), mode="same")[
-                :-num_taps
-            ]
+            output = torchsig_convolve(flattened, taps.astype(np.complex64))[:-num_taps]
 
         else:
             # Apply appropriate windowing technique
             window_len = cyclic_prefix_len
             half_window_len = int(window_len / 2)
             if sidelobe_suppression_method == "win_center":
-                windowed = xp.pad(
+                windowed = np.pad(
                     cyclic_prefixed,
                     ((half_window_len, half_window_len), (0, 0)),
                     "constant",
@@ -799,7 +797,7 @@ class OFDMDataset(SyntheticDataset):
                     :,
                 ]
             elif sidelobe_suppression_method == "win_start":
-                windowed = xp.pad(
+                windowed = np.pad(
                     cyclic_prefixed,
                     ((0, int(window_len)), (0, 0)),
                     "constant",
@@ -816,10 +814,10 @@ class OFDMDataset(SyntheticDataset):
                 )
 
             # window the tails
-            front_window = xp.blackman(int(window_len * 2))[: int(window_len)].reshape(
+            front_window = np.blackman(int(window_len * 2))[: int(window_len)].reshape(
                 -1, 1
             )
-            tail_window = xp.blackman(int(window_len * 2))[-int(window_len) :].reshape(
+            tail_window = np.blackman(int(window_len * 2))[-int(window_len) :].reshape(
                 -1, 1
             )
             windowed[: int(window_len), :] = (
@@ -829,7 +827,7 @@ class OFDMDataset(SyntheticDataset):
                 tail_window * windowed[-int(window_len) :, :]
             )
 
-            combined = xp.zeros((windowed.shape[0] * windowed.shape[1],), dtype=complex)
+            combined = np.zeros((windowed.shape[0] * windowed.shape[1],), dtype=complex)
             start_idx = 0
             for symbol_idx in range(windowed.shape[1]):
                 combined[start_idx : start_idx + windowed.shape[0]] += windowed[
@@ -839,8 +837,6 @@ class OFDMDataset(SyntheticDataset):
             output = combined[
                 : int(cyclic_prefixed.shape[0] * cyclic_prefixed.shape[1])
             ]
-
-        output = xp.asnumpy(output) if self.use_gpu else output
 
         # Randomize the start index (while bypassing the initial windowing if present)
         if sym_mult == 1 and num_subcarriers * 4 * burst_dur < self.num_iq_samples:
@@ -973,16 +969,14 @@ class FSKDataset(SyntheticDataset):
             int(self.num_iq_samples / samples_per_symbol_recalculated),
         )
 
-        xp = cp if self.use_gpu else np
-
         symbols = const_oversampled[symbol_nums]
-        symbols_repeat = xp.repeat(symbols, samples_per_symbol_recalculated)
+        symbols_repeat = np.repeat(symbols, samples_per_symbol_recalculated)
 
         if "g" in const_name:
             # GMSK, GFSK
             taps = self._gaussian_taps(samples_per_symbol_recalculated, bandwidth)
             signal_description.excess_bandwidth = bandwidth
-            filtered = xp.convolve(xp.array(symbols_repeat), xp.array(taps), "same")
+            filtered = torchsig_convolve(symbols_repeat, taps.astype(np.complex64))
         else:
             # FSK, MSK
             filtered = symbols_repeat
@@ -991,8 +985,8 @@ class FSKDataset(SyntheticDataset):
         filtered = np.insert(filtered, 0, 0)
 
         mod_idx = self._mod_index(const_name)
-        phase = xp.cumsum(xp.array(filtered) * 1j * mod_idx * np.pi)
-        modulated = xp.exp(phase)
+        phase = np.cumsum(np.array(filtered) * 1j * mod_idx * np.pi)
+        modulated = np.exp(phase)
 
         if self.random_pulse_shaping:
             # Apply a randomized LPF simulating a noisy detector/burst extractor, then downsample to ~fs/2 bw
@@ -1013,28 +1007,18 @@ class FSKDataset(SyntheticDataset):
             )
 
             # design the filter
-            if self.use_gpu:
-                taps = cusignal.firwin(
-                    num_taps,
-                    cutoff_frequency,
-                    width=transition_bandwidth,
-                    window=sp.get_window("blackman", num_taps),
-                    scale=True,
-                    fs=sample_rate,
-                )
-            else:
-                taps = sp.firwin(
-                    num_taps,
-                    cutoff_frequency,
-                    width=transition_bandwidth,
-                    window=sp.get_window("blackman", num_taps),
-                    scale=True,
-                    fs=sample_rate,
-                )
+            taps = sp.firwin(
+                num_taps,
+                cutoff_frequency,
+                width=transition_bandwidth,
+                window=sp.get_window("blackman", num_taps),
+                scale=True,
+                fs=sample_rate,
+            )
             # apply the filter
-            modulated = xp.convolve(xp.array(modulated), xp.array(taps), mode="same")
-
-        modulated = xp.asnumpy(modulated) if self.use_gpu else modulated
+            modulated = torchsig_convolve(
+                modulated, taps.astype(np.complex64), gpu=self.use_gpu
+            )
 
         if not self.random_data:
             np.random.set_state(orig_state)  # return numpy back to its previous state
@@ -1042,14 +1026,13 @@ class FSKDataset(SyntheticDataset):
         return modulated[-self.num_iq_samples :]
 
     def _gaussian_taps(self, samples_per_symbol, BT: float = 0.35) -> np.ndarray:
-        xp = cp if self.use_gpu else np
         # pre-modulation Bb*T product which sets the bandwidth of the Gaussian lowpass filter
         M = 4  # duration in symbols
-        n = xp.arange(-M * samples_per_symbol, M * samples_per_symbol + 1)
-        p = xp.exp(
+        n = np.arange(-M * samples_per_symbol, M * samples_per_symbol + 1)
+        p = np.exp(
             -2 * np.pi**2 * BT**2 / np.log(2) * (n / float(samples_per_symbol)) ** 2
         )
-        p = p / xp.sum(p)
+        p = p / np.sum(p)
         return p
 
     def _mod_index(self, const_name):
