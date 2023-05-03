@@ -6,6 +6,14 @@ from typing import List, Optional
 from torchvision.ops.boxes import box_area
 
 
+def _max_by_axis(the_list):
+    maxes = the_list[0]
+    for sublist in the_list[1:]:
+        for index, item in enumerate(sublist):
+            maxes[index] = max(maxes[index], item)
+    return maxes
+
+
 def drop_classifier(parent):
     return torch.nn.Sequential(*list(parent.children())[:-2])
 
@@ -18,24 +26,24 @@ def find_output_features(parent, num_features=0):
             num_features = find_output_features(m, num_features)
     return num_features
 
-    
+
 def xcit_name_to_timm_name(input_name: str) -> str:
-    if 'nano' in input_name:
-        model_name = 'xcit_nano_12_p16_224'
-    elif 'tiny' in input_name:
-        if '24' in input_name:
-            model_name = 'xcit_tiny_24_p16_224'
+    if "nano" in input_name:
+        model_name = "xcit_nano_12_p16_224"
+    elif "tiny" in input_name:
+        if "24" in input_name:
+            model_name = "xcit_tiny_24_p16_224"
         else:
-            model_name = 'xcit_tiny_12_p16_224'
-    elif 'small' in input_name:
-        model_name = 'xcit_small_24_p8_224'
-    elif 'medium' in input_name:
-        model_name = 'xcit_medium_24_p8_224'
-    elif 'large' in input_name:
-        model_name = 'xcit_large_24_p8_224'
+            model_name = "xcit_tiny_12_p16_224"
+    elif "small" in input_name:
+        model_name = "xcit_small_24_p8_224"
+    elif "medium" in input_name:
+        model_name = "xcit_medium_24_p8_224"
+    elif "large" in input_name:
+        model_name = "xcit_large_24_p8_224"
     else:
-        raise NotImplemented('Input transformer not supported.')
-    
+        raise NotImplemented("Input transformer not supported.")
+
     return model_name
 
 
@@ -74,8 +82,7 @@ def accuracy(output, target, topk=(1,)):
 
 def box_cxcywh_to_xyxy(x):
     x_c, y_c, w, h = x.unbind(-1)
-    b = [(x_c - 0.5 * w), (y_c - 0.5 * h),
-         (x_c + 0.5 * w), (y_c + 0.5 * h)]
+    b = [(x_c - 0.5 * w), (y_c - 0.5 * h), (x_c + 0.5 * w), (y_c + 0.5 * h)]
     return torch.stack(b, dim=-1)
 
 
@@ -120,7 +127,9 @@ def generalized_box_iou(boxes1, boxes2):
 
 def format_preds(preds):
     map_preds = []
-    for (i, (det_logits, det_boxes)) in enumerate(zip(preds['pred_logits'], preds['pred_boxes'])):
+    for i, (det_logits, det_boxes) in enumerate(
+        zip(preds["pred_logits"], preds["pred_boxes"])
+    ):
         boxes = []
         scores = []
         labels = []
@@ -128,26 +137,26 @@ def format_preds(preds):
         # Convert DETR output format to expected bboxes
         num_objs = 0
         pred = {}
-        pred['pred_logits'] = det_logits
-        pred['pred_boxes'] = det_boxes
+        pred["pred_logits"] = det_logits
+        pred["pred_boxes"] = det_boxes
 
         det_list = []
-        for obj_idx in range(pred['pred_logits'].shape[0]):
-            probs = pred['pred_logits'][obj_idx].softmax(-1)
+        for obj_idx in range(pred["pred_logits"].shape[0]):
+            probs = pred["pred_logits"][obj_idx].softmax(-1)
             max_prob = probs.max().cpu().detach().numpy()
             max_class = probs.argmax().cpu().detach().numpy()
-            if max_class != (pred['pred_logits'].shape[1] - 1) and max_prob >= 0.5:
-                center_time = pred['pred_boxes'][obj_idx][0]
-                center_freq = pred['pred_boxes'][obj_idx][1]
-                duration = pred['pred_boxes'][obj_idx][2]
-                bandwidth = pred['pred_boxes'][obj_idx][3]
+            if max_class != (pred["pred_logits"].shape[1] - 1) and max_prob >= 0.5:
+                center_time = pred["pred_boxes"][obj_idx][0]
+                center_freq = pred["pred_boxes"][obj_idx][1]
+                duration = pred["pred_boxes"][obj_idx][2]
+                bandwidth = pred["pred_boxes"][obj_idx][3]
 
                 # Save to box, score, label lists
-                x1 = max(0,(center_time - duration / 2) * 512)
-                y1 = max(0,(center_freq - bandwidth / 2) * 512)
-                x2 = min(512,(center_time + duration / 2) * 512)
-                y2 = min(512,(center_freq + bandwidth / 2) * 512)
-                
+                x1 = max(0, (center_time - duration / 2) * 512)
+                y1 = max(0, (center_freq - bandwidth / 2) * 512)
+                x2 = min(512, (center_time + duration / 2) * 512)
+                y2 = min(512, (center_freq + bandwidth / 2) * 512)
+
                 boxes.append([x1, y1, x2, y2])
                 scores.extend([float(max_prob)])
                 labels.extend([int(max_class)])
@@ -157,39 +166,39 @@ def format_preds(preds):
             scores=torch.tensor(scores).to("cuda"),
             labels=torch.IntTensor(labels).to("cuda"),
         )
-        
+
         map_preds.append(curr_pred)
-            
+
     return map_preds
 
 
 def format_targets(labels):
     map_targets = []
-        
+
     for i, label in enumerate(labels):
         boxes = []
         scores = []
         labels = []
-    
-        for label_obj_idx in range(len(label['labels'])):
+
+        for label_obj_idx in range(len(label["labels"])):
             center_time = label["boxes"][label_obj_idx][0]
             center_freq = label["boxes"][label_obj_idx][1]
             duration = label["boxes"][label_obj_idx][2]
             bandwidth = label["boxes"][label_obj_idx][3]
             class_idx = label["labels"][label_obj_idx]
-            
+
             x1 = (center_time - duration / 2) * 512
             y1 = (center_freq - bandwidth / 2) * 512
             x2 = (center_time + duration / 2) * 512
             y2 = (center_freq + bandwidth / 2) * 512
-            
+
             boxes.append([x1, y1, x2, y2])
             labels.extend([int(class_idx)])
-            
+
         curr_target = dict(
             boxes=torch.tensor(boxes).to("cuda"),
             labels=torch.IntTensor(labels).to("cuda"),
         )
         map_targets.append(curr_target)
-    
+
     return map_targets
