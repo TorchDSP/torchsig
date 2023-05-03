@@ -34,6 +34,7 @@ class SeedModulationDataset(TestCase):
         # Create first dataset
         dataset = DigitalModulationDataset(
             num_samples_per_class=1060,
+            num_iq_samples=512,
             transform=transform,
             target_transform=DescToClassIndex(["bpsk", "2gfsk"]),
         )
