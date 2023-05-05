@@ -42,6 +42,7 @@ class DatasetLoader:
             num_workers=num_workers,
             prefetch_factor=2,
             worker_init_fn=partial(DatasetLoader.worker_init_fn, seed=seed),
+            multiprocessing_context=torch.multiprocessing.get_context("fork"),
         )
         self.length = int(len(dataset) / batch_size)
 
