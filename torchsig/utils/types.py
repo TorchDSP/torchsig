@@ -36,8 +36,9 @@ class SignalDescription:
             Name of the signal's class
         class_index (:obj:`Optional[int]`):
             Index of the signal's class
-        
+
     """
+
     def __init__(
         self,
         sample_rate: Optional[int] = 1,
@@ -58,10 +59,18 @@ class SignalDescription:
     ):
         self.sample_rate = sample_rate
         self.num_iq_samples = num_iq_samples
-        self.lower_frequency = lower_frequency if lower_frequency else center_frequency - bandwidth / 2
-        self.upper_frequency = upper_frequency if upper_frequency else center_frequency + bandwidth / 2
+        self.lower_frequency = (
+            lower_frequency if lower_frequency else center_frequency - bandwidth / 2
+        )
+        self.upper_frequency = (
+            upper_frequency if upper_frequency else center_frequency + bandwidth / 2
+        )
         self.bandwidth = bandwidth if bandwidth else upper_frequency - lower_frequency
-        self.center_frequency = center_frequency if center_frequency else lower_frequency + self.bandwidth / 2
+        self.center_frequency = (
+            center_frequency
+            if center_frequency
+            else lower_frequency + self.bandwidth / 2
+        )
         self.start = start
         self.stop = stop
         self.duration = duration if duration else stop - start
@@ -87,36 +96,39 @@ class SignalData:
         signal_description: Optional[Union[List[SignalDescription], SignalDescription]]
             Either a SignalDescription of signal data or a list of multiple
             SignalDescription objects describing multiple signals
-            
+
     """
+
     def __init__(
         self,
         data: Optional[bytes],
         item_type: np.dtype,
         data_type: np.dtype,
-        signal_description: Optional[Union[List[SignalDescription], SignalDescription]] = None
+        signal_description: Optional[
+            Union[List[SignalDescription], SignalDescription]
+        ] = None,
     ):
+        self.iq_data = None
+        self.signal_description = signal_description
         if data is not None:
             # No matter the underlying item type, we convert to double-precision
-            self.iq_data = np.frombuffer(data, dtype=item_type).astype(np.float64).view(data_type)
-        else:
-            # Allow for empty rf data object
-            self.iq_data = None
-        if isinstance(signal_description, list):
-            self.signal_description = signal_description
-        else:
+            self.iq_data = (
+                np.frombuffer(data, dtype=item_type).astype(np.float64).view(data_type)
+            )
+
+        if not isinstance(signal_description, list):
             self.signal_description = [signal_description]
 
 
 class SignalCapture:
     def __init__(
-            self,
-            absolute_path: str,
-            num_bytes: int,
-            item_type: np.dtype,
-            is_complex: bool,
-            byte_offset: int = 0,
-            signal_description: Optional[SignalDescription] = None
+        self,
+        absolute_path: str,
+        num_bytes: int,
+        item_type: np.dtype,
+        is_complex: bool,
+        byte_offset: int = 0,
+        signal_description: Optional[SignalDescription] = None,
     ):
         self.absolute_path = absolute_path
         self.num_bytes = num_bytes

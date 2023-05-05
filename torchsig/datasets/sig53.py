@@ -110,7 +110,7 @@ class Sig53:
                 class_index=mod,
                 snr=snr,
             )
-            data = SignalData(
+            data: SignalData = SignalData(
                 data=deepcopy(iq_data.tobytes()),
                 item_type=np.dtype(np.float64),
                 data_type=np.dtype(np.complex128),
