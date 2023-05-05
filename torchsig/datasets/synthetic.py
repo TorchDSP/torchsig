@@ -589,6 +589,8 @@ class OFDMDataset(SyntheticDataset):
         #     2x for symbol length
         #     2x for number of symbols for at least 1 transition
         #     4x for largest burst duration option
+        sym_mult = 1
+
         if self.num_iq_samples <= 4 * 2 * 2 * num_subcarriers:
             sym_mult = self.num_iq_samples / (2 * 2 * num_subcarriers) + 1e-6
             sym_mult = (
@@ -596,14 +598,11 @@ class OFDMDataset(SyntheticDataset):
                 if sym_mult < 1.0
                 else int(np.ceil(sym_mult))
             )
-        else:
-            sym_mult = 1
+            
         if self.num_iq_samples > 32768:
             # assume wideband task and reduce data for speed
             sym_mult = 0.3
-            wideband = True
-        else:
-            wideband = False
+
 
         if mod_type == "random":
             # Randomized subcarrier modulations
@@ -740,9 +739,7 @@ class OFDMDataset(SyntheticDataset):
             flattened = cyclic_prefixed.T.flatten()
             # Generate randomized LPF
             cutoff = np.random.uniform(0.95, 0.95)
-            num_taps = int(
-                np.ceil(50 * 2 * np.pi / cutoff / 0.125 / 22)
-            )  # fred harris rule of thumb
+            num_taps = estimate_filter_length(cutoff)
             taps = sp.firwin(
                 num_taps,
                 cutoff,
