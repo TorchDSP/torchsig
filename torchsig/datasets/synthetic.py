@@ -10,6 +10,7 @@ from typing import Tuple, Any, List, Union, Optional
 from torchsig.utils.dataset import SignalDataset
 from torchsig.utils.types import SignalData, SignalDescription
 from torchsig.transforms.functional import IntParameter, FloatParameter
+from torchsig.datasets import estimate_filter_length
 
 
 def torchsig_convolve(
@@ -168,21 +169,6 @@ class DigitalModulationDataset(ConcatDataset):
             optional user-defined constellation map, defaults to Sig53 modulations
 
     """
-
-    def estimate_filter_length(attenuation_db, sample_rate, transition_bandwidth):
-        # estimate the length of an FIR filter using harris' approximaion,
-        # N ~= (sampling rate/transition bandwidth)*(sidelobe attenuation in dB / 22)
-        # fred harris, Multirate Signal Processing for Communication Systems,
-        # Second Edition, p.59
-        filter_length = int(
-            np.round((sample_rate / transition_bandwidth) * (attenuation_db / 22))
-        )
-
-        # odd-length filters are desirable because they do not introduce a half-sample delay
-        if np.mod(filter_length, 2) == 0:
-            filter_length += 1
-
-        return filter_length
 
     def __init__(
         self,
@@ -380,11 +366,8 @@ class ConstellationDataset(SyntheticDataset):
             (self.iq_samples_per_symbol * len(symbols),), dtype=np.complex64
         )
         zero_padded[:: self.iq_samples_per_symbol] = symbols
-
-        # estimate total filter length for pulse shape
-        attenuation_db = 72  # sidelobe attenuation level, 72 dB -> 12 bit dynamic range
-        pulse_shape_filter_length = DigitalModulationDataset.estimate_filter_length(
-            attenuation_db, 1, signal_description.excess_bandwidth
+        pulse_shape_filter_length = estimate_filter_length(
+            signal_description.excess_bandwidth
         )
         pulse_shape_filter_span = int(
             (pulse_shape_filter_length - 1) / 2
@@ -993,18 +976,12 @@ class FSKDataset(SyntheticDataset):
             # accept the cutoff-frequency of the filter as external
             # parameter, randomized as part of outer framework
             cutoff_frequency = bandwidth
-            # define the sidelobe levels of the filter (in dB)
-            attenuation_db = 72
-            # using a normalized sampling rate of 1 such that fs/2 = 1/2
-            sample_rate = 1
             # calculate transition bandwidth. a larger cutoff frequency requires
             # a smaller transition bandwidth, and a smaller cutoff frequency
             # allows for a larger transition bandwidth
-            transition_bandwidth = (sample_rate / 2 - (cutoff_frequency)) / 4
+            transition_bandwidth = (1.0 / 2 - (cutoff_frequency)) / 4
             # estimate number of taps needed to implement filter
-            num_taps = DigitalModulationDataset.estimate_filter_length(
-                attenuation_db, sample_rate, transition_bandwidth
-            )
+            num_taps = estimate_filter_length(transition_bandwidth)
 
             # design the filter
             taps = sp.firwin(
@@ -1013,7 +990,7 @@ class FSKDataset(SyntheticDataset):
                 width=transition_bandwidth,
                 window=sp.get_window("blackman", num_taps),
                 scale=True,
-                fs=sample_rate,
+                fs=1,
             )
             # apply the filter
             modulated = torchsig_convolve(modulated, taps, gpu=self.use_gpu)
