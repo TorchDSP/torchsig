@@ -39,6 +39,7 @@ from torchsig.transforms.functional import (
     uniform_continuous_distribution,
     uniform_discrete_distribution,
 )
+from torchsig.datasets import estimate_filter_length
 
 
 class SignalBurst(SignalDescription):
@@ -89,9 +90,7 @@ class ShapedNoiseSignalBurst(SignalBurst):
         center = lower + bandwidth / 2
 
         # Filter noise
-        num_taps = int(
-            2 * np.ceil(50 * 2 * np.pi / bandwidth / 0.125 / 22)
-        )  # fred harris rule of thumb *2
+        num_taps = estimate_filter_length((0.5 - 0.02 * bandwidth) / 4)
         sinusoid = np.exp(2j * np.pi * center * np.linspace(0, num_taps - 1, num_taps))
         taps = signal.firwin(
             num_taps,
@@ -366,10 +365,7 @@ class ModulatedSignalBurst(SignalBurst):
                 -int(self.num_iq_samples * self.duration * oversample) :
             ]
 
-            # Filter around center
-            num_taps = int(
-                2 * np.ceil(50 * 2 * np.pi / 0.5 / 0.125 / 22)
-            )  # fred harris rule of thumb * 2
+            num_taps = estimate_filter_length((0.5 - 0.02 / oversample) / 4)
 
             taps = signal.firwin(
                 num_taps,
@@ -472,9 +468,8 @@ class SignalOfInterestSignalBurst(SignalBurst):
         )
 
         # Filter around center
-        num_taps = int(
-            2 * np.ceil(50 * 2 * np.pi / 0.5 / 0.125 / 22)
-        )  # fred harris rule of thumb * 2
+        num_taps = estimate_filter_length((0.5 - 0.02 * 0.5) / 4)
+
         taps = signal.firwin(
             num_taps,
             0.5,
@@ -580,9 +575,8 @@ class FileSignalBurst(SignalBurst):
         )
 
         # Filter around center
-        num_taps = int(
-            2 * np.ceil(50 * 2 * np.pi / 0.5 / 0.125 / 22)
-        )  # fred harris rule of thumb * 2
+        num_taps = estimate_filter_length((0.5 - 0.5 * 0.02) / 4)
+
         taps = signal.firwin(
             num_taps,
             0.5,
