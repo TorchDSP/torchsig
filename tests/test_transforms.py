@@ -42,6 +42,7 @@ class TimeCrop(TestCase):
         )
         new_data = t(data)
         self.assertTrue(np.allclose(data[:length], new_data))
+        self.assertTrue(new_data.shape[0] == length)
 
     def test_TimeCrop_center(self):
         rng = np.random.RandomState(0)
@@ -55,7 +56,8 @@ class TimeCrop(TestCase):
         new_data = t(data)
         extra_samples = num_iq_samples - length
         self.assertTrue(np.allclose(data[extra_samples // 2:-extra_samples // 2], new_data))
-        
+        self.assertTrue(new_data.shape[0] == length)
+
     def test_TimeCrop_end(self):
         rng = np.random.RandomState(0)
         num_iq_samples = 16
@@ -67,3 +69,4 @@ class TimeCrop(TestCase):
         )
         new_data = t(data)
         self.assertTrue(np.allclose(data[-length:], new_data))
+        self.assertTrue(new_data.shape[0] == length)
