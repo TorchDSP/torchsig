@@ -501,14 +501,16 @@ class OFDMDataset(SyntheticDataset):
         self.index = []
         if "lpf" in sidelobe_suppression_methods:
             # Precompute LPF
-            num_taps = 50
-            cutoff = 0.6
+            cutoff = 0.3
+            transition_bandwidth = (0.5-cutoff)/4
+            num_taps = estimate_filter_length(transition_bandwidth)
             self.taps = sp.firwin(
                 num_taps,
                 cutoff,
-                width=cutoff * 0.02,
+                width=transition_bandwidth,
                 window=sp.get_window("blackman", num_taps),
                 scale=True,
+                fs=1
             )
 
         # Precompute all possible random symbols for speed at sample generation
