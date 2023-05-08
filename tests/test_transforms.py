@@ -3,7 +3,7 @@ from torchsig.transforms.system_impairment.si import RandomTimeShift, TimeCrop
 import numpy as np
 
 
-class RandomTimeShiftTests(TestCase):
+class RandomTimeShiftTestCase(TestCase):
     def test_random_time_shift_right(self):
         rng = np.random.RandomState(0)
         data = (
@@ -47,7 +47,7 @@ class RandomTimeShiftTests(TestCase):
         self.assertTrue(np.allclose(new_data[shift:], np.zeros(np.abs(shift))))
 
 
-class TimeCrop(TestCase):
+class TimeCropTestCase(TestCase):
     def test_time_crop_start(self):
         rng = np.random.RandomState(0)
         num_iq_samples = 16
