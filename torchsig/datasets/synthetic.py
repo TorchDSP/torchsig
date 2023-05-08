@@ -366,6 +366,8 @@ class ConstellationDataset(SyntheticDataset):
             (self.iq_samples_per_symbol * len(symbols),), dtype=np.complex64
         )
         zero_padded[:: self.iq_samples_per_symbol] = symbols
+        # excess bandwidth is defined in porportion to signal bandwidth, not sampling rate,
+        # thus needs to be scaled by the samples per symbol
         pulse_shape_filter_length = estimate_filter_length(
             signal_description.excess_bandwidth/self.iq_samples_per_symbol
         )
