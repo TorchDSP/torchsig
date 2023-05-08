@@ -67,12 +67,13 @@ class RandomTimeShift(SignalTransform):
             )            
             
             # Apply data transformation
-            new_data.iq_data = functional.fractional_shift(
-                data.iq_data,
-                self.taps,
-                self.interp_rate,
-                -decimal_part  # this needed to be negated to be consistent with the previous implementation
-            )
+            if decimal_part != 0:
+                new_data.iq_data = functional.fractional_shift(
+                    data.iq_data,
+                    self.taps,
+                    self.interp_rate,
+                    -decimal_part  # this needed to be negated to be consistent with the previous implementation
+                )
             new_data.iq_data = functional.time_shift(new_data.iq_data, int(integer_part))
             
             # Update SignalDescription
@@ -91,12 +92,14 @@ class RandomTimeShift(SignalTransform):
             new_data.signal_description = new_signal_description
             
         else:
-            new_data = functional.fractional_shift(
-                data,
-                self.taps,
-                self.interp_rate,
-                -decimal_part  # this needed to be negated to be consistent with the previous implementation
-            )
+            new_data = data.copy()
+            if decimal_part != 0:
+                new_data = functional.fractional_shift(
+                    new_data,
+                    self.taps,
+                    self.interp_rate,
+                    -decimal_part  # this needed to be negated to be consistent with the previous implementation
+                )
             new_data = functional.time_shift(new_data, int(integer_part))
         return new_data
 
