@@ -738,14 +738,16 @@ class OFDMDataset(SyntheticDataset):
         elif sidelobe_suppression_method == "rand_lpf":
             flattened = cyclic_prefixed.T.flatten()
             # Generate randomized LPF
-            cutoff = np.random.uniform(0.95, 0.95)
-            num_taps = estimate_filter_length(cutoff)
+            cutoff = np.random.uniform(0.25, 0.475)
+            transition_bandwidth = (0.5-cutoff)/4
+            num_taps = estimate_filter_length(transition_bandwidth)
             taps = sp.firwin(
                 num_taps,
                 cutoff,
-                width=cutoff * 0.02,
+                width=transition_bandwidth,
                 window=sp.get_window("blackman", num_taps),
                 scale=True,
+                fs=1
             )
             # Apply random LPF
             output = torchsig_convolve(flattened, taps, gpu=self.use_gpu)[:-num_taps]
