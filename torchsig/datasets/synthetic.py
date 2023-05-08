@@ -367,7 +367,7 @@ class ConstellationDataset(SyntheticDataset):
         )
         zero_padded[:: self.iq_samples_per_symbol] = symbols
         pulse_shape_filter_length = estimate_filter_length(
-            signal_description.excess_bandwidth
+            signal_description.excess_bandwidth/self.iq_samples_per_symbol
         )
         pulse_shape_filter_span = int(
             (pulse_shape_filter_length - 1) / 2
