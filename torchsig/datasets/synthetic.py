@@ -16,22 +16,22 @@ from torchsig.datasets import estimate_filter_length
 def torchsig_convolve(
     signal: np.ndarray, taps: np.ndarray, gpu: bool = False
 ) -> np.ndarray:
-    # return sp.convolve(signal, taps, "same")
+    return sp.convolve(signal, taps, "same")
     # This will run into issues is signal is smaller than taps
-    torch_signal = torch.from_numpy(signal.astype(np.complex128)).reshape(1, -1)
-    torch_taps = torch.flip(
-        torch.from_numpy(taps.astype(np.complex128)).reshape(1, 1, -1), dims=(2,)
-    )
-    if gpu:
-        result = torch.nn.functional.conv1d(
-            torch_signal.cuda(), torch_taps.cuda(), padding=torch_signal.shape[0] - 1
-        )
-        return result.cpu().numpy()[0]
+    # torch_signal = torch.from_numpy(signal.astype(np.complex128)).reshape(1, -1)
+    # torch_taps = torch.flip(
+    #     torch.from_numpy(taps.astype(np.complex128)).reshape(1, 1, -1), dims=(2,)
+    # )
+    # if gpu:
+    #     result = torch.nn.functional.conv1d(
+    #         torch_signal.cuda(), torch_taps.cuda(), padding=torch_signal.shape[0] - 1
+    #     )
+    #     return result.cpu().numpy()[0]
 
-    result = torch.nn.functional.conv1d(
-        torch_signal, torch_taps, padding=torch_signal.shape[0] - 1
-    )
-    return result.numpy()[0]
+    # result = torch.nn.functional.conv1d(
+    #     torch_signal, torch_taps, padding=torch_signal.shape[0] - 1
+    # )
+    # return result.numpy()[0]
 
 
 def remove_corners(const):
@@ -607,7 +607,7 @@ class OFDMDataset(SyntheticDataset):
             const = default_const_map[const_name] / np.mean(
                 np.abs(default_const_map[const_name])
             )
-            symbol_nums = np.random.randint(0, len(const), self.num_iq_samples)
+            symbol_nums = np.random.randint(0, len(const), int(self.num_iq_samples))
             symbols = const[symbol_nums]
         divisible_index = -(len(symbols) % num_subcarriers)
         if divisible_index != 0:
