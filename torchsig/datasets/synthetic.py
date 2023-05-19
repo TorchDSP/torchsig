@@ -16,6 +16,7 @@ from torchsig.datasets import estimate_filter_length
 def torchsig_convolve(
     signal: np.ndarray, taps: np.ndarray, gpu: bool = False
 ) -> np.ndarray:
+    # return sp.convolve(signal, taps, "same")
     # This will run into issues is signal is smaller than taps
     torch_signal = torch.from_numpy(signal.astype(np.complex128)).reshape(1, -1)
     torch_taps = torch.flip(
@@ -359,7 +360,7 @@ class ConstellationDataset(SyntheticDataset):
 
         const = self.const_map[class_name] / np.mean(np.abs(self.const_map[class_name]))
         symbol_nums = np.random.randint(
-            0, len(const), 2 * int(self.num_iq_samples / self.iq_samples_per_symbol)
+            0, len(const), int(self.num_iq_samples / self.iq_samples_per_symbol)
         )
         symbols = const[symbol_nums]
         zero_padded = np.zeros(
@@ -369,7 +370,7 @@ class ConstellationDataset(SyntheticDataset):
         # excess bandwidth is defined in porportion to signal bandwidth, not sampling rate,
         # thus needs to be scaled by the samples per symbol
         pulse_shape_filter_length = estimate_filter_length(
-            signal_description.excess_bandwidth/self.iq_samples_per_symbol
+            signal_description.excess_bandwidth / self.iq_samples_per_symbol
         )
         pulse_shape_filter_span = int(
             (pulse_shape_filter_length - 1) / 2
@@ -504,7 +505,7 @@ class OFDMDataset(SyntheticDataset):
         if "lpf" in sidelobe_suppression_methods:
             # Precompute LPF
             cutoff = 0.3
-            transition_bandwidth = (0.5-cutoff)/4
+            transition_bandwidth = (0.5 - cutoff) / 4
             num_taps = estimate_filter_length(transition_bandwidth)
             self.taps = sp.firwin(
                 num_taps,
@@ -512,7 +513,7 @@ class OFDMDataset(SyntheticDataset):
                 width=transition_bandwidth,
                 window=sp.get_window("blackman", num_taps),
                 scale=True,
-                fs=1
+                fs=1,
             )
 
         # Precompute all possible random symbols for speed at sample generation
@@ -585,49 +586,28 @@ class OFDMDataset(SyntheticDataset):
         if not self.random_data:
             np.random.seed(index)
 
-        # Symbol multiplier: we want to be able to randomly index into
-        # generated IQ samples such that we can see symbol transitions.
-        # This multiplier ensures enough OFDM symbols are generated for
-        # this randomness.
-        # Check against max possible requirements
-        #     2x for symbol length
-        #     2x for number of symbols for at least 1 transition
-        #     4x for largest burst duration option
-        sym_mult = 1
-
-        if self.num_iq_samples <= 4 * 2 * 2 * num_subcarriers:
-            sym_mult = self.num_iq_samples / (2 * 2 * num_subcarriers) + 1e-6
-            sym_mult = (
-                int(np.ceil(sym_mult**-1))
-                if sym_mult < 1.0
-                else int(np.ceil(sym_mult))
-            )
-
-        if self.num_iq_samples > 32768:
-            # assume wideband task and reduce data for speed
-            sym_mult = 0.3
-
         if mod_type == "random":
-            # Randomized subcarrier modulations
-            symbols = []
-            for subcarrier_idx in range(num_subcarriers):
-                curr_const = np.random.randint(len(self.random_symbols))
-                symbols.extend(
-                    np.random.choice(
-                        self.random_symbols[curr_const],
-                        size=int(2 * sym_mult * self.num_iq_samples / num_subcarriers),
+            symbols_idxs = np.random.randint(0, 1024, size=self.num_iq_samples)
+            const_idxes = np.random.choice(
+                range(len(self.random_symbols)), size=num_subcarriers
+            )
+            symbols = np.zeros(self.num_iq_samples, dtype=np.complex128)
+            for subcarrier_idx, const_idx in enumerate(const_idxes):
+                begin_idx = (self.num_iq_samples) * subcarrier_idx
+                end_idx = (self.num_iq_samples) * (subcarrier_idx + 1)
+                symbols[begin_idx:end_idx] = self.random_symbols[const_idx][
+                    np.mod(
+                        symbols_idxs[begin_idx:end_idx],
+                        len(self.random_symbols[const_idx]),
                     )
-                )
-            symbols = np.asarray(symbols)
+                ]
         else:
             # Fixed modulation across all subcarriers
             const_name = np.random.choice(self.constellations)
             const = default_const_map[const_name] / np.mean(
                 np.abs(default_const_map[const_name])
             )
-            symbol_nums = np.random.randint(
-                0, len(const), int(2 * sym_mult * self.num_iq_samples)
-            )
+            symbol_nums = np.random.randint(0, len(const), self.num_iq_samples)
             symbols = const[symbol_nums]
         divisible_index = -(len(symbols) % num_subcarriers)
         if divisible_index != 0:
@@ -742,7 +722,7 @@ class OFDMDataset(SyntheticDataset):
             flattened = cyclic_prefixed.T.flatten()
             # Generate randomized LPF
             cutoff = np.random.uniform(0.25, 0.475)
-            transition_bandwidth = (0.5-cutoff)/4
+            transition_bandwidth = (0.5 - cutoff) / 4
             num_taps = estimate_filter_length(transition_bandwidth)
             taps = sp.firwin(
                 num_taps,
@@ -750,7 +730,7 @@ class OFDMDataset(SyntheticDataset):
                 width=transition_bandwidth,
                 window=sp.get_window("blackman", num_taps),
                 scale=True,
-                fs=1
+                fs=1,
             )
             # Apply random LPF
             output = torchsig_convolve(flattened, taps, gpu=self.use_gpu)[:-num_taps]
@@ -824,7 +804,7 @@ class OFDMDataset(SyntheticDataset):
             ]
 
         # Randomize the start index (while bypassing the initial windowing if present)
-        if sym_mult == 1 and num_subcarriers * 4 * burst_dur < self.num_iq_samples:
+        if num_subcarriers * 4 * burst_dur < self.num_iq_samples:
             start_idx = np.random.randint(0, output.shape[0] - self.num_iq_samples)
         else:
             if original_on:
@@ -951,7 +931,7 @@ class FSKDataset(SyntheticDataset):
         symbol_nums = np.random.randint(
             0,
             len(const_oversampled),
-            int(2 * self.num_iq_samples / samples_per_symbol_recalculated),
+            int(self.num_iq_samples / samples_per_symbol_recalculated),
         )
 
         symbols = const_oversampled[symbol_nums]
