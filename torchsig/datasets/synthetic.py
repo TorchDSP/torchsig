@@ -598,11 +598,10 @@ class OFDMDataset(SyntheticDataset):
                 if sym_mult < 1.0
                 else int(np.ceil(sym_mult))
             )
-            
+
         if self.num_iq_samples > 32768:
             # assume wideband task and reduce data for speed
             sym_mult = 0.3
-
 
         if mod_type == "random":
             # Randomized subcarrier modulations
