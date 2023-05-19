@@ -1,5 +1,8 @@
 <p align="center">
-  <img src="docs/logo.png" alt="drawing" width="500"/>
+    <picture>
+        <source media="(prefers-color-scheme: dark)" srcset="docs/torchsig_logo_white_dodgerblue.png">
+        <img src="docs/logo.png" width="500">
+    </picture>
 </p>
 
 -----
