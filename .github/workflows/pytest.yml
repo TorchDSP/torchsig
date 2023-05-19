@@ -32,4 +32,4 @@ jobs:
       - name: Test with pytest
         run: |
           pip install pytest
-          pytest --ignore-glob=*_figures.py
+          pytest --ignore-glob=*_figures.py --ignore_glob=*_benchmark.py
