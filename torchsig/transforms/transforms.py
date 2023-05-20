@@ -1,6 +1,7 @@
 import warnings
 import numpy as np
 from copy import deepcopy
+from scipy import signal
 from typing import Any, Callable, List, Optional, Tuple, Union
 
 from torchsig.transforms import functional as F
@@ -1483,7 +1484,7 @@ class RandomTimeShift(SignalTransform):
         self.shift = to_distribution(shift, self.random_generator)
         self.interp_rate = interp_rate
         num_taps = int(taps_per_arm * interp_rate)
-        self.taps = sp.firwin(num_taps, 1.0 / interp_rate, 1.0 / interp_rate / 4.0, scale=True) * interp_rate
+        self.taps = signal.firwin(num_taps, 1.0 / interp_rate, 1.0 / interp_rate / 4.0, scale=True) * interp_rate
         self.string = (
             self.__class__.__name__
             + "("
@@ -2309,9 +2310,9 @@ class IQImbalance(SignalTransform):
         self.string = (
             self.__class__.__name__
             + "("
-            + "amp_imbalance={}, ".format(amp_imbalance)
-            + "phase_imbalance={}, ".format(phase_imbalance)
-            + "dc_offset={}".format(dc_offset)
+            + "amp_imbalance={}, ".format(iq_amplitude_imbalance_db)
+            + "phase_imbalance={}, ".format(iq_phase_imbalance)
+            + "dc_offset={}".format(iq_dc_offset_db)
             + ")"
         )
         
