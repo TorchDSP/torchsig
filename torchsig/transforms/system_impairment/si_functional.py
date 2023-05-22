@@ -123,7 +123,7 @@ def freq_shift_avoid_aliasing(tensor: np.ndarray, f_shift: float) -> np.ndarray:
     tensor = sp.fftconvolve(tensor, taps, mode="same")
     
     # Freq shift to desired center freq
-    time_vector = np.arange(tensor.shape[0], dtype=np.float)
+    time_vector = np.arange(tensor.shape[0], dtype=np.float64)
     tensor = tensor * np.exp(2j * np.pi * f_shift / up * time_vector)
 
     # Filter to remove out-of-band regions
