@@ -585,7 +585,7 @@ class OFDMDataset(SyntheticDataset):
         orig_state = np.random.get_state()
         if not self.random_data:
             np.random.seed(index)
-
+            
         if mod_type == "random":
             symbols_idxs = np.random.randint(0, 1024, size=self.num_iq_samples)
             const_idxes = np.random.choice(
