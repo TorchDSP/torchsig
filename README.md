@@ -1,5 +1,8 @@
 <p align="center">
-  <img src="docs/logo.png" alt="drawing" width="500"/>
+    <picture>
+        <source media="(prefers-color-scheme: dark)" srcset="docs/torchsig_logo_white_dodgerblue.png">
+        <img src="docs/logo.png" width="500">
+    </picture>
 </p>
 
 -----
@@ -39,6 +42,17 @@ Clone the `torchsig` repository and simply install using the following commands:
 cd torchsig
 pip install .
 ```
+
+## Using the Dockerfile
+If you have Docker installed along with compatible GPUs and drivers, you can try:
+
+```
+docker build -t torchsig -f Dockerfile .
+docker run -d --rm --network=host --shm-size=32g --gpus all --name torchsig_workspace torchsig tail -f /dev/null
+docker exec torchsig_workspace jupyter notebook --allow-root --ip=0.0.0.0 --no-browser
+```
+
+Then use the URL in the output in your browser to run the examples and notebooks.
 
 ## License
 ---
