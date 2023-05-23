@@ -3,7 +3,7 @@ import numpy as np
 import pandas as pd
 from typing import Tuple, Any, List, Optional, Callable
 
-from torchsig.transforms.target_transforms.target_transforms import (
+from torchsig.transforms.target_transforms import (
     DescToClassIndex,
     DescToClassIndexSNR,
     DescToClassName,

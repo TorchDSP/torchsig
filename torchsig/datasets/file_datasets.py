@@ -8,8 +8,13 @@ from typing import List, Optional, Any
 
 from torchsig.utils.types import SignalDescription
 from torchsig.datasets.wideband import BurstSourceDataset, SignalBurst
-from torchsig.transforms.functional import to_distribution, uniform_continuous_distribution, uniform_discrete_distribution
-from torchsig.transforms.functional import FloatParameter, NumericParameter
+from torchsig.transforms.functional import (
+    to_distribution, 
+    uniform_continuous_distribution, 
+    uniform_discrete_distribution,
+    FloatParameter, 
+    NumericParameter,
+)
 
 
 class TargetInterpreter:

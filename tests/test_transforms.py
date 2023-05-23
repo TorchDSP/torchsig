@@ -1,5 +1,5 @@
 from unittest import TestCase
-from torchsig.transforms.system_impairment.si import RandomTimeShift, TimeCrop
+from torchsig.transforms import RandomTimeShift, TimeCrop
 import numpy as np
 
 

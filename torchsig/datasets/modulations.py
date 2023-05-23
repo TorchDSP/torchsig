@@ -2,23 +2,20 @@ import numpy as np
 from typing import Optional, Callable, List
 from torch.utils.data import ConcatDataset
 from torchsig.datasets.synthetic import DigitalModulationDataset, OFDMDataset
-from torchsig.transforms.target_transforms.target_transforms import (
+from torchsig.transforms.target_transforms import (
     DescToClassIndexSNR,
     DescToClassIndex,
     DescToClassNameSNR,
     DescToClassName,
 )
-from torchsig.transforms.transforms import (
+from torchsig.transforms import (
     Compose,
     RandomApply,
-)
-from torchsig.transforms.wireless_channel.wce import (
     RandomPhaseShift,
     RayleighFadingChannel,
     TargetSNR,
-)
-from torchsig.transforms.signal_processing.sp import Normalize, RandomResample
-from torchsig.transforms.system_impairment.si import (
+    Normalize, 
+    RandomResample,
     RandomTimeShift,
     RandomFrequencyShift,
     IQImbalance,

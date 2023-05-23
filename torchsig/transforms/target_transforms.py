@@ -6,6 +6,36 @@ from torchsig.utils.types import SignalDescription
 from torchsig.transforms.transforms import Transform
 
 
+__all__ = [
+    "DescToClassName",
+    "DescToClassNameSNR",
+    "DescToClassIndex",
+    "DescToClassIndexSNR",
+    "DescToMask",
+    "DescToMaskSignal",
+    "DescToMaskFamily",
+    "DescToMaskClass",
+    "DescToSemanticClass",
+    "DescToBBox",
+    "DescToAnchorBoxes",
+    "DescPassThrough",
+    "DescToBinary",
+    "DescToCustom",
+    "DescToClassEncoding",
+    "DescToWeightedMixUp",
+    "DescToWeightedCutMix",
+    "DescToBBoxDict",
+    "DescToBBoxSignalDict",
+    "DescToBBoxFamilyDict",
+    "DescToInstMaskDict",
+    "DescToSignalInstMaskDict",
+    "DescToSignalFamilyInstMaskDict",
+    "DescToListTuple",
+    "ListTupleToDesc",
+    "LabelSmoothing",
+]
+
+
 class DescToClassName(Transform):
     """Transform to transform SignalDescription into either the single class name
     or a list of the classes present if there are multiple classes

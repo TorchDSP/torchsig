@@ -12,7 +12,7 @@ from multiprocessing import Pool
 
 from torchsig.datasets import conf
 from torchsig.datasets.wideband import WidebandModulationsDataset
-from torchsig.transforms.target_transforms.target_transforms import (
+from torchsig.transforms.target_transforms import (
     DescToListTuple,
     ListTupleToDesc,
 )
