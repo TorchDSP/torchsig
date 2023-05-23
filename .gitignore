@@ -9,3 +9,5 @@ build/
 checkpoints/
 lightning_logs/
 *.pt
+*.jpg
+*.benchmarks/

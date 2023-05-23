@@ -43,6 +43,17 @@ cd torchsig
 pip install .
 ```
 
+## Using the Dockerfile
+If you have Docker installed along with compatible GPUs and drivers, you can try:
+
+```
+docker build -t torchsig -f Dockerfile .
+docker run -d --rm --network=host --shm-size=32g --gpus all --name torchsig_workspace torchsig tail -f /dev/null
+docker exec torchsig_workspace jupyter notebook --allow-root --ip=0.0.0.0 --no-browser
+```
+
+Then use the URL in the output in your browser to run the examples and notebooks.
+
 ## License
 ---
 TorchSig is released under the MIT License. The MIT license is a popular open-source software license enabling free use, redistribution, and modifications, even for commercial purposes, provided the license is included in all copies or substantial portions of the software. TorchSig has no connection to MIT, other than through the use of this license.
