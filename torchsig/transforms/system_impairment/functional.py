@@ -3,10 +3,7 @@ from scipy import signal as sp
 from numba import njit, int64, float64, complex64
 
 
-def time_shift(
-    tensor: np.ndarray,
-    t_shift: float
-) -> np.ndarray:
+def time_shift(tensor: np.ndarray, t_shift: float) -> np.ndarray:
     """Shifts tensor in the time dimension by tshift samples. Zero-padding is applied to maintain input size.
 
     Args:
@@ -27,18 +24,14 @@ def time_shift(
     # This overwrites tensor as side effect, modifies inplace
     if t_shift > 0:
         tmp = tensor[:-t_shift]  # I'm sure there's a more compact way.
-        tensor = np.pad(tmp, (t_shift, 0), 'constant', constant_values=0 + 0j)
+        tensor = np.pad(tmp, (t_shift, 0), "constant", constant_values=0 + 0j)
     elif t_shift < 0:
         tmp = tensor[-t_shift:]  # I'm sure there's a more compact way.
-        tensor = np.pad(tmp, (0, -t_shift), 'constant', constant_values=0 + 0j)
+        tensor = np.pad(tmp, (0, -t_shift), "constant", constant_values=0 + 0j)
     return tensor
 
 
-def time_crop(
-    tensor: np.ndarray,
-    start: int,
-    length: int
-) -> np.ndarray:
+def time_crop(tensor: np.ndarray, start: int, length: int) -> np.ndarray:
     """Crops a tensor in the time dimension from index start(inclusive) for length samples.
 
     Args:
@@ -57,17 +50,17 @@ def time_crop(
     """
     # Type and Size checking
     if length < 0:
-        raise ValueError('Length must be greater than 0')
+        raise ValueError("Length must be greater than 0")
 
     if np.any(start < 0):
-        raise ValueError('Start must be greater than 0')
+        raise ValueError("Start must be greater than 0")
 
     if np.max(start) >= tensor.shape[0] or length == 0:
         return np.empty(shape=(1, 1))
 
     crop_len = min(length, tensor.shape[0] - np.max(start))
 
-    return tensor[start:start + crop_len]
+    return tensor[start : start + crop_len]
 
 
 def freq_shift(tensor: np.ndarray, f_shift: float) -> np.ndarray:
@@ -84,12 +77,14 @@ def freq_shift(tensor: np.ndarray, f_shift: float) -> np.ndarray:
         transformed (:class:`numpy.ndarray`):
             Tensor that has been frequency shifted along time dimension of size tensor.shape
     """
-    sinusoid = np.exp(2j * np.pi * f_shift * np.arange(tensor.shape[0], dtype=np.float64))
+    sinusoid = np.exp(
+        2j * np.pi * f_shift * np.arange(tensor.shape[0], dtype=np.float64)
+    )
     return np.multiply(tensor, np.asarray(sinusoid))
 
 
 def freq_shift_avoid_aliasing(tensor: np.ndarray, f_shift: float) -> np.ndarray:
-    """Similar to `freq_shift` function but performs the frequency shifting at 
+    """Similar to `freq_shift` function but performs the frequency shifting at
     a higher sample rate with filtering to avoid aliasing
 
     Args:
@@ -105,38 +100,44 @@ def freq_shift_avoid_aliasing(tensor: np.ndarray, f_shift: float) -> np.ndarray:
     """
     # Match output size to input
     num_iq_samples = tensor.shape[0]
-    
+
     # Interpolate up to avoid frequency wrap around during shift
     up = 2
     down = 1
     tensor = sp.resample_poly(tensor, up, down)
 
     # Filter around center to remove original alias effects
-    num_taps = int(2*np.ceil(50*2*np.pi/(1/up)/.125/22)) # fred harris rule of thumb * 2
+    num_taps = int(
+        2 * np.ceil(50 * 2 * np.pi / (1 / up) / 0.125 / 22)
+    )  # fred harris rule of thumb * 2
     taps = sp.firwin(
         num_taps,
-        (1/up),
-        width=(1/up) * .02,
+        (1 / up),
+        width=(1 / up) * 0.02,
         window=sp.get_window("blackman", num_taps),
-        scale=True
+        scale=True,
     )
     tensor = sp.fftconvolve(tensor, taps, mode="same")
-    
+
     # Freq shift to desired center freq
-    time_vector = np.arange(tensor.shape[0], dtype=np.float)
+    time_vector = np.arange(tensor.shape[0], dtype=np.float64)
     tensor = tensor * np.exp(2j * np.pi * f_shift / up * time_vector)
 
     # Filter to remove out-of-band regions
-    num_taps = int(2 * np.ceil(50 * 2 * np.pi / (1/up) / .125 / 22)) # fred harris rule-of-thumb * 2
+    num_taps = int(
+        2 * np.ceil(50 * 2 * np.pi / (1 / up) / 0.125 / 22)
+    )  # fred harris rule-of-thumb * 2
     taps = sp.firwin(
         num_taps,
         1 / up,
-        width=(1/up) * .02,
+        width=(1 / up) * 0.02,
         window=sp.get_window("blackman", num_taps),
-        scale=True
+        scale=True,
     )
     tensor = sp.fftconvolve(tensor, taps, mode="same")
-    tensor = tensor[:int(num_iq_samples*up)]  # prune to be correct size out of filter
+    tensor = tensor[
+        : int(num_iq_samples * up)
+    ]  # prune to be correct size out of filter
 
     # Decimate back down to correct sample rate
     tensor = sp.resample_poly(tensor, down, up)
@@ -146,10 +147,7 @@ def freq_shift_avoid_aliasing(tensor: np.ndarray, f_shift: float) -> np.ndarray:
 
 @njit(cache=False)
 def _fractional_shift_helper(
-    taps: np.ndarray,
-    raw_iq: np.ndarray,
-    stride: int,
-    offset: int
+    taps: np.ndarray, raw_iq: np.ndarray, stride: int, offset: int
 ):
     """Fractional shift. First, we up-sample by a large, fixed amount. Filter with 1/upsample_rate/2.0,
     Next we down-sample by the same, large fixed amount with a chosen offset. Doing this efficiently means not actually zero-padding.
@@ -180,10 +178,7 @@ def _fractional_shift_helper(
 
 
 def fractional_shift(
-    tensor: np.ndarray,
-    taps: np.ndarray,
-    stride: int,
-    delay: int
+    tensor: np.ndarray, taps: np.ndarray, stride: int, delay: int
 ) -> np.ndarray:
     """Applies fractional sample delay of delay using a polyphase interpolator
 
@@ -204,9 +199,13 @@ def fractional_shift(
         transformed (:class:`numpy.ndarray`):
             Tensor that has been fractionally-shifted along time dimension of size tensor.shape
     """
-    real_part = _fractional_shift_helper(taps, tensor.real, stride, int(stride * float(delay)))
-    imag_part = _fractional_shift_helper(taps, tensor.imag, stride, int(stride * float(delay)))
-    tensor = real_part[:tensor.shape[0]] + 1j * imag_part[:tensor.shape[0]]
+    real_part = _fractional_shift_helper(
+        taps, tensor.real, stride, int(stride * float(delay))
+    )
+    imag_part = _fractional_shift_helper(
+        taps, tensor.imag, stride, int(stride * float(delay))
+    )
+    tensor = real_part[: tensor.shape[0]] + 1j * imag_part[: tensor.shape[0]]
     zero_idx = -1 if delay < 0 else 0  # do not extrapolate, zero-pad.
     tensor[zero_idx] = 0
     return tensor
@@ -216,7 +215,7 @@ def iq_imbalance(
     tensor: np.ndarray,
     iq_amplitude_imbalance_db: float,
     iq_phase_imbalance: float,
-    iq_dc_offset_db: float
+    iq_dc_offset_db: float,
 ) -> np.ndarray:
     """Applies IQ imbalance to tensor
 
@@ -238,15 +237,18 @@ def iq_imbalance(
             Tensor that has an IQ imbalance applied across the time dimension of size tensor.shape
     """
     # amplitude imbalance
-    tensor = 10 ** (iq_amplitude_imbalance_db / 10.0) * np.real(tensor) + \
-                 1j * 10 ** (iq_amplitude_imbalance_db / 10.0) * np.imag(tensor)
+    tensor = 10 ** (iq_amplitude_imbalance_db / 10.0) * np.real(tensor) + 1j * 10 ** (
+        iq_amplitude_imbalance_db / 10.0
+    ) * np.imag(tensor)
 
     # phase imbalance
-    tensor = np.exp(-1j * iq_phase_imbalance / 2.0) * np.real(tensor) + \
-                 np.exp(1j * (np.pi / 2.0 + iq_phase_imbalance / 2.0)) * np.imag(tensor)
+    tensor = np.exp(-1j * iq_phase_imbalance / 2.0) * np.real(tensor) + np.exp(
+        1j * (np.pi / 2.0 + iq_phase_imbalance / 2.0)
+    ) * np.imag(tensor)
 
-    tensor += 10 ** (iq_dc_offset_db / 10.0) * np.real(tensor) + \
-                  1j * 10 ** (iq_dc_offset_db / 10.0) * np.imag(tensor)
+    tensor += 10 ** (iq_dc_offset_db / 10.0) * np.real(tensor) + 1j * 10 ** (
+        iq_dc_offset_db / 10.0
+    ) * np.imag(tensor)
     return tensor
 
 
@@ -272,7 +274,7 @@ def channel_swap(tensor: np.ndarray) -> np.ndarray:
     Args:
         tensor: (:class:`numpy.ndarray`):
             (batch_size, vector_length, ...)-sized tensor.
-            
+
     Returns:
         transformed (:class:`numpy.ndarray`):
             Tensor that has undergone channel swapping
@@ -313,13 +315,13 @@ def amplitude_reversal(tensor: np.ndarray) -> np.ndarray:
             Tensor that has undergone an amplitude reversal
 
     """
-    return tensor*-1
+    return tensor * -1
 
 
 def roll_off(
-    tensor: np.ndarray, 
-    lowercutfreq: float, 
-    uppercutfreq: float, 
+    tensor: np.ndarray,
+    lowercutfreq: float,
+    uppercutfreq: float,
     fltorder: int,
 ) -> np.ndarray:
     """Applies front-end filter to tensor. Rolls off lower/upper edges of bandwidth
@@ -348,19 +350,19 @@ def roll_off(
         if fltorder % 2 == 0:
             fltorder += 1
     bandwidth = uppercutfreq - lowercutfreq
-    center_freq = lowercutfreq - 0.5 + bandwidth/2
+    center_freq = lowercutfreq - 0.5 + bandwidth / 2
     num_taps = fltorder
     sinusoid = np.exp(2j * np.pi * center_freq * np.linspace(0, num_taps - 1, num_taps))
     taps = sp.firwin(
         num_taps,
         bandwidth,
-        width=bandwidth * .02,
+        width=bandwidth * 0.02,
         window=sp.get_window("blackman", num_taps),
-        scale=True
+        scale=True,
     )
     taps = taps * sinusoid
     return sp.fftconvolve(tensor, taps, mode="same")
-    
+
 
 def add_slope(tensor: np.ndarray) -> np.ndarray:
     """The slope between each sample and its preceeding sample is added to
@@ -380,7 +382,7 @@ def add_slope(tensor: np.ndarray) -> np.ndarray:
 
 
 def mag_rescale(
-    tensor: np.ndarray, 
+    tensor: np.ndarray,
     start: float,
     scale: float,
 ) -> np.ndarray:
@@ -389,13 +391,13 @@ def mag_rescale(
     Args:
         tensor: (:class:`numpy.ndarray`):
             (batch_size, vector_length, ...)-sized tensor.
-            
+
         start (:obj:`float`):
             Normalized start time of rescaling
-            
+
         scale (:obj:`float`):
             Scaling factor
-            
+
     Returns:
         transformed (:class:`numpy.ndarray`):
             Tensor that has undergone rescaling
@@ -407,9 +409,9 @@ def mag_rescale(
 
 
 def drop_samples(
-    tensor: np.ndarray, 
-    drop_starts: np.ndarray, 
-    drop_sizes: np.ndarray, 
+    tensor: np.ndarray,
+    drop_starts: np.ndarray,
+    drop_sizes: np.ndarray,
     fill: str,
 ) -> np.ndarray:
     """Drop samples at specified input locations/durations with fill technique
@@ -417,13 +419,13 @@ def drop_samples(
     Args:
         tensor: (:class:`numpy.ndarray`):
             (batch_size, vector_length, ...)-sized tensor.
-            
+
         drop_starts (:class:`numpy.ndarray`):
             Indices of where drops start
-            
+
         drop_sizes (:class:`numpy.ndarray`):
             Durations of each drop instance
-            
+
         fill (:obj:`str`):
             String specifying how the dropped samples should be replaced
 
@@ -434,39 +436,46 @@ def drop_samples(
     """
     for idx, drop_start in enumerate(drop_starts):
         if fill == "ffill":
-            drop_region = np.ones(drop_sizes[idx], dtype=np.complex64)*tensor[drop_start-1]
+            drop_region = (
+                np.ones(drop_sizes[idx], dtype=np.complex64) * tensor[drop_start - 1]
+            )
         elif fill == "bfill":
-            drop_region = np.ones(drop_sizes[idx], dtype=np.complex64)*tensor[drop_start+drop_sizes[idx]]
+            drop_region = (
+                np.ones(drop_sizes[idx], dtype=np.complex64)
+                * tensor[drop_start + drop_sizes[idx]]
+            )
         elif fill == "mean":
-            drop_region = np.ones(drop_sizes[idx], dtype=np.complex64)*np.mean(tensor)
+            drop_region = np.ones(drop_sizes[idx], dtype=np.complex64) * np.mean(tensor)
         elif fill == "zero":
             drop_region = np.zeros(drop_sizes[idx], dtype=np.complex64)
         else:
-            raise ValueError("fill expects ffill, bfill, mean, or zero. Found {}".format(fill))
-        
+            raise ValueError(
+                "fill expects ffill, bfill, mean, or zero. Found {}".format(fill)
+            )
+
         # Update drop region
-        tensor[drop_start:drop_start+drop_sizes[idx]] = drop_region
-        
+        tensor[drop_start : drop_start + drop_sizes[idx]] = drop_region
+
     return tensor
 
 
 def quantize(
-    tensor: np.ndarray, 
+    tensor: np.ndarray,
     num_levels: int,
-    round_type: str = 'floor',
+    round_type: str = "floor",
 ) -> np.ndarray:
     """Quantize the input to the number of levels specified
 
     Args:
         tensor: (:class:`numpy.ndarray`):
             (batch_size, vector_length, ...)-sized tensor.
-            
+
         num_levels (:obj:`int`):
             Number of quantization levels
-            
+
         round_type (:obj:`str`):
             Quantization rounding. Options: 'floor', 'middle', 'ceiling'
-            
+
     Returns:
         transformed (:class:`numpy.ndarray`):
             Tensor that has undergone quantization
@@ -474,32 +483,32 @@ def quantize(
     """
     # Setup quantization resolution/bins
     max_value = max(np.abs(tensor)) + 1e-9
-    bins = np.linspace(-max_value,max_value,num_levels+1)
-    
+    bins = np.linspace(-max_value, max_value, num_levels + 1)
+
     # Digitize to bins
     quantized_real = np.digitize(tensor.real, bins)
     quantized_imag = np.digitize(tensor.imag, bins)
-    
-    if round_type == 'floor':
+
+    if round_type == "floor":
         quantized_real -= 1
         quantized_imag -= 1
 
     # Revert to values
     quantized_real = bins[quantized_real]
     quantized_imag = bins[quantized_imag]
-    
-    if round_type == 'nearest':
+
+    if round_type == "nearest":
         bin_size = np.diff(bins)[0]
-        quantized_real -= (bin_size/2)
-        quantized_imag -= (bin_size/2)
-    
-    quantized_tensor = quantized_real + 1j*quantized_imag
-    
+        quantized_real -= bin_size / 2
+        quantized_imag -= bin_size / 2
+
+    quantized_tensor = quantized_real + 1j * quantized_imag
+
     return quantized_tensor
 
 
 def clip(tensor: np.ndarray, clip_percentage: float) -> np.ndarray:
-    """Clips input tensor's values above/below a specified percentage of the 
+    """Clips input tensor's values above/below a specified percentage of the
     max/min of the input tensor
 
     Args:
@@ -508,7 +517,7 @@ def clip(tensor: np.ndarray, clip_percentage: float) -> np.ndarray:
 
         clip_percentage (:obj:`float`):
             Percentage of max/min values to clip
-            
+
     Returns:
         transformed (:class:`numpy.ndarray`):
             Tensor with added noise.
@@ -516,61 +525,75 @@ def clip(tensor: np.ndarray, clip_percentage: float) -> np.ndarray:
     real_tensor = tensor.real
     max_val = np.max(real_tensor) * clip_percentage
     min_val = np.min(real_tensor) * clip_percentage
-    real_tensor[real_tensor>max_val] = max_val
-    real_tensor[real_tensor<min_val] = min_val
-    
+    real_tensor[real_tensor > max_val] = max_val
+    real_tensor[real_tensor < min_val] = min_val
+
     imag_tensor = tensor.imag
     max_val = np.max(imag_tensor) * clip_percentage
     min_val = np.min(imag_tensor) * clip_percentage
-    imag_tensor[imag_tensor>max_val] = max_val
-    imag_tensor[imag_tensor<min_val] = min_val
-    
-    new_tensor = real_tensor + 1j*imag_tensor
+    imag_tensor[imag_tensor > max_val] = max_val
+    imag_tensor[imag_tensor < min_val] = min_val
+
+    new_tensor = real_tensor + 1j * imag_tensor
     return new_tensor
 
 
 def random_convolve(
-    tensor: np.ndarray, 
-    num_taps: int, 
+    tensor: np.ndarray,
+    num_taps: int,
     alpha: float,
 ) -> np.ndarray:
     """Create a complex-valued filter with `num_taps` number of taps, convolve
-    the random filter with the input data, and sum the original data with the 
+    the random filter with the input data, and sum the original data with the
     randomly-filtered data using an `alpha` weighting factor.
 
     Args:
         tensor: (:class:`numpy.ndarray`):
             (batch_size, vector_length, ...)-sized tensor.
-            
+
         num_taps: (:obj:`int`):
             Number of taps in random filter
-            
+
         alpha: (:obj:`float`):
-            Weighting for the summation between the original data and the 
+            Weighting for the summation between the original data and the
             randomly-filtered data, following:
-            
+
             `output = (1 - alpha) * tensor + alpha * filtered_tensor`
 
     Returns:
         transformed (:class:`numpy.ndarray`):
             Tensor with weighted random filtering
-            
+
     """
-    filter_taps = np.random.rand(num_taps)+1j*np.random.rand(num_taps)
-    return (1 - alpha) * tensor + alpha * np.convolve(tensor, filter_taps, mode='same')
+    filter_taps = np.random.rand(num_taps) + 1j * np.random.rand(num_taps)
+    return (1 - alpha) * tensor + alpha * np.convolve(tensor, filter_taps, mode="same")
 
 
-@njit(complex64[:](complex64[:], float64, float64, float64, float64, float64, float64, float64, float64, float64), cache=False)
+@njit(
+    complex64[:](
+        complex64[:],
+        float64,
+        float64,
+        float64,
+        float64,
+        float64,
+        float64,
+        float64,
+        float64,
+        float64,
+    ),
+    cache=False,
+)
 def agc(
-    tensor: np.ndarray, 
-    initial_gain_db: float, 
+    tensor: np.ndarray,
+    initial_gain_db: float,
     alpha_smooth: float,
-    alpha_track: float, 
-    alpha_overflow: float, 
-    alpha_acquire: float, 
-    ref_level_db: float, 
-    track_range_db: float, 
-    low_level_db: float, 
+    alpha_track: float,
+    alpha_overflow: float,
+    alpha_acquire: float,
+    ref_level_db: float,
+    track_range_db: float,
+    low_level_db: float,
     high_level_db: float,
 ) -> np.ndarray:
     """AGC implementation
@@ -605,11 +628,11 @@ def agc(
 
         high_level_db (:obj:`float`):
             Level above which we go into overflow state
-    
+
     Returns:
         transformed (:class:`numpy.ndarray`):
             Tensor with AGC applied
-            
+
     """
     output = np.zeros_like(tensor)
     gain_db = initial_gain_db
@@ -617,7 +640,9 @@ def agc(
         if np.abs(sample) == 0:
             level_db = -200
         else:
-            level_db = level_db*alpha_smooth + np.log(np.abs(sample))*(1 - alpha_smooth)
+            level_db = level_db * alpha_smooth + np.log(np.abs(sample)) * (
+                1 - alpha_smooth
+            )
         output_db = level_db + gain_db
         diff_db = ref_level_db - output_db
 
@@ -625,11 +650,11 @@ def agc(
             alpha_adjust = 0
         elif output_db >= high_level_db:
             alpha_adjust = alpha_overflow
-        elif (abs(diff_db) > track_range_db):
+        elif abs(diff_db) > track_range_db:
             alpha_adjust = alpha_acquire
         else:
             alpha_adjust = alpha_track
 
         gain_db += diff_db * alpha_adjust
-        output[sample_idx] = tensor[sample_idx]  * np.exp(gain_db)
+        output[sample_idx] = tensor[sample_idx] * np.exp(gain_db)
     return output
