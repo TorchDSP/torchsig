@@ -1,7 +1,7 @@
-from torchsig.transforms.target_transforms.target_transforms import DescToClassIndex
+from torchsig.transforms.target_transforms import DescToClassIndex
 from torchsig.utils.writer import DatasetLoader, DatasetCreator, LMDBDatasetWriter
 from torchsig.datasets.synthetic import DigitalModulationDataset
-from torchsig.transforms.wireless_channel.wce import AddNoise
+from torchsig.transforms import AddNoise
 from unittest import TestCase
 import pickle
 import shutil

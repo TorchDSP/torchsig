@@ -1,6 +1,6 @@
 from torchsig.utils.types import SignalData, SignalDescription
 from torchsig.datasets.modulations import ModulationsDataset
-from torchsig.transforms.transforms import NoTransform
+from torchsig.transforms import Identity
 from torchsig.datasets import conf
 from copy import deepcopy
 from pathlib import Path
@@ -70,8 +70,8 @@ class Sig53:
         self.eb_no = eb_no
         self.use_signal_data = use_signal_data
 
-        self.T = transform if transform else NoTransform()
-        self.TT = target_transform if target_transform else NoTransform()
+        self.T = transform if transform else Identity()
+        self.TT = target_transform if target_transform else Identity()
 
         cfg: conf.Sig53Config = (
             "Sig53"
