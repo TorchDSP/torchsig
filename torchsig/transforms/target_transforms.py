@@ -560,7 +560,10 @@ class DescToSemanticClass(Transform):
                     # Check SNR against currently stored SNR at pixel
                     if signal_desc.snr >= curr_snrs[height_idx, width_idx]:
                         # If SNR >= currently stored class's SNR, update class & snr
-                        masks[height_start:height_stop, width_start:width_stop,] = (
+                        masks[
+                            height_start:height_stop,
+                            width_start:width_stop,
+                        ] = (
                             signal_desc.class_index + 1
                         )
                         curr_snrs[
@@ -1023,7 +1026,7 @@ class DescToBBoxDict(Transform):
                     duration,
                     bandwidth,
                 ]
-            )
+            )[0]
             labels.append(self.class_list.index(signal_desc.class_name))
 
         targets = {"labels": torch.Tensor(labels).long(), "boxes": torch.Tensor(boxes)}
@@ -1064,7 +1067,7 @@ class DescToBBoxSignalDict(Transform):
                     duration,
                     bandwidth,
                 ]
-            )
+            )[0]
             labels.append(self.class_list.index(self.class_list[0]))
 
         targets = {"labels": torch.Tensor(labels).long(), "boxes": torch.Tensor(boxes)}
@@ -1541,11 +1544,14 @@ class ListTupleToDesc(Transform):
         output = []
         # Loop through SignalDescription's, converting values of interest to tuples
         for tuple_idx, curr_tuple in enumerate(list_tuple):
+            curr_tuple = tuple(
+                [l.numpy() if isinstance(l, torch.Tensor) else l for l in curr_tuple]
+            )
             curr_signal_desc = SignalDescription(
                 sample_rate=self.sample_rate,
                 num_iq_samples=self.num_iq_samples,
-                class_name=curr_tuple[0],
-                class_index=self.class_list.index(curr_tuple[0])
+                class_name=curr_tuple[0][0],
+                class_index=self.class_list.index(curr_tuple[0][0])
                 if self.class_list
                 else None,
                 start=curr_tuple[1],

@@ -98,7 +98,7 @@ class Sig53:
     def __getitem__(self, idx: int) -> tuple:
         encoded_idx = pickle.dumps(idx)
         with self.env.begin(db=self.data_db) as data_txn:
-            iq_data = pickle.loads(data_txn.get(encoded_idx)).numpy()
+            iq_data = pickle.loads(data_txn.get(encoded_idx))
 
         with self.env.begin(db=self.label_db) as label_txn:
             mod, snr = pickle.loads(label_txn.get(encoded_idx))
