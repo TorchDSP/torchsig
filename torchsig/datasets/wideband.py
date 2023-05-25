@@ -10,6 +10,7 @@ from functools import partial
 from typing import Tuple, Any, List, Optional, Callable, Union
 from torchsig.utils.dataset import SignalDataset
 from torchsig.utils.types import SignalData, SignalDescription
+from torchsig.utils.dsp import low_pass
 from torchsig.datasets.synthetic import OFDMDataset, ConstellationDataset, FSKDataset
 from torchsig.transforms import (
     SignalTransform,
@@ -19,7 +20,7 @@ from torchsig.transforms import (
     AddNoise,
     RandomPhaseShift,
     RayleighFadingChannel,
-    Normalize, 
+    Normalize,
     RandomResample,
     RandomTimeShift,
     RandomFrequencyShift,
@@ -34,7 +35,7 @@ from torchsig.transforms.functional import (
     to_distribution,
     uniform_continuous_distribution,
     uniform_discrete_distribution,
-    FloatParameter, 
+    FloatParameter,
     NumericParameter,
 )
 from torchsig.datasets import estimate_filter_length
@@ -88,14 +89,9 @@ class ShapedNoiseSignalBurst(SignalBurst):
         center = lower + bandwidth / 2
 
         # Filter noise
-        num_taps = estimate_filter_length((0.5 - 0.02 * bandwidth) / 4)
-        sinusoid = np.exp(2j * np.pi * center * np.linspace(0, num_taps - 1, num_taps))
-        taps = signal.firwin(
-            num_taps,
-            bandwidth,
-            width=bandwidth * 0.02,
-            window=signal.get_window("blackman", num_taps),
-            scale=True,
+        taps = low_pass(cutoff=bandwidth / 2, transition_bandwidth=(0.5 - bandwidth / 2) / 4)
+        sinusoid = np.exp(
+            2j * np.pi * center * np.linspace(0, len(taps) - 1, len(taps))
         )
         taps = taps * sinusoid
         iq_samples = signal.fftconvolve(iq_samples, taps, mode="same")
@@ -362,15 +358,8 @@ class ModulatedSignalBurst(SignalBurst):
             iq_samples = iq_samples[
                 -int(self.num_iq_samples * self.duration * oversample) :
             ]
-
-            num_taps = estimate_filter_length((0.5 - 0.02 / oversample) / 4)
-
-            taps = signal.firwin(
-                num_taps,
-                1 / oversample,
-                width=1 / oversample * 0.02,
-                window=signal.get_window("blackman", num_taps),
-                scale=True,
+            taps = low_pass(
+                cutoff=1 / oversample / 2, transition_bandwidth=(0.5 - 1 / oversample / 2) / 4
             )
             iq_samples = np.convolve(iq_samples, taps, mode="same")
 
@@ -466,15 +455,7 @@ class SignalOfInterestSignalBurst(SignalBurst):
         )
 
         # Filter around center
-        num_taps = estimate_filter_length((0.5 - 0.02 * 0.5) / 4)
-
-        taps = signal.firwin(
-            num_taps,
-            0.5,
-            width=0.5 * 0.02,
-            window=signal.get_window("blackman", num_taps),
-            scale=True,
-        )
+        taps = low_pass(cutoff=1 / 4, transition_bandwidth=(0.5 - 1 / 4) / 4)
         iq_samples = signal.fftconvolve(iq_samples, taps, mode="same")
 
         # Decimate back down to correct sample rate
@@ -573,15 +554,7 @@ class FileSignalBurst(SignalBurst):
         )
 
         # Filter around center
-        num_taps = estimate_filter_length((0.5 - 0.5 * 0.02) / 4)
-
-        taps = signal.firwin(
-            num_taps,
-            0.5,
-            width=0.5 * 0.02,
-            window=signal.get_window("blackman", num_taps),
-            scale=True,
-        )
+        taps = low_pass(cutoff=1 / 4, transition_bandwidth=(0.5 - 1 / 4) / 4)
         iq_samples = signal.fftconvolve(iq_samples, taps, mode="same")
 
         # Decimate back down to correct sample rate
