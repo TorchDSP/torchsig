@@ -93,6 +93,7 @@ plot_dataset = DataWrapper(sig53)
 
 data_loader = DataLoader(dataset=plot_dataset, batch_size=16, shuffle=True)
 
+
 # Transform the plotting titles from the class index to the name
 def target_idx_to_name(tensor: np.ndarray) -> list:
     batch_size = tensor.shape[0]

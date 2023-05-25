@@ -1550,8 +1550,8 @@ class ListTupleToDesc(Transform):
             curr_signal_desc = SignalDescription(
                 sample_rate=self.sample_rate,
                 num_iq_samples=self.num_iq_samples,
-                class_name=curr_tuple[0][0],
-                class_index=self.class_list.index(curr_tuple[0][0])
+                class_name=curr_tuple[0],
+                class_index=self.class_list.index(curr_tuple[0])
                 if self.class_list
                 else None,
                 start=curr_tuple[1],

@@ -5,13 +5,15 @@
 # ### Import Libraries
 # First, import all the necessary public libraries as well as a few classes from the `torchsig` toolkit. An additional import from the `cm_plotter.py` helper script is also done here to retrieve a function to streamline plotting of confusion matrices.
 
-from torchsig.transforms.target_transforms.target_transforms import DescToClassIndex
+from torchsig.transforms.target_transforms import DescToClassIndex
 from torchsig.models.iq_models.efficientnet.efficientnet import efficientnet_b4
 from torchsig.utils.writer import DatasetCreator
-from torchsig.transforms.wireless_channel.wce import RandomPhaseShift
-from torchsig.transforms.signal_processing.sp import Normalize
-from torchsig.transforms.expert_feature.eft import ComplexTo2D
-from torchsig.transforms.transforms import Compose
+from torchsig.transforms.transforms import (
+    RandomPhaseShift,
+    Normalize,
+    ComplexTo2D,
+    Compose,
+)
 from pytorch_lightning.callbacks import ModelCheckpoint
 from pytorch_lightning import LightningModule, Trainer
 from sklearn.metrics import classification_report
@@ -112,17 +114,17 @@ print("Label Class: {}".format(Sig53.convert_idx_to_name(label)))
 # ### Format Dataset for Training
 # Next, the datasets are then wrapped as `DataLoaders` to prepare for training.
 
-# Create dataloaders
+# Create dataloaders"data
 train_dataloader = DataLoader(
     dataset=sig53_clean_train,
-    batch_size=16,
+    batch_size=8,
     num_workers=8,
     shuffle=True,
     drop_last=True,
 )
 val_dataloader = DataLoader(
     dataset=sig53_clean_val,
-    batch_size=16,
+    batch_size=8,
     num_workers=8,
     shuffle=False,
     drop_last=True,
