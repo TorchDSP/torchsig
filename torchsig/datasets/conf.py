@@ -113,7 +113,7 @@ class WidebandSig53CleanTrainConfig(WidebandSig53Config):
 
 @dataclass
 class WidebandSig53CleanTrainQAConfig(WidebandSig53CleanTrainConfig):
-    num_samples: int = 2_500
+    num_samples: int = 250
 
 
 @dataclass
@@ -125,7 +125,7 @@ class WidebandSig53CleanValConfig(WidebandSig53CleanTrainConfig):
 
 @dataclass
 class WidebandSig53CleanValQAConfig(WidebandSig53CleanValConfig):
-    num_samples: int = 250
+    num_samples: int = 25
 
 
 @dataclass
@@ -138,7 +138,7 @@ class WidebandSig53ImpairedTrainConfig(WidebandSig53Config):
 
 @dataclass
 class WidebandSig53ImpairedTrainQAConfig(WidebandSig53ImpairedTrainConfig):
-    num_samples: int = 2_500
+    num_samples: int = 2_50
 
 
 @dataclass
@@ -150,4 +150,4 @@ class WidebandSig53ImpairedValConfig(WidebandSig53ImpairedTrainConfig):
 
 @dataclass
 class WidebandSig53ImpairedValQAConfig(WidebandSig53ImpairedValConfig):
-    num_samples: int = 250
+    num_samples: int = 25

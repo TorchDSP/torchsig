@@ -34,6 +34,7 @@ class DatasetLoader:
         seed: int,
         num_workers: int = os.cpu_count(),
         batch_size: int = os.cpu_count(),
+        collate_fn: callable = None,
     ) -> None:
         self.loader = DataLoader(
             dataset,
@@ -43,6 +44,7 @@ class DatasetLoader:
             prefetch_factor=2,
             worker_init_fn=partial(DatasetLoader.worker_init_fn, seed=seed),
             multiprocessing_context=torch.multiprocessing.get_context("fork"),
+            collate_fn=collate_fn,
         )
         self.length = int(len(dataset) / batch_size)
 
@@ -91,24 +93,25 @@ class LMDBDatasetWriter(DatasetWriter):
         data, labels = batch
         with self.env.begin(write=True) as txn:
             last_idx = txn.stat(db=self.data_db)["entries"]
-            # if isinstance(labels, list):
-            #     for label_idx, label in enumerate(zip(*labels)):
-            #         txn.put(
-            #             pickle.dumps(last_idx + label_idx),
-            #             pickle.dumps(label),
-            #             db=self.label_db,
-            #         )
+            if isinstance(labels, tuple):
+                for label_idx, label in enumerate(labels):
+                    txn.put(
+                        pickle.dumps(last_idx + label_idx),
+                        pickle.dumps(tuple(label)),
+                        db=self.label_db,
+                    )
+            if isinstance(labels, list):
+                for label_idx, label in enumerate(zip(*labels)):
+                    txn.put(
+                        pickle.dumps(last_idx + label_idx),
+                        pickle.dumps(label),
+                        db=self.label_db,
+                    )
             for element_idx in range(len(data)):
                 txn.put(
                     pickle.dumps(last_idx + element_idx),
                     pickle.dumps(data[element_idx]),
                     db=self.data_db,
-                )
-                # if not isinstance(labels, list):
-                txn.put(
-                    pickle.dumps(last_idx + element_idx),
-                    pickle.dumps(labels),
-                    db=self.label_db,
                 )
 
 

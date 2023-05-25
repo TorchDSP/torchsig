@@ -160,7 +160,7 @@ for figure in iter(visualizer):
 # ### Save Data to LMDB
 # As a final exercise for this example notebook, the dataset can be saved to an LMDB static dataset for offline use. Note this is similar to how the static Sig53 dataset is generated and saved to serve as a static performance evaluation dataset.
 
-env = lmdb.open("dataset", max_dbs=3 if include_snr else 2, map_size=int(1e12))
+env = lmdb.open("examples/dataset", max_dbs=3 if include_snr else 2, map_size=int(1e12))
 
 iq_sample_db = env.open_db("iq_samples".encode())
 modulations_db = env.open_db("modulations".encode())

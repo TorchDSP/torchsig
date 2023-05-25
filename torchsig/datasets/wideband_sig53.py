@@ -1,39 +1,13 @@
-import os
-import lmdb
-import pickle
-import numpy as np
-from pathlib import Path
-from copy import deepcopy
-from tqdm.autonotebook import tqdm
-from typing import Callable, Optional, Tuple
-from multiprocessing import Pool
-import torch
-
-from torchsig.datasets import conf
-from torchsig.datasets.wideband import WidebandModulationsDataset
-from torchsig.transforms.target_transforms import (
-    DescToListTuple,
-    ListTupleToDesc,
-)
+from torchsig.transforms.target_transforms import ListTupleToDesc
+from torchsig.transforms.transforms import Identity
 from torchsig.utils.types import SignalData
-
-
-def _identity(x):
-    return x
-
-
-# Helper function for multiprocessing
-def _get_data(idx, cfg):
-    np.random.seed(cfg.seed + idx * 53)
-    wb_mds = WidebandModulationsDataset(
-        level=cfg.level,
-        num_iq_samples=cfg.num_iq_samples,
-        num_samples=1,  # Dataset is randomly generated when indexed, so length here does not matter
-        target_transform=DescToListTuple(),
-        seed=cfg.seed + idx * 53,
-        use_gpu=cfg.use_gpu,
-    )
-    return wb_mds[0]
+from torchsig.datasets import conf
+from copy import deepcopy
+from pathlib import Path
+import numpy as np
+import pickle
+import lmdb
+import os
 
 
 class WidebandSig53:
@@ -94,8 +68,6 @@ class WidebandSig53:
         "8fsk",
         "8gfsk",
         "8msk",
-        "8gmsk",
-        "16fsk",
         "16gfsk",
         "16msk",
         "16gmsk",
@@ -118,18 +90,19 @@ class WidebandSig53:
         root: str,
         train: bool = True,
         impaired: bool = True,
-        transform: Optional[Callable] = None,
-        target_transform: Optional[Callable] = None,
+        transform: callable = None,
+        target_transform: callable = None,
         use_signal_data: bool = True,
     ):
         self.root = Path(root)
         if not os.path.exists(self.root):
             os.makedirs(self.root)
+
         self.train = train
         self.impaired = impaired
 
-        self.T = transform if transform else _identity
-        self.TT = target_transform if target_transform else _identity
+        self.T = transform if transform else Identity()
+        self.TT = target_transform if target_transform else Identity()
 
         cfg = (
             "WidebandSig53"
@@ -157,10 +130,10 @@ class WidebandSig53:
     def __len__(self) -> int:
         return self.length
 
-    def __getitem__(self, idx: int) -> Tuple[np.ndarray, int]:
+    def __getitem__(self, idx: int) -> tuple:
         encoded_idx = pickle.dumps(idx)
         with self.env.begin(db=self.data_db) as data_txn:
-            iq_data = pickle.loads(data_txn.get(encoded_idx)).numpy()
+            iq_data: np.ndarray = pickle.loads(data_txn.get(encoded_idx))
 
         with self.env.begin(db=self.label_db) as label_txn:
             label = pickle.loads(label_txn.get(encoded_idx))
