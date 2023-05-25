@@ -1,10 +1,11 @@
+from numba import njit, int64, float64, complex64
 from typing import Callable, Union, Tuple, List
 from functools import partial
-from numba import njit, int64, float64, complex64
+from scipy import interpolate
+from scipy import signal
+from torchsig.utils.dsp import low_pass
 import numpy as np
 import pywt
-from scipy import signal
-from scipy import interpolate
 
 
 __all__ = [
@@ -169,16 +170,9 @@ def resample(
     """
     if anti_alias_lpf:
         new_rate = up_rate / down_rate
-        # Filter around center to future bandwidth
-        num_taps = int(
-            2 * np.ceil(50 * 2 * np.pi / new_rate / 0.125 / 22)
-        )  # fred harris rule of thumb * 2
-        taps = signal.firwin(
-            num_taps,
-            new_rate * 0.98,
-            width=new_rate * 0.02,
-            window=signal.get_window("blackman", num_taps),
-            scale=True,
+        taps = low_pass(
+            cutoff=new_rate * 0.98 / 2,
+            transition_bandwidth=(0.5 - (new_rate * 0.98) / 2) / 4,
         )
         tensor = signal.fftconvolve(tensor, taps, mode="same")
 
@@ -669,17 +663,7 @@ def freq_shift_avoid_aliasing(
     down = 1
     tensor = signal.resample_poly(tensor, up, down)
 
-    # Filter around center to remove original alias effects
-    num_taps = int(
-        2 * np.ceil(50 * 2 * np.pi / (1 / up) / 0.125 / 22)
-    )  # fred harris rule of thumb * 2
-    taps = signal.firwin(
-        num_taps,
-        (1 / up),
-        width=(1 / up) * 0.02,
-        window=signal.get_window("blackman", num_taps),
-        scale=True,
-    )
+    taps = low_pass(cutoff=1 / 4, transition_bandwidth=(0.5 - 1 / 4) / 4)
     tensor = signal.fftconvolve(tensor, taps, mode="same")
 
     # Freq shift to desired center freq
@@ -687,16 +671,7 @@ def freq_shift_avoid_aliasing(
     tensor = tensor * np.exp(2j * np.pi * f_shift / up * time_vector)
 
     # Filter to remove out-of-band regions
-    num_taps = int(
-        2 * np.ceil(50 * 2 * np.pi / (1 / up) / 0.125 / 22)
-    )  # fred harris rule-of-thumb * 2
-    taps = signal.firwin(
-        num_taps,
-        1 / up,
-        width=(1 / up) * 0.02,
-        window=signal.get_window("blackman", num_taps),
-        scale=True,
-    )
+    taps = low_pass(cutoff=1 / 4, transition_bandwidth=(0.5 - 1 / 4) / 4)
     tensor = signal.fftconvolve(tensor, taps, mode="same")
     tensor = tensor[
         : int(num_iq_samples * up)
@@ -909,19 +884,17 @@ def roll_off(
     """
     if (lowercutfreq == 0) & (uppercutfreq == 1):
         return tensor
+
     elif uppercutfreq == 1:
         if fltorder % 2 == 0:
             fltorder += 1
     bandwidth = uppercutfreq - lowercutfreq
     center_freq = lowercutfreq - 0.5 + bandwidth / 2
-    num_taps = fltorder
-    sinusoid = np.exp(2j * np.pi * center_freq * np.linspace(0, num_taps - 1, num_taps))
-    taps = signal.firwin(
-        num_taps,
-        bandwidth,
-        width=bandwidth * 0.02,
-        window=signal.get_window("blackman", num_taps),
-        scale=True,
+    taps = low_pass(
+        cutoff=bandwidth / 2, transition_bandwidth=(0.5 - bandwidth / 2) / 4
+    )
+    sinusoid = np.exp(
+        2j * np.pi * center_freq * np.linspace(0, len(taps) - 1, len(taps))
     )
     taps = taps * sinusoid
     return signal.fftconvolve(tensor, taps, mode="same")
