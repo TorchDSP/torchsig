@@ -43,6 +43,7 @@ def setup_module(module):
         shutil.rmtree("tests/wideband_sig53_impaired_train/")
 
 
+@pytest.mark.serial
 @pytest.mark.parametrize("level", (0, 1, 2))
 def test_generate_wideband_modulation_figures(level: int):
     generate_static_wideband_dataset(level)
