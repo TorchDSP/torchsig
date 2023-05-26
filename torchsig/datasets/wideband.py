@@ -2,7 +2,7 @@ import torch
 import numpy as np
 import pandas as pd
 from tqdm import tqdm
-from scipy import signal
+from scipy import signal as sp
 from copy import deepcopy
 from itertools import chain
 from ast import literal_eval
@@ -96,7 +96,7 @@ class ShapedNoiseSignalBurst(SignalBurst):
             2j * np.pi * center * np.linspace(0, len(taps) - 1, len(taps))
         )
         taps = taps * sinusoid
-        iq_samples = signal.fftconvolve(iq_samples, taps, mode="same")
+        iq_samples = sp.convolve(iq_samples, taps, mode="same")
 
         # prune to be correct size out of filter
         iq_samples = iq_samples[-int(self.num_iq_samples * self.duration) :]
@@ -344,7 +344,7 @@ class ModulatedSignalBurst(SignalBurst):
             oversample = 1
         up_rate = np.floor(new_rate * 100 * oversample).astype(np.int32)
         down_rate = 100
-        iq_samples = signal.resample_poly(iq_samples, up_rate, down_rate)
+        iq_samples = sp.resample_poly(iq_samples, up_rate, down_rate)
 
         # Freq shift to desired center freq
         time_vector = np.arange(iq_samples.shape[0], dtype=float)
@@ -364,10 +364,10 @@ class ModulatedSignalBurst(SignalBurst):
                 cutoff=1 / oversample / 2,
                 transition_bandwidth=(0.5 - 1 / oversample / 2) / 4,
             )
-            iq_samples = np.convolve(iq_samples, taps, mode="same")
+            iq_samples = sp.convolve(iq_samples, taps, mode="same")
 
             # Decimate back down to correct sample rate
-            iq_samples = signal.resample_poly(iq_samples, 1, oversample)
+            iq_samples = sp.resample_poly(iq_samples, 1, oversample)
             iq_samples = iq_samples[-int(self.num_iq_samples * self.duration) :]
 
         # Set power
@@ -449,7 +449,7 @@ class SignalOfInterestSignalBurst(SignalBurst):
         new_rate = self.soi_gen_bw / self.bandwidth
         up_rate = np.floor(new_rate * 100 * 2).astype(np.int32)
         down_rate = 100
-        iq_samples = signal.resample_poly(iq_samples, up_rate, down_rate)
+        iq_samples = sp.resample_poly(iq_samples, up_rate, down_rate)
 
         # Freq shift to desired center freq
         time_vector = np.arange(iq_samples.shape[0], dtype=float)
@@ -459,10 +459,10 @@ class SignalOfInterestSignalBurst(SignalBurst):
 
         # Filter around center
         taps = low_pass(cutoff=1 / 4, transition_bandwidth=(0.5 - 1 / 4) / 4)
-        iq_samples = signal.fftconvolve(iq_samples, taps, mode="same")
+        iq_samples = sp.convolve(iq_samples, taps, mode="same")
 
         # Decimate back down to correct sample rate
-        iq_samples = signal.resample_poly(iq_samples, 1, 2)
+        iq_samples = sp.resample_poly(iq_samples, 1, 2)
         iq_samples = iq_samples[-int(self.num_iq_samples * self.duration) :]
 
         # Set power
@@ -548,7 +548,7 @@ class FileSignalBurst(SignalBurst):
         new_rate = file_bw / self.bandwidth
         up_rate = np.floor(new_rate * 100 * 2).astype(np.int32)
         down_rate = 100
-        iq_samples = signal.resample_poly(iq_samples, up_rate, down_rate)
+        iq_samples = sp.resample_poly(iq_samples, up_rate, down_rate)
 
         # Freq shift to desired center freq
         time_vector = np.arange(iq_samples.shape[0], dtype=float)
@@ -558,10 +558,10 @@ class FileSignalBurst(SignalBurst):
 
         # Filter around center
         taps = low_pass(cutoff=1 / 4, transition_bandwidth=(0.5 - 1 / 4) / 4)
-        iq_samples = signal.fftconvolve(iq_samples, taps, mode="same")
+        iq_samples = sp.convolve(iq_samples, taps, mode="same")
 
         # Decimate back down to correct sample rate
-        iq_samples = signal.resample_poly(iq_samples, 1, 2)
+        iq_samples = sp.resample_poly(iq_samples, 1, 2)
 
         # Inspect/set duration
         if iq_samples.shape[0] < self.num_iq_samples * self.duration:

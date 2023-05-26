@@ -2,7 +2,7 @@ from numba import njit, int64, float64, complex64
 from typing import Callable, Union, Tuple, List
 from functools import partial
 from scipy import interpolate
-from scipy import signal
+from scipy import signal as sp
 from torchsig.utils.dsp import low_pass
 import numpy as np
 import pywt
@@ -174,10 +174,10 @@ def resample(
             cutoff=new_rate * 0.98 / 2,
             transition_bandwidth=(0.5 - (new_rate * 0.98) / 2) / 4,
         )
-        tensor = signal.fftconvolve(tensor, taps, mode="same")
+        tensor = sp.convolve(tensor, taps, mode="same")
 
     # Resample
-    resampled = signal.resample_poly(tensor, up_rate, down_rate)
+    resampled = sp.resample_poly(tensor, up_rate, down_rate)
 
     # Handle extra or not enough IQ samples
     if keep_samples:
@@ -342,7 +342,7 @@ def rayleigh_fading(
 
     # Ensure that we maintain the same amount of power before and after the transform
     input_power = np.linalg.norm(tensor)
-    tensor = signal.upfirdn(rayleigh_taps, tensor, up=100, down=100)[-tensor.shape[0] :]
+    tensor = sp.upfirdn(rayleigh_taps, tensor, up=100, down=100)[-tensor.shape[0] :]
     output_power = np.linalg.norm(tensor)
     tensor = np.multiply(input_power / output_power, tensor)
     return tensor
@@ -507,7 +507,7 @@ def spectrogram(
         transformed (:class:`numpy.ndarray`):
             Spectrogram of tensor along time dimension
     """
-    _, _, spectrograms = signal.spectrogram(
+    _, _, spectrograms = sp.spectrogram(
         tensor,
         nperseg=nperseg,
         noverlap=noverlap,
@@ -661,10 +661,10 @@ def freq_shift_avoid_aliasing(
     # Interpolate up to avoid frequency wrap around during shift
     up = 2
     down = 1
-    tensor = signal.resample_poly(tensor, up, down)
+    tensor = sp.resample_poly(tensor, up, down)
 
     taps = low_pass(cutoff=1 / 4, transition_bandwidth=(0.5 - 1 / 4) / 4)
-    tensor = signal.fftconvolve(tensor, taps, mode="same")
+    tensor = sp.convolve(tensor, taps, mode="same")
 
     # Freq shift to desired center freq
     time_vector = np.arange(tensor.shape[0], dtype=np.float64)
@@ -672,13 +672,13 @@ def freq_shift_avoid_aliasing(
 
     # Filter to remove out-of-band regions
     taps = low_pass(cutoff=1 / 4, transition_bandwidth=(0.5 - 1 / 4) / 4)
-    tensor = signal.fftconvolve(tensor, taps, mode="same")
+    tensor = sp.convolve(tensor, taps, mode="same")
     tensor = tensor[
         : int(num_iq_samples * up)
     ]  # prune to be correct size out of filter
 
     # Decimate back down to correct sample rate
-    tensor = signal.resample_poly(tensor, down, up)
+    tensor = sp.resample_poly(tensor, down, up)
 
     return tensor[:num_iq_samples]
 
@@ -897,7 +897,7 @@ def roll_off(
         2j * np.pi * center_freq * np.linspace(0, len(taps) - 1, len(taps))
     )
     taps = taps * sinusoid
-    return signal.fftconvolve(tensor, taps, mode="same")
+    return sp.convolve(tensor, taps, mode="same")
 
 
 def add_slope(tensor: np.ndarray) -> np.ndarray:
@@ -1102,7 +1102,7 @@ def random_convolve(
 
     """
     filter_taps = np.random.rand(num_taps) + 1j * np.random.rand(num_taps)
-    return (1 - alpha) * tensor + alpha * np.convolve(tensor, filter_taps, mode="same")
+    return (1 - alpha) * tensor + alpha * sp.convolve(tensor, filter_taps, mode="same")
 
 
 @njit(
