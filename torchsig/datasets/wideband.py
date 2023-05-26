@@ -89,7 +89,9 @@ class ShapedNoiseSignalBurst(SignalBurst):
         center = lower + bandwidth / 2
 
         # Filter noise
-        taps = low_pass(cutoff=bandwidth / 2, transition_bandwidth=(0.5 - bandwidth / 2) / 4)
+        taps = low_pass(
+            cutoff=bandwidth / 2, transition_bandwidth=(0.5 - bandwidth / 2) / 4
+        )
         sinusoid = np.exp(
             2j * np.pi * center * np.linspace(0, len(taps) - 1, len(taps))
         )
@@ -359,7 +361,8 @@ class ModulatedSignalBurst(SignalBurst):
                 -int(self.num_iq_samples * self.duration * oversample) :
             ]
             taps = low_pass(
-                cutoff=1 / oversample / 2, transition_bandwidth=(0.5 - 1 / oversample / 2) / 4
+                cutoff=1 / oversample / 2,
+                transition_bandwidth=(0.5 - 1 / oversample / 2) / 4,
             )
             iq_samples = np.convolve(iq_samples, taps, mode="same")
 
@@ -988,7 +991,7 @@ class WidebandModulationsDataset(SignalDataset):
                                 order=(6, 20),
                             ),
                             RandomConvolve(num_taps=(2, 5), alpha=(0.1, 0.4)),
-                            RayleighFadingChannel((0.0004, 0.0005)),
+                            RayleighFadingChannel((0.001, 0.01)),
                             RandomDropSamples(
                                 drop_rate=0.01,
                                 size=(1, 1),

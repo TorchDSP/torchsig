@@ -69,6 +69,7 @@ class WidebandSig53:
         "8gfsk",
         "8msk",
         "8gmsk",
+        "16fsk",
         "16gfsk",
         "16msk",
         "16gmsk",
