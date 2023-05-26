@@ -958,7 +958,7 @@ class AMDataset(SyntheticDataset):
             0.5 / 16 if "ssb" not in const_name else 0.25 / 4,
             window="blackman",
         )
-        filtered = np.convolve(source, taps, "same")
+        filtered = sp.convolve(source, taps, "same")
         sinusoid = np.exp(2j * np.pi * 0.125 * np.arange(self.num_iq_samples))
         filtered *= np.ones_like(filtered) if "ssb" not in const_name else sinusoid
         filtered += 5 if const_name == "am" else 0
