@@ -41,7 +41,7 @@ class SignalDescription:
 
     def __init__(
         self,
-        sample_rate: Optional[int] = 1,
+        sample_rate: Optional[float] = 1,
         num_iq_samples: Optional[int] = 4096,
         lower_frequency: Optional[float] = -0.25,
         upper_frequency: Optional[float] = 0.25,
