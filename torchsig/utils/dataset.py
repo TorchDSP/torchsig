@@ -22,7 +22,7 @@ class SignalDataset(torch.utils.data.Dataset):
         transform: Optional[Callable] = None,
         target_transform: Optional[Callable] = None,
         seed: Optional[int] = None,
-    ):
+    ) -> None:
         super(SignalDataset, self).__init__()
         self.random_generator = np.random.RandomState(seed)
         self.transform = transform
@@ -71,7 +71,7 @@ class SignalFileDataset(SignalDataset):
         if index_filter:
             self.index = list(filter(index_filter, self.index))
 
-    def __getitem__(self, item: int) -> Tuple[SignalData, Any]:
+    def __getitem__(self, item: int) -> Tuple[np.ndarray, Any]:  # type: ignore
         target = self.index[item][0]
         signal_data = self.reader(self.index[item][1])
 
@@ -81,7 +81,7 @@ class SignalFileDataset(SignalDataset):
         if self.target_transform:
             target = self.target_transform(target)
 
-        return signal_data.iq_data, target
+        return signal_data.iq_data, target  # type: ignore
 
     def __len__(self) -> int:
         return len(self.index)
@@ -116,7 +116,7 @@ class SignalTensorDataset(torch.utils.data.TensorDataset):
         self.transform = transform
         self.target_transform = target_transform
 
-    def __getitem__(self, index: int) -> Tuple[SignalData, Any]:
+    def __getitem__(self, index: int) -> Tuple[SignalData, Any]:  # type: ignore
         # We assume that single-precision Tensors are provided we return
         # double-precision numpy arrays for usage in the transform pipeline.
         signal_data = SignalData(
@@ -134,4 +134,4 @@ class SignalTensorDataset(torch.utils.data.TensorDataset):
         if self.target_transform:
             target = self.target_transform(target)
 
-        return signal_data, target
+        return signal_data, target  # type: ignore

@@ -3,11 +3,11 @@ import json
 import pickle
 import numpy as np
 from copy import deepcopy
-from typing import Tuple, List, Any
+from typing import Dict, Tuple, List, Any
 from torchsig.utils.types import SignalCapture, SignalDescription
 
 
-SIGMF_DTYPE_MAP = {
+SIGMF_DTYPE_MAP: Dict[str, np.dtype] = {
     "cf64_le": np.dtype("<f8"),
     "cf64_be": np.dtype(">f8"),
     "cf32_le": np.dtype("<f4"),

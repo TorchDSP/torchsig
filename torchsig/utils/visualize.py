@@ -8,7 +8,7 @@ from matplotlib import pyplot as plt
 from matplotlib import patches
 from matplotlib.figure import Figure
 from torch.utils.data import dataloader
-from typing import Optional, Callable, Iterable, Union, Tuple, List
+from typing import Any, Optional, Callable, Iterable, Union, Tuple, List
 
 
 class Visualizer:
@@ -28,17 +28,17 @@ class Visualizer:
 
     def __init__(
         self,
-        data_loader: dataloader,
+        data_loader,
         visualize_transform: Optional[Callable] = None,
         visualize_target_transform: Optional[Callable] = None,
-    ):
+    ) -> None:
         self.data_loader = iter(data_loader)
         self.visualize_transform = visualize_transform
         self.visualize_target_transform = visualize_target_transform
 
     def __iter__(self) -> Iterable:
         self.data_iter = iter(self.data_loader)
-        return self
+        return self  # type: ignore
 
     def __next__(self) -> Figure:
         iq_data, targets = next(self.data_iter)
@@ -81,12 +81,12 @@ class SpectrogramVisualizer(Visualizer):
     def __init__(
         self,
         sample_rate: float = 1.0,
-        window: Optional[Union[str, Tuple, np.ndarray]] = sp.windows.tukey(256, 0.25),
+        window: Union[str, Tuple, np.ndarray] = sp.windows.tukey(256, 0.25),
         nperseg: int = 256,
         noverlap: Optional[int] = None,
         nfft: Optional[int] = None,
         **kwargs
-    ):
+    ) -> None:
         super(SpectrogramVisualizer, self).__init__(**kwargs)
         self.sample_rate = sample_rate
         self.window = window
@@ -150,7 +150,7 @@ class WaveletVisualizer(Visualizer):
         nscales: int = 33,
         sample_rate: float = 1.0,
         **kwargs
-    ):
+    ) -> None:
         super(WaveletVisualizer, self).__init__(**kwargs)
         self.wavelet = wavelet
         self.nscales = nscales
@@ -196,7 +196,7 @@ class ConstellationVisualizer(Visualizer):
 
     """
 
-    def __init__(self, **kwargs):
+    def __init__(self, **kwargs) -> None:
         super(ConstellationVisualizer, self).__init__(**kwargs)
 
     def _visualize(self, iq_data: np.ndarray, targets: np.ndarray) -> Figure:
@@ -224,7 +224,7 @@ class IQVisualizer(Visualizer):
 
     """
 
-    def __init__(self, **kwargs):
+    def __init__(self, **kwargs) -> None:
         super(IQVisualizer, self).__init__(**kwargs)
 
     def _visualize(self, iq_data: np.ndarray, targets: np.ndarray) -> Figure:
@@ -252,7 +252,7 @@ class TimeSeriesVisualizer(Visualizer):
             Keyword arguments
     """
 
-    def __init__(self, **kwargs):
+    def __init__(self, **kwargs) -> None:
         super(TimeSeriesVisualizer, self).__init__(**kwargs)
 
     def _visualize(self, data: np.ndarray, targets: np.ndarray) -> Figure:
@@ -280,7 +280,7 @@ class ImageVisualizer(Visualizer):
 
     """
 
-    def __init__(self, **kwargs):
+    def __init__(self, **kwargs) -> None:
         super(ImageVisualizer, self).__init__(**kwargs)
 
     def _visualize(self, data: np.ndarray, targets: np.ndarray) -> Figure:
@@ -314,7 +314,7 @@ class PSDVisualizer(Visualizer):
         **kwargs:
     """
 
-    def __init__(self, fft_size: int = 1024, **kwargs):
+    def __init__(self, fft_size: int = 1024, **kwargs) -> None:
         super(PSDVisualizer, self).__init__(**kwargs)
         self.fft_size = fft_size
 
@@ -341,7 +341,7 @@ class MaskVisualizer(Visualizer):
         **kwargs:
     """
 
-    def __init__(self, **kwargs):
+    def __init__(self, **kwargs) -> None:
         super(MaskVisualizer, self).__init__(**kwargs)
 
     def __next__(self) -> Figure:
@@ -400,7 +400,7 @@ class MaskClassVisualizer(Visualizer):
         **kwargs:
     """
 
-    def __init__(self, class_list, **kwargs):
+    def __init__(self, class_list, **kwargs) -> None:
         super(MaskClassVisualizer, self).__init__(**kwargs)
         self.class_list = class_list
 
@@ -416,8 +416,8 @@ class MaskClassVisualizer(Visualizer):
 
         return self._visualize(iq_data, targets, classes)
 
-    def _visualize(
-        self, data: np.ndarray, targets: np.ndarray, classes: List
+    def _visualize(  # type: ignore
+        self, data: np.ndarray, targets: np.ndarray, classes: List[str]
     ) -> Figure:
         batch_size = data.shape[0]
         figure = plt.figure(frameon=False)
@@ -467,7 +467,7 @@ class SemanticMaskClassVisualizer(Visualizer):
         **kwargs:
     """
 
-    def __init__(self, class_list, **kwargs):
+    def __init__(self, class_list, **kwargs) -> None:
         super(SemanticMaskClassVisualizer, self).__init__(**kwargs)
         self.class_list = class_list
 
@@ -528,7 +528,7 @@ class BoundingBoxVisualizer(Visualizer):
         **kwargs:
     """
 
-    def __init__(self, **kwargs):
+    def __init__(self, **kwargs) -> None:
         super(BoundingBoxVisualizer, self).__init__(**kwargs)
 
     def __next__(self) -> Figure:
@@ -629,15 +629,15 @@ class AnchorBoxVisualizer(Visualizer):
 
     def __init__(
         self,
-        data_loader: dataloader,
+        data_loader,
+        anchor_boxes: List,
         visualize_transform: Optional[Callable] = None,
         visualize_target_transform: Optional[Callable] = None,
-        anchor_boxes: List = None,
-    ):
+    ) -> None:
         self.data_loader = iter(data_loader)
+        self.anchor_boxes = anchor_boxes
         self.visualize_transform = visualize_transform
         self.visualize_target_transform = visualize_target_transform
-        self.anchor_boxes = anchor_boxes
         self.num_anchor_boxes = len(anchor_boxes)
 
     def __next__(self) -> Figure:
@@ -835,12 +835,12 @@ def onehot_label_format(tensor: np.ndarray) -> List[str]:
     return label
 
 
-def multihot_label_format(tensor: np.ndarray, class_list: List[str]) -> List[str]:
+def multihot_label_format(tensor: np.ndarray, class_list: List[str]) -> List[List[str]]:
     """Target Transform: Format multihot labels for titles in visualizer"""
     batch_size = tensor.shape[0]
-    label = []
+    label: List[List[str]] = []
     for idx in range(batch_size):
-        curr_label = []
+        curr_label: List[str] = []
         for class_idx in range(len(class_list)):
             if tensor[idx][class_idx] > (1 / len(class_list)):
                 curr_label.append(class_list[class_idx])
@@ -903,14 +903,14 @@ def overlay_mask(tensor: np.ndarray) -> List[str]:
     batch_size = tensor.shape[0]
     labels = []
     for idx in range(batch_size):
-        label = torch.sum(tensor[idx], axis=0).numpy()
+        label = torch.sum(tensor[idx], axis=0).numpy()  # type: ignore
         label[label > 0] = 1
         label = np.ma.masked_where(label == 0, label)
         labels.append(label)
     return labels
 
 
-def mask_class_to_outline(tensor: np.ndarray) -> List[str]:
+def mask_class_to_outline(tensor: np.ndarray) -> Tuple[List[List[int]], List[Any]]:
     """Target Transform: Transforms masks for each burst to individual outlines
     for the MaskClassVisualizer. Overlapping mask outlines are still shown as
     overlapping. Each bursts' class index is also returned.
