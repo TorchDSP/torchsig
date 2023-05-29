@@ -1,5 +1,5 @@
 from numba import njit, int64, float64, complex64
-from typing import Callable, Union, Tuple, List
+from typing import Callable, Union, Tuple, List, Literal, Optional
 from functools import partial
 from scipy import interpolate
 from scipy import signal as sp
@@ -64,37 +64,73 @@ NumericParameter = Union[FloatParameter, IntParameter]
 
 
 def uniform_discrete_distribution(
-    choices: List, random_generator: np.random.RandomState = np.random.RandomState()
+    choices: List, random_generator: Optional[np.random.RandomState] = None
 ):
+    random_generator = (
+        random_generator 
+        if random_generator 
+        else np.random.RandomState()
+    )
     return partial(random_generator.choice, choices)
 
 
 def uniform_continuous_distribution(
     lower: Union[int, float],
     upper: Union[int, float],
-    random_generator: np.random.RandomState = np.random.RandomState(),
+    random_generator: Optional[np.random.RandomState] = None,
 ):
+    random_generator = (
+        random_generator 
+        if random_generator 
+        else np.random.RandomState()
+    )
     return partial(random_generator.uniform, lower, upper)
 
 
 def to_distribution(
-    param, random_generator: np.random.RandomState = np.random.RandomState()
+    param: Union[
+        int,
+        float,
+        str,
+        Callable, 
+        List[Union[float, int, str]], 
+        Tuple[float, float], 
+        Tuple[int, int],
+    ], 
+    random_generator: Optional[np.random.RandomState] = None,
 ):
-    if isinstance(param, Callable):
+    random_generator = (
+        random_generator 
+        if random_generator 
+        else np.random.RandomState()
+    )
+    if isinstance(param, callable):  # type: ignore
         return param
 
     if isinstance(param, list):
-        if isinstance(param[0], tuple):
-            tuple_from_list = param[random_generator.randint(len(param))]
-            return uniform_continuous_distribution(
-                tuple_from_list[0],
-                tuple_from_list[1],
-                random_generator,
-            )
+        #######################################################################
+        # [BUG ALERT]: Nested tuples within lists does not function as desired.
+        # Below will instantiate a random distribution from the list; however,
+        # each call will only come from the previously randomized selection,
+        # but the desired behavior would be for this to randomly select each
+        # region at call time. Commenting out for now, but should revisit in
+        # the future to add back the functionality.
+        #######################################################################
+        # if isinstance(param[0], tuple):
+        #     tuple_from_list = param[random_generator.randint(len(param))]
+        #     return uniform_continuous_distribution(
+        #         tuple_from_list[0],
+        #         tuple_from_list[1],
+        #         random_generator,
+        #     )
         return uniform_discrete_distribution(param, random_generator)
 
     if isinstance(param, tuple):
-        return uniform_continuous_distribution(param[0], param[1], random_generator)
+        return uniform_continuous_distribution(
+            param[0], 
+            param[1], 
+            random_generator,
+        )
 
     if isinstance(param, int) or isinstance(param, float):
         return uniform_discrete_distribution([param], random_generator)
@@ -104,7 +140,7 @@ def to_distribution(
 
 def normalize(
     tensor: np.ndarray,
-    norm_order: int = 2,
+    norm_order: Optional[Union[float, int, Literal['fro', 'nuc']]] = 2,
     flatten: bool = False,
 ) -> np.ndarray:
     """Scale a tensor so that a specfied norm computes to 1. For detailed information, see :func:`numpy.linalg.norm.`
@@ -260,9 +296,9 @@ def time_varying_awgn(
         transformed (:class:`numpy.ndarray`):
             Tensor with added noise.
     """
-    real_noise = np.random.randn(*tensor.shape)
-    imag_noise = np.random.randn(*tensor.shape)
-    noise_power_db = np.empty(*tensor.shape)
+    real_noise: np.ndarray = np.random.randn(*tensor.shape)
+    imag_noise: np.ndarray = np.random.randn(*tensor.shape)
+    noise_power_db: np.ndarray = np.zeros(tensor.shape)
 
     if inflections == 0:
         inflection_indices = np.array([0, tensor.shape[0]])
@@ -557,8 +593,9 @@ def continuous_wavelet_transform(
     return cwtmatr
 
 
-def time_shift(tensor: np.ndarray, t_shift: float) -> np.ndarray:
-    """Shifts tensor in the time dimension by tshift samples. Zero-padding is applied to maintain input size.
+def time_shift(tensor: np.ndarray, t_shift: int) -> np.ndarray:
+    """Shifts tensor in the time dimension by tshift samples. Zero-padding is 
+    applied to maintain input size.
 
     Args:
         tensor: (:class:`numpy.ndarray`):
@@ -820,7 +857,7 @@ def channel_swap(tensor: np.ndarray) -> np.ndarray:
     """
     real_component = tensor.real
     imag_component = tensor.imag
-    new_tensor = np.empty(*tensor.shape, dtype=tensor.dtype)
+    new_tensor = np.empty(tensor.shape, dtype=tensor.dtype)
     new_tensor.real = imag_component
     new_tensor.imag = real_component
     return new_tensor
@@ -1186,7 +1223,7 @@ def agc(
         diff_db = ref_level_db - output_db
 
         if level_db <= low_level_db:
-            alpha_adjust = 0
+            alpha_adjust = 0.0
         elif output_db >= high_level_db:
             alpha_adjust = alpha_overflow
         elif abs(diff_db) > track_range_db:
