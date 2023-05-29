@@ -1,7 +1,7 @@
 import torch
 import numpy as np
 from copy import deepcopy
-from typing import Tuple, List, Optional, Callable, Any
+from typing import Tuple, List, Optional, Callable, Any, Union
 from torchsig.utils.types import SignalData, SignalCapture
 
 
@@ -28,7 +28,10 @@ class SignalDataset(torch.utils.data.Dataset):
         self.transform = transform
         self.target_transform = target_transform
 
-    def __getitem__(self, index: int) -> Tuple[SignalData, Any]:
+    def __getitem__(
+        self, 
+        index: int,
+    ) -> Tuple[Union[SignalData, np.ndarray], Any]:
         raise NotImplementedError
 
     def __len__(self) -> int:

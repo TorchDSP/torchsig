@@ -783,6 +783,7 @@ class DescToAnchorBoxes(Transform):
             assert signal_desc.start is not None
             assert signal_desc.duration is not None
             assert signal_desc.center_frequency is not None
+            assert signal_desc.bandwidth is not None
             assert signal_desc.duration is not None
             # Time conversions
             if signal_desc.start > 1.0:
