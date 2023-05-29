@@ -40,17 +40,17 @@ class TargetInterpreter:
     """
     def __init__(
         self, 
-        target_file: str = None,
+        target_file: str,
+        class_list: List[str],
         num_iq_samples: int = int(512*512),
         capture_duration_samples: int = int(512*512),
-        class_list: list = [],
     ):
         self.target_file = target_file
         self.num_iq_samples = num_iq_samples
         self.capture_duration_samples = capture_duration_samples
         self.class_list = class_list
         # Initialize relevant capture parameters to be overwritten by interpreter
-        self.sample_rate = 1
+        self.sample_rate = 1.0
         self.is_complex = True
         # Initialize the detections dataframe using sub-class's interpreters
         self.detections_df = self._convert_to_dataframe()
@@ -83,8 +83,8 @@ class TargetInterpreter:
     def convert_to_signalburst(
         self, 
         start_sample: int = 0, 
-        df_indicies: np.array = None, 
-    ) -> List[SignalBurst]:
+        df_indicies: Optional[np.ndarray] = None, 
+    ) -> List[WidebandFileSignalBurst]:
         """Inputs a start sample and an array of indicies to convert into a 
         list of `SignalBursts` for the `WidebandFileSignalBurst`s
         
@@ -233,10 +233,10 @@ class CSVFileInterpreter(TargetInterpreter):
     """
     def __init__(
         self, 
-        target_file: str = None,
+        target_file: str,
+        class_list: List[str],
         num_iq_samples: int = int(512*512),
         capture_duration_samples: int = int(512*512),
-        class_list: list = [],
         sample_rate: float = 25e6,
         is_complex: bool = True,
         start_column: int = 1,
@@ -305,10 +305,10 @@ class SigMFInterpreter(TargetInterpreter):
     """
     def __init__(
         self, 
-        target_file: str = None,
+        target_file: str,
+        class_list: List[str],
         num_iq_samples: int = int(512*512),
         capture_duration_samples: int = int(512*512),
-        class_list: list = [],
         class_target: str = 'core:description',
         **kwargs
     ):
@@ -391,13 +391,15 @@ class WidebandFileSignalBurst(SignalBurst):
 
     def __init__(
         self, 
-        data_file: str = None,
+        data_file: Optional[str] = None,
         start_sample: int = 0,
         is_complex: bool = True,
         capture_type: np.dtype = np.dtype(np.int16),
         **kwargs
     ):
         super(WidebandFileSignalBurst, self).__init__(**kwargs)
+        assert self.center_frequency is not None
+        assert self.bandwidth is not None
         self.lower_frequency = self.center_frequency - self.bandwidth / 2
         self.upper_frequency = self.center_frequency + self.bandwidth / 2
         self.data_file = data_file
@@ -491,14 +493,14 @@ class FileBurstSourceDataset(BurstSourceDataset):
 
     def __init__(
         self,
-        data_files: List = None,
-        target_files: List = None,
+        data_files: List[str],
+        target_files: List[str],
+        class_list: List[str],
         capture_type: np.dtype = np.dtype(np.int16),
         is_complex: bool = True,
         sample_policy: str = "random_labels",
         null_ratio: float = 0.0,
-        target_interpreter: TargetInterpreter = SigMFInterpreter,
-        class_list: list = [],
+        target_interpreter: TargetInterpreter = SigMFInterpreter,  # type: ignore
         num_iq_samples: int = int(512*512),
         num_samples: int = 100,
         seed: Optional[int] = None,
@@ -541,7 +543,7 @@ class FileBurstSourceDataset(BurstSourceDataset):
                         os.path.join(self.data_files[file_index])
                     ) // self.bytes_per_sample
                     # Interpret annotations for file
-                    interpreter = self.target_interpreter(
+                    interpreter = self.target_interpreter(  # type: ignore
                         target_file = target_file,
                         num_iq_samples = self.num_iq_samples,
                         capture_duration_samples = capture_duration_samples,
@@ -573,7 +575,7 @@ class FileBurstSourceDataset(BurstSourceDataset):
                 ) // self.bytes_per_sample
 
                 # Instantiate target interpreter
-                interpreter = self.target_interpreter(
+                interpreter = self.target_interpreter(  # type: ignore
                     target_file=self.target_files[file_index],
                     num_iq_samples = self.num_iq_samples,
                     capture_duration_samples = capture_duration_samples,
@@ -649,7 +651,7 @@ class FileBurstSourceDataset(BurstSourceDataset):
                 ) // self.bytes_per_sample
 
                 # Instantiate target interpreter
-                interpreter = self.target_interpreter(
+                interpreter = self.target_interpreter(  # type: ignore
                     target_file=self.target_files[file_index],
                     num_iq_samples=self.num_iq_samples,
                     capture_duration_samples=capture_duration_samples,
@@ -738,7 +740,7 @@ class FileBurstSourceDataset(BurstSourceDataset):
                 ) // self.bytes_per_sample
 
                 # Instantiate target interpreter
-                interpreter = self.target_interpreter(
+                interpreter = self.target_interpreter(  # type: ignore
                     target_file=self.target_files[file_index],
                     num_iq_samples = self.num_iq_samples,
                     capture_duration_samples = capture_duration_samples,

@@ -79,7 +79,7 @@ class ModulationsDataset(ConcatDataset):
 
     """
 
-    default_classes = [
+    default_classes: List[str] = [
         "ook",
         "bpsk",
         "4pam",
@@ -147,7 +147,7 @@ class ModulationsDataset(ConcatDataset):
         transform: Optional[Callable] = None,
         target_transform: Optional[Callable] = None,
         **kwargs,
-    ):
+    ) -> None:
         classes = self.default_classes if classes is None else classes
         # Set the target transform based on input options if none provided
         if not target_transform:
@@ -266,9 +266,7 @@ class ModulationsDataset(ConcatDataset):
                     "256qam",
                     "1024qam",
                 ),  # sub-carrier modulations
-                num_subcarriers=tuple(
-                    num_subcarriers
-                ),  # possible number of subcarriers
+                num_subcarriers=num_subcarriers,  # possible number of subcarriers
                 num_iq_samples=num_iq_samples,
                 num_samples_per_class=num_samples_per_class,
                 random_data=True,

@@ -4,7 +4,7 @@ import numpy as np
 from scipy import signal as sp
 from collections import OrderedDict
 from torch.utils.data import ConcatDataset
-from typing import Tuple, Any, List, Union, Optional
+from typing import Tuple, Any, Dict, List, Union, Optional
 from torchsig.utils.dataset import SignalDataset
 from torchsig.utils.types import SignalData, SignalDescription
 from torchsig.utils.dsp import low_pass, convolve, rrc_taps, gaussian_taps
@@ -159,7 +159,7 @@ class DigitalModulationDataset(ConcatDataset):
         random_pulse_shaping: bool = False,
         user_const_map: Optional[OrderedDict] = None,
         **kwargs,
-    ):
+    ) -> None:
         const_map = user_const_map if user_const_map else default_const_map
         modulations = (
             list(const_map.keys()) + list(freq_map.keys())
@@ -214,11 +214,11 @@ class DigitalModulationDataset(ConcatDataset):
 
 
 class SyntheticDataset(SignalDataset):
-    def __init__(self, **kwargs):
+    def __init__(self, **kwargs) -> None:
         super(SyntheticDataset, self).__init__(**kwargs)
-        self.index = []
+        self.index: List[Tuple[Any, ...]] = []
 
-    def __getitem__(self, index: int) -> Tuple[SignalData, Any]:
+    def __getitem__(self, index: int) -> Tuple[Union[SignalData, np.ndarray], Any]:
         signal_description = self.index[index][-1]
         signal_data = SignalData(
             data=self._generate_samples(self.index[index]).tobytes(),
@@ -229,6 +229,7 @@ class SyntheticDataset(SignalDataset):
 
         if self.transform:
             signal_data = self.transform(signal_data)
+        assert signal_data.iq_data is not None
 
         if self.target_transform:
             target = self.target_transform(signal_data.signal_description)
@@ -277,15 +278,19 @@ class ConstellationDataset(SyntheticDataset):
         num_iq_samples: int = 100,
         num_samples_per_class: int = 100,
         iq_samples_per_symbol: int = 2,
-        pulse_shape_filter: bool = None,
+        pulse_shape_filter: Optional[Union[bool, np.ndarray]] = None,
         random_pulse_shaping: bool = False,
         random_data: bool = False,
         use_gpu: bool = False,
-        user_const_map: bool = None,
+        user_const_map: Optional[Dict[str, np.ndarray]] = None,
         **kwargs,
     ):
         super(ConstellationDataset, self).__init__(**kwargs)
-        self.const_map = default_const_map if user_const_map is None else user_const_map
+        self.const_map: Dict[str, np.ndarray] = (
+            default_const_map 
+            if user_const_map is None 
+            else user_const_map
+        )
         self.constellations = (
             list(self.const_map.keys()) if constellations is None else constellations
         )
@@ -424,8 +429,8 @@ class OFDMDataset(SyntheticDataset):
 
     def __init__(
         self,
-        constellations: Optional[Union[List, Tuple]] = ("bpsk", "qpsk"),
-        num_subcarriers: IntParameter = (64, 128, 256, 512, 1024, 2048),
+        constellations: Union[List, Tuple] = ("bpsk", "qpsk"),
+        num_subcarriers: List[int] = [64, 128, 256, 512, 1024, 2048],
         cyclic_prefix_ratios: FloatParameter = (0.125, 0.25),
         num_iq_samples: int = 100,
         num_samples_per_class: int = 100,
@@ -447,6 +452,7 @@ class OFDMDataset(SyntheticDataset):
         self.num_iq_samples = num_iq_samples
         self.num_samples_per_class = num_samples_per_class
         self.random_data = random_data
+        self.sidelobe_suppression_methods = sidelobe_suppression_methods
         self.use_gpu = use_gpu
         self.index = []
         if "lpf" in sidelobe_suppression_methods:
@@ -471,7 +477,7 @@ class OFDMDataset(SyntheticDataset):
             itertools.product(
                 constellations,
                 subcarrier_modulation_types,
-                cyclic_prefix_ratios,
+                cyclic_prefix_ratios,  # type: ignore
                 sidelobe_suppression_methods,
                 dc_subcarrier,
                 time_varying_realism,
@@ -573,7 +579,7 @@ class OFDMDataset(SyntheticDataset):
         ):
             # Bursty
             if time_varying_realism == "full_bursty":
-                burst_region_start = 0
+                burst_region_start = 0.0
                 burst_region_stop = zero_pad.shape[1]
             else:
                 burst_region_start = np.random.uniform(0.0, 0.9)
@@ -702,7 +708,7 @@ class OFDMDataset(SyntheticDataset):
             else:
                 raise ValueError(
                     "Expected window method to be: none, win_center, or win_start. Received: {}".format(
-                        self.window_method
+                        self.sidelobe_suppression_methods
                     )
                 )
 
@@ -721,12 +727,12 @@ class OFDMDataset(SyntheticDataset):
             )
 
             combined = np.zeros((windowed.shape[0] * windowed.shape[1],), dtype=complex)
-            start_idx = 0
+            start_idx: int = 0
             for symbol_idx in range(windowed.shape[1]):
                 combined[start_idx : start_idx + windowed.shape[0]] += windowed[
                     :, symbol_idx
                 ]
-                start_idx += symbol_dur + int(window_len)
+                start_idx += int(symbol_dur) + int(window_len)
             output = combined[
                 : int(cyclic_prefixed.shape[0] * cyclic_prefixed.shape[1])
             ]
@@ -736,10 +742,10 @@ class OFDMDataset(SyntheticDataset):
             start_idx = np.random.randint(0, output.shape[0] - self.num_iq_samples)
         else:
             if original_on:
-                lower = max(0, int(symbol_dur * burst_dur) - self.num_iq_samples * 0.7)
-                upper = min(
+                lower: int = int(max(0, int(symbol_dur * burst_dur) - self.num_iq_samples * 0.7))
+                upper: int = int(min(
                     int(symbol_dur * burst_dur), output.shape[0] - self.num_iq_samples
-                )
+                ))
                 start_idx = np.random.randint(lower, upper)
             elif "win" in sidelobe_suppression_method:
                 start_idx = np.random.randint(
@@ -846,7 +852,7 @@ class FSKDataset(SyntheticDataset):
         # the "oversampling rate", and samples per symbol is instead derived
         # from the modulation order
         oversampling_rate = np.copy(self.iq_samples_per_symbol)
-        samples_per_symbol_recalculated = mod_order * oversampling_rate
+        samples_per_symbol_recalculated = int(mod_order * oversampling_rate)
 
         # scale the frequency map by the oversampling rate such that the tones
         # are packed tighter around f=0 the larger the oversampling rate
