@@ -42,7 +42,7 @@ def xcit_name_to_timm_name(input_name: str) -> str:
     elif "large" in input_name:
         model_name = "xcit_large_24_p8_224"
     else:
-        raise NotImplemented("Input transformer not supported.")
+        raise NotImplementedError("Input transformer not supported.")
 
     return model_name
 

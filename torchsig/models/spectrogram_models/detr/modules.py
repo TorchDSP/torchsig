@@ -500,7 +500,7 @@ def create_detr(
     """
     # build backbone
     if "eff" in backbone:
-        backbone = timm.create_model(
+        backbone_arch = timm.create_model(
             model_name=backbone,
             in_chans=2,
             drop_rate=drop_rate_backbone,
@@ -508,7 +508,7 @@ def create_detr(
         )
         backbone = drop_classifier(backbone)
     else:
-        raise NotImplemented("Only EfficientNet backbones are supported right now.")
+        raise NotImplementedError("Only EfficientNet backbones are supported right now.")
 
     # Build transformer
     if "xcit" in transformer:
@@ -516,7 +516,7 @@ def create_detr(
         model_name = xcit_name_to_timm_name(transformer)
 
         # build transformer
-        transformer = XCiT(
+        transformer_arch = XCiT(
             backbone=timm.create_model(
                 model_name=model_name,
                 drop_path_rate=drop_path_rate_transformer,
@@ -530,12 +530,12 @@ def create_detr(
         )
 
     else:
-        raise NotImplemented("Only XCiT transformers are supported right now.")
+        raise NotImplementedError("Only XCiT transformers are supported right now.")
 
     # Build full DETR network
     network = DETRModel(
-        backbone,
-        transformer,
+        backbone_arch,
+        transformer_arch,
         num_classes=num_classes,
         num_objects=num_objects,
         hidden_dim=hidden_dim,

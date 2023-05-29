@@ -4,6 +4,7 @@ import torch
 import os.path
 import numpy as np
 from torch import nn
+from typing import Dict
 
 from .modules import *
 from .utils import *
@@ -14,7 +15,7 @@ __all__ = [
     "detr_b0_nano_mod_family", "detr_b2_nano_mod_family", "detr_b4_nano_mod_family",
 ]
 
-model_urls = {
+model_urls: Dict[str, str] = {
     "detr_b0_nano": "1t6V3M5hJC8C-RSwPtgKGG89u5doibs46",
     "detr_b2_nano": "1voDx7e0pBe_lGa_1sUYG8gyzOqz8nxmw",
     "detr_b4_nano": "1RA7yGvpKiIXHXl_o89Zn6R2dVVTgKsWO",
@@ -66,7 +67,10 @@ def detr_b0_nano(
             dl = gdown.download(id=file_id, output=path)
         mdl.load_state_dict(torch.load(path), strict=False)
     if num_classes != 1:
-        mdl.linear_class = nn.Linear(mdl.linear_class.in_features, num_classes)
+        mdl.linear_class = nn.Linear(
+            mdl.linear_class.in_features,  # type: ignore
+            num_classes,
+        )
     return mdl
     
     
@@ -112,7 +116,10 @@ def detr_b2_nano(
             dl = gdown.download(id=file_id, output=path)
         mdl.load_state_dict(torch.load(path), strict=False)
     if num_classes != 1:
-        mdl.linear_class = nn.Linear(mdl.linear_class.in_features, num_classes)
+        mdl.linear_class = nn.Linear(
+            mdl.linear_class.in_features,  # type: ignore
+            num_classes,
+        )
     return mdl
     
     
@@ -158,7 +165,10 @@ def detr_b4_nano(
             dl = gdown.download(id=file_id, output=path)
         mdl.load_state_dict(torch.load(path), strict=False)
     if num_classes != 1:
-        mdl.linear_class = nn.Linear(mdl.linear_class.in_features, num_classes)
+        mdl.linear_class = nn.Linear(
+            mdl.linear_class.in_features,  # type: ignore
+            num_classes,
+        )
     return mdl
 
 
@@ -204,7 +214,10 @@ def detr_b0_nano_mod_family(
             dl = gdown.download(id=file_id, output=path)
         mdl.load_state_dict(torch.load(path), strict=False)
     if num_classes != 6:
-        mdl.linear_class = nn.Linear(mdl.linear_class.in_features, num_classes)
+        mdl.linear_class = nn.Linear(
+            mdl.linear_class.in_features,  # type: ignore
+            num_classes,
+        )
     return mdl
     
     
@@ -250,7 +263,10 @@ def detr_b2_nano_mod_family(
             dl = gdown.download(id=file_id, output=path)
         mdl.load_state_dict(torch.load(path), strict=False)
     if num_classes != 6:
-        mdl.linear_class = nn.Linear(mdl.linear_class.in_features, num_classes)
+        mdl.linear_class = nn.Linear(
+            mdl.linear_class.in_features,  # type: ignore
+            num_classes,
+        )
     return mdl
     
     
@@ -296,5 +312,8 @@ def detr_b4_nano_mod_family(
             dl = gdown.download(id=file_id, output=path)
         mdl.load_state_dict(torch.load(path), strict=False)
     if num_classes != 6:
-        mdl.linear_class = nn.Linear(mdl.linear_class.in_features, num_classes)
+        mdl.linear_class = nn.Linear(
+            mdl.linear_class.in_features,  # type: ignore
+            num_classes,
+        )
     return mdl

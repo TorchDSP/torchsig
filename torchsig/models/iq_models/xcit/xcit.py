@@ -140,8 +140,11 @@ def xcit_nano(
     )
     if pretrained:
         mdl.load_state_dict(torch.load(path))
-    if num_classes!=53:
-        mdl.classifier = nn.Linear(mdl.classifier.in_features, num_classes)
+    if num_classes != 53:
+        mdl.classifier = nn.Linear(
+            mdl.classifier.in_features,  # type: ignore
+            num_classes,
+        )
     return mdl
     
     
@@ -188,6 +191,9 @@ def xcit_tiny12(
     )
     if pretrained:
         mdl.load_state_dict(torch.load(path))
-    if num_classes!=53:
-        mdl.classifier = nn.Linear(mdl.classifier.in_features, num_classes)
+    if num_classes != 53:
+        mdl.classifier = nn.Linear(
+            mdl.classifier.in_features,  # type: ignore
+            num_classes,
+        )
     return mdl

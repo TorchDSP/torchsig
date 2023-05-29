@@ -116,7 +116,7 @@ class Compose(Transform):
 
     """
 
-    def __init__(self, transforms: List[Transform], **kwargs) -> None:
+    def __init__(self, transforms: List[Callable], **kwargs) -> None:
         super(Compose, self).__init__(**kwargs)
         self.transforms = transforms
 
@@ -227,7 +227,7 @@ class RandomApply(Transform):
 
     def __init__(
         self, 
-        transform: Transform, 
+        transform: Callable, 
         probability: float, 
         **kwargs,
     ) -> None:
@@ -379,7 +379,7 @@ class RandAugment(SignalTransform):
 
     def __init__(
         self,
-        transforms: List[SignalTransform],
+        transforms: List[Callable],
         num_transforms: int = 2,
         allow_multiple_same: bool = False,
         **kwargs,

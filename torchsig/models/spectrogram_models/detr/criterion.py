@@ -9,7 +9,7 @@ import torch.distributed as dist
 from torch.cuda.amp import autocast
 import torchvision
 from scipy.optimize import linear_sum_assignment
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
 from .utils import _max_by_axis
 
@@ -139,7 +139,7 @@ class NestedTensor(object):
         self.mask = mask
 
     def to(self, device):
-        # type: (Device) -> NestedTensor # noqa
+        ## type: (Device) -> NestedTensor # noqa
         cast_tensor = self.tensors.to(device)
         mask = self.mask
         if mask is not None:
@@ -155,17 +155,18 @@ class NestedTensor(object):
     def __repr__(self):
         return str(self.tensors)
 
+    
 # _onnx_nested_tensor_from_tensor_list() is an implementation of
 # nested_tensor_from_tensor_list() that is supported by ONNX tracing.
 @torch.jit.unused
 def _onnx_nested_tensor_from_tensor_list(tensor_list: List[Tensor]) -> NestedTensor:
-    max_size = []
+    max_size_list: List[Tensor] = []
     for i in range(tensor_list[0].dim()):
         max_size_i = torch.max(
-            torch.stack([img.shape[i] for img in tensor_list]).to(torch.float32)
+            torch.stack([img.shape[i] for img in tensor_list]).to(torch.float32)  # type: ignore
         ).to(torch.int64)
-        max_size.append(max_size_i)
-    max_size = tuple(max_size)
+        max_size_list.append(max_size_i)
+    max_size: Tuple[Tensor, ...] = tuple(max_size_list)
 
     # work around for
     # pad_img[: img.shape[0], : img.shape[1], : img.shape[2]].copy_(img)
@@ -175,17 +176,26 @@ def _onnx_nested_tensor_from_tensor_list(tensor_list: List[Tensor]) -> NestedTen
     padded_masks = []
     for img in tensor_list:
         padding = [(s1 - s2) for s1, s2 in zip(max_size, tuple(img.shape))]
-        padded_img = torch.nn.functional.pad(img, (0, padding[2], 0, padding[1], 0, padding[0]))
+        padded_img = torch.nn.functional.pad(
+            img, 
+            (0, int(padding[2]), 0, int(padding[1]), 0, int(padding[0])),
+        )
         padded_imgs.append(padded_img)
 
         m = torch.zeros_like(img[0], dtype=torch.int, device=img.device)
-        padded_mask = torch.nn.functional.pad(m, (0, padding[2], 0, padding[1]), "constant", 1)
+        padded_mask = torch.nn.functional.pad(
+            m, 
+            (0, int(padding[2]), 0, int(padding[1])),
+            "constant",
+            1,
+        )
         padded_masks.append(padded_mask.to(torch.bool))
 
     tensor = torch.stack(padded_imgs)
     mask = torch.stack(padded_masks)
 
     return NestedTensor(tensor, mask=mask)
+
 
 def dice_loss(
         inputs: torch.Tensor,
