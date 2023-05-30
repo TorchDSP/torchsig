@@ -96,7 +96,7 @@ def to_distribution(
     random_generator: Optional[np.random.RandomState] = None,
 ):
     random_generator = random_generator if random_generator else np.random.RandomState()
-    if isinstance(param, callable):  # type: ignore
+    if isinstance(param, Callable):  # type: ignore
         return param
 
     if isinstance(param, list):
