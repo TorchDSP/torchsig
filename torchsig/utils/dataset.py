@@ -1,8 +1,10 @@
-import torch
-import numpy as np
 from copy import deepcopy
-from typing import Tuple, List, Optional, Callable, Any, Union
-from torchsig.utils.types import SignalData, SignalCapture
+from typing import Any, Callable, List, Optional, Tuple, Union
+
+import numpy as np
+import torch
+
+from torchsig.utils.types import SignalCapture, SignalData
 
 
 class SignalDataset(torch.utils.data.Dataset):
@@ -29,7 +31,7 @@ class SignalDataset(torch.utils.data.Dataset):
         self.target_transform = target_transform
 
     def __getitem__(
-        self, 
+        self,
         index: int,
     ) -> Tuple[Union[SignalData, np.ndarray], Any]:
         raise NotImplementedError
@@ -66,7 +68,7 @@ class SignalFileDataset(SignalDataset):
         indexer: Callable[[str], List[Tuple[Any, SignalCapture]]],
         reader: Callable[[SignalCapture], SignalData],
         index_filter: Optional[Callable[[Tuple[Any, SignalCapture]], bool]] = None,
-        **kwargs
+        **kwargs,
     ):
         super(SignalFileDataset, self).__init__(**kwargs)
         self.reader = reader
@@ -113,7 +115,7 @@ class SignalTensorDataset(torch.utils.data.TensorDataset):
         transform: Optional[Callable] = None,
         target_transform: Optional[Callable] = None,
         *args,
-        **kwargs
+        **kwargs,
     ):
         super(SignalTensorDataset, self).__init__(*args, **kwargs)
         self.transform = transform

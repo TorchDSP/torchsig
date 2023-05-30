@@ -1,13 +1,15 @@
-from torchsig.utils.types import SignalData, SignalDescription
-from torchsig.datasets.modulations import ModulationsDataset
-from torchsig.transforms import Identity
-from torchsig.datasets import conf
-from typing import Any, Callable, Optional, Tuple
+import pickle
 from copy import deepcopy
 from pathlib import Path
-import numpy as np
-import pickle
+from typing import Any, Callable, Optional, Tuple
+
 import lmdb
+import numpy as np
+
+from torchsig.datasets import conf
+from torchsig.datasets.modulations import ModulationsDataset
+from torchsig.transforms import Identity
+from torchsig.utils.types import SignalData, SignalDescription
 
 
 class Sig53:

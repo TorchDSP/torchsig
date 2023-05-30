@@ -1,5 +1,6 @@
+from typing import List, Optional, Union
+
 import numpy as np
-from typing import Optional, List, Union
 
 
 class SignalDescription:
@@ -71,25 +72,17 @@ class SignalDescription:
             self.upper_frequency = upper_frequency
         if lower_frequency and upper_frequency:
             self.bandwidth: Optional[float] = (
-                bandwidth 
-                if bandwidth 
-                else upper_frequency - lower_frequency
+                bandwidth if bandwidth else upper_frequency - lower_frequency
             )
             self.center_frequency: Optional[float] = (
-                center_frequency
-                if center_frequency
-                else lower_frequency + self.bandwidth / 2
+                center_frequency if center_frequency else lower_frequency + self.bandwidth / 2
             )
         else:
             self.bandwidth = bandwidth
             self.center_frequency = center_frequency
         self.start = start
         self.stop = stop
-        self.duration: Optional[float] = (
-            stop - start 
-            if start and stop 
-            else duration
-        )
+        self.duration: Optional[float] = stop - start if start and stop else duration
         self.snr = snr
         self.bits_per_symbol = bits_per_symbol
         self.samples_per_symbol = samples_per_symbol
@@ -120,9 +113,7 @@ class SignalData:
         data: Optional[bytes],
         item_type: np.dtype,
         data_type: np.dtype,
-        signal_description: Optional[
-            Union[List[SignalDescription], SignalDescription]
-        ] = None,
+        signal_description: Optional[Union[List[SignalDescription], SignalDescription]] = None,
     ) -> None:
         self.iq_data: Optional[np.ndarray] = None
         self.signal_description: Optional[
@@ -130,9 +121,7 @@ class SignalData:
         ] = signal_description
         if data is not None:
             # No matter the underlying item type, we convert to double-precision
-            self.iq_data = (
-                np.frombuffer(data, dtype=item_type).astype(np.float64).view(data_type)
-            )
+            self.iq_data = np.frombuffer(data, dtype=item_type).astype(np.float64).view(data_type)
 
         self.signal_description = (
             [signal_description]

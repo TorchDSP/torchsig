@@ -1,14 +1,16 @@
-from torchsig.utils.dataset import SignalDataset
-from torch.utils.data import DataLoader
-from functools import partial
-import numpy as np
+import os
 import pickle
 import random
+from functools import partial
+from typing import Callable, Optional
+
+import lmdb
+import numpy as np
 import torch
 import tqdm
-import lmdb
-import os
-from typing import Callable, Optional
+from torch.utils.data import DataLoader
+
+from torchsig.utils.dataset import SignalDataset
 
 
 class DatasetLoader:
@@ -33,7 +35,7 @@ class DatasetLoader:
         self,
         dataset: SignalDataset,
         seed: int,
-        num_workers: Optional[int] = None, 
+        num_workers: Optional[int] = None,
         batch_size: Optional[int] = None,
         collate_fn: Optional[Callable] = None,
     ) -> None:

@@ -1,14 +1,16 @@
+import os
+import pickle
+from copy import deepcopy
+from pathlib import Path
+from typing import Callable, List, Optional
+
+import lmdb
+import numpy as np
+
+from torchsig.datasets import conf
 from torchsig.transforms.target_transforms import ListTupleToDesc
 from torchsig.transforms.transforms import Identity
 from torchsig.utils.types import SignalData
-from torchsig.datasets import conf
-from typing import Optional, Callable, List
-from copy import deepcopy
-from pathlib import Path
-import numpy as np
-import pickle
-import lmdb
-import os
 
 
 class WidebandSig53:

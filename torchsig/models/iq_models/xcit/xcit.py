@@ -1,9 +1,9 @@
 import os
-import timm
+
 import gdown
+import timm
 import torch
 from torch import nn
-
 
 __all__ = ["xcit_nano", "xcit_tiny12"]
 
@@ -52,17 +52,14 @@ class Chunker(nn.Module):
     def forward(self, X):
         X = self.embed(X)
         X = torch.cat(
-            [
-                torch.cat(torch.split(x_i, 1, -1), 1)
-                for x_i in torch.split(X, self.ds_rate, -1)
-            ],
+            [torch.cat(torch.split(x_i, 1, -1), 1) for x_i in torch.split(X, self.ds_rate, -1)],
             -1,
         )
         X = self.project(X)
 
         return X
-    
-    
+
+
 class XCiT(nn.Module):
     def __init__(self, backbone, in_chans=2, ds_rate=2, ds_method="downsample"):
         super().__init__()
@@ -80,9 +77,7 @@ class XCiT(nn.Module):
         x = self.backbone.patch_embed(x)
 
         Hp, Wp = x.shape[-1], 1
-        pos_encoding = (
-            mdl.pos_embed(B, Hp, Wp).reshape(B, -1, Hp).permute(0, 2, 1).half()
-        )
+        pos_encoding = mdl.pos_embed(B, Hp, Wp).reshape(B, -1, Hp).permute(0, 2, 1).half()
         x = x.transpose(1, 2) + pos_encoding
         for blk in mdl.blocks:
             x = blk(x, Hp, Wp)
@@ -95,10 +90,10 @@ class XCiT(nn.Module):
         if x.dim() == 2:
             x = x.unsqueeze(0)
         return x
-    
-    
+
+
 def xcit_nano(
-    pretrained: bool = False, 
+    pretrained: bool = False,
     path: str = "xcit_nano.pt",
     num_classes: int = 53,
     drop_path_rate: float = 0.0,
@@ -108,22 +103,22 @@ def xcit_nano(
     `"XCiT: Cross-Covariance Image Transformers" <https://arxiv.org/pdf/2106.09681.pdf>`_.
 
     Args:
-        pretrained (bool): 
+        pretrained (bool):
             If True, returns a model pre-trained on Sig53
-            
-        path (str): 
+
+        path (str):
             Path to existing model or where to download checkpoint to
-            
-        num_classes (int): 
+
+        num_classes (int):
             Number of output classes; if loading checkpoint and number does not
             equal 53, final layer will not be loaded from checkpoint
-            
-        drop_path_rate (float): 
+
+        drop_path_rate (float):
             Drop path rate for training
-            
-        drop_rate (float): 
+
+        drop_rate (float):
             Dropout rate for training
-        
+
     """
     model_exists = os.path.exists(path)
     if not model_exists and pretrained:
@@ -131,7 +126,7 @@ def xcit_nano(
         dl = gdown.download(id=file_id, output=path)
     mdl = XCiT(
         timm.create_model(
-            'xcit_nano_12_p16_224',
+            "xcit_nano_12_p16_224",
             num_classes=53,
             in_chans=2,
             drop_path_rate=drop_path_rate,
@@ -146,10 +141,10 @@ def xcit_nano(
             num_classes,
         )
     return mdl
-    
-    
+
+
 def xcit_tiny12(
-    pretrained: bool = False, 
+    pretrained: bool = False,
     path: str = "xcit_tiny12.pt",
     num_classes: int = 53,
     drop_path_rate: float = 0.0,
@@ -159,22 +154,22 @@ def xcit_tiny12(
     `"XCiT: Cross-Covariance Image Transformers" <https://arxiv.org/pdf/2106.09681.pdf>`_.
 
     Args:
-        pretrained (bool): 
+        pretrained (bool):
             If True, returns a model pre-trained on Sig53
-            
-        path (str): 
+
+        path (str):
             Path to existing model or where to download checkpoint to
-            
-        num_classes (int): 
+
+        num_classes (int):
             Number of output classes; if loading checkpoint and number does not
             equal 53, final layer will not be loaded from checkpoint
-            
-        drop_path_rate (float): 
+
+        drop_path_rate (float):
             Drop path rate for training
-            
-        drop_rate (float): 
+
+        drop_rate (float):
             Dropout rate for training
-        
+
     """
     model_exists = os.path.exists(path)
     if not model_exists and pretrained:
@@ -182,7 +177,7 @@ def xcit_tiny12(
         dl = gdown.download(id=file_id, output=path)
     mdl = XCiT(
         timm.create_model(
-            'xcit_tiny_12_p16_224',
+            "xcit_tiny_12_p16_224",
             num_classes=53,
             in_chans=2,
             drop_path_rate=drop_path_rate,

@@ -1,10 +1,10 @@
-import torch
+from typing import Any, Dict, List, Optional, Tuple, Union
+
 import numpy as np
-from typing import Any, Dict, Tuple, List, Union, Optional
+import torch
 
-from torchsig.utils.types import SignalDescription
 from torchsig.transforms.transforms import Transform
-
+from torchsig.utils.types import SignalDescription
 
 __all__ = [
     "DescToClassName",
@@ -226,9 +226,7 @@ class DescToMask(Transform):
                         (signal_desc.upper_frequency + 0.5) * self.height
                     )
                     + 1,
-                    int(signal_desc.start * self.width) : int(
-                        signal_desc.stop * self.width
-                    ),
+                    int(signal_desc.start * self.width) : int(signal_desc.stop * self.width),
                 ] = 1.0
             else:
                 masks[
@@ -236,9 +234,7 @@ class DescToMask(Transform):
                     int((signal_desc.lower_frequency + 0.5) * self.height) : int(
                         (signal_desc.upper_frequency + 0.5) * self.height
                     ),
-                    int(signal_desc.start * self.width) : int(
-                        signal_desc.stop * self.width
-                    ),
+                    int(signal_desc.start * self.width) : int(signal_desc.stop * self.width),
                 ] = 1.0
             idx += 1
         return masks
@@ -288,18 +284,14 @@ class DescToMaskSignal(Transform):
                         (signal_desc.upper_frequency + 0.5) * self.height
                     )
                     + 1,
-                    int(signal_desc.start * self.width) : int(
-                        signal_desc.stop * self.width
-                    ),
+                    int(signal_desc.start * self.width) : int(signal_desc.stop * self.width),
                 ] = 1.0
             else:
                 masks[
                     int((signal_desc.lower_frequency + 0.5) * self.height) : int(
                         (signal_desc.upper_frequency + 0.5) * self.height
                     ),
-                    int(signal_desc.start * self.width) : int(
-                        signal_desc.stop * self.width
-                    ),
+                    int(signal_desc.start * self.width) : int(signal_desc.stop * self.width),
                 ] = 1.0
         return masks
 
@@ -390,9 +382,7 @@ class DescToMaskFamily(Transform):
             class_family_dict if class_family_dict else self.class_family_dict
         )
         self.family_list: List[str] = (
-            family_list
-            if family_list
-            else sorted(list(set(self.class_family_dict.values())))
+            family_list if family_list else sorted(list(set(self.class_family_dict.values())))
         )
         self.width = width
         self.height = height
@@ -431,9 +421,7 @@ class DescToMaskFamily(Transform):
                         (signal_desc.upper_frequency + 0.5) * self.height
                     )
                     + 1,
-                    int(signal_desc.start * self.width) : int(
-                        signal_desc.stop * self.width
-                    ),
+                    int(signal_desc.start * self.width) : int(signal_desc.stop * self.width),
                 ] = 1.0
             else:
                 masks[
@@ -441,9 +429,7 @@ class DescToMaskFamily(Transform):
                     int((signal_desc.lower_frequency + 0.5) * self.height) : int(
                         (signal_desc.upper_frequency + 0.5) * self.height
                     ),
-                    int(signal_desc.start * self.width) : int(
-                        signal_desc.stop * self.width
-                    ),
+                    int(signal_desc.start * self.width) : int(signal_desc.stop * self.width),
                 ] = 1.0
         if self.label_encode:
             background_mask: np.ndarray = np.zeros((1, self.height, self.height))
@@ -500,9 +486,7 @@ class DescToMaskClass(Transform):
                         (signal_desc.upper_frequency + 0.5) * self.height
                     )
                     + 1,
-                    int(signal_desc.start * self.width) : int(
-                        signal_desc.stop * self.width
-                    ),
+                    int(signal_desc.start * self.width) : int(signal_desc.stop * self.width),
                 ] = 1.0
             else:
                 masks[
@@ -510,9 +494,7 @@ class DescToMaskClass(Transform):
                     int((signal_desc.lower_frequency + 0.5) * self.height) : int(
                         (signal_desc.upper_frequency + 0.5) * self.height
                     ),
-                    int(signal_desc.start * self.width) : int(
-                        signal_desc.stop * self.width
-                    ),
+                    int(signal_desc.start * self.width) : int(signal_desc.stop * self.width),
                 ] = 1.0
         return masks
 
@@ -568,9 +550,7 @@ class DescToSemanticClass(Transform):
                 signal_desc.upper_frequency = 0.5
 
             # Convert to pixels
-            height_start: int = max(
-                0, int((signal_desc.lower_frequency + 0.5) * self.height)
-            )
+            height_start: int = max(0, int((signal_desc.lower_frequency + 0.5) * self.height))
             height_stop: int = min(
                 int((signal_desc.upper_frequency + 0.5) * self.height), self.height
             )
@@ -587,10 +567,7 @@ class DescToSemanticClass(Transform):
                     # Check SNR against currently stored SNR at pixel
                     if signal_desc.snr >= curr_snrs[height_idx, width_idx]:
                         # If SNR >= currently stored class's SNR, update class & snr
-                        masks[
-                            height_start:height_stop,
-                            width_start:width_stop,
-                        ] = (
+                        masks[height_start:height_stop, width_start:width_stop,] = (
                             signal_desc.class_index + 1
                         )
                         curr_snrs[
@@ -657,12 +634,8 @@ class DescToBBox(Transform):
                 signal_desc.lower_frequency = -0.5
             if signal_desc.upper_frequency > 0.5:
                 signal_desc.upper_frequency = 0.5
-            signal_desc.bandwidth = (
-                signal_desc.upper_frequency - signal_desc.lower_frequency
-            )
-            signal_desc.center_frequency = (
-                signal_desc.lower_frequency + signal_desc.bandwidth / 2
-            )
+            signal_desc.bandwidth = signal_desc.upper_frequency - signal_desc.lower_frequency
+            signal_desc.center_frequency = signal_desc.lower_frequency + signal_desc.bandwidth / 2
             y: float = (signal_desc.center_frequency + 0.5) * self.grid_height
             freq_cell: int = int(np.floor(y))
             center_freq: float = y - freq_cell
@@ -712,9 +685,9 @@ class DescToAnchorBoxes(Transform):
     """
 
     def __init__(
-        self, 
-        grid_width: int, 
-        grid_height: int, 
+        self,
+        grid_width: int,
+        grid_height: int,
         anchor_boxes: List[Tuple[float, float]],
     ) -> None:
         super(DescToAnchorBoxes, self).__init__()
@@ -724,19 +697,19 @@ class DescToAnchorBoxes(Transform):
         self.num_anchor_boxes: int = len(anchor_boxes)
 
     def iou(
-        self, 
-        start_a: float, 
-        dur_a: float, 
-        center_freq_a: float, 
-        bw_a: float, 
-        start_b: float, 
-        dur_b: float, 
-        center_freq_b: float, 
-        bw_b: float
+        self,
+        start_a: float,
+        dur_a: float,
+        center_freq_a: float,
+        bw_a: float,
+        start_b: float,
+        dur_b: float,
+        center_freq_b: float,
+        bw_b: float,
     ) -> float:
         """
         Method to compute the intersection over union (IoU)
-        
+
         """
         # Convert to start/stops
         x_start_a: float = start_a
@@ -826,9 +799,7 @@ class DescToAnchorBoxes(Transform):
                 )  # Anchor overlaid on burst
                 anchor_duration: float = anchor_box[0]
                 # anchor_center_freq = (freq_cell+0.5) / self.grid_height # Anchor centered on cell
-                anchor_center_freq: float = (
-                    signal_desc.center_frequency
-                )  # Anchor overlaid on burst
+                anchor_center_freq: float = signal_desc.center_frequency  # Anchor overlaid on burst
                 anchor_bw: float = anchor_box[1]
                 iou_score: float = self.iou(
                     signal_desc.start,
@@ -956,7 +927,7 @@ class DescToClassEncoding(Transform):
             self.num_classes = len(class_list)
         else:
             raise ValueError("class_list or num_classes must be provided")
-            
+
     def __call__(
         self, signal_description: Union[List[SignalDescription], SignalDescription]
     ) -> np.ndarray:
@@ -1047,9 +1018,7 @@ class DescToWeightedCutMix(Transform):
         for signal_desc in signal_description_list:
             assert signal_desc.class_name is not None
             assert signal_desc.duration is not None
-            encoding[
-                self.class_list.index(signal_desc.class_name)
-            ] += signal_desc.duration
+            encoding[self.class_list.index(signal_desc.class_name)] += signal_desc.duration
         # Normalize on total signals durations
         encoding = encoding / np.sum(encoding)
         return encoding
@@ -1100,7 +1069,7 @@ class DescToBBoxDict(Transform):
             labels.append(self.class_list.index(signal_desc.class_name))
 
         targets: Dict[str, torch.Tensor] = {
-            "labels": torch.Tensor(labels).long(), 
+            "labels": torch.Tensor(labels).long(),
             "boxes": torch.Tensor(boxes),
         }
         return targets
@@ -1148,7 +1117,7 @@ class DescToBBoxSignalDict(Transform):
             labels.append(self.class_list.index(self.class_list[0]))
 
         targets: Dict[str, torch.Tensor] = {
-            "labels": torch.Tensor(labels).long(), 
+            "labels": torch.Tensor(labels).long(),
             "boxes": torch.Tensor(boxes),
         }
         return targets
@@ -1224,8 +1193,8 @@ class DescToBBoxFamilyDict(Transform):
     }
 
     def __init__(
-        self, 
-        class_family_dict: Optional[Dict[str, str]] = None, 
+        self,
+        class_family_dict: Optional[Dict[str, str]] = None,
         family_list: Optional[List[str]] = None,
     ) -> None:
         super(DescToBBoxFamilyDict, self).__init__()
@@ -1233,9 +1202,7 @@ class DescToBBoxFamilyDict(Transform):
             class_family_dict if class_family_dict else self.class_family_dict
         )
         self.family_list: List[str] = (
-            family_list
-            if family_list
-            else sorted(list(set(self.class_family_dict.values())))
+            family_list if family_list else sorted(list(set(self.class_family_dict.values())))
         )
 
     def __call__(
@@ -1271,7 +1238,7 @@ class DescToBBoxFamilyDict(Transform):
             labels.append(self.family_list.index(family_name))
 
         targets: Dict[str, torch.Tensor] = {
-            "labels": torch.Tensor(labels).long(), 
+            "labels": torch.Tensor(labels).long(),
             "boxes": torch.Tensor(boxes),
         }
         return targets
@@ -1334,9 +1301,7 @@ class DescToInstMaskDict(Transform):
                         (signal_desc.upper_frequency + 0.5) * self.height
                     )
                     + 1,
-                    int(signal_desc.start * self.width) : int(
-                        signal_desc.stop * self.width
-                    ),
+                    int(signal_desc.start * self.width) : int(signal_desc.stop * self.width),
                 ] = 1.0
             else:
                 masks[
@@ -1344,9 +1309,7 @@ class DescToInstMaskDict(Transform):
                     int((signal_desc.lower_frequency + 0.5) * self.height) : int(
                         (signal_desc.upper_frequency + 0.5) * self.height
                     ),
-                    int(signal_desc.start * self.width) : int(
-                        signal_desc.stop * self.width
-                    ),
+                    int(signal_desc.start * self.width) : int(signal_desc.stop * self.width),
                 ] = 1.0
 
         targets: Dict[str, torch.Tensor] = {
@@ -1407,9 +1370,7 @@ class DescToSignalInstMaskDict(Transform):
                         (signal_desc.upper_frequency + 0.5) * self.height
                     )
                     + 1,
-                    int(signal_desc.start * self.width) : int(
-                        signal_desc.stop * self.width
-                    ),
+                    int(signal_desc.start * self.width) : int(signal_desc.stop * self.width),
                 ] = 1.0
             else:
                 masks[
@@ -1417,9 +1378,7 @@ class DescToSignalInstMaskDict(Transform):
                     int((signal_desc.lower_frequency + 0.5) * self.height) : int(
                         (signal_desc.upper_frequency + 0.5) * self.height
                     ),
-                    int(signal_desc.start * self.width) : int(
-                        signal_desc.stop * self.width
-                    ),
+                    int(signal_desc.start * self.width) : int(signal_desc.stop * self.width),
                 ] = 1.0
 
         targets: Dict[str, torch.Tensor] = {
@@ -1516,9 +1475,7 @@ class DescToSignalFamilyInstMaskDict(Transform):
             class_family_dict if class_family_dict else self.class_family_dict
         )
         self.family_list: List[str] = (
-            family_list
-            if family_list
-            else sorted(list(set(self.class_family_dict.values())))
+            family_list if family_list else sorted(list(set(self.class_family_dict.values())))
         )
         self.width = width
         self.height = height
@@ -1557,9 +1514,7 @@ class DescToSignalFamilyInstMaskDict(Transform):
                         (signal_desc.upper_frequency + 0.5) * self.height
                     )
                     + 1,
-                    int(signal_desc.start * self.width) : int(
-                        signal_desc.stop * self.width
-                    ),
+                    int(signal_desc.start * self.width) : int(signal_desc.stop * self.width),
                 ] = 1.0
             else:
                 masks[
@@ -1567,9 +1522,7 @@ class DescToSignalFamilyInstMaskDict(Transform):
                     int((signal_desc.lower_frequency + 0.5) * self.height) : int(
                         (signal_desc.upper_frequency + 0.5) * self.height
                     ),
-                    int(signal_desc.start * self.width) : int(
-                        signal_desc.stop * self.width
-                    ),
+                    int(signal_desc.start * self.width) : int(signal_desc.stop * self.width),
                 ] = 1.0
 
         targets: Dict[str, torch.Tensor] = {
@@ -1654,7 +1607,7 @@ class ListTupleToDesc(Transform):
         self.class_list = class_list
 
     def __call__(
-        self, 
+        self,
         list_tuple: List[Tuple[str, float, float, float, float, float]],
     ) -> List[SignalDescription]:
         output: List[SignalDescription] = []

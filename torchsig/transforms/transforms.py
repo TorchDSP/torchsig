@@ -1,21 +1,21 @@
 import warnings
-import numpy as np
 from copy import deepcopy
-from scipy import signal
 from typing import Any, Callable, List, Literal, Optional, Tuple, Union
 
+import numpy as np
+from scipy import signal
+
 from torchsig.transforms import functional as F
-from torchsig.utils.dataset import SignalDataset
-from torchsig.utils.types import SignalData, SignalDescription
 from torchsig.transforms.functional import (
-    NumericParameter,
     FloatParameter,
     IntParameter,
+    NumericParameter,
     to_distribution,
     uniform_continuous_distribution,
     uniform_discrete_distribution,
 )
-
+from torchsig.utils.dataset import SignalDataset
+from torchsig.utils.types import SignalData, SignalDescription
 
 __all__ = [
     "Transform",
@@ -90,9 +90,7 @@ class Transform:
 
     def __init__(self, seed: Optional[int] = None) -> None:
         if seed is not None:
-            warnings.warn(
-                "Seeding transforms is deprecated and does nothing", DeprecationWarning
-            )
+            warnings.warn("Seeding transforms is deprecated and does nothing", DeprecationWarning)
 
         self.random_generator = np.random.RandomState()
 
@@ -226,9 +224,9 @@ class RandomApply(Transform):
     """
 
     def __init__(
-        self, 
-        transform: Callable, 
-        probability: float, 
+        self,
+        transform: Callable,
+        probability: float,
         **kwargs,
     ) -> None:
         super(RandomApply, self).__init__(**kwargs)
@@ -246,11 +244,7 @@ class RandomApply(Transform):
         return self.string
 
     def __call__(self, data: Any) -> Any:
-        return (
-            self.transform(data)
-            if self.random_generator.rand() < self.probability
-            else data
-        )
+        return self.transform(data) if self.random_generator.rand() < self.probability else data
 
 
 class SignalTransform(Transform):
@@ -265,15 +259,13 @@ class SignalTransform(Transform):
     def __init__(self, time_dim: int = 0, **kwargs) -> None:
         super(SignalTransform, self).__init__(**kwargs)
         self.time_dim = time_dim
-        self.string: str = (
-            self.__class__.__name__ + "(" + "time_dim={}".format(time_dim) + ")"
-        )
+        self.string: str = self.__class__.__name__ + "(" + "time_dim={}".format(time_dim) + ")"
 
     def __repr__(self) -> str:
         return self.string
 
     def __call__(
-        self, 
+        self,
         data: Union[SignalData, np.ndarray],
     ) -> Union[SignalData, np.ndarray]:
         raise NotImplementedError
@@ -346,10 +338,7 @@ class TargetConcatenate(SignalTransform):
         self.transforms = transforms
         transform_strings: str = ",".join([str(t) for t in transforms])
         self.string: str = (
-            self.__class__.__name__
-            + "("
-            + "transforms=[{}], ".format(transform_strings)
-            + ")"
+            self.__class__.__name__ + "(" + "transforms=[{}], ".format(transform_strings) + ")"
         )
 
     def __repr__(self) -> str:
@@ -436,9 +425,7 @@ class RandChoice(SignalTransform):
         super(RandChoice, self).__init__(**kwargs)
         self.transforms = transforms
         self.probabilities: np.ndarray = (
-            probabilities
-            if probabilities
-            else np.ones(len(self.transforms)) / len(self.transforms)
+            probabilities if probabilities else np.ones(len(self.transforms)) / len(self.transforms)
         )
         if np.sum(self.probabilities) != 1.0:
             self.probabilities /= np.sum(self.probabilities)
@@ -483,7 +470,7 @@ class Normalize(SignalTransform):
 
     def __init__(
         self,
-        norm: Optional[Union[int, float, Literal['fro', 'nuc']]] = 2,
+        norm: Optional[Union[int, float, Literal["fro", "nuc"]]] = 2,
         flatten: bool = False,
     ) -> None:
         super(Normalize, self).__init__()
@@ -577,7 +564,7 @@ class RandomResample(SignalTransform):
         if isinstance(data, SignalData):
             assert data.iq_data is not None
             assert data.signal_description is not None
-            
+
             # Update the SignalDescriptions with the new rate
             new_signal_description: List[SignalDescription] = []
             signal_description_list: List[SignalDescription] = (
@@ -596,7 +583,7 @@ class RandomResample(SignalTransform):
                 assert new_signal_desc.upper_frequency is not None
                 assert new_signal_desc.center_frequency is not None
                 assert new_signal_desc.bandwidth is not None
-                
+
                 # Update time descriptions
                 new_num_iq_samples: float = new_signal_desc.num_iq_samples * new_rate
                 start_iq_sample: float = new_signal_desc.start * new_num_iq_samples
@@ -642,8 +629,7 @@ class RandomResample(SignalTransform):
                 ):
                     new_signal_desc.lower_frequency = -0.5
                     new_signal_desc.bandwidth = (
-                        new_signal_desc.upper_frequency
-                        - new_signal_desc.lower_frequency
+                        new_signal_desc.upper_frequency - new_signal_desc.lower_frequency
                     )
                     new_signal_desc.center_frequency = (
                         new_signal_desc.lower_frequency + new_signal_desc.bandwidth / 2
@@ -655,8 +641,7 @@ class RandomResample(SignalTransform):
                 ):
                     new_signal_desc.upper_frequency = 0.5
                     new_signal_desc.bandwidth = (
-                        new_signal_desc.upper_frequency
-                        - new_signal_desc.lower_frequency
+                        new_signal_desc.upper_frequency - new_signal_desc.lower_frequency
                     )
                     new_signal_desc.center_frequency = (
                         new_signal_desc.lower_frequency + new_signal_desc.bandwidth / 2
@@ -676,10 +661,7 @@ class RandomResample(SignalTransform):
                     anti_alias_lpf = True
 
                 # Check new freqs for inclusion
-                if (
-                    new_signal_desc.lower_frequency > 0.5
-                    or new_signal_desc.upper_frequency < -0.5
-                ):
+                if new_signal_desc.lower_frequency > 0.5 or new_signal_desc.upper_frequency < -0.5:
                     continue
 
                 # Append updates to the new description
@@ -776,7 +758,7 @@ class TargetSNR(SignalTransform):
         if isinstance(data, SignalData):
             assert data.iq_data is not None
             assert data.signal_description is not None
-            
+
             signal_description_list: List[SignalDescription] = (
                 [data.signal_description]
                 if isinstance(data.signal_description, SignalDescription)
@@ -792,14 +774,12 @@ class TargetSNR(SignalTransform):
             assert signal_description_list[0].samples_per_symbol is not None
             assert signal_description_list[0].bits_per_symbol is not None
             assert signal_description_list[0].snr is not None
-            
+
             signal_power = np.mean(np.abs(data.iq_data) ** 2, axis=self.time_dim)
             class_name = signal_description_list[0].class_name
             if "ofdm" not in class_name:
                 # EbNo not available for OFDM
-                target_snr_linear *= (
-                    signal_description_list[0].bits_per_symbol if self.eb_no else 1
-                )
+                target_snr_linear *= signal_description_list[0].bits_per_symbol if self.eb_no else 1
             occupied_bw = 1 / signal_description_list[0].samples_per_symbol
             noise_power_linear = signal_power / (target_snr_linear * occupied_bw)
             noise_power_db = 10 * np.log10(noise_power_linear)
@@ -877,7 +857,7 @@ class AddNoise(SignalTransform):
         if isinstance(data, SignalData):
             assert data.iq_data is not None
             assert data.signal_description is not None
-            
+
             # Create new SignalData object for transformed data
             new_data = SignalData(
                 data=None,
@@ -888,9 +868,7 @@ class AddNoise(SignalTransform):
 
             # Retrieve random noise power value
             noise_power_db = self.noise_power_db()
-            noise_power_db = (
-                10 * np.log10(noise_power_db) if self.linear else noise_power_db
-            )
+            noise_power_db = 10 * np.log10(noise_power_db) if self.linear else noise_power_db
 
             if self.input_noise_floor_db:
                 noise_floor = self.input_noise_floor_db
@@ -922,9 +900,7 @@ class AddNoise(SignalTransform):
 
         else:
             noise_power_db = self.noise_power_db(size=data.shape[0])
-            noise_power_db = (
-                10 * np.log10(noise_power_db) if self.linear else noise_power_db
-            )
+            noise_power_db = 10 * np.log10(noise_power_db) if self.linear else noise_power_db
             output: np.ndarray = F.awgn(data, noise_power_db)
             return output
 
@@ -971,12 +947,8 @@ class TimeVaryingNoise(SignalTransform):
 
     def __init__(
         self,
-        noise_power_db_low: NumericParameter = uniform_continuous_distribution(
-            -80, -60
-        ),
-        noise_power_db_high: NumericParameter = uniform_continuous_distribution(
-            -40, -20
-        ),
+        noise_power_db_low: NumericParameter = uniform_continuous_distribution(-80, -60),
+        noise_power_db_high: NumericParameter = uniform_continuous_distribution(-40, -20),
         inflections: IntParameter = uniform_continuous_distribution(0, 10),
         random_regions: Union[List, bool] = True,
         linear: bool = False,
@@ -1017,7 +989,7 @@ class TimeVaryingNoise(SignalTransform):
         if isinstance(data, SignalData):
             assert data.iq_data is not None
             assert data.signal_description is not None
-            
+
             # Create new SignalData object for transformed data
             new_data = SignalData(
                 data=None,
@@ -1104,16 +1076,12 @@ class RayleighFadingChannel(SignalTransform):
 
     def __init__(
         self,
-        coherence_bandwidth: FloatParameter = uniform_continuous_distribution(
-            0.01, 0.1
-        ),
+        coherence_bandwidth: FloatParameter = uniform_continuous_distribution(0.01, 0.1),
         power_delay_profile: Union[Tuple, List, np.ndarray] = (1, 1),
         **kwargs,
     ) -> None:
         super(RayleighFadingChannel, self).__init__(**kwargs)
-        self.coherence_bandwidth = to_distribution(
-            coherence_bandwidth, self.random_generator
-        )
+        self.coherence_bandwidth = to_distribution(coherence_bandwidth, self.random_generator)
         self.power_delay_profile = np.asarray(power_delay_profile)
         self.string = (
             self.__class__.__name__
@@ -1134,9 +1102,7 @@ class RayleighFadingChannel(SignalTransform):
                 data.iq_data, coherence_bandwidth, self.power_delay_profile
             )
         else:
-            data = F.rayleigh_fading(
-                data, coherence_bandwidth, self.power_delay_profile
-            )
+            data = F.rayleigh_fading(data, coherence_bandwidth, self.power_delay_profile)
         return data
 
 
@@ -1184,9 +1150,7 @@ class ImpulseInterferer(SignalTransform):
         pulse_offset = 1.0 if pulse_offset > 1.0 else np.max((0.0, pulse_offset))
         if isinstance(data, SignalData):
             assert data.iq_data is not None
-            data.iq_data = F.impulsive_interference(
-                data.iq_data, amp, self.pulse_offset
-            )
+            data.iq_data = F.impulsive_interference(data.iq_data, amp, self.pulse_offset)
         else:
             data = F.impulsive_interference(data, amp, self.pulse_offset)
         return data
@@ -1223,9 +1187,7 @@ class RandomPhaseShift(SignalTransform):
     ) -> None:
         super(RandomPhaseShift, self).__init__(**kwargs)
         self.phase_offset = to_distribution(phase_offset, self.random_generator)
-        self.string = (
-            self.__class__.__name__ + "(" + "phase_offset={}".format(phase_offset) + ")"
-        )
+        self.string = self.__class__.__name__ + "(" + "phase_offset={}".format(phase_offset) + ")"
 
     def __repr__(self) -> str:
         return self.string
@@ -1509,9 +1471,7 @@ class Spectrogram(SignalTransform):
                 data, self.nperseg, self.noverlap, self.nfft, self.window_fcn, self.mode
             )
             if self.mode == "complex":
-                new_tensor = np.zeros(
-                    (2, data.shape[0], data.shape[1]), dtype=np.float32
-                )
+                new_tensor = np.zeros((2, data.shape[0], data.shape[1]), dtype=np.float32)
                 new_tensor[0, :, :] = np.real(data).astype(np.float32)
                 new_tensor[1, :, :] = np.imag(data).astype(np.float32)
                 data = new_tensor
@@ -1545,9 +1505,7 @@ class ContinuousWavelet(SignalTransform):
 
     """
 
-    def __init__(
-        self, wavelet: str = "mexh", nscales: int = 33, sample_rate: float = 1.0
-    ) -> None:
+    def __init__(self, wavelet: str = "mexh", nscales: int = 33, sample_rate: float = 1.0) -> None:
         super(ContinuousWavelet, self).__init__()
         self.wavelet = wavelet
         self.nscales = nscales
@@ -1595,9 +1553,7 @@ class ReshapeTransform(SignalTransform):
     def __init__(self, new_shape: Tuple, **kwargs) -> None:
         super(ReshapeTransform, self).__init__(**kwargs)
         self.new_shape = new_shape
-        self.string = (
-            self.__class__.__name__ + "(" + "new_shape={}".format(new_shape) + ")"
-        )
+        self.string = self.__class__.__name__ + "(" + "new_shape={}".format(new_shape) + ")"
 
     def __repr__(self) -> str:
         return self.string
@@ -1655,9 +1611,7 @@ class RandomTimeShift(SignalTransform):
         self.interp_rate = interp_rate
         num_taps = int(taps_per_arm * interp_rate)
         self.taps = (
-            signal.firwin(
-                num_taps, 1.0 / interp_rate, 1.0 / interp_rate / 4.0, scale=True
-            )
+            signal.firwin(num_taps, 1.0 / interp_rate, 1.0 / interp_rate / 4.0, scale=True)
             * interp_rate
         )
         self.string = (
@@ -1681,7 +1635,7 @@ class RandomTimeShift(SignalTransform):
         if isinstance(data, SignalData):
             assert data.iq_data is not None
             assert data.signal_description is not None
-            
+
             # Create new SignalData object for transformed data
             new_data: SignalData = SignalData(
                 data=None,
@@ -1713,15 +1667,13 @@ class RandomTimeShift(SignalTransform):
                 new_signal_desc = deepcopy(signal_desc)
                 assert new_signal_desc.start is not None
                 assert new_signal_desc.stop is not None
-                
+
                 new_signal_desc.start += shift / new_data.iq_data.shape[0]
                 new_signal_desc.stop += shift / new_data.iq_data.shape[0]
                 new_signal_desc.start = (
                     0.0 if new_signal_desc.start < 0.0 else new_signal_desc.start
                 )
-                new_signal_desc.stop = (
-                    1.0 if new_signal_desc.stop > 1.0 else new_signal_desc.stop
-                )
+                new_signal_desc.stop = 1.0 if new_signal_desc.stop > 1.0 else new_signal_desc.stop
                 new_signal_desc.duration = new_signal_desc.stop - new_signal_desc.start
                 if new_signal_desc.start > 1.0 or new_signal_desc.stop < 0.0:
                     continue
@@ -1835,7 +1787,7 @@ class TimeCrop(SignalTransform):
                 new_signal_desc = deepcopy(signal_desc)
                 assert new_signal_desc.start is not None
                 assert new_signal_desc.stop is not None
-                
+
                 original_start_sample = signal_desc.start * iq_data.shape[0]
                 original_stop_sample = signal_desc.stop * iq_data.shape[0]
                 new_start_sample = original_start_sample - start
@@ -1845,9 +1797,7 @@ class TimeCrop(SignalTransform):
                 new_signal_desc.start = (
                     0.0 if new_signal_desc.start < 0.0 else new_signal_desc.start
                 )
-                new_signal_desc.stop = (
-                    1.0 if new_signal_desc.stop > 1.0 else new_signal_desc.stop
-                )
+                new_signal_desc.stop = 1.0 if new_signal_desc.stop > 1.0 else new_signal_desc.stop
                 new_signal_desc.duration = new_signal_desc.stop - new_signal_desc.start
                 new_signal_desc.num_iq_samples = self.length
                 if new_signal_desc.start > 1.0 or new_signal_desc.stop < 0.0:
@@ -1877,7 +1827,7 @@ class TimeReversal(SignalTransform):
     """
 
     def __init__(
-        self, 
+        self,
         undo_spectral_inversion: Union[bool, float] = True,
     ) -> None:
         super(TimeReversal, self).__init__()
@@ -1901,7 +1851,7 @@ class TimeReversal(SignalTransform):
         if isinstance(data, SignalData):
             assert data.iq_data is not None
             assert data.signal_description is not None
-            
+
             # Create new SignalData object for transformed data
             new_data: SignalData = SignalData(
                 data=None,
@@ -2012,9 +1962,7 @@ class RandomFrequencyShift(SignalTransform):
     def __init__(self, freq_shift: NumericParameter = (-0.5, 0.5)) -> None:
         super(RandomFrequencyShift, self).__init__()
         self.freq_shift = to_distribution(freq_shift, self.random_generator)
-        self.string = (
-            self.__class__.__name__ + "(" + "freq_shift={}".format(freq_shift) + ")"
-        )
+        self.string = self.__class__.__name__ + "(" + "freq_shift={}".format(freq_shift) + ")"
 
     def __repr__(self) -> str:
         return self.string
@@ -2024,7 +1972,7 @@ class RandomFrequencyShift(SignalTransform):
         if isinstance(data, SignalData):
             assert data.iq_data is not None
             assert data.signal_description is not None
-            
+
             # Create new SignalData object for transformed data
             new_data: SignalData = SignalData(
                 data=None,
@@ -2045,7 +1993,7 @@ class RandomFrequencyShift(SignalTransform):
                 new_signal_desc = deepcopy(signal_desc)
                 assert new_signal_desc.lower_frequency is not None
                 assert new_signal_desc.upper_frequency is not None
-                
+
                 # Check bounds for partial signals
                 new_signal_desc.lower_frequency = (
                     -0.5
@@ -2167,7 +2115,7 @@ class RandomDelayedFrequencyShift(SignalTransform):
         if isinstance(data, SignalData):
             assert data.iq_data is not None
             assert data.signal_description is not None
-            
+
             # Create new SignalData object for transformed data
             new_data = SignalData(
                 data=None,
@@ -2192,13 +2140,13 @@ class RandomDelayedFrequencyShift(SignalTransform):
                 assert new_signal_desc_first_seg.upper_frequency is not None
                 assert new_signal_desc_first_seg.start is not None
                 assert new_signal_desc_first_seg.stop is not None
-                
+
                 new_signal_desc_sec_seg = deepcopy(signal_desc)
                 assert new_signal_desc_sec_seg.lower_frequency is not None
                 assert new_signal_desc_sec_seg.upper_frequency is not None
                 assert new_signal_desc_sec_seg.start is not None
                 assert new_signal_desc_sec_seg.stop is not None
-                
+
                 # Check bounds for partial signals
                 new_signal_desc_first_seg.lower_frequency = (
                     -0.5
@@ -2310,9 +2258,7 @@ class RandomDelayedFrequencyShift(SignalTransform):
             # Perform augmentation
             if avoid_aliasing:
                 # If any potential aliasing detected, perform shifting at higher sample rate
-                new_data.iq_data[
-                    int(start_shift * num_iq_samples) :
-                ] = F.freq_shift_avoid_aliasing(
+                new_data.iq_data[int(start_shift * num_iq_samples) :] = F.freq_shift_avoid_aliasing(
                     data.iq_data[int(start_shift * num_iq_samples) :], freq_shift
                 )
             else:
@@ -2601,9 +2547,7 @@ class AutomaticGainControl(SignalTransform):
             self.alpha_smooth / rand_scale, self.alpha_smooth * rand_scale, 1
         )
 
-        ref_level_db = np.random.uniform(
-            -0.5 + self.ref_level_db, 0.5 + self.ref_level_db, 1
-        )
+        ref_level_db = np.random.uniform(-0.5 + self.ref_level_db, 0.5 + self.ref_level_db, 1)
 
         iq_data = F.agc(
             np.ascontiguousarray(iq_data, dtype=np.complex64),
@@ -2676,12 +2620,8 @@ class IQImbalance(SignalTransform):
         iq_dc_offset_db: NumericParameter = (-0.1, 0.1),
     ) -> None:
         super(IQImbalance, self).__init__()
-        self.amp_imbalance = to_distribution(
-            iq_amplitude_imbalance_db, self.random_generator
-        )
-        self.phase_imbalance = to_distribution(
-            iq_phase_imbalance, self.random_generator
-        )
+        self.amp_imbalance = to_distribution(iq_amplitude_imbalance_db, self.random_generator)
+        self.phase_imbalance = to_distribution(iq_phase_imbalance, self.random_generator)
         self.dc_offset = to_distribution(iq_dc_offset_db, self.random_generator)
         self.string = (
             self.__class__.__name__
@@ -2702,9 +2642,7 @@ class IQImbalance(SignalTransform):
 
         if isinstance(data, SignalData):
             assert data.iq_data is not None
-            data.iq_data = F.iq_imbalance(
-                data.iq_data, amp_imbalance, phase_imbalance, dc_offset
-            )
+            data.iq_data = F.iq_imbalance(data.iq_data, amp_imbalance, phase_imbalance, dc_offset)
         else:
             data = F.iq_imbalance(data, amp_imbalance, phase_imbalance, dc_offset)
         return data
@@ -2769,9 +2707,7 @@ class RollOff(SignalTransform):
 
     def __call__(self, data: Any) -> Any:
         low_freq = self.low_freq() if np.random.rand() < self.low_cut_apply else 0.0
-        upper_freq = (
-            self.upper_freq() if np.random.rand() < self.upper_cut_apply else 1.0
-        )
+        upper_freq = self.upper_freq() if np.random.rand() < self.upper_cut_apply else 1.0
         order = self.order()
         if isinstance(data, SignalData):
             assert data.iq_data is not None
@@ -2819,7 +2755,7 @@ class SpectralInversion(SignalTransform):
         if isinstance(data, SignalData):
             assert data.iq_data is not None
             assert data.signal_description is not None
-            
+
             # Create new SignalData object for transformed data
             new_data: SignalData = SignalData(
                 data=None,
@@ -2871,7 +2807,7 @@ class ChannelSwap(SignalTransform):
         if isinstance(data, SignalData):
             assert data.iq_data is not None
             assert data.signal_description is not None
-            
+
             # Create new SignalData object for transformed data
             new_data: SignalData = SignalData(
                 data=None,
@@ -2892,7 +2828,7 @@ class ChannelSwap(SignalTransform):
                 assert new_signal_desc.lower_frequency is not None
                 assert new_signal_desc.upper_frequency is not None
                 assert new_signal_desc.center_frequency is not None
-                    
+
                 # Invert frequency labels
                 original_lower = new_signal_desc.lower_frequency
                 original_upper = new_signal_desc.upper_frequency
@@ -3012,9 +2948,7 @@ class RandomDropSamples(SignalTransform):
         self,
         drop_rate: NumericParameter = (0.01, 0.05),
         size: NumericParameter = (1, 10),
-        fill: List[str] = (
-            ["ffill", "bfill", "mean", "zero"]
-        ),
+        fill: List[str] = (["ffill", "bfill", "mean", "zero"]),
     ) -> None:
         super(RandomDropSamples, self).__init__()
         self.drop_rate = to_distribution(drop_rate, self.random_generator)
@@ -3053,9 +2987,7 @@ class RandomDropSamples(SignalTransform):
                 1, data.iq_data.shape[0] - max(drop_sizes) - 1, drop_instances
             ).astype(int)
 
-            new_data.iq_data = F.drop_samples(
-                data.iq_data, drop_starts, drop_sizes, fill
-            )
+            new_data.iq_data = F.drop_samples(data.iq_data, drop_starts, drop_sizes, fill)
             return new_data
 
         else:
@@ -3090,12 +3022,8 @@ class Quantize(SignalTransform):
 
     def __init__(
         self,
-        num_levels: NumericParameter = (
-            [16, 24, 32, 40, 48, 56, 64]
-        ),
-        round_type: List[str] = (
-            ["floor", "middle", "ceiling"]
-        ),
+        num_levels: NumericParameter = ([16, 24, 32, 40, 48, 56, 64]),
+        round_type: List[str] = (["floor", "middle", "ceiling"]),
     ) -> None:
         super(Quantize, self).__init__()
         self.num_levels = to_distribution(num_levels, self.random_generator)
@@ -3154,10 +3082,7 @@ class Clip(SignalTransform):
         super(Clip, self).__init__(**kwargs)
         self.clip_percentage = to_distribution(clip_percentage)
         self.string = (
-            self.__class__.__name__
-            + "("
-            + "clip_percentage={}".format(clip_percentage)
-            + ")"
+            self.__class__.__name__ + "(" + "clip_percentage={}".format(clip_percentage) + ")"
         )
 
     def __repr__(self) -> str:
@@ -3321,7 +3246,7 @@ class DatasetBasebandMixUp(SignalTransform):
         if isinstance(data, SignalData):
             assert data.iq_data is not None
             assert data.signal_description is not None
-            
+
             # Input checks
             signal_description_list: List[SignalDescription] = (
                 [data.signal_description]
@@ -3347,7 +3272,7 @@ class DatasetBasebandMixUp(SignalTransform):
                 insert_iq_data: np.ndarray = insert_data.iq_data
             else:
                 insert_iq_data = insert_data
-            
+
             if insert_iq_data.shape[0] != data.iq_data.shape[0]:
                 raise ValueError(
                     "Input dataset's `num_iq_samples` does not match main dataset.\n\t\
@@ -3468,7 +3393,7 @@ class DatasetBasebandCutMix(SignalTransform):
             # Input checks
             assert data.iq_data is not None
             assert data.signal_description is not None
-            
+
             signal_description_list: List[SignalDescription] = (
                 [data.signal_description]
                 if isinstance(data.signal_description, SignalDescription)
@@ -3557,7 +3482,7 @@ class DatasetBasebandCutMix(SignalTransform):
                 new_signal_desc.duration = new_signal_desc.stop - new_signal_desc.start
                 new_signal_description.append(new_signal_desc)
             # Repeat for insert's SignalDescription
-            
+
             assert insert_signal_data.signal_description is not None
             insert_desc: List[SignalDescription] = (
                 [insert_signal_data.signal_description]
@@ -3621,9 +3546,7 @@ class CutOut(SignalTransform):
     def __init__(
         self,
         cut_dur: NumericParameter = (0.01, 0.2),
-        cut_type: List[str] = (
-            ["zeros", "ones", "low_noise", "avg_noise", "high_noise"]
-        ),
+        cut_type: List[str] = (["zeros", "ones", "low_noise", "avg_noise", "high_noise"]),
     ) -> None:
         super(CutOut, self).__init__()
         self.cut_dur = to_distribution(cut_dur, self.random_generator)
@@ -3647,7 +3570,7 @@ class CutOut(SignalTransform):
         if isinstance(data, SignalData):
             assert data.iq_data is not None
             assert data.signal_description is not None
-            
+
             # Create new SignalData object for transformed data
             new_data: SignalData = SignalData(
                 data=None,
@@ -3684,14 +3607,12 @@ class CutOut(SignalTransform):
                         # Push label start to end of cut region
                         new_signal_desc.start = cut_start + cut_dur
                 elif (
-                    new_signal_desc.stop > cut_start
-                    and new_signal_desc.stop < cut_start + cut_dur
+                    new_signal_desc.stop > cut_start and new_signal_desc.stop < cut_start + cut_dur
                 ):
                     # Label stops within cut region but does not start in region --> Push stop to begining of cut region
                     new_signal_desc.stop = cut_start
                 elif (
-                    new_signal_desc.start < cut_start
-                    and new_signal_desc.stop > cut_start + cut_dur
+                    new_signal_desc.start < cut_start and new_signal_desc.stop > cut_start + cut_dur
                 ):
                     # Label traverse cut region --> Split into two labels
                     new_signal_desc_split = deepcopy(signal_desc)
@@ -3835,7 +3756,7 @@ class DatasetWidebandCutMix(SignalTransform):
         if isinstance(data, SignalData):
             assert data.iq_data is not None
             assert data.signal_description is not None
-            
+
             # Randomly sample from provided dataset
             idx = np.random.randint(self.dataset_num_samples)
             insert_data, insert_signal_description = self.dataset[idx]
@@ -4023,7 +3944,7 @@ class DatasetWidebandMixUp(SignalTransform):
         if isinstance(data, SignalData):
             assert data.iq_data is not None
             assert data.signal_description is not None
-            
+
             # Randomly sample from provided dataset
             idx = np.random.randint(self.dataset_num_samples)
             insert_data, insert_signal_description = self.dataset[idx]
@@ -4154,13 +4075,9 @@ class SpectrogramRandomResizeCrop(SignalTransform):
         assert iq_data is not None
 
         # First, perform the random spectrogram operation
-        spec_data = F.spectrogram(
-            iq_data, nperseg, noverlap, nfft, self.window_fcn, self.mode
-        )
+        spec_data = F.spectrogram(iq_data, nperseg, noverlap, nfft, self.window_fcn, self.mode)
         if self.mode == "complex":
-            new_tensor = np.zeros(
-                (2, spec_data.shape[0], spec_data.shape[1]), dtype=np.float32
-            )
+            new_tensor = np.zeros((2, spec_data.shape[0], spec_data.shape[1]), dtype=np.float32)
             new_tensor[0, :, :] = np.real(spec_data).astype(np.float32)
             new_tensor[1, :, :] = np.imag(spec_data).astype(np.float32)
             spec_data = new_tensor
@@ -4245,7 +4162,7 @@ class SpectrogramRandomResizeCrop(SignalTransform):
         if isinstance(data, SignalData):
             assert data.iq_data is not None
             assert data.signal_description is not None
-            
+
             # Create new SignalData object for transformed data
             new_data = SignalData(
                 data=None,
@@ -4290,20 +4207,16 @@ class SpectrogramRandomResizeCrop(SignalTransform):
                 # Update labels based on padding/cropping
                 if pad_height:
                     new_signal_desc.lower_frequency = (
-                        (new_signal_desc.lower_frequency + 0.5) * curr_height
-                        + pad_height_start
+                        (new_signal_desc.lower_frequency + 0.5) * curr_height + pad_height_start
                     ) / self.height - 0.5
                     new_signal_desc.upper_frequency = (
-                        (new_signal_desc.upper_frequency + 0.5) * curr_height
-                        + pad_height_start
+                        (new_signal_desc.upper_frequency + 0.5) * curr_height + pad_height_start
                     ) / self.height - 0.5
                     new_signal_desc.center_frequency = (
-                        (new_signal_desc.center_frequency + 0.5) * curr_height
-                        + pad_height_start
+                        (new_signal_desc.center_frequency + 0.5) * curr_height + pad_height_start
                     ) / self.height - 0.5
                     new_signal_desc.bandwidth = (
-                        new_signal_desc.upper_frequency
-                        - new_signal_desc.lower_frequency
+                        new_signal_desc.upper_frequency - new_signal_desc.lower_frequency
                     )
 
                 if crop_height:
@@ -4313,9 +4226,7 @@ class SpectrogramRandomResizeCrop(SignalTransform):
                         new_signal_desc.upper_frequency + 0.5
                     ) * curr_height <= crop_height_start:
                         continue
-                    if (
-                        new_signal_desc.lower_frequency + 0.5
-                    ) * curr_height <= crop_height_start:
+                    if (new_signal_desc.lower_frequency + 0.5) * curr_height <= crop_height_start:
                         new_signal_desc.lower_frequency = -0.5
                     else:
                         new_signal_desc.lower_frequency = (
@@ -4325,17 +4236,14 @@ class SpectrogramRandomResizeCrop(SignalTransform):
                     if (
                         new_signal_desc.upper_frequency + 0.5
                     ) * curr_height >= crop_height_start + self.height:
-                        new_signal_desc.upper_frequency = (
-                            crop_height_start + self.height
-                        )
+                        new_signal_desc.upper_frequency = crop_height_start + self.height
                     else:
                         new_signal_desc.upper_frequency = (
                             (new_signal_desc.upper_frequency + 0.5) * curr_height
                             - crop_height_start
                         ) / self.height - 0.5
                     new_signal_desc.bandwidth = (
-                        new_signal_desc.upper_frequency
-                        - new_signal_desc.lower_frequency
+                        new_signal_desc.upper_frequency - new_signal_desc.lower_frequency
                     )
                     new_signal_desc.center_frequency = (
                         new_signal_desc.lower_frequency + new_signal_desc.bandwidth / 2
@@ -4348,26 +4256,18 @@ class SpectrogramRandomResizeCrop(SignalTransform):
                     new_signal_desc.stop = (
                         new_signal_desc.stop * curr_width + pad_width_start
                     ) / self.width
-                    new_signal_desc.duration = (
-                        new_signal_desc.stop - new_signal_desc.start
-                    )
+                    new_signal_desc.duration = new_signal_desc.stop - new_signal_desc.start
 
                 if crop_width:
                     if new_signal_desc.start * curr_width <= crop_width_start:
                         new_signal_desc.start = 0.0
-                    elif (
-                        new_signal_desc.start * curr_width
-                        >= crop_width_start + self.width
-                    ):
+                    elif new_signal_desc.start * curr_width >= crop_width_start + self.width:
                         continue
                     else:
                         new_signal_desc.start = (
                             new_signal_desc.start * curr_width - crop_width_start
                         ) / self.width
-                    if (
-                        new_signal_desc.stop * curr_width
-                        >= crop_width_start + self.width
-                    ):
+                    if new_signal_desc.stop * curr_width >= crop_width_start + self.width:
                         new_signal_desc.stop = 1.0
                     elif new_signal_desc.stop * curr_width <= crop_width_start:
                         continue
@@ -4375,9 +4275,7 @@ class SpectrogramRandomResizeCrop(SignalTransform):
                         new_signal_desc.stop = (
                             new_signal_desc.stop * curr_width - crop_width_start
                         ) / self.width
-                    new_signal_desc.duration = (
-                        new_signal_desc.stop - new_signal_desc.start
-                    )
+                    new_signal_desc.duration = new_signal_desc.stop - new_signal_desc.start
 
                 # Append SignalDescription to list
                 new_signal_description.append(new_signal_desc)
@@ -4432,9 +4330,7 @@ class SpectrogramDropSamples(SignalTransform):
         self,
         drop_rate: NumericParameter = (0.001, 0.005),
         size: NumericParameter = (1, 10),
-        fill: List[str] = (
-            ["ffill", "bfill", "mean", "zero", "low", "min", "max", "ones"]
-        ),
+        fill: List[str] = (["ffill", "bfill", "mean", "zero", "low", "min", "max", "ones"]),
     ) -> None:
         super(SpectrogramDropSamples, self).__init__()
         self.drop_rate = to_distribution(drop_rate, self.random_generator)
@@ -4475,9 +4371,7 @@ class SpectrogramDropSamples(SignalTransform):
                 1, spec_size - max(drop_sizes) - 1, drop_instances
             ).astype(int)
 
-            new_data.iq_data = F.drop_spec_samples(
-                data.iq_data, drop_starts, drop_sizes, fill
-            )
+            new_data.iq_data = F.drop_spec_samples(data.iq_data, drop_starts, drop_sizes, fill)
             return new_data
 
         else:
@@ -4488,9 +4382,9 @@ class SpectrogramDropSamples(SignalTransform):
             ).astype(int)
 
             output: np.ndarray = F.drop_spec_samples(
-                data, 
-                drop_starts, 
-                drop_sizes, 
+                data,
+                drop_starts,
+                drop_sizes,
                 fill,
             )
             return output
@@ -4553,14 +4447,12 @@ class SpectrogramPatchShuffle(SignalTransform):
             )
 
             # Perform data augmentation
-            new_data.iq_data = F.spec_patch_shuffle(
-                data.iq_data, patch_size, shuffle_ratio
-            )
+            new_data.iq_data = F.spec_patch_shuffle(data.iq_data, patch_size, shuffle_ratio)
             return new_data
         else:
             output: np.ndarray = F.spec_patch_shuffle(
-                data, 
-                patch_size, 
+                data,
+                patch_size,
                 shuffle_ratio,
             )
             return output
@@ -4613,7 +4505,7 @@ class SpectrogramTranslation(SignalTransform):
         if isinstance(data, SignalData):
             assert data.iq_data is not None
             assert data.signal_description is not None
-            
+
             # Create new SignalData object for transformed data
             new_data: SignalData = SignalData(
                 data=None,
@@ -4642,17 +4534,13 @@ class SpectrogramTranslation(SignalTransform):
                 new_signal_desc.start = (
                     new_signal_desc.start + time_shift / new_data.iq_data.shape[1]
                 )
-                new_signal_desc.stop = (
-                    new_signal_desc.stop + time_shift / new_data.iq_data.shape[1]
-                )
+                new_signal_desc.stop = new_signal_desc.stop + time_shift / new_data.iq_data.shape[1]
                 if new_signal_desc.start >= 1.0 or new_signal_desc.stop <= 0.0:
                     continue
                 new_signal_desc.start = (
                     0.0 if new_signal_desc.start < 0.0 else new_signal_desc.start
                 )
-                new_signal_desc.stop = (
-                    1.0 if new_signal_desc.stop > 1.0 else new_signal_desc.stop
-                )
+                new_signal_desc.stop = 1.0 if new_signal_desc.stop > 1.0 else new_signal_desc.stop
                 new_signal_desc.duration = new_signal_desc.stop - new_signal_desc.start
 
                 # Trim any out-of-capture freq values
@@ -4669,12 +4557,10 @@ class SpectrogramTranslation(SignalTransform):
 
                 # Update freq fields
                 new_signal_desc.lower_frequency = (
-                    new_signal_desc.lower_frequency
-                    + freq_shift / new_data.iq_data.shape[2]
+                    new_signal_desc.lower_frequency + freq_shift / new_data.iq_data.shape[2]
                 )
                 new_signal_desc.upper_frequency = (
-                    new_signal_desc.upper_frequency
-                    + freq_shift / new_data.iq_data.shape[2]
+                    new_signal_desc.upper_frequency + freq_shift / new_data.iq_data.shape[2]
                 )
                 if (
                     new_signal_desc.lower_frequency >= 0.5
@@ -4738,7 +4624,7 @@ class SpectrogramMosaicCrop(SignalTransform):
         if isinstance(data, SignalData):
             assert data.iq_data is not None
             assert data.signal_description is not None
-            
+
             # Create new SignalData object for transformed data
             new_data: SignalData = SignalData(
                 data=None,
@@ -4798,9 +4684,7 @@ class SpectrogramMosaicCrop(SignalTransform):
                         if new_signal_desc.stop < 1.0
                         else 1.0 - (x0 / width)
                     )
-                    new_signal_desc.duration = (
-                        new_signal_desc.stop - new_signal_desc.start
-                    )
+                    new_signal_desc.duration = new_signal_desc.stop - new_signal_desc.start
 
                 else:
                     if new_signal_desc.start * width > x0:
@@ -4810,9 +4694,7 @@ class SpectrogramMosaicCrop(SignalTransform):
                     new_signal_desc.stop = (
                         1.0 if new_signal_desc.stop > 1.0 else new_signal_desc.stop
                     )
-                    new_signal_desc.duration = (
-                        new_signal_desc.stop - new_signal_desc.start
-                    )
+                    new_signal_desc.duration = new_signal_desc.stop - new_signal_desc.start
 
                 # Update frequency fields
                 new_signal_desc.lower_frequency = (
@@ -4839,12 +4721,10 @@ class SpectrogramMosaicCrop(SignalTransform):
                         else 0.5 - (y0 / height)
                     )
                     new_signal_desc.bandwidth = (
-                        new_signal_desc.upper_frequency
-                        - new_signal_desc.lower_frequency
+                        new_signal_desc.upper_frequency - new_signal_desc.lower_frequency
                     )
                     new_signal_desc.center_frequency = (
-                        new_signal_desc.lower_frequency
-                        + new_signal_desc.bandwidth * 0.5
+                        new_signal_desc.lower_frequency + new_signal_desc.bandwidth * 0.5
                     )
 
                 else:
@@ -4862,12 +4742,10 @@ class SpectrogramMosaicCrop(SignalTransform):
                         else new_signal_desc.upper_frequency
                     )
                     new_signal_desc.bandwidth = (
-                        new_signal_desc.upper_frequency
-                        - new_signal_desc.lower_frequency
+                        new_signal_desc.upper_frequency - new_signal_desc.lower_frequency
                     )
                     new_signal_desc.center_frequency = (
-                        new_signal_desc.lower_frequency
-                        + new_signal_desc.bandwidth * 0.5
+                        new_signal_desc.lower_frequency + new_signal_desc.bandwidth * 0.5
                     )
 
                 # Append SignalDescription to list
@@ -4900,7 +4778,7 @@ class SpectrogramMosaicCrop(SignalTransform):
                     assert new_signal_desc.stop is not None
                     assert new_signal_desc.lower_frequency is not None
                     assert new_signal_desc.upper_frequency is not None
-                    
+
                     # Update time fields
                     if x_idx == 0:
                         if new_signal_desc.stop * width < x0:
@@ -4915,25 +4793,17 @@ class SpectrogramMosaicCrop(SignalTransform):
                             if new_signal_desc.stop < 1.0
                             else 1.0 - (x0 / width)
                         )
-                        new_signal_desc.duration = (
-                            new_signal_desc.stop - new_signal_desc.start
-                        )
+                        new_signal_desc.duration = new_signal_desc.stop - new_signal_desc.start
 
                     else:
                         if new_signal_desc.start * width > x0:
                             continue
-                        new_signal_desc.start = (
-                            width - x0
-                        ) / width + new_signal_desc.start
-                        new_signal_desc.stop = (
-                            width - x0
-                        ) / width + new_signal_desc.stop
+                        new_signal_desc.start = (width - x0) / width + new_signal_desc.start
+                        new_signal_desc.stop = (width - x0) / width + new_signal_desc.stop
                         new_signal_desc.stop = (
                             1.0 if new_signal_desc.stop > 1.0 else new_signal_desc.stop
                         )
-                        new_signal_desc.duration = (
-                            new_signal_desc.stop - new_signal_desc.start
-                        )
+                        new_signal_desc.duration = new_signal_desc.stop - new_signal_desc.start
 
                     # Update frequency fields
                     new_signal_desc.lower_frequency = (
@@ -4960,12 +4830,10 @@ class SpectrogramMosaicCrop(SignalTransform):
                             else 0.5 - (y0 / height)
                         )
                         new_signal_desc.bandwidth = (
-                            new_signal_desc.upper_frequency
-                            - new_signal_desc.lower_frequency
+                            new_signal_desc.upper_frequency - new_signal_desc.lower_frequency
                         )
                         new_signal_desc.center_frequency = (
-                            new_signal_desc.lower_frequency
-                            + new_signal_desc.bandwidth * 0.5
+                            new_signal_desc.lower_frequency + new_signal_desc.bandwidth * 0.5
                         )
 
                     else:
@@ -4983,12 +4851,10 @@ class SpectrogramMosaicCrop(SignalTransform):
                             else new_signal_desc.upper_frequency
                         )
                         new_signal_desc.bandwidth = (
-                            new_signal_desc.upper_frequency
-                            - new_signal_desc.lower_frequency
+                            new_signal_desc.upper_frequency - new_signal_desc.lower_frequency
                         )
                         new_signal_desc.center_frequency = (
-                            new_signal_desc.lower_frequency
-                            + new_signal_desc.bandwidth * 0.5
+                            new_signal_desc.lower_frequency + new_signal_desc.bandwidth * 0.5
                         )
 
                     # Append SignalDescription to list
@@ -5070,7 +4936,7 @@ class SpectrogramMosaicDownsample(SignalTransform):
         if isinstance(data, SignalData):
             assert data.iq_data is not None
             assert data.signal_description is not None
-            
+
             # Create new SignalData object for transformed data
             new_data = SignalData(
                 data=None,
@@ -5116,16 +4982,12 @@ class SpectrogramMosaicDownsample(SignalTransform):
                 if x_idx == 0:
                     new_signal_desc.start /= 2
                     new_signal_desc.stop /= 2
-                    new_signal_desc.duration = (
-                        new_signal_desc.stop - new_signal_desc.start
-                    )
+                    new_signal_desc.duration = new_signal_desc.stop - new_signal_desc.start
 
                 else:
                     new_signal_desc.start = new_signal_desc.start / 2 + 0.5
                     new_signal_desc.stop = new_signal_desc.stop / 2 + 0.5
-                    new_signal_desc.duration = (
-                        new_signal_desc.stop - new_signal_desc.start
-                    )
+                    new_signal_desc.duration = new_signal_desc.stop - new_signal_desc.start
 
                 # Update frequency fields
                 new_signal_desc.lower_frequency = (
@@ -5146,28 +5008,20 @@ class SpectrogramMosaicDownsample(SignalTransform):
                         new_signal_desc.upper_frequency + 0.5
                     ) / 2 - 0.5
                     new_signal_desc.bandwidth = (
-                        new_signal_desc.upper_frequency
-                        - new_signal_desc.lower_frequency
+                        new_signal_desc.upper_frequency - new_signal_desc.lower_frequency
                     )
                     new_signal_desc.center_frequency = (
-                        new_signal_desc.lower_frequency
-                        + new_signal_desc.bandwidth * 0.5
+                        new_signal_desc.lower_frequency + new_signal_desc.bandwidth * 0.5
                     )
 
                 else:
-                    new_signal_desc.lower_frequency = (
-                        new_signal_desc.lower_frequency + 0.5
-                    ) / 2
-                    new_signal_desc.upper_frequency = (
-                        new_signal_desc.upper_frequency + 0.5
-                    ) / 2
+                    new_signal_desc.lower_frequency = (new_signal_desc.lower_frequency + 0.5) / 2
+                    new_signal_desc.upper_frequency = (new_signal_desc.upper_frequency + 0.5) / 2
                     new_signal_desc.bandwidth = (
-                        new_signal_desc.upper_frequency
-                        - new_signal_desc.lower_frequency
+                        new_signal_desc.upper_frequency - new_signal_desc.lower_frequency
                     )
                     new_signal_desc.center_frequency = (
-                        new_signal_desc.lower_frequency
-                        + new_signal_desc.bandwidth * 0.5
+                        new_signal_desc.lower_frequency + new_signal_desc.bandwidth * 0.5
                     )
 
                 # Append SignalDescription to list
@@ -5205,16 +5059,12 @@ class SpectrogramMosaicDownsample(SignalTransform):
                     if x_idx == 0:
                         new_signal_desc.start /= 2
                         new_signal_desc.stop /= 2
-                        new_signal_desc.duration = (
-                            new_signal_desc.stop - new_signal_desc.start
-                        )
+                        new_signal_desc.duration = new_signal_desc.stop - new_signal_desc.start
 
                     else:
                         new_signal_desc.start = new_signal_desc.start / 2 + 0.5
                         new_signal_desc.stop = new_signal_desc.stop / 2 + 0.5
-                        new_signal_desc.duration = (
-                            new_signal_desc.stop - new_signal_desc.start
-                        )
+                        new_signal_desc.duration = new_signal_desc.stop - new_signal_desc.start
 
                     # Update frequency fields
                     new_signal_desc.lower_frequency = (
@@ -5235,12 +5085,10 @@ class SpectrogramMosaicDownsample(SignalTransform):
                             new_signal_desc.upper_frequency + 0.5
                         ) / 2 - 0.5
                         new_signal_desc.bandwidth = (
-                            new_signal_desc.upper_frequency
-                            - new_signal_desc.lower_frequency
+                            new_signal_desc.upper_frequency - new_signal_desc.lower_frequency
                         )
                         new_signal_desc.center_frequency = (
-                            new_signal_desc.lower_frequency
-                            + new_signal_desc.bandwidth * 0.5
+                            new_signal_desc.lower_frequency + new_signal_desc.bandwidth * 0.5
                         )
 
                     else:
@@ -5251,12 +5099,10 @@ class SpectrogramMosaicDownsample(SignalTransform):
                             new_signal_desc.upper_frequency + 0.5
                         ) / 2
                         new_signal_desc.bandwidth = (
-                            new_signal_desc.upper_frequency
-                            - new_signal_desc.lower_frequency
+                            new_signal_desc.upper_frequency - new_signal_desc.lower_frequency
                         )
                         new_signal_desc.center_frequency = (
-                            new_signal_desc.lower_frequency
-                            + new_signal_desc.bandwidth * 0.5
+                            new_signal_desc.lower_frequency + new_signal_desc.bandwidth * 0.5
                         )
 
                     # Append SignalDescription to list

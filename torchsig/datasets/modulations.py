@@ -1,24 +1,26 @@
+from typing import Callable, List, Optional
+
 import numpy as np
-from typing import Optional, Callable, List
 from torch.utils.data import ConcatDataset
+
 from torchsig.datasets.synthetic import DigitalModulationDataset, OFDMDataset
-from torchsig.transforms.target_transforms import (
-    DescToClassIndexSNR,
-    DescToClassIndex,
-    DescToClassNameSNR,
-    DescToClassName,
-)
 from torchsig.transforms import (
     Compose,
+    IQImbalance,
+    Normalize,
     RandomApply,
+    RandomFrequencyShift,
     RandomPhaseShift,
-    RayleighFadingChannel,
-    TargetSNR,
-    Normalize, 
     RandomResample,
     RandomTimeShift,
-    RandomFrequencyShift,
-    IQImbalance,
+    RayleighFadingChannel,
+    TargetSNR,
+)
+from torchsig.transforms.target_transforms import (
+    DescToClassIndex,
+    DescToClassIndexSNR,
+    DescToClassName,
+    DescToClassNameSNR,
 )
 
 
@@ -211,9 +213,7 @@ class ModulationsDataset(ConcatDataset):
                     RandomApply(RandomTimeShift((-32, 32)), 0.9),
                     RandomApply(RandomFrequencyShift((-0.16, 0.16)), 0.7),
                     RandomApply(
-                        RayleighFadingChannel(
-                            (0.05, 0.5), power_delay_profile=(1.0, 0.5, 0.1)
-                        ),
+                        RayleighFadingChannel((0.05, 0.5), power_delay_profile=(1.0, 0.5, 0.1)),
                         0.5,
                     ),
                     RandomApply(
@@ -277,9 +277,7 @@ class ModulationsDataset(ConcatDataset):
             )
 
         if num_digital > 0 and num_ofdm > 0:
-            super(ModulationsDataset, self).__init__(
-                [digital_dataset, ofdm_dataset], **kwargs
-            )
+            super(ModulationsDataset, self).__init__([digital_dataset, ofdm_dataset], **kwargs)
         elif num_digital > 0:
             super(ModulationsDataset, self).__init__([digital_dataset], **kwargs)
         elif num_ofdm > 0:

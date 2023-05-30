@@ -1,8 +1,9 @@
-import torch
-import numpy as np
-from torch import nn
-import torch.distributed as dist
 from typing import List, Optional
+
+import numpy as np
+import torch
+import torch.distributed as dist
+from torch import nn
 from torchvision.ops.boxes import box_area
 
 
@@ -127,9 +128,7 @@ def generalized_box_iou(boxes1, boxes2):
 
 def format_preds(preds):
     map_preds = []
-    for i, (det_logits, det_boxes) in enumerate(
-        zip(preds["pred_logits"], preds["pred_boxes"])
-    ):
+    for i, (det_logits, det_boxes) in enumerate(zip(preds["pred_logits"], preds["pred_boxes"])):
         boxes = []
         scores = []
         labels = []
