@@ -1,8 +1,10 @@
-import torch
-import numpy as np
 from copy import deepcopy
-from typing import Tuple, List, Optional, Callable, Any
-from torchsig.utils.types import SignalData, SignalCapture
+from typing import Any, Callable, List, Optional, Tuple, Union
+
+import numpy as np
+import torch
+
+from torchsig.utils.types import SignalCapture, SignalData
 
 
 class SignalDataset(torch.utils.data.Dataset):
@@ -22,13 +24,16 @@ class SignalDataset(torch.utils.data.Dataset):
         transform: Optional[Callable] = None,
         target_transform: Optional[Callable] = None,
         seed: Optional[int] = None,
-    ):
+    ) -> None:
         super(SignalDataset, self).__init__()
         self.random_generator = np.random.RandomState(seed)
         self.transform = transform
         self.target_transform = target_transform
 
-    def __getitem__(self, index: int) -> Tuple[SignalData, Any]:
+    def __getitem__(
+        self,
+        index: int,
+    ) -> Tuple[Union[SignalData, np.ndarray], Any]:
         raise NotImplementedError
 
     def __len__(self) -> int:
@@ -63,7 +68,7 @@ class SignalFileDataset(SignalDataset):
         indexer: Callable[[str], List[Tuple[Any, SignalCapture]]],
         reader: Callable[[SignalCapture], SignalData],
         index_filter: Optional[Callable[[Tuple[Any, SignalCapture]], bool]] = None,
-        **kwargs
+        **kwargs,
     ):
         super(SignalFileDataset, self).__init__(**kwargs)
         self.reader = reader
@@ -71,7 +76,7 @@ class SignalFileDataset(SignalDataset):
         if index_filter:
             self.index = list(filter(index_filter, self.index))
 
-    def __getitem__(self, item: int) -> Tuple[SignalData, Any]:
+    def __getitem__(self, item: int) -> Tuple[np.ndarray, Any]:  # type: ignore
         target = self.index[item][0]
         signal_data = self.reader(self.index[item][1])
 
@@ -81,7 +86,7 @@ class SignalFileDataset(SignalDataset):
         if self.target_transform:
             target = self.target_transform(target)
 
-        return signal_data.iq_data, target
+        return signal_data.iq_data, target  # type: ignore
 
     def __len__(self) -> int:
         return len(self.index)
@@ -110,13 +115,13 @@ class SignalTensorDataset(torch.utils.data.TensorDataset):
         transform: Optional[Callable] = None,
         target_transform: Optional[Callable] = None,
         *args,
-        **kwargs
+        **kwargs,
     ):
         super(SignalTensorDataset, self).__init__(*args, **kwargs)
         self.transform = transform
         self.target_transform = target_transform
 
-    def __getitem__(self, index: int) -> Tuple[SignalData, Any]:
+    def __getitem__(self, index: int) -> Tuple[SignalData, Any]:  # type: ignore
         # We assume that single-precision Tensors are provided we return
         # double-precision numpy arrays for usage in the transform pipeline.
         signal_data = SignalData(
@@ -134,4 +139,4 @@ class SignalTensorDataset(torch.utils.data.TensorDataset):
         if self.target_transform:
             target = self.target_transform(target)
 
-        return signal_data, target
+        return signal_data, target  # type: ignore

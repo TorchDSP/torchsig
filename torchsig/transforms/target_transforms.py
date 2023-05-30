@@ -1,10 +1,10 @@
-import torch
+from typing import Any, Dict, List, Optional, Tuple, Union
+
 import numpy as np
-from typing import Tuple, List, Any, Union, Optional
+import torch
 
-from torchsig.utils.types import SignalDescription
 from torchsig.transforms.transforms import Transform
-
+from torchsig.utils.types import SignalDescription
 
 __all__ = [
     "DescToClassName",
@@ -42,26 +42,27 @@ class DescToClassName(Transform):
 
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         super(DescToClassName, self).__init__()
 
     def __call__(
         self, signal_description: Union[List[SignalDescription], SignalDescription]
     ) -> Union[List[str], str]:
-        classes = []
+        classes: List[str] = []
         # Handle cases of both SignalDescriptions and lists of SignalDescriptions
-        signal_description = (
+        signal_description_list: List[SignalDescription] = (
             [signal_description]
             if isinstance(signal_description, SignalDescription)
             else signal_description
         )
-        for signal_desc_idx, signal_desc in enumerate(signal_description):
-            curr_class_name = (
-                signal_desc.class_name[0]
+        for signal_desc_idx, signal_desc in enumerate(signal_description_list):
+            curr_class_name: Optional[str] = (
+                signal_desc.class_name[0]  # type: ignore
                 if isinstance(signal_desc.class_name, list)
                 else signal_desc.class_name
             )
-            classes.append(curr_class_name)
+            if curr_class_name is not None:
+                classes.append(curr_class_name)  # type: ignore
         if len(classes) > 1:
             return classes
         elif len(classes) == 1:
@@ -77,23 +78,25 @@ class DescToClassNameSNR(Transform):
 
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         super(DescToClassNameSNR, self).__init__()
 
     def __call__(
         self, signal_description: Union[List[SignalDescription], SignalDescription]
     ) -> Union[Tuple[List[str], List[float]], Tuple[str, float]]:
-        classes = []
-        snrs = []
+        classes: List[str] = []
+        snrs: List[float] = []
         # Handle cases of both SignalDescriptions and lists of SignalDescriptions
-        signal_description = (
+        signal_description_list: List[SignalDescription] = (
             [signal_description]
             if isinstance(signal_description, SignalDescription)
             else signal_description
         )
-        for signal_desc_idx, signal_desc in enumerate(signal_description):
-            classes.append(signal_desc.class_name)
-            snrs.append(signal_desc.snr)
+        for signal_desc_idx, signal_desc in enumerate(signal_description_list):
+            if signal_desc.class_name is not None:
+                classes.append(signal_desc.class_name)  # type: ignore
+            if signal_desc.snr is not None:
+                snrs.append(signal_desc.snr)  # type: ignore
         if len(classes) > 1:
             return classes, snrs
         else:
@@ -113,23 +116,24 @@ class DescToClassIndex(Transform):
 
     """
 
-    def __init__(self, class_list: List[str] = None):
+    def __init__(self, class_list: List[str]) -> None:
         super(DescToClassIndex, self).__init__()
         self.class_list = class_list
 
     def __call__(
         self, signal_description: Union[List[SignalDescription], SignalDescription]
     ) -> Union[List[int], int]:
-        classes = []
+        classes: List[int] = []
         # Handle cases of both SignalDescriptions and lists of SignalDescriptions
-        signal_description = (
+        signal_description_list: List[SignalDescription] = (
             [signal_description]
             if isinstance(signal_description, SignalDescription)
             else signal_description
         )
-        for signal_desc_idx, signal_desc in enumerate(signal_description):
+        for signal_desc_idx, signal_desc in enumerate(signal_description_list):
             if signal_desc.class_name in self.class_list:
-                classes.append(self.class_list.index(signal_desc.class_name))
+                curr_class: str = signal_desc.class_name
+                classes.append(self.class_list.index(curr_class))
         if len(classes) > 1:
             return classes
         else:
@@ -149,22 +153,22 @@ class DescToClassIndexSNR(Transform):
 
     """
 
-    def __init__(self, class_list: List[str] = None):
+    def __init__(self, class_list: List[str]) -> None:
         super(DescToClassIndexSNR, self).__init__()
         self.class_list = class_list
 
     def __call__(
         self, signal_description: Union[List[SignalDescription], SignalDescription]
-    ) -> Union[Tuple[List[int], List[float]], Tuple[int, float]]:
+    ) -> Union[Tuple[List[int], List[Optional[float]]], Tuple[int, Optional[float]]]:
         classes = []
         snrs = []
         # Handle cases of both SignalDescriptions and lists of SignalDescriptions
-        signal_description = (
+        signal_description_list: List[SignalDescription] = (
             [signal_description]
             if isinstance(signal_description, SignalDescription)
             else signal_description
         )
-        for signal_desc_idx, signal_desc in enumerate(signal_description):
+        for signal_desc_idx, signal_desc in enumerate(signal_description_list):
             if signal_desc.class_name in self.class_list:
                 classes.append(self.class_list.index(signal_desc.class_name))
                 snrs.append(signal_desc.snr)
@@ -187,7 +191,7 @@ class DescToMask(Transform):
 
     """
 
-    def __init__(self, max_bursts: int, width: int, height: int):
+    def __init__(self, max_bursts: int, width: int, height: int) -> None:
         super(DescToMask, self).__init__()
         self.max_bursts = max_bursts
         self.width = width
@@ -197,14 +201,18 @@ class DescToMask(Transform):
         self, signal_description: Union[List[SignalDescription], SignalDescription]
     ) -> np.ndarray:
         # Handle cases of both SignalDescriptions and lists of SignalDescriptions
-        signal_description = (
+        signal_description_list: List[SignalDescription] = (
             [signal_description]
             if isinstance(signal_description, SignalDescription)
             else signal_description
         )
-        masks = np.zeros((self.max_bursts, self.height, self.width))
+        masks: np.ndarray = np.zeros((self.max_bursts, self.height, self.width))
         idx = 0
-        for signal_desc in signal_description:
+        for signal_desc in signal_description_list:
+            assert signal_desc.start is not None
+            assert signal_desc.stop is not None
+            assert signal_desc.lower_frequency is not None
+            assert signal_desc.upper_frequency is not None
             if signal_desc.lower_frequency < -0.5:
                 signal_desc.lower_frequency = -0.5
             if signal_desc.upper_frequency > 0.5:
@@ -218,9 +226,7 @@ class DescToMask(Transform):
                         (signal_desc.upper_frequency + 0.5) * self.height
                     )
                     + 1,
-                    int(signal_desc.start * self.width) : int(
-                        signal_desc.stop * self.width
-                    ),
+                    int(signal_desc.start * self.width) : int(signal_desc.stop * self.width),
                 ] = 1.0
             else:
                 masks[
@@ -228,9 +234,7 @@ class DescToMask(Transform):
                     int((signal_desc.lower_frequency + 0.5) * self.height) : int(
                         (signal_desc.upper_frequency + 0.5) * self.height
                     ),
-                    int(signal_desc.start * self.width) : int(
-                        signal_desc.stop * self.width
-                    ),
+                    int(signal_desc.start * self.width) : int(signal_desc.stop * self.width),
                 ] = 1.0
             idx += 1
         return masks
@@ -248,7 +252,7 @@ class DescToMaskSignal(Transform):
 
     """
 
-    def __init__(self, width: int, height: int):
+    def __init__(self, width: int, height: int) -> None:
         super(DescToMaskSignal, self).__init__()
         self.width = width
         self.height = height
@@ -257,13 +261,17 @@ class DescToMaskSignal(Transform):
         self, signal_description: Union[List[SignalDescription], SignalDescription]
     ) -> np.ndarray:
         # Handle cases of both SignalDescriptions and lists of SignalDescriptions
-        signal_description = (
+        signal_description_list: List[SignalDescription] = (
             [signal_description]
             if isinstance(signal_description, SignalDescription)
             else signal_description
         )
-        masks = np.zeros((self.height, self.width))
-        for signal_desc in signal_description:
+        masks: np.ndarray = np.zeros((self.height, self.width))
+        for signal_desc in signal_description_list:
+            assert signal_desc.start is not None
+            assert signal_desc.stop is not None
+            assert signal_desc.lower_frequency is not None
+            assert signal_desc.upper_frequency is not None
             if signal_desc.lower_frequency < -0.5:
                 signal_desc.lower_frequency = -0.5
             if signal_desc.upper_frequency > 0.5:
@@ -276,18 +284,14 @@ class DescToMaskSignal(Transform):
                         (signal_desc.upper_frequency + 0.5) * self.height
                     )
                     + 1,
-                    int(signal_desc.start * self.width) : int(
-                        signal_desc.stop * self.width
-                    ),
+                    int(signal_desc.start * self.width) : int(signal_desc.stop * self.width),
                 ] = 1.0
             else:
                 masks[
                     int((signal_desc.lower_frequency + 0.5) * self.height) : int(
                         (signal_desc.upper_frequency + 0.5) * self.height
                     ),
-                    int(signal_desc.start * self.width) : int(
-                        signal_desc.stop * self.width
-                    ),
+                    int(signal_desc.start * self.width) : int(signal_desc.stop * self.width),
                 ] = 1.0
         return masks
 
@@ -309,7 +313,7 @@ class DescToMaskFamily(Transform):
 
     """
 
-    class_family_dict = {
+    class_family_dict: Dict[str, str] = {
         "4ask": "ask",
         "8ask": "ask",
         "16ask": "ask",
@@ -369,18 +373,16 @@ class DescToMaskFamily(Transform):
         self,
         width: int,
         height: int,
-        class_family_dict: dict = None,
-        family_list: list = None,
+        class_family_dict: Optional[Dict[str, str]] = None,
+        family_list: Optional[List[str]] = None,
         label_encode: bool = False,
-    ):
+    ) -> None:
         super(DescToMaskFamily, self).__init__()
-        self.class_family_dict = (
+        self.class_family_dict: Dict[str, str] = (
             class_family_dict if class_family_dict else self.class_family_dict
         )
-        self.family_list = (
-            family_list
-            if family_list
-            else sorted(list(set(self.class_family_dict.values())))
+        self.family_list: List[str] = (
+            family_list if family_list else sorted(list(set(self.class_family_dict.values())))
         )
         self.width = width
         self.height = height
@@ -390,13 +392,18 @@ class DescToMaskFamily(Transform):
         self, signal_description: Union[List[SignalDescription], SignalDescription]
     ) -> np.ndarray:
         # Handle cases of both SignalDescriptions and lists of SignalDescriptions
-        signal_description = (
+        signal_description_list: List[SignalDescription] = (
             [signal_description]
             if isinstance(signal_description, SignalDescription)
             else signal_description
         )
-        masks = np.zeros((len(self.family_list), self.height, self.width))
-        for signal_desc in signal_description:
+        masks: np.ndarray = np.zeros((len(self.family_list), self.height, self.width))
+        for signal_desc in signal_description_list:
+            assert signal_desc.start is not None
+            assert signal_desc.stop is not None
+            assert signal_desc.lower_frequency is not None
+            assert signal_desc.upper_frequency is not None
+            assert signal_desc.class_name is not None
             if signal_desc.lower_frequency < -0.5:
                 signal_desc.lower_frequency = -0.5
             if signal_desc.upper_frequency > 0.5:
@@ -414,9 +421,7 @@ class DescToMaskFamily(Transform):
                         (signal_desc.upper_frequency + 0.5) * self.height
                     )
                     + 1,
-                    int(signal_desc.start * self.width) : int(
-                        signal_desc.stop * self.width
-                    ),
+                    int(signal_desc.start * self.width) : int(signal_desc.stop * self.width),
                 ] = 1.0
             else:
                 masks[
@@ -424,12 +429,10 @@ class DescToMaskFamily(Transform):
                     int((signal_desc.lower_frequency + 0.5) * self.height) : int(
                         (signal_desc.upper_frequency + 0.5) * self.height
                     ),
-                    int(signal_desc.start * self.width) : int(
-                        signal_desc.stop * self.width
-                    ),
+                    int(signal_desc.start * self.width) : int(signal_desc.stop * self.width),
                 ] = 1.0
         if self.label_encode:
-            background_mask = np.zeros((1, self.height, self.height))
+            background_mask: np.ndarray = np.zeros((1, self.height, self.height))
             masks = np.concatenate([background_mask, masks], axis=0)
             masks = np.argmax(masks, axis=0)
         return masks
@@ -449,7 +452,7 @@ class DescToMaskClass(Transform):
 
     """
 
-    def __init__(self, num_classes: int, width: int, height: int):
+    def __init__(self, num_classes: int, width: int, height: int) -> None:
         super(DescToMaskClass, self).__init__()
         self.num_classes = num_classes
         self.width = width
@@ -459,13 +462,17 @@ class DescToMaskClass(Transform):
         self, signal_description: Union[List[SignalDescription], SignalDescription]
     ) -> np.ndarray:
         # Handle cases of both SignalDescriptions and lists of SignalDescriptions
-        signal_description = (
+        signal_description_list: List[SignalDescription] = (
             [signal_description]
             if isinstance(signal_description, SignalDescription)
             else signal_description
         )
-        masks = np.zeros((self.num_classes, self.height, self.width))
-        for signal_desc in signal_description:
+        masks: np.ndarray = np.zeros((self.num_classes, self.height, self.width))
+        for signal_desc in signal_description_list:
+            assert signal_desc.start is not None
+            assert signal_desc.stop is not None
+            assert signal_desc.lower_frequency is not None
+            assert signal_desc.upper_frequency is not None
             if signal_desc.lower_frequency < -0.5:
                 signal_desc.lower_frequency = -0.5
             if signal_desc.upper_frequency > 0.5:
@@ -479,9 +486,7 @@ class DescToMaskClass(Transform):
                         (signal_desc.upper_frequency + 0.5) * self.height
                     )
                     + 1,
-                    int(signal_desc.start * self.width) : int(
-                        signal_desc.stop * self.width
-                    ),
+                    int(signal_desc.start * self.width) : int(signal_desc.stop * self.width),
                 ] = 1.0
             else:
                 masks[
@@ -489,9 +494,7 @@ class DescToMaskClass(Transform):
                     int((signal_desc.lower_frequency + 0.5) * self.height) : int(
                         (signal_desc.upper_frequency + 0.5) * self.height
                     ),
-                    int(signal_desc.start * self.width) : int(
-                        signal_desc.stop * self.width
-                    ),
+                    int(signal_desc.start * self.width) : int(signal_desc.stop * self.width),
                 ] = 1.0
         return masks
 
@@ -516,7 +519,7 @@ class DescToSemanticClass(Transform):
 
     """
 
-    def __init__(self, num_classes: int, width: int, height: int):
+    def __init__(self, num_classes: int, width: int, height: int) -> None:
         super(DescToSemanticClass, self).__init__()
         self.num_classes = num_classes
         self.width = width
@@ -526,14 +529,20 @@ class DescToSemanticClass(Transform):
         self, signal_description: Union[List[SignalDescription], SignalDescription]
     ) -> np.ndarray:
         # Handle cases of both SignalDescriptions and lists of SignalDescriptions
-        signal_description = (
+        signal_description_list: List[SignalDescription] = (
             [signal_description]
             if isinstance(signal_description, SignalDescription)
             else signal_description
         )
-        masks = np.zeros((self.height, self.width))
-        curr_snrs = np.ones((self.height, self.width)) * -np.inf
-        for signal_desc in signal_description:
+        masks: np.ndarray = np.zeros((self.height, self.width))
+        curr_snrs: np.ndarray = np.ones((self.height, self.width)) * -np.inf
+        for signal_desc in signal_description_list:
+            assert signal_desc.start is not None
+            assert signal_desc.stop is not None
+            assert signal_desc.lower_frequency is not None
+            assert signal_desc.upper_frequency is not None
+            assert signal_desc.snr is not None
+            assert signal_desc.class_index is not None
             # Normalize freq values to [0,1]
             if signal_desc.lower_frequency < -0.5:
                 signal_desc.lower_frequency = -0.5
@@ -541,14 +550,12 @@ class DescToSemanticClass(Transform):
                 signal_desc.upper_frequency = 0.5
 
             # Convert to pixels
-            height_start = max(
-                0, int((signal_desc.lower_frequency + 0.5) * self.height)
-            )
-            height_stop = min(
+            height_start: int = max(0, int((signal_desc.lower_frequency + 0.5) * self.height))
+            height_stop: int = min(
                 int((signal_desc.upper_frequency + 0.5) * self.height), self.height
             )
-            width_start = max(0, int(signal_desc.start * self.width))
-            width_stop = min(int(signal_desc.stop * self.width), self.width)
+            width_start: int = max(0, int(signal_desc.start * self.width))
+            width_stop: int = min(int(signal_desc.stop * self.width), self.width)
 
             # Account for signals with bandwidths < a pixel
             if height_start == height_stop:
@@ -560,16 +567,13 @@ class DescToSemanticClass(Transform):
                     # Check SNR against currently stored SNR at pixel
                     if signal_desc.snr >= curr_snrs[height_idx, width_idx]:
                         # If SNR >= currently stored class's SNR, update class & snr
-                        masks[
-                            height_start:height_stop,
-                            width_start:width_stop,
-                        ] = (
+                        masks[height_start:height_stop, width_start:width_stop,] = (
                             signal_desc.class_index + 1
                         )
                         curr_snrs[
                             height_start:height_stop,
                             width_start:width_stop,
-                        ] = signal_desc.snr_db
+                        ] = signal_desc.snr
         return masks
 
 
@@ -590,7 +594,7 @@ class DescToBBox(Transform):
 
     """
 
-    def __init__(self, grid_width: int, grid_height: int):
+    def __init__(self, grid_width: int, grid_height: int) -> None:
         super(DescToBBox, self).__init__()
         self.grid_width = grid_width
         self.grid_height = grid_height
@@ -599,13 +603,18 @@ class DescToBBox(Transform):
         self, signal_description: Union[List[SignalDescription], SignalDescription]
     ) -> np.ndarray:
         # Handle cases of both SignalDescriptions and lists of SignalDescriptions
-        signal_description = (
+        signal_description_list: List[SignalDescription] = (
             [signal_description]
             if isinstance(signal_description, SignalDescription)
             else signal_description
         )
-        boxes = np.zeros((self.grid_width, self.grid_height, 5))
-        for signal_desc in signal_description:
+        boxes: np.ndarray = np.zeros((self.grid_width, self.grid_height, 5))
+        for signal_desc in signal_description_list:
+            assert signal_desc.start is not None
+            assert signal_desc.stop is not None
+            assert signal_desc.duration is not None
+            assert signal_desc.lower_frequency is not None
+            assert signal_desc.upper_frequency is not None
             # Time conversions
             if signal_desc.start >= 1.0:
                 # Burst starts outside of window of capture
@@ -613,9 +622,9 @@ class DescToBBox(Transform):
             elif signal_desc.start + signal_desc.duration * 0.5 >= 1.0:
                 # Center is outside grid cell; re-center to truncated burst
                 signal_desc.duration = 1 - signal_desc.start
-            x = (signal_desc.start + signal_desc.duration * 0.5) * self.grid_width
-            time_cell = int(np.floor(x))
-            center_time = x - time_cell
+            x: float = (signal_desc.start + signal_desc.duration * 0.5) * self.grid_width
+            time_cell: int = int(np.floor(x))
+            center_time: float = x - time_cell
 
             # Freq conversions
             if signal_desc.lower_frequency > 0.5 or signal_desc.upper_frequency < -0.5:
@@ -625,15 +634,11 @@ class DescToBBox(Transform):
                 signal_desc.lower_frequency = -0.5
             if signal_desc.upper_frequency > 0.5:
                 signal_desc.upper_frequency = 0.5
-            signal_desc.bandwidth = (
-                signal_desc.upper_frequency - signal_desc.lower_frequency
-            )
-            signal_desc.center_frequency = (
-                signal_desc.lower_frequency + signal_desc.bandwidth / 2
-            )
-            y = (signal_desc.center_frequency + 0.5) * self.grid_height
-            freq_cell = int(np.floor(y))
-            center_freq = y - freq_cell
+            signal_desc.bandwidth = signal_desc.upper_frequency - signal_desc.lower_frequency
+            signal_desc.center_frequency = signal_desc.lower_frequency + signal_desc.bandwidth / 2
+            y: float = (signal_desc.center_frequency + 0.5) * self.grid_height
+            freq_cell: int = int(np.floor(y))
+            center_freq: float = y - freq_cell
 
             if time_cell >= self.grid_width:
                 print("Error: time_cell idx is greater than grid_width")
@@ -679,59 +684,80 @@ class DescToAnchorBoxes(Transform):
 
     """
 
-    def __init__(self, grid_width: int, grid_height: int, anchor_boxes: List):
+    def __init__(
+        self,
+        grid_width: int,
+        grid_height: int,
+        anchor_boxes: List[Tuple[float, float]],
+    ) -> None:
         super(DescToAnchorBoxes, self).__init__()
         self.grid_width = grid_width
         self.grid_height = grid_height
         self.anchor_boxes = anchor_boxes
-        self.num_anchor_boxes = len(anchor_boxes)
+        self.num_anchor_boxes: int = len(anchor_boxes)
 
-    # IoU function
     def iou(
-        self, start_a, dur_a, center_freq_a, bw_a, start_b, dur_b, center_freq_b, bw_b
-    ):
-        # Convert to start/stops
-        x_start_a = start_a
-        x_stop_a = start_a + dur_a
-        y_start_a = center_freq_a - bw_a / 2
-        y_stop_a = center_freq_a + bw_a / 2
+        self,
+        start_a: float,
+        dur_a: float,
+        center_freq_a: float,
+        bw_a: float,
+        start_b: float,
+        dur_b: float,
+        center_freq_b: float,
+        bw_b: float,
+    ) -> float:
+        """
+        Method to compute the intersection over union (IoU)
 
-        x_start_b = start_b
-        x_stop_b = start_b + dur_b
-        y_start_b = center_freq_b - bw_b / 2
-        y_stop_b = center_freq_b + bw_b / 2
+        """
+        # Convert to start/stops
+        x_start_a: float = start_a
+        x_stop_a: float = start_a + dur_a
+        y_start_a: float = center_freq_a - bw_a / 2
+        y_stop_a: float = center_freq_a + bw_a / 2
+
+        x_start_b: float = start_b
+        x_stop_b: float = start_b + dur_b
+        y_start_b: float = center_freq_b - bw_b / 2
+        y_stop_b: float = center_freq_b + bw_b / 2
 
         # Determine the (x, y)-coordinates of the intersection
-        x_start_int = max(x_start_a, x_start_b)
-        y_start_int = max(y_start_a, y_start_b)
-        x_stop_int = min(x_stop_a, x_stop_b)
-        y_stop_int = min(y_stop_a, y_stop_b)
+        x_start_int: float = max(x_start_a, x_start_b)
+        y_start_int: float = max(y_start_a, y_start_b)
+        x_stop_int: float = min(x_stop_a, x_stop_b)
+        y_stop_int: float = min(y_stop_a, y_stop_b)
 
         # Compute the area of intersection
-        inter_area = abs(
+        inter_area: float = abs(
             max((x_stop_int - x_start_int, 0)) * max((y_stop_int - y_start_int), 0)
         )
         if inter_area == 0:
             return 0
         # Compute the area of both the prediction and ground-truth
-        area_a = abs((x_stop_a - x_start_a) * (y_stop_a - y_start_a))
-        area_b = abs((x_stop_b - x_start_b) * (y_stop_b - y_start_b))
+        area_a: float = abs((x_stop_a - x_start_a) * (y_stop_a - y_start_a))
+        area_b: float = abs((x_stop_b - x_start_b) * (y_stop_b - y_start_b))
 
         # Compute the intersection over union
-        iou = inter_area / float(area_a + area_b - inter_area)
+        iou: float = inter_area / float(area_a + area_b - inter_area)
         return iou
 
     def __call__(
         self, signal_description: Union[List[SignalDescription], SignalDescription]
     ) -> np.ndarray:
         # Handle cases of both SignalDescriptions and lists of SignalDescriptions
-        signal_description = (
+        signal_description_list: List[SignalDescription] = (
             [signal_description]
             if isinstance(signal_description, SignalDescription)
             else signal_description
         )
-        boxes = np.zeros((self.grid_width, self.grid_height, 5 * self.num_anchor_boxes))
-        for signal_desc in signal_description:
+        boxes: np.ndarray = np.zeros((self.grid_width, self.grid_height, 5 * self.num_anchor_boxes))
+        for signal_desc in signal_description_list:
+            assert signal_desc.start is not None
+            assert signal_desc.duration is not None
+            assert signal_desc.center_frequency is not None
+            assert signal_desc.bandwidth is not None
+            assert signal_desc.duration is not None
             # Time conversions
             if signal_desc.start > 1.0:
                 # Error handling (TODO: should fix within dataset)
@@ -739,14 +765,14 @@ class DescToAnchorBoxes(Transform):
             elif signal_desc.start + signal_desc.duration * 0.5 > 1.0:
                 # Center is outside grid cell; re-center to truncated burst
                 signal_desc.duration = 1 - signal_desc.start
-            x = (signal_desc.start + signal_desc.duration * 0.5) * self.grid_width
-            time_cell = int(np.floor(x))
-            center_time = x - time_cell
+            x: float = (signal_desc.start + signal_desc.duration * 0.5) * self.grid_width
+            time_cell: int = int(np.floor(x))
+            center_time: float = x - time_cell
 
             # Freq conversions
-            y = (signal_desc.center_frequency + 0.5) * self.grid_height
-            freq_cell = int(np.floor(y))
-            center_freq = y - freq_cell
+            y: float = (signal_desc.center_frequency + 0.5) * self.grid_height
+            freq_cell: int = int(np.floor(y))
+            center_freq: float = y - freq_cell
 
             # Debugging messages for potential errors
             if time_cell > self.grid_width:
@@ -762,22 +788,20 @@ class DescToAnchorBoxes(Transform):
                 print("y: {}".format(y))
 
             # Determine which anchor box to associate burst with
-            best_iou_score = -1
-            best_iou_idx = 0
-            best_anchor_duration = 0
-            best_anchor_bw = 0
+            best_iou_score: float = -1
+            best_iou_idx: int = 0
+            best_anchor_duration: float = 0
+            best_anchor_bw: float = 0
             for anchor_idx, anchor_box in enumerate(self.anchor_boxes):
                 # anchor_start = ((time_cell+0.5) / self.grid_width) - (anchor_box[0]*0.5) # Anchor centered on cell
-                anchor_start = (
+                anchor_start: float = (
                     signal_desc.start + 0.5 * signal_desc.duration - anchor_box[0] * 0.5
                 )  # Anchor overlaid on burst
-                anchor_duration = anchor_box[0]
+                anchor_duration: float = anchor_box[0]
                 # anchor_center_freq = (freq_cell+0.5) / self.grid_height # Anchor centered on cell
-                anchor_center_freq = (
-                    signal_desc.center_frequency
-                )  # Anchor overlaid on burst
-                anchor_bw = anchor_box[1]
-                iou_score = self.iou(
+                anchor_center_freq: float = signal_desc.center_frequency  # Anchor overlaid on burst
+                anchor_bw: float = anchor_box[1]
+                iou_score: float = self.iou(
                     signal_desc.start,
                     signal_desc.duration,
                     signal_desc.center_frequency,
@@ -825,7 +849,7 @@ class DescPassThrough(Transform):
 
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         super(DescPassThrough, self).__init__()
 
     def __call__(
@@ -843,7 +867,7 @@ class DescToBinary(Transform):
 
     """
 
-    def __init__(self, label: int):
+    def __init__(self, label: int) -> None:
         super(DescToBinary, self).__init__()
         self.label = label
 
@@ -862,7 +886,7 @@ class DescToCustom(Transform):
 
     """
 
-    def __init__(self, label: Any):
+    def __init__(self, label: Any) -> None:
         super(DescToCustom, self).__init__()
         self.label = label
 
@@ -893,25 +917,33 @@ class DescToClassEncoding(Transform):
         self,
         class_list: Optional[List[str]] = None,
         num_classes: Optional[int] = None,
-    ) -> np.ndarray:
+    ) -> None:
         super(DescToClassEncoding, self).__init__()
         self.class_list = class_list
-        self.num_classes = num_classes if num_classes else len(class_list)
+        self.num_classes: int = 0
+        if num_classes:
+            self.num_classes = num_classes
+        elif class_list:
+            self.num_classes = len(class_list)
+        else:
+            raise ValueError("class_list or num_classes must be provided")
 
     def __call__(
         self, signal_description: Union[List[SignalDescription], SignalDescription]
     ) -> np.ndarray:
         # Handle cases of both SignalDescriptions and lists of SignalDescriptions
-        signal_description = (
+        signal_description_list: List[SignalDescription] = (
             [signal_description]
             if isinstance(signal_description, SignalDescription)
             else signal_description
         )
-        encoding = np.zeros((self.num_classes,))
-        for signal_desc in signal_description:
+        encoding: np.ndarray = np.zeros((self.num_classes,))
+        for signal_desc in signal_description_list:
             if self.class_list:
+                assert signal_desc.class_name is not None
                 encoding[self.class_list.index(signal_desc.class_name)] = 1.0
             else:
+                assert signal_desc.class_index is not None
                 encoding[signal_desc.class_index] = 1.0
         return encoding
 
@@ -928,8 +960,8 @@ class DescToWeightedMixUp(Transform):
 
     def __init__(
         self,
-        class_list: List[str] = None,
-    ) -> np.ndarray:
+        class_list: List[str],
+    ) -> None:
         super(DescToWeightedMixUp, self).__init__()
         self.class_list = class_list
         self.num_classes = len(class_list)
@@ -938,14 +970,16 @@ class DescToWeightedMixUp(Transform):
         self, signal_description: Union[List[SignalDescription], SignalDescription]
     ) -> np.ndarray:
         # Handle cases of both SignalDescriptions and lists of SignalDescriptions
-        signal_description = (
+        signal_description_list: List[SignalDescription] = (
             [signal_description]
             if isinstance(signal_description, SignalDescription)
             else signal_description
         )
-        encoding = np.zeros((self.num_classes,))
+        encoding: np.ndarray = np.zeros((self.num_classes,))
         # Instead of a binary value for the encoding, set it to the SNR
-        for signal_desc in signal_description:
+        for signal_desc in signal_description_list:
+            assert signal_desc.class_name is not None
+            assert signal_desc.snr is not None
             encoding[self.class_list.index(signal_desc.class_name)] += signal_desc.snr
         # Next, normalize to the total of all SNR values
         encoding = encoding / np.sum(encoding)
@@ -964,8 +998,8 @@ class DescToWeightedCutMix(Transform):
 
     def __init__(
         self,
-        class_list: List[str] = None,
-    ) -> np.ndarray:
+        class_list: List[str],
+    ) -> None:
         super(DescToWeightedCutMix, self).__init__()
         self.class_list = class_list
         self.num_classes = len(class_list)
@@ -974,17 +1008,17 @@ class DescToWeightedCutMix(Transform):
         self, signal_description: Union[List[SignalDescription], SignalDescription]
     ) -> np.ndarray:
         # Handle cases of both SignalDescriptions and lists of SignalDescriptions
-        signal_description = (
+        signal_description_list: List[SignalDescription] = (
             [signal_description]
             if isinstance(signal_description, SignalDescription)
             else signal_description
         )
-        encoding = np.zeros((self.num_classes,))
+        encoding: np.ndarray = np.zeros((self.num_classes,))
         # Instead of a binary value for the encoding, set it to the cumulative duration
-        for signal_desc in signal_description:
-            encoding[
-                self.class_list.index(signal_desc.class_name)
-            ] += signal_desc.duration
+        for signal_desc in signal_description_list:
+            assert signal_desc.class_name is not None
+            assert signal_desc.duration is not None
+            encoding[self.class_list.index(signal_desc.class_name)] += signal_desc.duration
         # Normalize on total signals durations
         encoding = encoding / np.sum(encoding)
         return encoding
@@ -1001,24 +1035,29 @@ class DescToBBoxDict(Transform):
 
     """
 
-    def __init__(self, class_list):
+    def __init__(self, class_list: List[str]) -> None:
         super(DescToBBoxDict, self).__init__()
         self.class_list = class_list
 
     def __call__(
         self, signal_description: Union[List[SignalDescription], SignalDescription]
-    ) -> np.ndarray:
-        signal_description = (
+    ) -> Dict[str, torch.Tensor]:
+        signal_description_list: List[SignalDescription] = (
             [signal_description]
             if isinstance(signal_description, SignalDescription)
             else signal_description
         )
-        labels = []
-        boxes = np.empty((len(signal_description), 4))
-        for signal_desc_idx, signal_desc in enumerate(signal_description):
+        labels: List[int] = []
+        boxes: np.ndarray = np.empty((len(signal_description_list), 4))
+        for signal_desc_idx, signal_desc in enumerate(signal_description_list):
+            assert signal_desc.start is not None
+            assert signal_desc.stop is not None
+            assert signal_desc.lower_frequency is not None
+            assert signal_desc.upper_frequency is not None
+            assert signal_desc.class_name is not None
             # xcycwh
-            duration = signal_desc.stop - signal_desc.start
-            bandwidth = signal_desc.upper_frequency - signal_desc.lower_frequency
+            duration: float = signal_desc.stop - signal_desc.start
+            bandwidth: float = signal_desc.upper_frequency - signal_desc.lower_frequency
             boxes[signal_desc_idx] = np.array(
                 [
                     signal_desc.start + 0.5 * duration,
@@ -1029,7 +1068,10 @@ class DescToBBoxDict(Transform):
             )[0]
             labels.append(self.class_list.index(signal_desc.class_name))
 
-        targets = {"labels": torch.Tensor(labels).long(), "boxes": torch.Tensor(boxes)}
+        targets: Dict[str, torch.Tensor] = {
+            "labels": torch.Tensor(labels).long(),
+            "boxes": torch.Tensor(boxes),
+        }
         return targets
 
 
@@ -1042,24 +1084,28 @@ class DescToBBoxSignalDict(Transform):
 
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         super(DescToBBoxSignalDict, self).__init__()
-        self.class_list = ["signal"]
+        self.class_list: List[str] = ["signal"]
 
     def __call__(
         self, signal_description: Union[List[SignalDescription], SignalDescription]
-    ) -> np.ndarray:
-        signal_description = (
+    ) -> Dict[str, torch.Tensor]:
+        signal_description_list: List[SignalDescription] = (
             [signal_description]
             if isinstance(signal_description, SignalDescription)
             else signal_description
         )
-        labels = []
-        boxes = np.empty((len(signal_description), 4))
-        for signal_desc_idx, signal_desc in enumerate(signal_description):
+        labels: List[int] = []
+        boxes: np.ndarray = np.empty((len(signal_description_list), 4))
+        for signal_desc_idx, signal_desc in enumerate(signal_description_list):
+            assert signal_desc.start is not None
+            assert signal_desc.stop is not None
+            assert signal_desc.lower_frequency is not None
+            assert signal_desc.upper_frequency is not None
             # xcycwh
-            duration = signal_desc.stop - signal_desc.start
-            bandwidth = signal_desc.upper_frequency - signal_desc.lower_frequency
+            duration: float = signal_desc.stop - signal_desc.start
+            bandwidth: float = signal_desc.upper_frequency - signal_desc.lower_frequency
             boxes[signal_desc_idx] = np.array(
                 [
                     signal_desc.start + 0.5 * duration,
@@ -1070,7 +1116,10 @@ class DescToBBoxSignalDict(Transform):
             )[0]
             labels.append(self.class_list.index(self.class_list[0]))
 
-        targets = {"labels": torch.Tensor(labels).long(), "boxes": torch.Tensor(boxes)}
+        targets: Dict[str, torch.Tensor] = {
+            "labels": torch.Tensor(labels).long(),
+            "boxes": torch.Tensor(boxes),
+        }
         return targets
 
 
@@ -1087,7 +1136,7 @@ class DescToBBoxFamilyDict(Transform):
 
     """
 
-    class_family_dict = {
+    class_family_dict: Dict[str, str] = {
         "4ask": "ask",
         "8ask": "ask",
         "16ask": "ask",
@@ -1143,31 +1192,38 @@ class DescToBBoxFamilyDict(Transform):
         "ofdm-2048": "ofdm",
     }
 
-    def __init__(self, class_family_dict: dict = None, family_list: list = None):
+    def __init__(
+        self,
+        class_family_dict: Optional[Dict[str, str]] = None,
+        family_list: Optional[List[str]] = None,
+    ) -> None:
         super(DescToBBoxFamilyDict, self).__init__()
-        self.class_family_dict = (
+        self.class_family_dict: Dict[str, str] = (
             class_family_dict if class_family_dict else self.class_family_dict
         )
-        self.family_list = (
-            family_list
-            if family_list
-            else sorted(list(set(self.class_family_dict.values())))
+        self.family_list: List[str] = (
+            family_list if family_list else sorted(list(set(self.class_family_dict.values())))
         )
 
     def __call__(
         self, signal_description: Union[List[SignalDescription], SignalDescription]
-    ) -> np.ndarray:
-        signal_description = (
+    ) -> Dict[str, torch.Tensor]:
+        signal_description_list: List[SignalDescription] = (
             [signal_description]
             if isinstance(signal_description, SignalDescription)
             else signal_description
         )
-        labels = []
-        boxes = np.empty((len(signal_description), 4))
-        for signal_desc_idx, signal_desc in enumerate(signal_description):
+        labels: List[int] = []
+        boxes: np.ndarray = np.empty((len(signal_description_list), 4))
+        for signal_desc_idx, signal_desc in enumerate(signal_description_list):
+            assert signal_desc.start is not None
+            assert signal_desc.stop is not None
+            assert signal_desc.lower_frequency is not None
+            assert signal_desc.upper_frequency is not None
+            assert signal_desc.class_name is not None
             # xcycwh
-            duration = signal_desc.stop - signal_desc.start
-            bandwidth = signal_desc.upper_frequency - signal_desc.lower_frequency
+            duration: float = signal_desc.stop - signal_desc.start
+            bandwidth: float = signal_desc.upper_frequency - signal_desc.lower_frequency
             boxes[signal_desc_idx] = np.array(
                 [
                     signal_desc.start + 0.5 * duration,
@@ -1178,10 +1234,13 @@ class DescToBBoxFamilyDict(Transform):
             )
             if isinstance(signal_desc.class_name, list):
                 signal_desc.class_name = signal_desc.class_name[0]
-            family_name = self.class_family_dict[signal_desc.class_name]
+            family_name: str = self.class_family_dict[signal_desc.class_name]
             labels.append(self.family_list.index(family_name))
 
-        targets = {"labels": torch.Tensor(labels).long(), "boxes": torch.Tensor(boxes)}
+        targets: Dict[str, torch.Tensor] = {
+            "labels": torch.Tensor(labels).long(),
+            "boxes": torch.Tensor(boxes),
+        }
         return targets
 
 
@@ -1202,10 +1261,10 @@ class DescToInstMaskDict(Transform):
 
     def __init__(
         self,
-        class_list: List = [],
+        class_list: List[str],
         width: int = 512,
         height: int = 512,
-    ):
+    ) -> None:
         super(DescToInstMaskDict, self).__init__()
         self.class_list = class_list
         self.width = width
@@ -1213,16 +1272,21 @@ class DescToInstMaskDict(Transform):
 
     def __call__(
         self, signal_description: Union[List[SignalDescription], SignalDescription]
-    ) -> np.ndarray:
-        signal_description = (
+    ) -> Dict[str, torch.Tensor]:
+        signal_description_list: List[SignalDescription] = (
             [signal_description]
             if isinstance(signal_description, SignalDescription)
             else signal_description
         )
-        num_objects = len(signal_description)
-        labels = []
-        masks = np.zeros((num_objects, self.height, self.width))
-        for signal_desc_idx, signal_desc in enumerate(signal_description):
+        num_objects: int = len(signal_description_list)
+        labels: List[int] = []
+        masks: np.ndarray = np.zeros((num_objects, self.height, self.width))
+        for signal_desc_idx, signal_desc in enumerate(signal_description_list):
+            assert signal_desc.start is not None
+            assert signal_desc.stop is not None
+            assert signal_desc.lower_frequency is not None
+            assert signal_desc.upper_frequency is not None
+            assert signal_desc.class_name is not None
             labels.append(self.class_list.index(signal_desc.class_name))
             if signal_desc.lower_frequency < -0.5:
                 signal_desc.lower_frequency = -0.5
@@ -1237,9 +1301,7 @@ class DescToInstMaskDict(Transform):
                         (signal_desc.upper_frequency + 0.5) * self.height
                     )
                     + 1,
-                    int(signal_desc.start * self.width) : int(
-                        signal_desc.stop * self.width
-                    ),
+                    int(signal_desc.start * self.width) : int(signal_desc.stop * self.width),
                 ] = 1.0
             else:
                 masks[
@@ -1247,12 +1309,10 @@ class DescToInstMaskDict(Transform):
                     int((signal_desc.lower_frequency + 0.5) * self.height) : int(
                         (signal_desc.upper_frequency + 0.5) * self.height
                     ),
-                    int(signal_desc.start * self.width) : int(
-                        signal_desc.stop * self.width
-                    ),
+                    int(signal_desc.start * self.width) : int(signal_desc.stop * self.width),
                 ] = 1.0
 
-        targets = {
+        targets: Dict[str, torch.Tensor] = {
             "labels": torch.Tensor(labels).long(),
             "masks": torch.Tensor(masks.astype(bool)),
         }
@@ -1275,23 +1335,27 @@ class DescToSignalInstMaskDict(Transform):
         self,
         width: int = 512,
         height: int = 512,
-    ):
+    ) -> None:
         super(DescToSignalInstMaskDict, self).__init__()
         self.width = width
         self.height = height
 
     def __call__(
         self, signal_description: Union[List[SignalDescription], SignalDescription]
-    ) -> np.ndarray:
-        signal_description = (
+    ) -> Dict[str, torch.Tensor]:
+        signal_description_list: List[SignalDescription] = (
             [signal_description]
             if isinstance(signal_description, SignalDescription)
             else signal_description
         )
-        num_objects = len(signal_description)
-        labels = []
-        masks = np.zeros((num_objects, self.height, self.width))
-        for signal_desc_idx, signal_desc in enumerate(signal_description):
+        num_objects: int = len(signal_description_list)
+        labels: List[int] = []
+        masks: np.ndarray = np.zeros((num_objects, self.height, self.width))
+        for signal_desc_idx, signal_desc in enumerate(signal_description_list):
+            assert signal_desc.start is not None
+            assert signal_desc.stop is not None
+            assert signal_desc.lower_frequency is not None
+            assert signal_desc.upper_frequency is not None
             labels.append(0)
             if signal_desc.lower_frequency < -0.5:
                 signal_desc.lower_frequency = -0.5
@@ -1306,9 +1370,7 @@ class DescToSignalInstMaskDict(Transform):
                         (signal_desc.upper_frequency + 0.5) * self.height
                     )
                     + 1,
-                    int(signal_desc.start * self.width) : int(
-                        signal_desc.stop * self.width
-                    ),
+                    int(signal_desc.start * self.width) : int(signal_desc.stop * self.width),
                 ] = 1.0
             else:
                 masks[
@@ -1316,12 +1378,10 @@ class DescToSignalInstMaskDict(Transform):
                     int((signal_desc.lower_frequency + 0.5) * self.height) : int(
                         (signal_desc.upper_frequency + 0.5) * self.height
                     ),
-                    int(signal_desc.start * self.width) : int(
-                        signal_desc.stop * self.width
-                    ),
+                    int(signal_desc.start * self.width) : int(signal_desc.stop * self.width),
                 ] = 1.0
 
-        targets = {
+        targets: Dict[str, torch.Tensor] = {
             "labels": torch.Tensor(labels).long(),
             "masks": torch.Tensor(masks.astype(bool)),
         }
@@ -1347,7 +1407,7 @@ class DescToSignalFamilyInstMaskDict(Transform):
 
     """
 
-    class_family_dict = {
+    class_family_dict: Dict[str, str] = {
         "4ask": "ask",
         "8ask": "ask",
         "16ask": "ask",
@@ -1407,35 +1467,39 @@ class DescToSignalFamilyInstMaskDict(Transform):
         self,
         width: int,
         height: int,
-        class_family_dict: dict = None,
-        family_list: list = None,
-    ):
+        class_family_dict: Optional[Dict[str, str]] = None,
+        family_list: Optional[List[str]] = None,
+    ) -> None:
         super(DescToSignalFamilyInstMaskDict, self).__init__()
-        self.class_family_dict = (
+        self.class_family_dict: Dict[str, str] = (
             class_family_dict if class_family_dict else self.class_family_dict
         )
-        self.family_list = (
-            family_list
-            if family_list
-            else sorted(list(set(self.class_family_dict.values())))
+        self.family_list: List[str] = (
+            family_list if family_list else sorted(list(set(self.class_family_dict.values())))
         )
         self.width = width
         self.height = height
 
     def __call__(
         self, signal_description: Union[List[SignalDescription], SignalDescription]
-    ) -> np.ndarray:
-        signal_description = (
+    ) -> Dict[str, torch.Tensor]:
+        signal_description_list: List[SignalDescription] = (
             [signal_description]
             if isinstance(signal_description, SignalDescription)
             else signal_description
         )
-        num_objects = len(signal_description)
-        labels = []
-        masks = np.zeros((num_objects, self.height, self.width))
-        for signal_desc_idx, signal_desc in enumerate(signal_description):
-            family_name = self.class_family_dict[signal_desc.class_name]
-            family_idx = self.family_list.index(family_name)
+        num_objects: int = len(signal_description_list)
+        labels: List[int] = []
+        masks: np.ndarray = np.zeros((num_objects, self.height, self.width))
+        for signal_desc_idx, signal_desc in enumerate(signal_description_list):
+            assert signal_desc.start is not None
+            assert signal_desc.stop is not None
+            assert signal_desc.lower_frequency is not None
+            assert signal_desc.upper_frequency is not None
+            assert signal_desc.class_name is not None
+
+            family_name: str = self.class_family_dict[signal_desc.class_name]
+            family_idx: int = self.family_list.index(family_name)
             labels.append(family_idx)
             if signal_desc.lower_frequency < -0.5:
                 signal_desc.lower_frequency = -0.5
@@ -1450,9 +1514,7 @@ class DescToSignalFamilyInstMaskDict(Transform):
                         (signal_desc.upper_frequency + 0.5) * self.height
                     )
                     + 1,
-                    int(signal_desc.start * self.width) : int(
-                        signal_desc.stop * self.width
-                    ),
+                    int(signal_desc.start * self.width) : int(signal_desc.stop * self.width),
                 ] = 1.0
             else:
                 masks[
@@ -1460,12 +1522,10 @@ class DescToSignalFamilyInstMaskDict(Transform):
                     int((signal_desc.lower_frequency + 0.5) * self.height) : int(
                         (signal_desc.upper_frequency + 0.5) * self.height
                     ),
-                    int(signal_desc.start * self.width) : int(
-                        signal_desc.stop * self.width
-                    ),
+                    int(signal_desc.start * self.width) : int(signal_desc.stop * self.width),
                 ] = 1.0
 
-        targets = {
+        targets: Dict[str, torch.Tensor] = {
             "labels": torch.Tensor(labels).long(),
             "masks": torch.Tensor(masks.astype(bool)),
         }
@@ -1483,23 +1543,29 @@ class DescToListTuple(Transform):
 
     """
 
-    def __init__(self, precision: np.dtype = np.dtype(np.float16)):
+    def __init__(self, precision: np.dtype = np.dtype(np.float16)) -> None:
         super(DescToListTuple, self).__init__()
         self.precision = precision
 
     def __call__(
         self, signal_description: Union[List[SignalDescription], SignalDescription]
-    ) -> Union[List[str], str]:
-        output = []
+    ) -> List[Tuple[str, float, float, float, float, float]]:
+        output: List[Tuple[str, float, float, float, float, float]] = []
         # Handle cases of both SignalDescriptions and lists of SignalDescriptions
-        signal_description = (
+        signal_description_list: List[SignalDescription] = (
             [signal_description]
             if isinstance(signal_description, SignalDescription)
             else signal_description
         )
         # Loop through SignalDescription's, converting values of interest to tuples
-        for signal_desc_idx, signal_desc in enumerate(signal_description):
-            curr_tuple = (
+        for signal_desc_idx, signal_desc in enumerate(signal_description_list):
+            assert signal_desc.start is not None
+            assert signal_desc.stop is not None
+            assert signal_desc.center_frequency is not None
+            assert signal_desc.bandwidth is not None
+            assert signal_desc.snr is not None
+            assert signal_desc.class_name is not None
+            curr_tuple: Tuple[str, float, float, float, float, float] = (
                 signal_desc.class_name[0],
                 self.precision.type(signal_desc.start),
                 self.precision.type(signal_desc.stop),
@@ -1531,36 +1597,39 @@ class ListTupleToDesc(Transform):
 
     def __init__(
         self,
-        sample_rate: Optional[float] = 1.0,
-        num_iq_samples: Optional[int] = int(512 * 512),
-        class_list: Optional[List] = None,
-    ):
+        sample_rate: Optional[float] = None,
+        num_iq_samples: Optional[int] = None,
+        class_list: Optional[List[str]] = None,
+    ) -> None:
         super(ListTupleToDesc, self).__init__()
         self.sample_rate = sample_rate
         self.num_iq_samples = num_iq_samples
         self.class_list = class_list
 
-    def __call__(self, list_tuple: List[Tuple]) -> List[SignalDescription]:
-        output = []
+    def __call__(
+        self,
+        list_tuple: List[Tuple[str, float, float, float, float, float]],
+    ) -> List[SignalDescription]:
+        output: List[SignalDescription] = []
         # Loop through SignalDescription's, converting values of interest to tuples
         for tuple_idx, curr_tuple in enumerate(list_tuple):
-            curr_tuple = tuple(
+            processed_curr_tuple: Tuple[Any, ...] = tuple(
                 [l.numpy() if isinstance(l, torch.Tensor) else l for l in curr_tuple]
             )
-            curr_signal_desc = SignalDescription(
+            curr_signal_desc: SignalDescription = SignalDescription(
                 sample_rate=self.sample_rate,
                 num_iq_samples=self.num_iq_samples,
-                class_name=curr_tuple[0],
-                class_index=self.class_list.index(curr_tuple[0])
+                class_name=processed_curr_tuple[0],
+                class_index=self.class_list.index(processed_curr_tuple[0])
                 if self.class_list
                 else None,
-                start=curr_tuple[1],
-                stop=curr_tuple[2],
-                center_frequency=curr_tuple[3],
-                bandwidth=curr_tuple[4],
-                lower_frequency=curr_tuple[3] - curr_tuple[4] / 2,
-                upper_frequency=curr_tuple[3] + curr_tuple[4] / 2,
-                snr=curr_tuple[5],
+                start=processed_curr_tuple[1],
+                stop=processed_curr_tuple[2],
+                center_frequency=processed_curr_tuple[3],
+                bandwidth=processed_curr_tuple[4],
+                lower_frequency=processed_curr_tuple[3] - processed_curr_tuple[4] / 2,
+                upper_frequency=processed_curr_tuple[3] + processed_curr_tuple[4] / 2,
+                snr=processed_curr_tuple[5],
             )
             output.append(curr_signal_desc)
         return output
@@ -1591,11 +1660,12 @@ class LabelSmoothing(Transform):
 
     """
 
-    def __init__(self, alpha: float = 0.1) -> np.ndarray:
+    def __init__(self, alpha: float = 0.1) -> None:
         super(LabelSmoothing, self).__init__()
         self.alpha = alpha
 
     def __call__(self, encoding: np.ndarray) -> np.ndarray:
-        return (1 - self.alpha) / np.sum(encoding) * encoding + (
+        output: np.ndarray = (1 - self.alpha) / np.sum(encoding) * encoding + (
             self.alpha / encoding.shape[0]
         )
+        return output

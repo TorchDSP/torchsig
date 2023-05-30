@@ -1,15 +1,16 @@
 """
 Criterion and matching modules from Detectron2, Mask2Former, and DETR codebases
 """
+from typing import List, Optional, Tuple
+
 import numpy as np
 import torch
-from torch import nn, Tensor
-import torch.nn.functional as F
 import torch.distributed as dist
-from torch.cuda.amp import autocast
+import torch.nn.functional as F
 import torchvision
 from scipy.optimize import linear_sum_assignment
-from typing import List, Optional
+from torch import Tensor, nn
+from torch.cuda.amp import autocast
 
 from .utils import _max_by_axis
 
@@ -139,7 +140,7 @@ class NestedTensor(object):
         self.mask = mask
 
     def to(self, device):
-        # type: (Device) -> NestedTensor # noqa
+        ## type: (Device) -> NestedTensor # noqa
         cast_tensor = self.tensors.to(device)
         mask = self.mask
         if mask is not None:
@@ -155,17 +156,18 @@ class NestedTensor(object):
     def __repr__(self):
         return str(self.tensors)
 
+
 # _onnx_nested_tensor_from_tensor_list() is an implementation of
 # nested_tensor_from_tensor_list() that is supported by ONNX tracing.
 @torch.jit.unused
 def _onnx_nested_tensor_from_tensor_list(tensor_list: List[Tensor]) -> NestedTensor:
-    max_size = []
+    max_size_list: List[Tensor] = []
     for i in range(tensor_list[0].dim()):
         max_size_i = torch.max(
-            torch.stack([img.shape[i] for img in tensor_list]).to(torch.float32)
+            torch.stack([img.shape[i] for img in tensor_list]).to(torch.float32)  # type: ignore
         ).to(torch.int64)
-        max_size.append(max_size_i)
-    max_size = tuple(max_size)
+        max_size_list.append(max_size_i)
+    max_size: Tuple[Tensor, ...] = tuple(max_size_list)
 
     # work around for
     # pad_img[: img.shape[0], : img.shape[1], : img.shape[2]].copy_(img)
@@ -175,11 +177,19 @@ def _onnx_nested_tensor_from_tensor_list(tensor_list: List[Tensor]) -> NestedTen
     padded_masks = []
     for img in tensor_list:
         padding = [(s1 - s2) for s1, s2 in zip(max_size, tuple(img.shape))]
-        padded_img = torch.nn.functional.pad(img, (0, padding[2], 0, padding[1], 0, padding[0]))
+        padded_img = torch.nn.functional.pad(
+            img,
+            (0, int(padding[2]), 0, int(padding[1]), 0, int(padding[0])),
+        )
         padded_imgs.append(padded_img)
 
         m = torch.zeros_like(img[0], dtype=torch.int, device=img.device)
-        padded_mask = torch.nn.functional.pad(m, (0, padding[2], 0, padding[1]), "constant", 1)
+        padded_mask = torch.nn.functional.pad(
+            m,
+            (0, int(padding[2]), 0, int(padding[1])),
+            "constant",
+            1,
+        )
         padded_masks.append(padded_mask.to(torch.bool))
 
     tensor = torch.stack(padded_imgs)
@@ -187,11 +197,12 @@ def _onnx_nested_tensor_from_tensor_list(tensor_list: List[Tensor]) -> NestedTen
 
     return NestedTensor(tensor, mask=mask)
 
+
 def dice_loss(
-        inputs: torch.Tensor,
-        targets: torch.Tensor,
-        num_masks: float,
-    ):
+    inputs: torch.Tensor,
+    targets: torch.Tensor,
+    num_masks: float,
+):
     """
     Compute the DICE loss, similar to generalized IOU for masks
     Args:
@@ -209,16 +220,14 @@ def dice_loss(
     return loss.sum() / num_masks
 
 
-dice_loss_jit = torch.jit.script(
-    dice_loss
-)  # type: torch.jit.ScriptModule
+dice_loss_jit = torch.jit.script(dice_loss)  # type: torch.jit.ScriptModule
 
 
 def sigmoid_ce_loss(
-        inputs: torch.Tensor,
-        targets: torch.Tensor,
-        num_masks: float,
-    ):
+    inputs: torch.Tensor,
+    targets: torch.Tensor,
+    num_masks: float,
+):
     """
     Args:
         inputs: A float tensor of arbitrary shape.
@@ -234,9 +243,7 @@ def sigmoid_ce_loss(
     return loss.mean(1).sum() / num_masks
 
 
-sigmoid_ce_loss_jit = torch.jit.script(
-    sigmoid_ce_loss
-)  # type: torch.jit.ScriptModule
+sigmoid_ce_loss_jit = torch.jit.script(sigmoid_ce_loss)  # type: torch.jit.ScriptModule
 
 
 def calculate_uncertainty(logits):
@@ -263,8 +270,17 @@ class SetCriterion(nn.Module):
         2) we supervise each pair of matched ground-truth / prediction (supervise class and box)
     """
 
-    def __init__(self, num_classes, matcher, weight_dict, eos_coef, losses,
-                 num_points, oversample_ratio, importance_sample_ratio):
+    def __init__(
+        self,
+        num_classes,
+        matcher,
+        weight_dict,
+        eos_coef,
+        losses,
+        num_points,
+        oversample_ratio,
+        importance_sample_ratio,
+    ):
         """Create the criterion.
         Parameters:
             num_classes: number of object categories, omitting the special no-object category
@@ -305,7 +321,7 @@ class SetCriterion(nn.Module):
         loss_ce = F.cross_entropy(src_logits.transpose(1, 2), target_classes, self.empty_weight)
         losses = {"loss_ce": loss_ce}
         return losses
-    
+
     def loss_masks(self, outputs, targets, indices, num_masks):
         """Compute the losses related to the masks: the focal loss and the dice loss.
         targets dicts must contain the key "masks" containing a tensor of dim [nb_target_boxes, h, w]
@@ -372,8 +388,8 @@ class SetCriterion(nn.Module):
 
     def get_loss(self, loss, outputs, targets, indices, num_masks):
         loss_map = {
-            'labels': self.loss_labels,
-            'masks': self.loss_masks,
+            "labels": self.loss_labels,
+            "masks": self.loss_masks,
         }
         assert loss in loss_map, f"do you really want to compute {loss} loss?"
         return loss_map[loss](outputs, targets, indices, num_masks)
@@ -450,9 +466,7 @@ def batch_dice_loss(inputs: torch.Tensor, targets: torch.Tensor):
     return loss
 
 
-batch_dice_loss_jit = torch.jit.script(
-    batch_dice_loss
-)  # type: torch.jit.ScriptModule
+batch_dice_loss_jit = torch.jit.script(batch_dice_loss)  # type: torch.jit.ScriptModule
 
 
 def batch_sigmoid_ce_loss(inputs: torch.Tensor, targets: torch.Tensor):
@@ -468,23 +482,15 @@ def batch_sigmoid_ce_loss(inputs: torch.Tensor, targets: torch.Tensor):
     """
     hw = inputs.shape[1]
 
-    pos = F.binary_cross_entropy_with_logits(
-        inputs, torch.ones_like(inputs), reduction="none"
-    )
-    neg = F.binary_cross_entropy_with_logits(
-        inputs, torch.zeros_like(inputs), reduction="none"
-    )
+    pos = F.binary_cross_entropy_with_logits(inputs, torch.ones_like(inputs), reduction="none")
+    neg = F.binary_cross_entropy_with_logits(inputs, torch.zeros_like(inputs), reduction="none")
 
-    loss = torch.einsum("nc,mc->nm", pos, targets) + torch.einsum(
-        "nc,mc->nm", neg, (1 - targets)
-    )
+    loss = torch.einsum("nc,mc->nm", pos, targets) + torch.einsum("nc,mc->nm", neg, (1 - targets))
 
     return loss / hw
 
 
-batch_sigmoid_ce_loss_jit = torch.jit.script(
-    batch_sigmoid_ce_loss
-)  # type: torch.jit.ScriptModule
+batch_sigmoid_ce_loss_jit = torch.jit.script(batch_sigmoid_ce_loss)  # type: torch.jit.ScriptModule
 
 
 class HungarianMatcher(nn.Module):
@@ -495,7 +501,9 @@ class HungarianMatcher(nn.Module):
     while the others are un-matched (and thus treated as non-objects).
     """
 
-    def __init__(self, cost_class: float = 1, cost_mask: float = 1, cost_dice: float = 1, num_points: int = 0):
+    def __init__(
+        self, cost_class: float = 1, cost_mask: float = 1, cost_dice: float = 1, num_points: int = 0
+    ):
         """Creates the matcher
 
         Params:
@@ -511,7 +519,7 @@ class HungarianMatcher(nn.Module):
         assert cost_class != 0 or cost_mask != 0 or cost_dice != 0, "all costs cant be 0"
 
         self.num_points = num_points
-        
+
     @torch.no_grad()
     def memory_efficient_forward(self, outputs, targets):
         """More memory-friendly matching"""
@@ -560,7 +568,7 @@ class HungarianMatcher(nn.Module):
                 # Compute the dice loss betwen masks
                 with torch.jit.optimized_execution(False):
                     cost_dice = batch_dice_loss_jit(out_mask, tgt_mask)
-            
+
             # Final cost matrix
             C = (
                 self.cost_mask * cost_mask
@@ -568,10 +576,10 @@ class HungarianMatcher(nn.Module):
                 + self.cost_dice * cost_dice
             )
             C = C.reshape(num_queries, -1).cpu()
-            
+
             # -inf values cause error in linear_sum_assignment so replace with large neg
             if -np.inf in C:
-                C = C[np.where(C==-np.inf)] = -1e9
+                C = C[np.where(C == -np.inf)] = -1e9
 
             indices.append(linear_sum_assignment(C))
 
