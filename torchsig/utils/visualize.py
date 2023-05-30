@@ -1,14 +1,15 @@
-import pywt
-import numpy as np
-import torch
 from copy import deepcopy
+from typing import Any, Callable, Iterable, List, Optional, Tuple, Union
+
+import numpy as np
+import pywt
+import torch
+from matplotlib import patches
+from matplotlib import pyplot as plt
+from matplotlib.figure import Figure
 from scipy import ndimage
 from scipy import signal as sp
-from matplotlib import pyplot as plt
-from matplotlib import patches
-from matplotlib.figure import Figure
 from torch.utils.data import dataloader
-from typing import Optional, Callable, Iterable, Union, Tuple, List
 
 
 class Visualizer:
@@ -28,17 +29,17 @@ class Visualizer:
 
     def __init__(
         self,
-        data_loader: dataloader,
+        data_loader,
         visualize_transform: Optional[Callable] = None,
         visualize_target_transform: Optional[Callable] = None,
-    ):
+    ) -> None:
         self.data_loader = iter(data_loader)
         self.visualize_transform = visualize_transform
         self.visualize_target_transform = visualize_target_transform
 
     def __iter__(self) -> Iterable:
         self.data_iter = iter(self.data_loader)
-        return self
+        return self  # type: ignore
 
     def __next__(self) -> Figure:
         iq_data, targets = next(self.data_iter)
@@ -81,12 +82,12 @@ class SpectrogramVisualizer(Visualizer):
     def __init__(
         self,
         sample_rate: float = 1.0,
-        window: Optional[Union[str, Tuple, np.ndarray]] = sp.windows.tukey(256, 0.25),
+        window: Union[str, Tuple, np.ndarray] = sp.windows.tukey(256, 0.25),
         nperseg: int = 256,
         noverlap: Optional[int] = None,
         nfft: Optional[int] = None,
-        **kwargs
-    ):
+        **kwargs,
+    ) -> None:
         super(SpectrogramVisualizer, self).__init__(**kwargs)
         self.sample_rate = sample_rate
         self.window = window
@@ -145,12 +146,8 @@ class WaveletVisualizer(Visualizer):
     """
 
     def __init__(
-        self,
-        wavelet: str = "mexh",
-        nscales: int = 33,
-        sample_rate: float = 1.0,
-        **kwargs
-    ):
+        self, wavelet: str = "mexh", nscales: int = 33, sample_rate: float = 1.0, **kwargs
+    ) -> None:
         super(WaveletVisualizer, self).__init__(**kwargs)
         self.wavelet = wavelet
         self.nscales = nscales
@@ -196,7 +193,7 @@ class ConstellationVisualizer(Visualizer):
 
     """
 
-    def __init__(self, **kwargs):
+    def __init__(self, **kwargs) -> None:
         super(ConstellationVisualizer, self).__init__(**kwargs)
 
     def _visualize(self, iq_data: np.ndarray, targets: np.ndarray) -> Figure:
@@ -224,7 +221,7 @@ class IQVisualizer(Visualizer):
 
     """
 
-    def __init__(self, **kwargs):
+    def __init__(self, **kwargs) -> None:
         super(IQVisualizer, self).__init__(**kwargs)
 
     def _visualize(self, iq_data: np.ndarray, targets: np.ndarray) -> Figure:
@@ -252,7 +249,7 @@ class TimeSeriesVisualizer(Visualizer):
             Keyword arguments
     """
 
-    def __init__(self, **kwargs):
+    def __init__(self, **kwargs) -> None:
         super(TimeSeriesVisualizer, self).__init__(**kwargs)
 
     def _visualize(self, data: np.ndarray, targets: np.ndarray) -> Figure:
@@ -280,7 +277,7 @@ class ImageVisualizer(Visualizer):
 
     """
 
-    def __init__(self, **kwargs):
+    def __init__(self, **kwargs) -> None:
         super(ImageVisualizer, self).__init__(**kwargs)
 
     def _visualize(self, data: np.ndarray, targets: np.ndarray) -> Figure:
@@ -314,7 +311,7 @@ class PSDVisualizer(Visualizer):
         **kwargs:
     """
 
-    def __init__(self, fft_size: int = 1024, **kwargs):
+    def __init__(self, fft_size: int = 1024, **kwargs) -> None:
         super(PSDVisualizer, self).__init__(**kwargs)
         self.fft_size = fft_size
 
@@ -341,7 +338,7 @@ class MaskVisualizer(Visualizer):
         **kwargs:
     """
 
-    def __init__(self, **kwargs):
+    def __init__(self, **kwargs) -> None:
         super(MaskVisualizer, self).__init__(**kwargs)
 
     def __next__(self) -> Figure:
@@ -400,7 +397,7 @@ class MaskClassVisualizer(Visualizer):
         **kwargs:
     """
 
-    def __init__(self, class_list, **kwargs):
+    def __init__(self, class_list, **kwargs) -> None:
         super(MaskClassVisualizer, self).__init__(**kwargs)
         self.class_list = class_list
 
@@ -416,8 +413,8 @@ class MaskClassVisualizer(Visualizer):
 
         return self._visualize(iq_data, targets, classes)
 
-    def _visualize(
-        self, data: np.ndarray, targets: np.ndarray, classes: List
+    def _visualize(  # type: ignore
+        self, data: np.ndarray, targets: np.ndarray, classes: List[str]
     ) -> Figure:
         batch_size = data.shape[0]
         figure = plt.figure(frameon=False)
@@ -467,7 +464,7 @@ class SemanticMaskClassVisualizer(Visualizer):
         **kwargs:
     """
 
-    def __init__(self, class_list, **kwargs):
+    def __init__(self, class_list, **kwargs) -> None:
         super(SemanticMaskClassVisualizer, self).__init__(**kwargs)
         self.class_list = class_list
 
@@ -509,9 +506,7 @@ class SemanticMaskClassVisualizer(Visualizer):
                 )
                 classes_present = list(set(targets[sample_idx].flatten().tolist()))
                 classes_present.remove(0.0)  # Remove 'background' class
-                title = [
-                    self.class_list[int(class_idx - 1)] for class_idx in classes_present
-                ]
+                title = [self.class_list[int(class_idx - 1)] for class_idx in classes_present]
             else:
                 title = "Data"
             plt.xticks([])
@@ -528,7 +523,7 @@ class BoundingBoxVisualizer(Visualizer):
         **kwargs:
     """
 
-    def __init__(self, **kwargs):
+    def __init__(self, **kwargs) -> None:
         super(BoundingBoxVisualizer, self).__init__(**kwargs)
 
     def __next__(self) -> Figure:
@@ -569,27 +564,19 @@ class BoundingBoxVisualizer(Visualizer):
                 for grid_cell_y_idx in range(label.shape[1]):
                     if label[grid_cell_x_idx, grid_cell_y_idx, 0] == 1:
                         duration = (
-                            label[grid_cell_x_idx, grid_cell_y_idx, 2]
-                            * data[sample_idx].shape[0]
+                            label[grid_cell_x_idx, grid_cell_y_idx, 2] * data[sample_idx].shape[0]
                         )
                         bandwidth = (
-                            label[grid_cell_x_idx, grid_cell_y_idx, 4]
-                            * data[sample_idx].shape[1]
+                            label[grid_cell_x_idx, grid_cell_y_idx, 4] * data[sample_idx].shape[1]
                         )
                         start_pixel = (
                             (grid_cell_x_idx * pixels_per_cell_x)
-                            + (
-                                label[grid_cell_x_idx, grid_cell_y_idx, 1]
-                                * pixels_per_cell_x
-                            )
+                            + (label[grid_cell_x_idx, grid_cell_y_idx, 1] * pixels_per_cell_x)
                             - duration / 2
                         )
                         low_freq = (
                             (grid_cell_y_idx * pixels_per_cell_y)
-                            + (
-                                label[grid_cell_x_idx, grid_cell_y_idx, 3]
-                                * pixels_per_cell_y
-                            )
+                            + (label[grid_cell_x_idx, grid_cell_y_idx, 3] * pixels_per_cell_y)
                             - (
                                 label[grid_cell_x_idx, grid_cell_y_idx, 4]
                                 / 2
@@ -629,15 +616,15 @@ class AnchorBoxVisualizer(Visualizer):
 
     def __init__(
         self,
-        data_loader: dataloader,
+        data_loader,
+        anchor_boxes: List,
         visualize_transform: Optional[Callable] = None,
         visualize_target_transform: Optional[Callable] = None,
-        anchor_boxes: List = None,
-    ):
+    ) -> None:
         self.data_loader = iter(data_loader)
+        self.anchor_boxes = anchor_boxes
         self.visualize_transform = visualize_transform
         self.visualize_target_transform = visualize_target_transform
-        self.anchor_boxes = anchor_boxes
         self.num_anchor_boxes = len(anchor_boxes)
 
     def __next__(self) -> Figure:
@@ -677,21 +664,14 @@ class AnchorBoxVisualizer(Visualizer):
             for grid_cell_x_idx in range(label.shape[0]):
                 for grid_cell_y_idx in range(label.shape[1]):
                     for anchor_idx in range(self.num_anchor_boxes):
-                        if (
-                            label[grid_cell_x_idx, grid_cell_y_idx, 0 + 5 * anchor_idx]
-                            == 1
-                        ):
+                        if label[grid_cell_x_idx, grid_cell_y_idx, 0 + 5 * anchor_idx] == 1:
                             duration = (
-                                label[
-                                    grid_cell_x_idx, grid_cell_y_idx, 2 + 5 * anchor_idx
-                                ]
+                                label[grid_cell_x_idx, grid_cell_y_idx, 2 + 5 * anchor_idx]
                                 * self.anchor_boxes[anchor_idx][0]
                                 * data[sample_idx].shape[0]
                             )
                             bandwidth = (
-                                label[
-                                    grid_cell_x_idx, grid_cell_y_idx, 4 + 5 * anchor_idx
-                                ]
+                                label[grid_cell_x_idx, grid_cell_y_idx, 4 + 5 * anchor_idx]
                                 * self.anchor_boxes[anchor_idx][1]
                                 * data[sample_idx].shape[1]
                             )
@@ -777,9 +757,7 @@ def complex_spectrogram_to_magnitude(tensor: np.ndarray) -> np.ndarray:
 
     """
     batch_size = tensor.shape[0]
-    new_tensor = np.zeros(
-        (batch_size, tensor.shape[2], tensor.shape[3]), dtype=np.float64
-    )
+    new_tensor = np.zeros((batch_size, tensor.shape[2], tensor.shape[3]), dtype=np.float64)
     for idx in range(tensor.shape[0]):
         new_tensor[idx] = 20 * np.log10(tensor[idx, 0] ** 2 + tensor[idx, 1] ** 2)
     return new_tensor
@@ -791,9 +769,7 @@ def magnitude_spectrogram(tensor: np.ndarray) -> np.ndarray:
 
     """
     batch_size = tensor.shape[0]
-    new_tensor = np.zeros(
-        (batch_size, tensor.shape[1], tensor.shape[2]), dtype=np.float64
-    )
+    new_tensor = np.zeros((batch_size, tensor.shape[1], tensor.shape[2]), dtype=np.float64)
     for idx in range(tensor.shape[0]):
         new_tensor[idx] = 20 * np.log10(tensor[idx])
     return new_tensor
@@ -835,12 +811,12 @@ def onehot_label_format(tensor: np.ndarray) -> List[str]:
     return label
 
 
-def multihot_label_format(tensor: np.ndarray, class_list: List[str]) -> List[str]:
+def multihot_label_format(tensor: np.ndarray, class_list: List[str]) -> List[List[str]]:
     """Target Transform: Format multihot labels for titles in visualizer"""
     batch_size = tensor.shape[0]
-    label = []
+    label: List[List[str]] = []
     for idx in range(batch_size):
-        curr_label = []
+        curr_label: List[str] = []
         for class_idx in range(len(class_list)):
             if tensor[idx][class_idx] > (1 / len(class_list)):
                 curr_label.append(class_list[class_idx])
@@ -862,9 +838,7 @@ def mask_to_outline(tensor: np.ndarray) -> List[str]:
         label = np.sum(label, axis=0)
         label[label > 0] = 1
         label = label - ndimage.binary_erosion(label)
-        label = ndimage.binary_dilation(label, structure=struct, iterations=3).astype(
-            label.dtype
-        )
+        label = ndimage.binary_dilation(label, structure=struct, iterations=3).astype(label.dtype)
         label = np.ma.masked_where(label == 0, label)
         labels.append(label)
     return labels
@@ -882,14 +856,12 @@ def mask_to_outline_overlap(tensor: np.ndarray) -> List[str]:
     for idx in range(batch_size):
         label = tensor[idx].numpy()
         for individual_burst_idx in range(label.shape[0]):
-            label[individual_burst_idx] = label[
-                individual_burst_idx
-            ] - ndimage.binary_erosion(label[individual_burst_idx])
+            label[individual_burst_idx] = label[individual_burst_idx] - ndimage.binary_erosion(
+                label[individual_burst_idx]
+            )
         label = np.sum(label, axis=0)
         label[label > 0] = 1
-        label = ndimage.binary_dilation(label, structure=struct, iterations=2).astype(
-            label.dtype
-        )
+        label = ndimage.binary_dilation(label, structure=struct, iterations=2).astype(label.dtype)
         label = np.ma.masked_where(label == 0, label)
         labels.append(label)
     return labels
@@ -903,14 +875,14 @@ def overlay_mask(tensor: np.ndarray) -> List[str]:
     batch_size = tensor.shape[0]
     labels = []
     for idx in range(batch_size):
-        label = torch.sum(tensor[idx], axis=0).numpy()
+        label = torch.sum(tensor[idx], axis=0).numpy()  # type: ignore
         label[label > 0] = 1
         label = np.ma.masked_where(label == 0, label)
         labels.append(label)
     return labels
 
 
-def mask_class_to_outline(tensor: np.ndarray) -> List[str]:
+def mask_class_to_outline(tensor: np.ndarray) -> Tuple[List[List[int]], List[Any]]:
     """Target Transform: Transforms masks for each burst to individual outlines
     for the MaskClassVisualizer. Overlapping mask outlines are still shown as
     overlapping. Each bursts' class index is also returned.
@@ -926,14 +898,12 @@ def mask_class_to_outline(tensor: np.ndarray) -> List[str]:
         for individual_burst_idx in range(label.shape[0]):
             if np.count_nonzero(label[individual_burst_idx]) > 0:
                 class_idx_curr.append(individual_burst_idx)
-            label[individual_burst_idx] = label[
-                individual_burst_idx
-            ] - ndimage.binary_erosion(label[individual_burst_idx])
+            label[individual_burst_idx] = label[individual_burst_idx] - ndimage.binary_erosion(
+                label[individual_burst_idx]
+            )
         label = np.sum(label, axis=0)
         label[label > 0] = 1
-        label = ndimage.binary_dilation(label, structure=struct, iterations=2).astype(
-            label.dtype
-        )
+        label = ndimage.binary_dilation(label, structure=struct, iterations=2).astype(label.dtype)
         label = np.ma.masked_where(label == 0, label)
         class_idx.append(class_idx_curr)
         labels.append(label)

@@ -1,13 +1,16 @@
+import os
+import pickle
+from copy import deepcopy
+from pathlib import Path
+from typing import Callable, List, Optional
+
+import lmdb
+import numpy as np
+
+from torchsig.datasets import conf
 from torchsig.transforms.target_transforms import ListTupleToDesc
 from torchsig.transforms.transforms import Identity
 from torchsig.utils.types import SignalData
-from torchsig.datasets import conf
-from copy import deepcopy
-from pathlib import Path
-import numpy as np
-import pickle
-import lmdb
-import os
 
 
 class WidebandSig53:
@@ -31,7 +34,7 @@ class WidebandSig53:
 
     """
 
-    modulation_list = [
+    modulation_list: List[str] = [
         "ook",
         "bpsk",
         "4pam",
@@ -92,8 +95,8 @@ class WidebandSig53:
         root: str,
         train: bool = True,
         impaired: bool = True,
-        transform: callable = None,
-        target_transform: callable = None,
+        transform: Optional[Callable] = None,
+        target_transform: Optional[Callable] = None,
         use_signal_data: bool = True,
     ):
         self.root = Path(root)
@@ -116,11 +119,11 @@ class WidebandSig53:
 
         self.use_signal_data = use_signal_data
         self.signal_desc_transform = ListTupleToDesc(
-            num_iq_samples=cfg.num_iq_samples,
+            num_iq_samples=cfg.num_iq_samples,  # type: ignore
             class_list=self.modulation_list,
         )
 
-        self.path = self.root / cfg.name
+        self.path = self.root / cfg.name  # type: ignore
         self.env = lmdb.Environment(
             str(self.path).encode(), map_size=int(1e12), max_dbs=2, lock=False
         )
@@ -147,10 +150,11 @@ class WidebandSig53:
                 data_type=np.dtype(np.complex128),
                 signal_description=self.signal_desc_transform(label),
             )
-            data = self.T(data)
-            target = self.TT(data.signal_description)
-            data = data.iq_data
+            data = self.T(data)  # type: ignore
+            target = self.TT(data.signal_description)  # type: ignore
+            assert data.iq_data is not None
+            iq_data = data.iq_data
         else:
-            data = self.T(iq_data)
-            target = self.TT(label)
-        return data, target
+            iq_data = self.T(iq_data)  # type: ignore
+            target = self.TT(label)  # type: ignore
+        return iq_data, target

@@ -1,17 +1,24 @@
+from typing import List
+
 import timm
 import torch
-from torch import nn
-from typing import List
-from torch.nn import functional as F
-from scipy.optimize import linear_sum_assignment
 from scipy import interpolate
+from scipy.optimize import linear_sum_assignment
+from torch import nn
+from torch.nn import functional as F
 from torchvision.ops import sigmoid_focal_loss
 
-from .utils import xcit_name_to_timm_name
-from .utils import drop_classifier, find_output_features
-from .utils import box_cxcywh_to_xyxy, generalized_box_iou
-from .utils import is_dist_avail_and_initialized, get_world_size, accuracy
-from .criterion import nested_tensor_from_tensor_list, dice_loss
+from .criterion import dice_loss, nested_tensor_from_tensor_list
+from .utils import (
+    accuracy,
+    box_cxcywh_to_xyxy,
+    drop_classifier,
+    find_output_features,
+    generalized_box_iou,
+    get_world_size,
+    is_dist_avail_and_initialized,
+    xcit_name_to_timm_name,
+)
 
 
 class ConvDownSampler(torch.nn.Module):
@@ -51,18 +58,13 @@ class Chunker(torch.nn.Module):
     def __init__(self, in_chans, embed_dim, ds_rate=16):
         super().__init__()
         self.embed = torch.nn.Conv2d(in_chans, embed_dim // ds_rate, (7, 7), padding=3)
-        self.project = torch.nn.Conv2d(
-            (embed_dim // ds_rate) * ds_rate, embed_dim, (1, 1)
-        )
+        self.project = torch.nn.Conv2d((embed_dim // ds_rate) * ds_rate, embed_dim, (1, 1))
         self.ds_rate = ds_rate
 
     def forward(self, X):
         X = self.embed(X)
         X = torch.cat(
-            [
-                torch.cat(torch.split(x_i, 1, -1), 1)
-                for x_i in torch.split(X, self.ds_rate, -1)
-            ],
+            [torch.cat(torch.split(x_i, 1, -1), 1) for x_i in torch.split(X, self.ds_rate, -1)],
             -1,
         )
         X = self.project(X)
@@ -71,9 +73,7 @@ class Chunker(torch.nn.Module):
 
 
 class XCiT(torch.nn.Module):
-    def __init__(
-        self, backbone, in_chans=2, num_objects=50, ds_rate=2, ds_method="downsample"
-    ):
+    def __init__(self, backbone, in_chans=2, num_objects=50, ds_rate=2, ds_method="downsample"):
         super().__init__()
         self.backbone = backbone
         self.num_objects = num_objects
@@ -90,9 +90,7 @@ class XCiT(torch.nn.Module):
         x = self.backbone.patch_embed(x)
 
         Hp, Wp = x.shape[-2], x.shape[-1]
-        pos_encoding = (
-            mdl.pos_embed(B, Hp, Wp).reshape(B, -1, Hp * Wp).permute(0, 2, 1).half()
-        )
+        pos_encoding = mdl.pos_embed(B, Hp, Wp).reshape(B, -1, Hp * Wp).permute(0, 2, 1).half()
         x = x.reshape(B, -1, Hp * Wp).permute(0, 2, 1) + pos_encoding
         for blk in mdl.blocks:
             x = blk(x, Hp, Wp)
@@ -220,9 +218,7 @@ class SetCriterion(nn.Module):
         src_logits = outputs["pred_logits"]
 
         idx = self._get_src_permutation_idx(indices)
-        target_classes_o = torch.cat(
-            [t["labels"][J] for t, (_, J) in zip(targets, indices)]
-        )
+        target_classes_o = torch.cat([t["labels"][J] for t, (_, J) in zip(targets, indices)])
         target_classes = torch.full(
             src_logits.shape[:2],
             self.num_classes,
@@ -231,9 +227,7 @@ class SetCriterion(nn.Module):
         )
         target_classes[idx] = target_classes_o
 
-        loss_ce = F.cross_entropy(
-            src_logits.transpose(1, 2), target_classes, self.empty_weight
-        )
+        loss_ce = F.cross_entropy(src_logits.transpose(1, 2), target_classes, self.empty_weight)
         losses = {"loss_ce": loss_ce}
 
         if log:
@@ -248,9 +242,7 @@ class SetCriterion(nn.Module):
         """
         pred_logits = outputs["pred_logits"]
         device = pred_logits.device
-        tgt_lengths = torch.as_tensor(
-            [len(v["labels"]) for v in targets], device=device
-        )
+        tgt_lengths = torch.as_tensor([len(v["labels"]) for v in targets], device=device)
         # Count the number of predictions that are NOT "no-object" (which is the last class)
         card_pred = (pred_logits.argmax(-1) != pred_logits.shape[-1] - 1).sum(1)
         card_err = F.l1_loss(card_pred.float(), tgt_lengths.float())
@@ -265,9 +257,7 @@ class SetCriterion(nn.Module):
         assert "pred_boxes" in outputs
         idx = self._get_src_permutation_idx(indices)
         src_boxes = outputs["pred_boxes"][idx]
-        target_boxes = torch.cat(
-            [t["boxes"][i] for t, (_, i) in zip(targets, indices)], dim=0
-        )
+        target_boxes = torch.cat([t["boxes"][i] for t, (_, i) in zip(targets, indices)], dim=0)
 
         loss_bbox = F.l1_loss(src_boxes, target_boxes, reduction="none")
 
@@ -275,9 +265,7 @@ class SetCriterion(nn.Module):
         losses["loss_bbox"] = loss_bbox.sum() / num_boxes
 
         loss_giou = 1 - torch.diag(
-            generalized_box_iou(
-                box_cxcywh_to_xyxy(src_boxes), box_cxcywh_to_xyxy(target_boxes)
-            )
+            generalized_box_iou(box_cxcywh_to_xyxy(src_boxes), box_cxcywh_to_xyxy(target_boxes))
         )
         losses["loss_giou"] = loss_giou.sum() / num_boxes
         return losses
@@ -317,17 +305,13 @@ class SetCriterion(nn.Module):
 
     def _get_src_permutation_idx(self, indices):
         # permute predictions following indices
-        batch_idx = torch.cat(
-            [torch.full_like(src, i) for i, (src, _) in enumerate(indices)]
-        )
+        batch_idx = torch.cat([torch.full_like(src, i) for i, (src, _) in enumerate(indices)])
         src_idx = torch.cat([src for (src, _) in indices])
         return batch_idx, src_idx
 
     def _get_tgt_permutation_idx(self, indices):
         # permute targets following indices
-        batch_idx = torch.cat(
-            [torch.full_like(tgt, i) for i, (_, tgt) in enumerate(indices)]
-        )
+        batch_idx = torch.cat([torch.full_like(tgt, i) for i, (_, tgt) in enumerate(indices)])
         tgt_idx = torch.cat([tgt for (_, tgt) in indices])
         return batch_idx, tgt_idx
 
@@ -379,9 +363,7 @@ class SetCriterion(nn.Module):
                     if loss == "labels":
                         # Logging is enabled only for the last layer
                         kwargs = {"log": False}
-                    l_dict = self.get_loss(
-                        loss, aux_outputs, targets, indices, num_boxes, **kwargs
-                    )
+                    l_dict = self.get_loss(loss, aux_outputs, targets, indices, num_boxes, **kwargs)
                     l_dict = {k + f"_{i}": v for k, v in l_dict.items()}
                     losses.update(l_dict)
 
@@ -395,9 +377,7 @@ class HungarianMatcher(nn.Module):
     while the others are un-matched (and thus treated as non-objects).
     """
 
-    def __init__(
-        self, cost_class: float = 1, cost_bbox: float = 1, cost_giou: float = 1
-    ):
+    def __init__(self, cost_class: float = 1, cost_bbox: float = 1, cost_giou: float = 1):
         """Creates the matcher
         Params:
             cost_class: This is the relative weight of the classification error in the matching cost
@@ -408,9 +388,7 @@ class HungarianMatcher(nn.Module):
         self.cost_class = cost_class
         self.cost_bbox = cost_bbox
         self.cost_giou = cost_giou
-        assert (
-            cost_class != 0 or cost_bbox != 0 or cost_giou != 0
-        ), "all costs cant be 0"
+        assert cost_class != 0 or cost_bbox != 0 or cost_giou != 0, "all costs cant be 0"
 
     @torch.no_grad()
     def forward(self, outputs, targets):
@@ -451,22 +429,14 @@ class HungarianMatcher(nn.Module):
         cost_bbox = torch.cdist(out_bbox, tgt_bbox, p=1)
 
         # Compute the giou cost betwen boxes
-        cost_giou = -generalized_box_iou(
-            box_cxcywh_to_xyxy(out_bbox), box_cxcywh_to_xyxy(tgt_bbox)
-        )
+        cost_giou = -generalized_box_iou(box_cxcywh_to_xyxy(out_bbox), box_cxcywh_to_xyxy(tgt_bbox))
 
         # Final cost matrix
-        C = (
-            self.cost_bbox * cost_bbox
-            + self.cost_class * cost_class
-            + self.cost_giou * cost_giou
-        )
+        C = self.cost_bbox * cost_bbox + self.cost_class * cost_class + self.cost_giou * cost_giou
         C = C.view(bs, num_queries, -1).cpu()
 
         sizes = [len(v["boxes"]) for v in targets]
-        indices = [
-            linear_sum_assignment(c[i]) for i, c in enumerate(C.split(sizes, -1))
-        ]
+        indices = [linear_sum_assignment(c[i]) for i, c in enumerate(C.split(sizes, -1))]
         return [
             (
                 torch.as_tensor(i, dtype=torch.int64),
@@ -500,7 +470,7 @@ def create_detr(
     """
     # build backbone
     if "eff" in backbone:
-        backbone = timm.create_model(
+        backbone_arch = timm.create_model(
             model_name=backbone,
             in_chans=2,
             drop_rate=drop_rate_backbone,
@@ -508,7 +478,7 @@ def create_detr(
         )
         backbone = drop_classifier(backbone)
     else:
-        raise NotImplemented("Only EfficientNet backbones are supported right now.")
+        raise NotImplementedError("Only EfficientNet backbones are supported right now.")
 
     # Build transformer
     if "xcit" in transformer:
@@ -516,7 +486,7 @@ def create_detr(
         model_name = xcit_name_to_timm_name(transformer)
 
         # build transformer
-        transformer = XCiT(
+        transformer_arch = XCiT(
             backbone=timm.create_model(
                 model_name=model_name,
                 drop_path_rate=drop_path_rate_transformer,
@@ -530,12 +500,12 @@ def create_detr(
         )
 
     else:
-        raise NotImplemented("Only XCiT transformers are supported right now.")
+        raise NotImplementedError("Only XCiT transformers are supported right now.")
 
     # Build full DETR network
     network = DETRModel(
-        backbone,
-        transformer,
+        backbone_arch,
+        transformer_arch,
         num_classes=num_classes,
         num_objects=num_objects,
         hidden_dim=hidden_dim,
