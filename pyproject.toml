@@ -8,8 +8,7 @@ description = "Signal Processing Machine Learning Toolkit"
 authors = [
     {name = "TorchSig Team"},
 ]
-url = 'https://github.com/torchdsp/torchsig'
-download_url = 'https://github.com/TorchDSP/torchsig/archive/refs/tags/v0.4.0.tar.gz'
+repository = 'https://github.com/torchdsp/torchsig'
 readme = "README.md"
 requires-python = ">=3.8"
 license = {text = "MIT"}
