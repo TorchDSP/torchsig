@@ -38,6 +38,7 @@ dependencies = [
     "sympy",
     "numba",
     "torchmetrics",
+    "click"
 ]
 dynamic = ["version"]
 
