@@ -17,7 +17,7 @@ from torchsig.transforms.transforms import (
 from pytorch_lightning.callbacks import ModelCheckpoint
 from pytorch_lightning import LightningModule, Trainer
 from sklearn.metrics import classification_report
-from cm_plotter import plot_confusion_matrix
+from torchsig.utils.cm_plotter import plot_confusion_matrix
 from torchsig.datasets.sig53 import Sig53
 from torchsig.datasets.modulations import ModulationsDataset
 from torch.utils.data import DataLoader
