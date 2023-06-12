@@ -5,8 +5,8 @@ import numpy as np
 
 
 def plot_confusion_matrix(
-    y_true: np.array,
-    y_pred: np.array,
+    y_true: np.ndarray,
+    y_pred: np.ndarray,
     classes: list,
     normalize: bool = True,
     title: Optional[str] = None,
