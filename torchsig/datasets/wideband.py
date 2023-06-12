@@ -76,8 +76,12 @@ class ShapedNoiseSignalBurst(SignalBurst):
         self.upper_frequency = self.center_frequency + self.bandwidth / 2
 
     def generate_iq(self):
-        real_noise = self.random_generator.randn(int(self.num_iq_samples * self.duration))
-        imag_noise = self.random_generator.randn(int(self.num_iq_samples * self.duration))
+        real_noise = self.random_generator.randn(
+            int(self.num_iq_samples * self.duration)
+        )
+        imag_noise = self.random_generator.randn(
+            int(self.num_iq_samples * self.duration)
+        )
         iq_samples = real_noise + 1j * imag_noise
 
         # Precompute non-aliased low,upper,center,bw freqs
@@ -87,8 +91,12 @@ class ShapedNoiseSignalBurst(SignalBurst):
         center = lower + bandwidth / 2
 
         # Filter noise
-        taps = low_pass(cutoff=bandwidth / 2, transition_bandwidth=(0.5 - bandwidth / 2) / 4)
-        sinusoid = np.exp(2j * np.pi * center * np.linspace(0, len(taps) - 1, len(taps)))
+        taps = low_pass(
+            cutoff=bandwidth / 2, transition_bandwidth=(0.5 - bandwidth / 2) / 4
+        )
+        sinusoid = np.exp(
+            2j * np.pi * center * np.linspace(0, len(taps) - 1, len(taps))
+        )
         taps = taps * sinusoid
         iq_samples = sp.convolve(iq_samples, taps, mode="same")
 
@@ -107,7 +115,9 @@ class ShapedNoiseSignalBurst(SignalBurst):
         # Intuitively, we are reducing our signal power the smaller bandwidth we have since we will also have
         # correspondingly less noise energy in the same band as our signal the smaller bandwidth the signal is.
         # Then we multiply by sqrt(10^(snr/10.0)) (same as 10^(snr/20.0) to force our energy per hertz to be snr
-        iq_samples = np.sqrt(bandwidth) * (10 ** (self.snr / 20.0)) * iq_samples / np.sqrt(2)
+        iq_samples = (
+            np.sqrt(bandwidth) * (10 ** (self.snr / 20.0)) * iq_samples / np.sqrt(2)
+        )
 
         if iq_samples.shape[0] > 50:
             window = np.blackman(50) / np.max(np.blackman(50))
@@ -242,7 +252,9 @@ class ModulatedSignalBurst(SignalBurst):
             else int(np.ceil(self.bandwidth))
         )
         approx_bandwidth = (
-            approx_samp_per_sym**-1 if self.bandwidth < 1.0 else int(np.ceil(self.bandwidth))
+            approx_samp_per_sym**-1
+            if self.bandwidth < 1.0
+            else int(np.ceil(self.bandwidth))
         )
 
         # Determine if the new rate of the requested signal to determine how many samples to request
@@ -250,17 +262,25 @@ class ModulatedSignalBurst(SignalBurst):
             occupied_bandwidth = 0.5
         elif "g" in self.class_name[0]:
             if "m" in self.class_name[0]:
-                occupied_bandwidth = approx_bandwidth * (1 - 0.5 + self.excess_bandwidth)
+                occupied_bandwidth = approx_bandwidth * (
+                    1 - 0.5 + self.excess_bandwidth
+                )
             else:
-                occupied_bandwidth = approx_bandwidth * (1 + 0.25 + self.excess_bandwidth)
+                occupied_bandwidth = approx_bandwidth * (
+                    1 + 0.25 + self.excess_bandwidth
+                )
         elif "fsk" in self.class_name[0]:
             occupied_bandwidth = approx_bandwidth * (1 + 1)
         elif "msk" in self.class_name[0]:
             occupied_bandwidth = approx_bandwidth
         else:
             occupied_bandwidth = approx_bandwidth * (1 + self.excess_bandwidth)
+
+        self.duration = self.stop - self.start
         new_rate = occupied_bandwidth / self.bandwidth
-        num_iq_samples = int(np.ceil(self.num_iq_samples * self.duration / new_rate * 1.1))
+        num_iq_samples = int(
+            np.ceil(self.num_iq_samples * self.duration / new_rate * 1.1)
+        )
 
         # Create modulated burst
         if "ofdm" in self.class_name[0]:
@@ -275,7 +295,9 @@ class ModulatedSignalBurst(SignalBurst):
                     "256qam",
                     "1024qam",
                 ),  # sub-carrier modulations
-                num_subcarriers=tuple(num_subcarriers),  # possible number of subcarriers
+                num_subcarriers=tuple(
+                    num_subcarriers
+                ),  # possible number of subcarriers
                 num_iq_samples=num_iq_samples,
                 num_samples_per_class=1,
                 random_data=True,
@@ -341,7 +363,9 @@ class ModulatedSignalBurst(SignalBurst):
             iq_samples = iq_samples[-int(self.num_iq_samples * self.duration) :]
         else:
             # Pre-prune to reduce filtering cost
-            iq_samples = iq_samples[-int(self.num_iq_samples * self.duration * oversample) :]
+            iq_samples = iq_samples[
+                -int(self.num_iq_samples * self.duration * oversample) :
+            ]
             taps = low_pass(
                 cutoff=1 / oversample / 2,
                 transition_bandwidth=(0.5 - 1 / oversample / 2) / 4,
@@ -354,7 +378,12 @@ class ModulatedSignalBurst(SignalBurst):
 
         # Set power
         iq_samples = iq_samples / np.sqrt(np.mean(np.abs(iq_samples) ** 2))
-        iq_samples = np.sqrt(self.bandwidth) * (10 ** (self.snr / 20.0)) * iq_samples / np.sqrt(2)
+        iq_samples = (
+            np.sqrt(self.bandwidth)
+            * (10 ** (self.snr / 20.0))
+            * iq_samples
+            / np.sqrt(2)
+        )
 
         if iq_samples.shape[0] > 50:
             window = np.blackman(50) / np.max(np.blackman(50))
@@ -432,7 +461,9 @@ class SignalOfInterestSignalBurst(SignalBurst):
 
         # Freq shift to desired center freq
         time_vector = np.arange(iq_samples.shape[0], dtype=float)
-        iq_samples = iq_samples * np.exp(2j * np.pi * self.center_frequency / 2 * time_vector)
+        iq_samples = iq_samples * np.exp(
+            2j * np.pi * self.center_frequency / 2 * time_vector
+        )
 
         # Filter around center
         taps = low_pass(cutoff=1 / 4, transition_bandwidth=(0.5 - 1 / 4) / 4)
@@ -444,7 +475,12 @@ class SignalOfInterestSignalBurst(SignalBurst):
 
         # Set power
         iq_samples = iq_samples / np.sqrt(np.mean(np.abs(iq_samples) ** 2))
-        iq_samples = np.sqrt(self.bandwidth) * (10 ** (self.snr / 20.0)) * iq_samples / np.sqrt(2)
+        iq_samples = (
+            np.sqrt(self.bandwidth)
+            * (10 ** (self.snr / 20.0))
+            * iq_samples
+            / np.sqrt(2)
+        )
 
         if iq_samples.shape[0] > 50:
             window = np.blackman(50) / np.max(np.blackman(50))
@@ -509,7 +545,9 @@ class FileSignalBurst(SignalBurst):
 
     def generate_iq(self):
         # Read the IQ from the file_path using the file_reader
-        file_path = self.file_path if isinstance(self.file_path, str) else self.file_path()
+        file_path = (
+            self.file_path if isinstance(self.file_path, str) else self.file_path()
+        )
         iq_samples, class_name, file_bw = self.file_reader(file_path)
 
         # Assign read class information to SignalBurst
@@ -524,7 +562,9 @@ class FileSignalBurst(SignalBurst):
 
         # Freq shift to desired center freq
         time_vector = np.arange(iq_samples.shape[0], dtype=float)
-        iq_samples = iq_samples * np.exp(2j * np.pi * self.center_frequency / 2 * time_vector)
+        iq_samples = iq_samples * np.exp(
+            2j * np.pi * self.center_frequency / 2 * time_vector
+        )
 
         # Filter around center
         taps = low_pass(cutoff=1 / 4, transition_bandwidth=(0.5 - 1 / 4) / 4)
@@ -541,7 +581,12 @@ class FileSignalBurst(SignalBurst):
 
         # Set power
         iq_samples = iq_samples / np.sqrt(np.mean(np.abs(iq_samples) ** 2))
-        iq_samples = np.sqrt(self.bandwidth) * (10 ** (self.snr / 20.0)) * iq_samples / np.sqrt(2)
+        iq_samples = (
+            np.sqrt(self.bandwidth)
+            * (10 ** (self.snr / 20.0))
+            * iq_samples
+            / np.sqrt(2)
+        )
 
         if iq_samples.shape[0] > 50:
             window = np.blackman(50) / np.max(np.blackman(50))
@@ -571,7 +616,9 @@ class BurstSourceDataset(SignalDataset):
 
     """
 
-    def __init__(self, num_iq_samples: int = 512 * 512, num_samples: int = 1000, **kwargs):
+    def __init__(
+        self, num_iq_samples: int = 512 * 512, num_samples: int = 1000, **kwargs
+    ):
         super(BurstSourceDataset, self).__init__(**kwargs)
         self.num_iq_samples = num_iq_samples
         self.num_samples = num_samples
@@ -635,7 +682,9 @@ class SyntheticBurstSourceDataset(BurstSourceDataset):
         self.num_samples = num_samples
         self.burst_class = burst_class
         self.use_gpu = use_gpu and torch.cuda.is_available()
-        self.bandwidths = to_distribution(bandwidths, random_generator=self.random_generator)
+        self.bandwidths = to_distribution(
+            bandwidths, random_generator=self.random_generator
+        )
         self.center_frequencies = to_distribution(
             center_frequencies, random_generator=self.random_generator
         )
@@ -650,7 +699,8 @@ class SyntheticBurstSourceDataset(BurstSourceDataset):
 
         # Generate the index by creating a set of bursts.
         self.index = [
-            (collection, idx) for idx, collection in enumerate(self._generate_burst_collections())
+            (collection, idx)
+            for idx, collection in enumerate(self._generate_burst_collections())
         ]
 
     def _generate_burst_collections(self) -> List[List[SignalBurst]]:
@@ -922,12 +972,16 @@ class WidebandModulationsDataset(SignalDataset):
             self.transform = Compose(
                 transforms=[
                     RandomApply(
-                        RandomTimeShift(shift=(-int(num_iq_samples / 2), int(num_iq_samples / 2))),
+                        RandomTimeShift(
+                            shift=(-int(num_iq_samples / 2), int(num_iq_samples / 2))
+                        ),
                         0.25,
                     ),
                     RandomApply(RandomFrequencyShift(freq_shift=(-0.2, 0.2)), 0.25),
                     RandomApply(
-                        RandomResample(rate_ratio=(0.8, 1.2), num_iq_samples=num_iq_samples),
+                        RandomResample(
+                            rate_ratio=(0.8, 1.2), num_iq_samples=num_iq_samples
+                        ),
                         0.25,
                     ),
                     RandomApply(SpectralInversion(), 0.5),
@@ -939,7 +993,9 @@ class WidebandModulationsDataset(SignalDataset):
                     ),  # Then add minimal noise without affecting SNR
                     RandAugment(
                         [
-                            RandomApply(RandomMagRescale(start=(0, 0.9), scale=(-4, 4)), 0.5),
+                            RandomApply(
+                                RandomMagRescale(start=(0, 0.9), scale=(-4, 4)), 0.5
+                            ),
                             RollOff(
                                 low_freq=(0.00, 0.05),
                                 upper_freq=(0.95, 1.00),
@@ -968,7 +1024,9 @@ class WidebandModulationsDataset(SignalDataset):
             )
         else:
             raise ValueError(
-                "Input level expected to be either 0, 1, or 2. Found {}".format(self.level)
+                "Input level expected to be either 0, 1, or 2. Found {}".format(
+                    self.level
+                )
             )
 
         if transform is not None:
@@ -980,7 +1038,9 @@ class WidebandModulationsDataset(SignalDataset):
             )
         self.target_transform = target_transform
 
-        self.num_signals = to_distribution(num_signals, random_generator=self.random_generator)
+        self.num_signals = to_distribution(
+            num_signals, random_generator=self.random_generator
+        )
         self.snrs = to_distribution(snrs, random_generator=self.random_generator)
 
     def __gen_metadata__(self, modulation_list: List) -> pd.DataFrame:
@@ -1057,7 +1117,9 @@ class WidebandModulationsDataset(SignalDataset):
                     modulation = self.metadata.iloc[meta_idx].modulation
             else:
                 # Randomly sample from all but OFDM (assumes OFDM at end)
-                meta_idx = self.random_generator.randint(self.num_modulations - self.num_ofdm)
+                meta_idx = self.random_generator.randint(
+                    self.num_modulations - self.num_ofdm
+                )
                 modulation = self.metadata.iloc[meta_idx].modulation
 
             # Random bandwidth based on signal modulation and num_signals
@@ -1105,7 +1167,9 @@ class WidebandModulationsDataset(SignalDataset):
 
                     silence_duration = burst_duration * (silence_multiple - 1)
                     freq_channels = to_distribution(
-                        literal_eval(self.metadata.iloc[meta_idx].freq_hopping_channels),
+                        literal_eval(
+                            self.metadata.iloc[meta_idx].freq_hopping_channels
+                        ),
                         random_generator=self.random_generator,
                     )()
 
@@ -1115,7 +1179,9 @@ class WidebandModulationsDataset(SignalDataset):
                         center_freq + (bandwidth * freq_channels),
                         bandwidth,
                     )
-                    center_freq_array = center_freq_array - (freq_channels / 2 * bandwidth)
+                    center_freq_array = center_freq_array - (
+                        freq_channels / 2 * bandwidth
+                    )
                     center_freq_array = center_freq_array[center_freq_array < 0.5]
                     center_freq_array = center_freq_array[center_freq_array > -0.5]
                     center_freq_list = center_freq_array.tolist()
@@ -1175,19 +1241,24 @@ class WidebandModulationsDataset(SignalDataset):
                         if (
                             (
                                 low_freq > signal.lower_frequency - minimum_freq_spacing
-                                and low_freq < signal.upper_frequency + minimum_freq_spacing
+                                and low_freq
+                                < signal.upper_frequency + minimum_freq_spacing
                             )
                             or (
-                                high_freq > signal.lower_frequency - minimum_freq_spacing
-                                and high_freq < signal.upper_frequency + minimum_freq_spacing
+                                high_freq
+                                > signal.lower_frequency - minimum_freq_spacing
+                                and high_freq
+                                < signal.upper_frequency + minimum_freq_spacing
                             )
                             or (
                                 signal.lower_frequency - minimum_freq_spacing > low_freq
-                                and signal.lower_frequency - minimum_freq_spacing < high_freq
+                                and signal.lower_frequency - minimum_freq_spacing
+                                < high_freq
                             )
                             or (
                                 signal.upper_frequency + minimum_freq_spacing > low_freq
-                                and signal.upper_frequency + minimum_freq_spacing < high_freq
+                                and signal.upper_frequency + minimum_freq_spacing
+                                < high_freq
                             )
                         ):
                             # Overlaps in both time and freq, skip
@@ -1419,7 +1490,9 @@ class RandomSignalInsertion(SignalTransform):
             occupied_bands = sorted(occupied_bands)
             flat = chain((0 - 1,), chain.from_iterable(occupied_bands), (100 + 1,))
             unoccupied_bands = [
-                ((x + 1) / 100 - 0.5, (y - 1) / 100 - 0.5) for x, y in zip(flat, flat) if x + 6 < y
+                ((x + 1) / 100 - 0.5, (y - 1) / 100 - 0.5)
+                for x, y in zip(flat, flat)
+                if x + 6 < y
             ]
             if len(unoccupied_bands) > 0:
                 max_bandwidth = min([y - x for x, y in unoccupied_bands])
