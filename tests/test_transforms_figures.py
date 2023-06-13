@@ -67,6 +67,34 @@ transforms_list = [
     ),
     ("time_reversal", TimeReversal(False), TimeReversal(False)),
     ("frequency_shift", RandomFrequencyShift(-0.25), RandomFrequencyShift(-0.25)),
+    (
+        "delayed_frequency_shift",
+        RandomDelayedFrequencyShift(0.2, 0.25),
+        RandomDelayedFrequencyShift(0.2, 0.25),
+    ),
+    (
+        "oscillator_drift",
+        LocalOscillatorDrift(0.01, 0.001),
+        LocalOscillatorDrift(0.01, 0.001),
+    ),
+    ("gain_drift", GainDrift(0.01, 0.001, 0.1), GainDrift(0.01, 0.001, 0.1)),
+    (
+        "iq_imbalance",
+        IQImbalance(3, np.pi / 180, 0.05),
+        IQImbalance(3, np.pi / 180, 0.05),
+    ),
+    ("roll_off", RollOff(0.05, 0.98), RollOff(0.05, 0.98)),
+    ("add_slope", AddSlope(), AddSlope()),
+    ("spectral_inversion", SpectralInversion(), SpectralInversion()),
+    ("channel_swap", ChannelSwap(), ChannelSwap()),
+    ("magnitude_rescale", RandomMagRescale(0.5, 3), RandomMagRescale(0.5, 3)),
+    (
+        "drop_samples",
+        RandomDropSamples(0.3, 50, ["zero"]),
+        RandomDropSamples(0.3, 50, ["zero"]),
+    ),
+    ("quantize", Quantize(32, ["floor"]), Quantize(32, ["floor"])),
+    ("clip", Clip(0.85), Clip(0.85)),
 ]
 
 modulations = ["bpsk", "4fsk"]
@@ -75,7 +103,7 @@ modulations = ["bpsk", "4fsk"]
 @pytest.mark.parametrize(
     "transform, modulation_name", itertools.product(transforms_list, modulations)
 )
-def test_transform_figure(transform, modulation_name):
+def test_transform_figures(transform, modulation_name):
     short_data, long_data = generate_data(modulation_name)
 
     short_data_iq = short_data.iq_data
