@@ -2,102 +2,48 @@ from torchsig.datasets.modulations import ModulationsDataset
 from torchsig.datasets.sig53 import Sig53
 from torchsig.datasets import conf
 from torchsig.utils.writer import DatasetCreator
-from unittest import TestCase
 import shutil
+import pytest
 import os
 
 
-class GenerateSig53(TestCase):
-    @staticmethod
-    def clean_folders():
-        if os.path.exists("tests/test1/"):
-            shutil.rmtree("tests/test1/")
+def setup_module(module):
+    os.mkdir("tests/test1")
 
-        if os.path.exists("tests/test2/"):
-            shutil.rmtree("tests/test2/")
 
-    def setUp(self) -> None:
-        GenerateSig53.clean_folders()
-        os.mkdir("tests/test1")
-        os.mkdir("tests/test2")
-        return super().setUp()
+def teardown_module(module):
+    if os.path.exists("tests/test1/"):
+        shutil.rmtree("tests/test1/")
 
-    def tearDown(self) -> None:
-        GenerateSig53.clean_folders()
-        return super().tearDown()
 
-    def test_can_generate_sig53_clean_train(self):
-        cfg = conf.Sig53CleanTrainConfig
+@pytest.mark.serial
+@pytest.mark.parametrize(
+    "config",
+    (
+        conf.Sig53CleanTrainQAConfig,
+        conf.Sig53CleanValQAConfig,
+        conf.Sig53ImpairedTrainQAConfig,
+        conf.Sig53ImpairedValQAConfig,
+    ),
+)
+def test_can_generate_sig53_clean_train(config: conf.Sig53Config):
+    ds = ModulationsDataset(
+        level=config.level,
+        num_samples=53 * 10,
+        num_iq_samples=config.num_iq_samples,
+        use_class_idx=config.use_class_idx,
+        include_snr=config.include_snr,
+        eb_no=config.eb_no,
+    )
 
-        ds = ModulationsDataset(
-            level=cfg.level,
-            num_samples=1060,
-            num_iq_samples=cfg.num_iq_samples,
-            use_class_idx=cfg.use_class_idx,
-            include_snr=cfg.include_snr,
-            eb_no=cfg.eb_no,
-        )
+    creator = DatasetCreator(
+        ds, seed=12345678, path="tests/test1/{}".format(config.name)
+    )
+    creator.create()
 
-        creator = DatasetCreator(
-            ds, seed=12345678, path="tests/test1/sig53_clean_train"
-        )
-        creator.create()
-
-        Sig53(root="tests/test1", train=True, impaired=False)
-        return True
-
-    def test_can_generate_sig53_clean_val(self):
-        cfg = conf.Sig53CleanValConfig
-
-        ds = ModulationsDataset(
-            level=cfg.level,
-            num_samples=1060,
-            num_iq_samples=cfg.num_iq_samples,
-            use_class_idx=cfg.use_class_idx,
-            include_snr=cfg.include_snr,
-            eb_no=cfg.eb_no,
-        )
-
-        creator = DatasetCreator(ds, seed=12345678, path="tests/test1/sig53_clean_val")
-        creator.create()
-
-        Sig53(root="tests/test1", train=True, impaired=False)
-        return True
-
-    def test_can_generate_sig53_impaired_train(self):
-        cfg = conf.Sig53ImpairedTrainConfig
-
-        ds = ModulationsDataset(
-            level=cfg.level,
-            num_samples=1060,
-            num_iq_samples=cfg.num_iq_samples,
-            use_class_idx=cfg.use_class_idx,
-            include_snr=cfg.include_snr,
-            eb_no=cfg.eb_no,
-        )
-
-        creator = DatasetCreator(
-            ds, seed=12345678, path="tests/test1/sig53_impaired_train"
-        )
-        creator.create()
-
-        Sig53(root="tests/test1", train=True, impaired=False)
-        return True
-
-    def test_can_generate_sig53_impaired_val(self):
-        cfg = conf.Sig53ImpairedValConfig
-        ds = ModulationsDataset(
-            level=cfg.level,
-            num_samples=1060,
-            num_iq_samples=cfg.num_iq_samples,
-            use_class_idx=cfg.use_class_idx,
-            include_snr=cfg.include_snr,
-            eb_no=cfg.eb_no,
-        )
-
-        creator = DatasetCreator(
-            ds, seed=12345678, path="tests/test1/sig53_impaired_val"
-        )
-        creator.create()
-        Sig53(root="tests/test1", train=True, impaired=False)
-        return True
+    train = config in (conf.Sig53CleanTrainQAConfig, conf.Sig53ImpairedTrainQAConfig)
+    impaired = config in (
+        conf.Sig53ImpairedTrainQAConfig,
+        conf.Sig53ImpairedValQAConfig,
+    )
+    Sig53(root="tests/test1", train=train, impaired=impaired)

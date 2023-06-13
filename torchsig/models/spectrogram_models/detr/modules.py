@@ -1,17 +1,24 @@
+from typing import List
+
 import timm
 import torch
-from torch import nn
-from typing import List
-from torch.nn import functional as F
-from scipy.optimize import linear_sum_assignment
 from scipy import interpolate
+from scipy.optimize import linear_sum_assignment
+from torch import nn
+from torch.nn import functional as F
 from torchvision.ops import sigmoid_focal_loss
 
-from .utils import xcit_name_to_timm_name
-from .utils import drop_classifier, find_output_features
-from .utils import box_cxcywh_to_xyxy, generalized_box_iou
-from .utils import is_dist_avail_and_initialized, get_world_size, accuracy
-from .criterion import nested_tensor_from_tensor_list, dice_loss
+from .criterion import dice_loss, nested_tensor_from_tensor_list
+from .utils import (
+    accuracy,
+    box_cxcywh_to_xyxy,
+    drop_classifier,
+    find_output_features,
+    generalized_box_iou,
+    get_world_size,
+    is_dist_avail_and_initialized,
+    xcit_name_to_timm_name,
+)
 
 
 class ConvDownSampler(torch.nn.Module):
@@ -500,15 +507,17 @@ def create_detr(
     """
     # build backbone
     if "eff" in backbone:
-        backbone = timm.create_model(
+        backbone_arch = timm.create_model(
             model_name=backbone,
             in_chans=2,
             drop_rate=drop_rate_backbone,
             drop_path_rate=drop_path_rate_backbone,
         )
-        backbone = drop_classifier(backbone)
+        backbone_arch = drop_classifier(backbone_arch)
     else:
-        raise NotImplemented("Only EfficientNet backbones are supported right now.")
+        raise NotImplementedError(
+            "Only EfficientNet backbones are supported right now."
+        )
 
     # Build transformer
     if "xcit" in transformer:
@@ -516,7 +525,7 @@ def create_detr(
         model_name = xcit_name_to_timm_name(transformer)
 
         # build transformer
-        transformer = XCiT(
+        transformer_arch = XCiT(
             backbone=timm.create_model(
                 model_name=model_name,
                 drop_path_rate=drop_path_rate_transformer,
@@ -530,12 +539,12 @@ def create_detr(
         )
 
     else:
-        raise NotImplemented("Only XCiT transformers are supported right now.")
+        raise NotImplementedError("Only XCiT transformers are supported right now.")
 
     # Build full DETR network
     network = DETRModel(
-        backbone,
-        transformer,
+        backbone_arch,
+        transformer_arch,
         num_classes=num_classes,
         num_objects=num_objects,
         hidden_dim=hidden_dim,

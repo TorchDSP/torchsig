@@ -1,8 +1,9 @@
-import torch
-import numpy as np
-from torch import nn
-import torch.distributed as dist
 from typing import List, Optional
+
+import numpy as np
+import torch
+import torch.distributed as dist
+from torch import nn
 from torchvision.ops.boxes import box_area
 
 
@@ -42,7 +43,7 @@ def xcit_name_to_timm_name(input_name: str) -> str:
     elif "large" in input_name:
         model_name = "xcit_large_24_p8_224"
     else:
-        raise NotImplemented("Input transformer not supported.")
+        raise NotImplementedError("Input transformer not supported.")
 
     return model_name
 
@@ -127,9 +128,7 @@ def generalized_box_iou(boxes1, boxes2):
 
 def format_preds(preds):
     map_preds = []
-    for i, (det_logits, det_boxes) in enumerate(
-        zip(preds["pred_logits"], preds["pred_boxes"])
-    ):
+    for i, (det_logits, det_boxes) in enumerate(zip(preds["pred_logits"], preds["pred_boxes"])):
         boxes = []
         scores = []
         labels = []

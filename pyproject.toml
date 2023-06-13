@@ -9,10 +9,16 @@ authors = [
     {name = "TorchSig Team"},
 ]
 readme = "README.md"
-requires-python = ">=3.7"
+requires-python = ">=3.8"
 license = {text = "MIT"}
+classifiers = [
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+]
+keywords = ["signal processing", "machine learning"]
 dependencies = [
-    "torch==1.13.1",
+    "torch==2.0.1",
     "torchvision",
     "tqdm",
     "numpy",
@@ -32,6 +38,7 @@ dependencies = [
     "sympy",
     "numba",
     "torchmetrics",
+    "click"
 ]
 dynamic = ["version"]
 

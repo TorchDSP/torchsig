@@ -1,13 +1,16 @@
-from torchsig.utils.dataset import SignalDataset
-from torch.utils.data import DataLoader
-from functools import partial
-import numpy as np
+import os
 import pickle
 import random
+from functools import partial
+from typing import Callable, Optional
+
+import lmdb
+import numpy as np
 import torch
 import tqdm
-import lmdb
-import os
+from torch.utils.data import DataLoader
+
+from torchsig.utils.dataset import SignalDataset
 
 
 class DatasetLoader:
@@ -32,9 +35,14 @@ class DatasetLoader:
         self,
         dataset: SignalDataset,
         seed: int,
-        num_workers: int = os.cpu_count(),
-        batch_size: int = os.cpu_count(),
+        num_workers: Optional[int] = None,
+        batch_size: Optional[int] = None,
+        collate_fn: Optional[Callable] = None,
     ) -> None:
+        num_workers = num_workers if num_workers else os.cpu_count()
+        batch_size = batch_size if batch_size else os.cpu_count()
+        assert num_workers is not None
+        assert batch_size is not None
         self.loader = DataLoader(
             dataset,
             shuffle=True,
@@ -43,6 +51,7 @@ class DatasetLoader:
             prefetch_factor=2,
             worker_init_fn=partial(DatasetLoader.worker_init_fn, seed=seed),
             multiprocessing_context=torch.multiprocessing.get_context("fork"),
+            collate_fn=collate_fn,
         )
         self.length = int(len(dataset) / batch_size)
 
@@ -91,6 +100,13 @@ class LMDBDatasetWriter(DatasetWriter):
         data, labels = batch
         with self.env.begin(write=True) as txn:
             last_idx = txn.stat(db=self.data_db)["entries"]
+            if isinstance(labels, tuple):
+                for label_idx, label in enumerate(labels):
+                    txn.put(
+                        pickle.dumps(last_idx + label_idx),
+                        pickle.dumps(tuple(label)),
+                        db=self.label_db,
+                    )
             if isinstance(labels, list):
                 for label_idx, label in enumerate(zip(*labels)):
                     txn.put(
@@ -104,12 +120,6 @@ class LMDBDatasetWriter(DatasetWriter):
                     pickle.dumps(data[element_idx]),
                     db=self.data_db,
                 )
-                if not isinstance(labels, list):
-                    txn.put(
-                        pickle.dumps(last_idx + element_idx),
-                        pickle.dumps(labels),
-                        db=self.label_db,
-                    )
 
 
 class DatasetCreator:
@@ -130,13 +140,13 @@ class DatasetCreator:
         dataset: SignalDataset,
         seed: int,
         path: str,
-        writer: DatasetWriter = None,
-        loader: DatasetLoader = None,
+        writer: Optional[DatasetWriter] = None,
+        loader: Optional[DatasetLoader] = None,
     ) -> None:
         self.loader = DatasetLoader(dataset=dataset, seed=seed)
         self.loader = self.loader if not loader else loader
         self.writer = LMDBDatasetWriter(path=path)
-        self.writer = self.writer if not writer else writer
+        self.writer = self.writer if not writer else writer  # type: ignore
         self.path = path
 
     def create(self):

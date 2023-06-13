@@ -8,9 +8,7 @@ def estimate_filter_length(
     # N ~= (sampling rate/transition bandwidth)*(sidelobe attenuation in dB / 22)
     # fred harris, Multirate Signal Processing for Communication Systems,
     # Second Edition, p.59
-    filter_length = int(
-        np.round((sample_rate / transition_bandwidth) * (attenuation_db / 22))
-    )
+    filter_length = int(np.round((sample_rate / transition_bandwidth) * (attenuation_db / 22)))
 
     # odd-length filters are desirable because they do not introduce a half-sample delay
     if np.mod(filter_length, 2) == 0:

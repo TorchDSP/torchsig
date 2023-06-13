@@ -1,46 +1,24 @@
-import torch
-import pickle
 import itertools
-import numpy as np
-from copy import deepcopy
-from scipy import signal as sp
+import pickle
 from collections import OrderedDict
+from typing import Any, Dict, List, Optional, Tuple, Union
+
+import numpy as np
+from scipy import signal as sp
 from torch.utils.data import ConcatDataset
-from typing import Tuple, Any, List, Union, Optional
-from torchsig.utils.dataset import SignalDataset
-from torchsig.utils.types import SignalData, SignalDescription
-from torchsig.transforms.functional import IntParameter, FloatParameter
+
 from torchsig.datasets import estimate_filter_length
-
-
-def torchsig_convolve(
-    signal: np.ndarray, taps: np.ndarray, gpu: bool = False
-) -> np.ndarray:
-    return sp.convolve(signal, taps, "same")
-    # This will run into issues is signal is smaller than taps
-    # torch_signal = torch.from_numpy(signal.astype(np.complex128)).reshape(1, -1)
-    # torch_taps = torch.flip(
-    #     torch.from_numpy(taps.astype(np.complex128)).reshape(1, 1, -1), dims=(2,)
-    # )
-    # if gpu:
-    #     result = torch.nn.functional.conv1d(
-    #         torch_signal.cuda(), torch_taps.cuda(), padding=torch_signal.shape[0] - 1
-    #     )
-    #     return result.cpu().numpy()[0]
-
-    # result = torch.nn.functional.conv1d(
-    #     torch_signal, torch_taps, padding=torch_signal.shape[0] - 1
-    # )
-    # return result.numpy()[0]
+from torchsig.transforms.functional import FloatParameter, IntParameter
+from torchsig.utils.dataset import SignalDataset
+from torchsig.utils.dsp import convolve, gaussian_taps, low_pass, rrc_taps
+from torchsig.utils.types import SignalData, SignalDescription
 
 
 def remove_corners(const):
     spacing = 2.0 / (np.sqrt(len(const)) - 1)
     cutoff = spacing * (np.sqrt(len(const)) / 6 - 0.5)
     return [
-        p
-        for p in const
-        if np.abs(np.real(p)) < 1.0 - cutoff or np.abs(np.imag(p)) < 1.0 - cutoff
+        p for p in const if np.abs(np.real(p)) < 1.0 - cutoff or np.abs(np.imag(p)) < 1.0 - cutoff
     ]
 
 
@@ -51,25 +29,19 @@ default_const_map = OrderedDict(
         "4pam": np.add(*map(np.ravel, np.meshgrid(np.linspace(0, 1, 4), 0j))),
         "4ask": np.add(*map(np.ravel, np.meshgrid(np.linspace(-1, 1, 4), 0j))),
         "qpsk": np.add(
-            *map(
-                np.ravel, np.meshgrid(np.linspace(-1, 1, 2), 1j * np.linspace(-1, 1, 2))
-            )
+            *map(np.ravel, np.meshgrid(np.linspace(-1, 1, 2), 1j * np.linspace(-1, 1, 2)))
         ),
         "8pam": np.add(*map(np.ravel, np.meshgrid(np.linspace(0, 1, 8), 0j))),
         "8ask": np.add(*map(np.ravel, np.meshgrid(np.linspace(-1, 1, 8), 0j))),
         "8psk": np.exp(2j * np.pi * np.linspace(0, 7, 8) / 8.0),
         "16qam": np.add(
-            *map(
-                np.ravel, np.meshgrid(np.linspace(-1, 1, 4), 1j * np.linspace(-1, 1, 4))
-            )
+            *map(np.ravel, np.meshgrid(np.linspace(-1, 1, 4), 1j * np.linspace(-1, 1, 4)))
         ),
         "16pam": np.add(*map(np.ravel, np.meshgrid(np.linspace(0, 1, 16), 0j))),
         "16ask": np.add(*map(np.ravel, np.meshgrid(np.linspace(-1, 1, 16), 0j))),
         "16psk": np.exp(2j * np.pi * np.linspace(0, 15, 16) / 16.0),
         "32qam": np.add(
-            *map(
-                np.ravel, np.meshgrid(np.linspace(-1, 1, 4), 1j * np.linspace(-1, 1, 8))
-            )
+            *map(np.ravel, np.meshgrid(np.linspace(-1, 1, 4), 1j * np.linspace(-1, 1, 8)))
         ),
         "32qam_cross": remove_corners(
             np.add(
@@ -83,9 +55,7 @@ default_const_map = OrderedDict(
         "32ask": np.add(*map(np.ravel, np.meshgrid(np.linspace(-1, 1, 32), 0j))),
         "32psk": np.exp(2j * np.pi * np.linspace(0, 31, 32) / 32.0),
         "64qam": np.add(
-            *map(
-                np.ravel, np.meshgrid(np.linspace(-1, 1, 8), 1j * np.linspace(-1, 1, 8))
-            )
+            *map(np.ravel, np.meshgrid(np.linspace(-1, 1, 8), 1j * np.linspace(-1, 1, 8)))
         ),
         "64pam": np.add(*map(np.ravel, np.meshgrid(np.linspace(0, 1, 64), 0j))),
         "64ask": np.add(*map(np.ravel, np.meshgrid(np.linspace(-1, 1, 64), 0j))),
@@ -181,24 +151,18 @@ class DigitalModulationDataset(ConcatDataset):
         random_pulse_shaping: bool = False,
         user_const_map: Optional[OrderedDict] = None,
         **kwargs,
-    ):
+    ) -> None:
         const_map = user_const_map if user_const_map else default_const_map
         modulations = (
-            list(const_map.keys()) + list(freq_map.keys())
-            if modulations is None
-            else modulations
+            list(const_map.keys()) + list(freq_map.keys()) if modulations is None else modulations
         )
-        constellations = [
-            m for m in map(str.lower, modulations) if m in const_map.keys()
-        ]
+        constellations = [m for m in map(str.lower, modulations) if m in const_map.keys()]
         freqs = [m for m in map(str.lower, modulations) if m in freq_map.keys()]
         const_dataset = ConstellationDataset(
             constellations=constellations,
             num_iq_samples=num_iq_samples,
             num_samples_per_class=num_samples_per_class,
-            iq_samples_per_symbol=2
-            if iq_samples_per_symbol is None
-            else iq_samples_per_symbol,
+            iq_samples_per_symbol=2 if iq_samples_per_symbol is None else iq_samples_per_symbol,
             random_data=random_data,
             random_pulse_shaping=random_pulse_shaping,
             **kwargs,
@@ -230,17 +194,15 @@ class DigitalModulationDataset(ConcatDataset):
             random_pulse_shaping=random_pulse_shaping,
             **kwargs,
         )
-        super(DigitalModulationDataset, self).__init__(
-            [const_dataset, fsk_dataset, gfsks_dataset]
-        )
+        super(DigitalModulationDataset, self).__init__([const_dataset, fsk_dataset, gfsks_dataset])
 
 
 class SyntheticDataset(SignalDataset):
-    def __init__(self, **kwargs):
+    def __init__(self, **kwargs) -> None:
         super(SyntheticDataset, self).__init__(**kwargs)
-        self.index = []
+        self.index: List[Tuple[Any, ...]] = []
 
-    def __getitem__(self, index: int) -> Tuple[SignalData, Any]:
+    def __getitem__(self, index: int) -> Tuple[Union[SignalData, np.ndarray], Any]:
         signal_description = self.index[index][-1]
         signal_data = SignalData(
             data=self._generate_samples(self.index[index]).tobytes(),
@@ -251,6 +213,7 @@ class SyntheticDataset(SignalDataset):
 
         if self.transform:
             signal_data = self.transform(signal_data)
+        assert signal_data.iq_data is not None
 
         if self.target_transform:
             target = self.target_transform(signal_data.signal_description)
@@ -299,15 +262,17 @@ class ConstellationDataset(SyntheticDataset):
         num_iq_samples: int = 100,
         num_samples_per_class: int = 100,
         iq_samples_per_symbol: int = 2,
-        pulse_shape_filter: bool = None,
+        pulse_shape_filter: Optional[Union[bool, np.ndarray]] = None,
         random_pulse_shaping: bool = False,
         random_data: bool = False,
         use_gpu: bool = False,
-        user_const_map: bool = None,
+        user_const_map: Optional[Dict[str, np.ndarray]] = None,
         **kwargs,
     ):
         super(ConstellationDataset, self).__init__(**kwargs)
-        self.const_map = default_const_map if user_const_map is None else user_const_map
+        self.const_map: Dict[str, np.ndarray] = (
+            default_const_map if user_const_map is None else user_const_map
+        )
         self.constellations = (
             list(self.const_map.keys()) if constellations is None else constellations
         )
@@ -338,9 +303,7 @@ class ConstellationDataset(SyntheticDataset):
                     bits_per_symbol=np.log2(len(self.const_map[const_name])),
                     samples_per_symbol=iq_samples_per_symbol,
                     class_name=const_name,
-                    excess_bandwidth=alphas[
-                        int(const_idx * self.num_samples_per_class + idx)
-                    ],
+                    excess_bandwidth=alphas[int(const_idx * self.num_samples_per_class + idx)],
                 )
                 self.index.append(
                     (
@@ -363,9 +326,7 @@ class ConstellationDataset(SyntheticDataset):
             0, len(const), int(self.num_iq_samples / self.iq_samples_per_symbol)
         )
         symbols = const[symbol_nums]
-        zero_padded = np.zeros(
-            (self.iq_samples_per_symbol * len(symbols),), dtype=np.complex64
-        )
+        zero_padded = np.zeros((self.iq_samples_per_symbol * len(symbols),), dtype=np.complex64)
         zero_padded[:: self.iq_samples_per_symbol] = symbols
         # excess bandwidth is defined in porportion to signal bandwidth, not sampling rate,
         # thus needs to be scaled by the samples per symbol
@@ -375,48 +336,17 @@ class ConstellationDataset(SyntheticDataset):
         pulse_shape_filter_span = int(
             (pulse_shape_filter_length - 1) / 2
         )  # convert filter length into the span
-        self.pulse_shape_filter = self._rrc_taps(
-            pulse_shape_filter_span, signal_description.excess_bandwidth
+        self.pulse_shape_filter = rrc_taps(
+            self.iq_samples_per_symbol,
+            pulse_shape_filter_span,
+            signal_description.excess_bandwidth,
         )
-        filtered = torchsig_convolve(
-            zero_padded, self.pulse_shape_filter, gpu=self.use_gpu
-        )
+        filtered = convolve(zero_padded, self.pulse_shape_filter)
 
         if not self.random_data:
             np.random.set_state(orig_state)  # return numpy back to its previous state
 
         return filtered[-self.num_iq_samples :]
-
-    def _rrc_taps(self, size_in_symbols: int, alpha: float = 0.35) -> np.ndarray:
-        # this could be made into a transform
-        M = size_in_symbols
-        Ns = float(self.iq_samples_per_symbol)
-        n = np.arange(-M * Ns, M * Ns + 1)
-        taps = np.zeros(int(2 * M * Ns + 1))
-        for i in range(int(2 * M * Ns + 1)):
-            # handle the discontinuity at t=+-Ns/(4*alpha)
-            if n[i] * 4 * alpha == Ns or n[i] * 4 * alpha == -Ns:
-                taps[i] = (
-                    1
-                    / 2.0
-                    * (
-                        (1 + alpha) * np.sin((1 + alpha) * np.pi / (4.0 * alpha))
-                        - (1 - alpha) * np.cos((1 - alpha) * np.pi / (4.0 * alpha))
-                        + (4 * alpha)
-                        / np.pi
-                        * np.sin((1 - alpha) * np.pi / (4.0 * alpha))
-                    )
-                )
-            else:
-                taps[i] = 4 * alpha / (np.pi * (1 - 16 * alpha**2 * (n[i] / Ns) ** 2))
-                taps[i] = taps[i] * (
-                    np.cos((1 + alpha) * np.pi * n[i] / Ns)
-                    + np.sinc((1 - alpha) * n[i] / Ns)
-                    * (1 - alpha)
-                    * np.pi
-                    / (4.0 * alpha)
-                )
-        return taps
 
 
 class OFDMDataset(SyntheticDataset):
@@ -477,8 +407,8 @@ class OFDMDataset(SyntheticDataset):
 
     def __init__(
         self,
-        constellations: Optional[Union[List, Tuple]] = ("bpsk", "qpsk"),
-        num_subcarriers: IntParameter = (64, 128, 256, 512, 1024, 2048),
+        constellations: Union[List, Tuple] = ("bpsk", "qpsk"),
+        num_subcarriers: List[int] = [64, 128, 256, 512, 1024, 2048],
         cyclic_prefix_ratios: FloatParameter = (0.125, 0.25),
         num_iq_samples: int = 100,
         num_samples_per_class: int = 100,
@@ -500,28 +430,17 @@ class OFDMDataset(SyntheticDataset):
         self.num_iq_samples = num_iq_samples
         self.num_samples_per_class = num_samples_per_class
         self.random_data = random_data
+        self.sidelobe_suppression_methods = sidelobe_suppression_methods
         self.use_gpu = use_gpu
         self.index = []
         if "lpf" in sidelobe_suppression_methods:
-            # Precompute LPF
             cutoff = 0.3
-            transition_bandwidth = (0.5 - cutoff) / 4
-            num_taps = estimate_filter_length(transition_bandwidth)
-            self.taps = sp.firwin(
-                num_taps,
-                cutoff,
-                width=transition_bandwidth,
-                window=sp.get_window("blackman", num_taps),
-                scale=True,
-                fs=1,
-            )
+            self.taps = low_pass(cutoff=cutoff, transition_bandwidth=(0.5 - cutoff) / 4)
 
         # Precompute all possible random symbols for speed at sample generation
         self.random_symbols = []
         for const_name in self.constellations:
-            const = default_const_map[const_name] / np.mean(
-                np.abs(default_const_map[const_name])
-            )
+            const = default_const_map[const_name] / np.mean(np.abs(default_const_map[const_name]))
             self.random_symbols.append(const)
 
         subcarrier_modulation_types = ("fixed", "random")
@@ -534,7 +453,7 @@ class OFDMDataset(SyntheticDataset):
             itertools.product(
                 constellations,
                 subcarrier_modulation_types,
-                cyclic_prefix_ratios,
+                cyclic_prefix_ratios,  # type: ignore
                 sidelobe_suppression_methods,
                 dc_subcarrier,
                 time_varying_realism,
@@ -585,12 +504,10 @@ class OFDMDataset(SyntheticDataset):
         orig_state = np.random.get_state()
         if not self.random_data:
             np.random.seed(index)
-            
+
         if mod_type == "random":
             symbols_idxs = np.random.randint(0, 1024, size=self.num_iq_samples)
-            const_idxes = np.random.choice(
-                range(len(self.random_symbols)), size=num_subcarriers
-            )
+            const_idxes = np.random.choice(range(len(self.random_symbols)), size=num_subcarriers)
             symbols = np.zeros(self.num_iq_samples, dtype=np.complex128)
             for subcarrier_idx, const_idx in enumerate(const_idxes):
                 begin_idx = (self.num_iq_samples) * subcarrier_idx
@@ -604,9 +521,7 @@ class OFDMDataset(SyntheticDataset):
         else:
             # Fixed modulation across all subcarriers
             const_name = np.random.choice(self.constellations)
-            const = default_const_map[const_name] / np.mean(
-                np.abs(default_const_map[const_name])
-            )
+            const = default_const_map[const_name] / np.mean(np.abs(default_const_map[const_name]))
             symbol_nums = np.random.randint(0, len(const), int(self.num_iq_samples))
             symbols = const[symbol_nums]
         divisible_index = -(len(symbols) % num_subcarriers)
@@ -630,26 +545,19 @@ class OFDMDataset(SyntheticDataset):
         # Add time-varying realism with randomized bursts, pilots, and resource blocks
         burst_dur = 1
         original_on = False
-        if (
-            time_varying_realism == "full_bursty"
-            or time_varying_realism == "partial_bursty"
-        ):
+        if time_varying_realism == "full_bursty" or time_varying_realism == "partial_bursty":
             # Bursty
             if time_varying_realism == "full_bursty":
-                burst_region_start = 0
+                burst_region_start = 0.0
                 burst_region_stop = zero_pad.shape[1]
             else:
                 burst_region_start = np.random.uniform(0.0, 0.9)
-                burst_region_dur = min(
-                    1.0 - burst_region_start, np.random.uniform(0.25, 1.0)
-                )
+                burst_region_dur = min(1.0 - burst_region_start, np.random.uniform(0.25, 1.0))
                 burst_region_start = int(burst_region_start * zero_pad.shape[1] // 4)
                 burst_region_dur = int(burst_region_dur * zero_pad.shape[1] // 4)
                 burst_region_stop = burst_region_start + burst_region_dur
             # bursty = deepcopy(zero_pad)
-            bursty = pickle.loads(
-                pickle.dumps(zero_pad, -1)
-            )  # no random hangs like deepcopy
+            bursty = pickle.loads(pickle.dumps(zero_pad, -1))  # no random hangs like deepcopy
 
             burst_dur = np.random.choice([1, 2, 4])
             original_on = True if np.random.rand() <= 0.5 else False
@@ -667,9 +575,7 @@ class OFDMDataset(SyntheticDataset):
             min_num_pilots = 4
             max_num_pilots = int(num_subcarriers // 8)
             num_pilots = np.random.randint(min_num_pilots, max_num_pilots)
-            pilot_indices = np.random.choice(
-                range(num_subcarriers), num_pilots, replace=False
-            )
+            pilot_indices = np.random.choice(range(num_subcarriers), num_pilots, replace=False)
             bursty[pilot_indices + num_subcarriers // 2, :] = zero_pad[
                 pilot_indices + num_subcarriers // 2, :
             ]
@@ -687,9 +593,7 @@ class OFDMDataset(SyntheticDataset):
 
                 block_low_carrier = np.random.randint(0, num_subcarriers - 4)
                 block_num_carriers = np.random.randint(1, num_subcarriers // 8)
-                block_high_carrier = min(
-                    block_low_carrier + block_num_carriers, num_subcarriers
-                )
+                block_high_carrier = min(block_low_carrier + block_num_carriers, num_subcarriers)
 
                 bursty[
                     block_low_carrier
@@ -706,9 +610,7 @@ class OFDMDataset(SyntheticDataset):
 
         ofdm_symbols = np.fft.ifft(np.fft.ifftshift(zero_pad, axes=0), axis=0)
         symbol_dur = ofdm_symbols.shape[0]
-        cyclic_prefixed = np.pad(
-            ofdm_symbols, ((int(cyclic_prefix_len), 0), (0, 0)), "wrap"
-        )
+        cyclic_prefixed = np.pad(ofdm_symbols, ((int(cyclic_prefix_len), 0), (0, 0)), "wrap")
 
         if sidelobe_suppression_method == "none":
             output = cyclic_prefixed.T.flatten()
@@ -716,24 +618,15 @@ class OFDMDataset(SyntheticDataset):
         elif sidelobe_suppression_method == "lpf":
             flattened = cyclic_prefixed.T.flatten()
             # Apply pre-computed LPF
-            output = torchsig_convolve(flattened, self.taps, gpu=self.use_gpu)[:-50]
+            output = convolve(flattened, self.taps)[:-50]
 
         elif sidelobe_suppression_method == "rand_lpf":
             flattened = cyclic_prefixed.T.flatten()
             # Generate randomized LPF
             cutoff = np.random.uniform(0.25, 0.475)
-            transition_bandwidth = (0.5 - cutoff) / 4
-            num_taps = estimate_filter_length(transition_bandwidth)
-            taps = sp.firwin(
-                num_taps,
-                cutoff,
-                width=transition_bandwidth,
-                window=sp.get_window("blackman", num_taps),
-                scale=True,
-                fs=1,
-            )
+            taps = low_pass(cutoff=cutoff, transition_bandwidth=(0.5 - cutoff) / 4)
             # Apply random LPF
-            output = torchsig_convolve(flattened, taps, gpu=self.use_gpu)[:-num_taps]
+            output = convolve(flattened, taps)[: -len(taps)]
         else:
             # Apply appropriate windowing technique
             window_len = cyclic_prefix_len
@@ -774,49 +667,35 @@ class OFDMDataset(SyntheticDataset):
             else:
                 raise ValueError(
                     "Expected window method to be: none, win_center, or win_start. Received: {}".format(
-                        self.window_method
+                        self.sidelobe_suppression_methods
                     )
                 )
 
             # window the tails
-            front_window = np.blackman(int(window_len * 2))[: int(window_len)].reshape(
-                -1, 1
-            )
-            tail_window = np.blackman(int(window_len * 2))[-int(window_len) :].reshape(
-                -1, 1
-            )
-            windowed[: int(window_len), :] = (
-                front_window * windowed[: int(window_len), :]
-            )
-            windowed[-int(window_len) :, :] = (
-                tail_window * windowed[-int(window_len) :, :]
-            )
+            front_window = np.blackman(int(window_len * 2))[: int(window_len)].reshape(-1, 1)
+            tail_window = np.blackman(int(window_len * 2))[-int(window_len) :].reshape(-1, 1)
+            windowed[: int(window_len), :] = front_window * windowed[: int(window_len), :]
+            windowed[-int(window_len) :, :] = tail_window * windowed[-int(window_len) :, :]
 
             combined = np.zeros((windowed.shape[0] * windowed.shape[1],), dtype=complex)
-            start_idx = 0
+            start_idx: int = 0
             for symbol_idx in range(windowed.shape[1]):
-                combined[start_idx : start_idx + windowed.shape[0]] += windowed[
-                    :, symbol_idx
-                ]
-                start_idx += symbol_dur + int(window_len)
-            output = combined[
-                : int(cyclic_prefixed.shape[0] * cyclic_prefixed.shape[1])
-            ]
+                combined[start_idx : start_idx + windowed.shape[0]] += windowed[:, symbol_idx]
+                start_idx += int(symbol_dur) + int(window_len)
+            output = combined[: int(cyclic_prefixed.shape[0] * cyclic_prefixed.shape[1])]
 
         # Randomize the start index (while bypassing the initial windowing if present)
         if num_subcarriers * 4 * burst_dur < self.num_iq_samples:
             start_idx = np.random.randint(0, output.shape[0] - self.num_iq_samples)
         else:
             if original_on:
-                lower = max(0, int(symbol_dur * burst_dur) - self.num_iq_samples * 0.7)
-                upper = min(
-                    int(symbol_dur * burst_dur), output.shape[0] - self.num_iq_samples
+                lower: int = int(max(0, int(symbol_dur * burst_dur) - self.num_iq_samples * 0.7))
+                upper: int = int(
+                    min(int(symbol_dur * burst_dur), output.shape[0] - self.num_iq_samples)
                 )
                 start_idx = np.random.randint(lower, upper)
             elif "win" in sidelobe_suppression_method:
-                start_idx = np.random.randint(
-                    window_len, int(symbol_dur * burst_dur) + window_len
-                )
+                start_idx = np.random.randint(window_len, int(symbol_dur * burst_dur) + window_len)
             else:
                 start_idx = np.random.randint(0, int(symbol_dur * burst_dur))
 
@@ -918,7 +797,7 @@ class FSKDataset(SyntheticDataset):
         # the "oversampling rate", and samples per symbol is instead derived
         # from the modulation order
         oversampling_rate = np.copy(self.iq_samples_per_symbol)
-        samples_per_symbol_recalculated = mod_order * oversampling_rate
+        samples_per_symbol_recalculated = int(mod_order * oversampling_rate)
 
         # scale the frequency map by the oversampling rate such that the tones
         # are packed tighter around f=0 the larger the oversampling rate
@@ -939,9 +818,9 @@ class FSKDataset(SyntheticDataset):
 
         if "g" in const_name:
             # GMSK, GFSK
-            taps = self._gaussian_taps(samples_per_symbol_recalculated, bandwidth)
+            taps = gaussian_taps(samples_per_symbol_recalculated, bandwidth)
             signal_description.excess_bandwidth = bandwidth
-            filtered = torchsig_convolve(symbols_repeat, taps, gpu=self.use_gpu)
+            filtered = convolve(symbols_repeat, taps)
         else:
             # FSK, MSK
             filtered = symbols_repeat
@@ -954,43 +833,14 @@ class FSKDataset(SyntheticDataset):
         modulated = np.exp(phase)
 
         if self.random_pulse_shaping:
-            # Apply a randomized LPF simulating a noisy detector/burst extractor, then downsample to ~fs/2 bw
-            # accept the cutoff-frequency of the filter as external
-            # parameter, randomized as part of outer framework
-            cutoff_frequency = bandwidth
-            # calculate transition bandwidth. a larger cutoff frequency requires
-            # a smaller transition bandwidth, and a smaller cutoff frequency
-            # allows for a larger transition bandwidth
-            transition_bandwidth = (1.0 / 2 - (cutoff_frequency)) / 4
-            # estimate number of taps needed to implement filter
-            num_taps = estimate_filter_length(transition_bandwidth)
-
-            # design the filter
-            taps = sp.firwin(
-                num_taps,
-                cutoff_frequency,
-                width=transition_bandwidth,
-                window=sp.get_window("blackman", num_taps),
-                scale=True,
-                fs=1,
-            )
+            taps = low_pass(cutoff=bandwidth / 2, transition_bandwidth=(0.5 - bandwidth / 2) / 4)
             # apply the filter
-            modulated = torchsig_convolve(modulated, taps, gpu=self.use_gpu)
+            modulated = convolve(modulated, taps)
 
         if not self.random_data:
             np.random.set_state(orig_state)  # return numpy back to its previous state
 
         return modulated[-self.num_iq_samples :]
-
-    def _gaussian_taps(self, samples_per_symbol, BT: float = 0.35) -> np.ndarray:
-        # pre-modulation Bb*T product which sets the bandwidth of the Gaussian lowpass filter
-        M = 4  # duration in symbols
-        n = np.arange(-M * samples_per_symbol, M * samples_per_symbol + 1)
-        p = np.exp(
-            -2 * np.pi**2 * BT**2 / np.log(2) * (n / float(samples_per_symbol)) ** 2
-        )
-        p = p / np.sum(p)
-        return p
 
     def _mod_index(self, const_name):
         # returns the modulation index based on the modulation
@@ -1057,7 +907,7 @@ class AMDataset(SyntheticDataset):
             0.5 / 16 if "ssb" not in const_name else 0.25 / 4,
             window="blackman",
         )
-        filtered = np.convolve(source, taps, "same")
+        filtered = sp.convolve(source, taps, "same")
         sinusoid = np.exp(2j * np.pi * 0.125 * np.arange(self.num_iq_samples))
         filtered *= np.ones_like(filtered) if "ssb" not in const_name else sinusoid
         filtered += 5 if const_name == "am" else 0

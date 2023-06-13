@@ -1,5 +1,6 @@
+from typing import List, Optional, Union
+
 import numpy as np
-from typing import Optional, List, Union
 
 
 class SignalDescription:
@@ -41,7 +42,7 @@ class SignalDescription:
 
     def __init__(
         self,
-        sample_rate: Optional[int] = 1,
+        sample_rate: Optional[float] = 1,
         num_iq_samples: Optional[int] = 4096,
         lower_frequency: Optional[float] = -0.25,
         upper_frequency: Optional[float] = 0.25,
@@ -56,24 +57,32 @@ class SignalDescription:
         excess_bandwidth: Optional[float] = 0.0,
         class_name: Optional[str] = None,
         class_index: Optional[int] = None,
-    ):
+    ) -> None:
         self.sample_rate = sample_rate
         self.num_iq_samples = num_iq_samples
-        self.lower_frequency = (
-            lower_frequency if lower_frequency else center_frequency - bandwidth / 2
-        )
-        self.upper_frequency = (
-            upper_frequency if upper_frequency else center_frequency + bandwidth / 2
-        )
-        self.bandwidth = bandwidth if bandwidth else upper_frequency - lower_frequency
-        self.center_frequency = (
-            center_frequency
-            if center_frequency
-            else lower_frequency + self.bandwidth / 2
-        )
+        if center_frequency and bandwidth:
+            self.lower_frequency: Optional[float] = (
+                lower_frequency if lower_frequency else center_frequency - bandwidth / 2
+            )
+            self.upper_frequency: Optional[float] = (
+                upper_frequency if upper_frequency else center_frequency + bandwidth / 2
+            )
+        else:
+            self.lower_frequency = lower_frequency
+            self.upper_frequency = upper_frequency
+        if lower_frequency and upper_frequency:
+            self.bandwidth: Optional[float] = (
+                bandwidth if bandwidth else upper_frequency - lower_frequency
+            )
+            self.center_frequency: Optional[float] = (
+                center_frequency if center_frequency else lower_frequency + self.bandwidth / 2
+            )
+        else:
+            self.bandwidth = bandwidth
+            self.center_frequency = center_frequency
         self.start = start
         self.stop = stop
-        self.duration = duration if duration else stop - start
+        self.duration: Optional[float] = stop - start if start and stop else duration
         self.snr = snr
         self.bits_per_symbol = bits_per_symbol
         self.samples_per_symbol = samples_per_symbol
@@ -104,20 +113,21 @@ class SignalData:
         data: Optional[bytes],
         item_type: np.dtype,
         data_type: np.dtype,
-        signal_description: Optional[
+        signal_description: Optional[Union[List[SignalDescription], SignalDescription]] = None,
+    ) -> None:
+        self.iq_data: Optional[np.ndarray] = None
+        self.signal_description: Optional[
             Union[List[SignalDescription], SignalDescription]
-        ] = None,
-    ):
-        self.iq_data = None
-        self.signal_description = signal_description
+        ] = signal_description
         if data is not None:
             # No matter the underlying item type, we convert to double-precision
-            self.iq_data = (
-                np.frombuffer(data, dtype=item_type).astype(np.float64).view(data_type)
-            )
+            self.iq_data = np.frombuffer(data, dtype=item_type).astype(np.float64).view(data_type)
 
-        if not isinstance(signal_description, list):
-            self.signal_description = [signal_description]
+        self.signal_description = (
+            [signal_description]
+            if not isinstance(signal_description, list) and signal_description
+            else signal_description
+        )
 
 
 class SignalCapture:
@@ -129,7 +139,7 @@ class SignalCapture:
         is_complex: bool,
         byte_offset: int = 0,
         signal_description: Optional[SignalDescription] = None,
-    ):
+    ) -> None:
         self.absolute_path = absolute_path
         self.num_bytes = num_bytes
         self.item_type = item_type

@@ -11,3 +11,4 @@ lightning_logs/
 *.pt
 *.jpg
 *.benchmarks/
+dist/
