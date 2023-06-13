@@ -43,6 +43,35 @@ cd torchsig
 pip install .
 ```
 
+## Generating the Datasets
+If you'd like to generate the named datasets without messing with your current Python environment, you can build the development container and use it to generate data at the location of your choosing.
+
+```
+docker build -t torchsig -f Dockerfile .
+docker run -u $(id -u ${USER}):$(id -g ${USER}) -v `pwd`:/workspace/code/torchsig torchsig python3 torchsig/scripts/generate_sig53.py --root=/workspace/code/torchsig/data --all=True
+```
+
+For the wideband dataset, you can do:
+
+```
+docker build -t torchsig -f Dockerfile .
+docker run -u $(id -u ${USER}):$(id -g ${USER}) -v `pwd`:/workspace/code/torchsig torchsig python3 torchsig/scripts/generate_wideband_sig53.py --root=/workspace/code/torchsig/data --all=True
+```
+
+If you do not need to use Docker, you can also just generate using the regular command-line interface
+
+```
+python3 torchsig/scripts/generate_sig53.py --root=torchsig/data --all=True
+```
+
+or for the wideband dataset:
+
+```
+python3 torchsig/scripts/generate_wideband_sig53.py --root=torchsig/data --all=True
+```
+
+Then, be sure to point scripts looking for ```root``` to ```torchsig/data```.
+
 ## Using the Dockerfile
 If you have Docker installed along with compatible GPUs and drivers, you can try:
 

@@ -1,9 +1,10 @@
+from typing import Any, Callable, List, Optional, Tuple
+
 import h5py
 import numpy as np
 import pandas as pd
-from typing import Tuple, Any, List, Optional, Callable
 
-from torchsig.transforms.target_transforms.target_transforms import (
+from torchsig.transforms.target_transforms import (
     DescToClassIndex,
     DescToClassIndexSNR,
     DescToClassName,
@@ -60,9 +61,7 @@ class RadioML2016(SignalDataset):
             for idx in range(len(data[k])):
                 mods.append(k[0])
                 snrs.append(k[1])
-                iq_data.append(
-                    np.asarray(data[k][idx][::2] + 1j * data[k][idx][1::2]).squeeze()
-                )
+                iq_data.append(np.asarray(data[k][idx][::2] + 1j * data[k][idx][1::2]).squeeze())
         data_dict = {"class_name": mods, "snr": snrs, "data": iq_data}
         self.data_table = pd.DataFrame(data_dict)
 
@@ -190,9 +189,7 @@ class RadioML2018(SignalDataset):
         if not target_transform:
             if use_class_idx:
                 if include_snr:
-                    self.target_transform = DescToClassIndexSNR(
-                        class_list=self.class_list
-                    )
+                    self.target_transform = DescToClassIndexSNR(class_list=self.class_list)
                 else:
                     self.target_transform = DescToClassIndex(class_list=self.class_list)
             else:
