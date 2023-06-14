@@ -27,7 +27,7 @@ def generate(root: str, configs: List[conf.WidebandSig53Config]):
         creator = DatasetCreator(
             wideband_ds,
             seed=12345678,
-            path=root,
+            path=os.path.join(root, config.name),
             loader=dataset_loader,
         )
         creator.create()
