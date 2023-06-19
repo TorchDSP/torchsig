@@ -157,11 +157,9 @@ class ModulatedSignalBurst(SignalBurst):
         self,
         modulation: Union[str, List[str]],
         modulation_list: List[str],
-        use_gpu: Optional[bool] = False,
         **kwargs,
     ):
         super(ModulatedSignalBurst, self).__init__(**kwargs)
-        self.use_gpu = use_gpu and torch.cuda.is_available()
         # Read in full modulation list
         default_class_list = [
             "ook",
@@ -304,7 +302,6 @@ class ModulatedSignalBurst(SignalBurst):
                 sidelobe_suppression_methods=sidelobe_suppression_methods,
                 dc_subcarrier=("on", "off"),
                 time_varying_realism=("on", "off"),
-                use_gpu=self.use_gpu,
             )
         elif "g" in self.class_name[0]:
             modulated_burst = FSKDataset(
@@ -314,7 +311,6 @@ class ModulatedSignalBurst(SignalBurst):
                 iq_samples_per_symbol=approx_samp_per_sym,
                 random_data=True,
                 random_pulse_shaping=True,
-                use_gpu=self.use_gpu,
             )
         elif "fsk" in self.class_name[0] or "msk" in self.class_name[0]:
             modulated_burst = FSKDataset(
@@ -324,7 +320,6 @@ class ModulatedSignalBurst(SignalBurst):
                 iq_samples_per_symbol=approx_samp_per_sym,
                 random_data=True,
                 random_pulse_shaping=False,
-                use_gpu=self.use_gpu,
             )
         else:
             modulated_burst = ConstellationDataset(
@@ -334,7 +329,6 @@ class ModulatedSignalBurst(SignalBurst):
                 iq_samples_per_symbol=approx_samp_per_sym,
                 random_data=True,
                 random_pulse_shaping=True,
-                use_gpu=self.use_gpu,
             )
 
         # Extract IQ samples from dataset example
@@ -673,7 +667,6 @@ class SyntheticBurstSourceDataset(BurstSourceDataset):
         num_iq_samples: int = 512 * 512,
         num_samples: int = 20,
         seed: Optional[int] = None,
-        use_gpu: Optional[bool] = False,
         **kwargs,
     ):
         super(SyntheticBurstSourceDataset, self).__init__(**kwargs)
@@ -681,7 +674,6 @@ class SyntheticBurstSourceDataset(BurstSourceDataset):
         self.num_iq_samples = num_iq_samples
         self.num_samples = num_samples
         self.burst_class = burst_class
-        self.use_gpu = use_gpu and torch.cuda.is_available()
         self.bandwidths = to_distribution(
             bandwidths, random_generator=self.random_generator
         )
@@ -729,7 +721,6 @@ class SyntheticBurstSourceDataset(BurstSourceDataset):
                         bandwidth=bandwidth,
                         snr=snr,
                         random_generator=self.random_generator,
-                        use_gpu=self.use_gpu,
                     )
                 )
                 start = start + burst_duration + silence_duration
@@ -849,9 +840,6 @@ class WidebandModulationsDataset(SignalDataset):
         seed (:obj: `int`, optional):
             A seed for reproducibility
 
-        use_gpu (:obj: `bool`, optional):
-            A boolean specifying whether generation should leverage the GPU for faster processing
-
         **kwargs
 
     """
@@ -921,7 +909,6 @@ class WidebandModulationsDataset(SignalDataset):
         transform: Optional[Callable] = None,
         target_transform: Optional[Callable] = None,
         seed: Optional[int] = None,
-        use_gpu: Optional[bool] = True,
         **kwargs,
     ):
         super(WidebandModulationsDataset, self).__init__(**kwargs)
@@ -938,7 +925,6 @@ class WidebandModulationsDataset(SignalDataset):
         self.ofdm_ratio = (self.num_ofdm / self.num_modulations) * 2.0
         self.num_iq_samples = num_iq_samples
         self.num_samples = num_samples
-        self.use_gpu = use_gpu and torch.cuda.is_available()
 
         # Set level-specific parameters
         if level == 0:
@@ -1285,7 +1271,6 @@ class WidebandModulationsDataset(SignalDataset):
                     num_samples=1,
                     transform=None,
                     seed=self.seed + item * 53 if self.seed else None,
-                    use_gpu=self.use_gpu,
                 ),
             )
             sig_counter += 1
