@@ -26,7 +26,6 @@ def test_generate_constellation_benchmark(benchmark, modulation_name):
         pulse_shape_filter=None,
         random_pulse_shaping=False,
         random_data=False,
-        use_gpu=False,
     )
     benchmark(iterate_one_epoch, dataset)
 
@@ -41,7 +40,6 @@ def test_generate_fsk_benchmark(benchmark, modulation_name):
         iq_samples_per_symbol=2,
         random_pulse_shaping=False,
         random_data=False,
-        use_gpu=False,
     )
     benchmark(iterate_one_epoch, dataset)
 
@@ -60,7 +58,6 @@ def test_generate_ofdm_benchmark(benchmark, num_subcarriers):
         num_iq_samples=4096,
         num_samples_per_class=100,
         sidelobe_suppression_methods=sidelobe_suppression_methods,
-        use_gpu=False,
     )
     benchmark(iterate_one_epoch, dataset)
 

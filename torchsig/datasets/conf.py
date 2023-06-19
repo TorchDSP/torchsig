@@ -100,7 +100,6 @@ class WidebandSig53Config:
     level: int
     seed: int
     num_iq_samples: int = int(512 * 512)
-    use_gpu: bool = True
 
 
 @dataclass
