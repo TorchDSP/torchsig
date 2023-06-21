@@ -168,7 +168,6 @@ def resample(
     down_rate: int,
     num_iq_samples: int,
     keep_samples: bool,
-    anti_alias_lpf: bool = False,
 ) -> np.ndarray:
     """Resample a tensor by rational value
 
@@ -196,14 +195,6 @@ def resample(
         Tensor:
             Resampled tensor
     """
-    if anti_alias_lpf:
-        new_rate = up_rate / down_rate
-        taps = low_pass(
-            cutoff=new_rate * 0.98 / 2,
-            transition_bandwidth=(0.5 - (new_rate * 0.98) / 2) / 4,
-        )
-        tensor = sp.convolve(tensor, taps, mode="same")
-
     # Resample
     resampled = sp.resample_poly(tensor, up_rate, down_rate)
 
@@ -250,7 +241,9 @@ def awgn(tensor: np.ndarray, noise_power_db: float) -> np.ndarray:
     """
     real_noise = np.random.randn(*tensor.shape)
     imag_noise = np.random.randn(*tensor.shape)
-    return tensor + (10.0 ** (noise_power_db / 20.0)) * (real_noise + 1j * imag_noise) / np.sqrt(2)
+    return tensor + (10.0 ** (noise_power_db / 20.0)) * (
+        real_noise + 1j * imag_noise
+    ) / np.sqrt(2)
 
 
 def time_varying_awgn(
@@ -310,9 +303,13 @@ def time_varying_awgn(
         duration = stop_idx - start_idx
         start_power = noise_power_db_low if idx % 2 == 0 else noise_power_db_high
         stop_power = noise_power_db_high if idx % 2 == 0 else noise_power_db_low
-        noise_power_db[start_idx:stop_idx] = np.linspace(start_power, stop_power, duration)
+        noise_power_db[start_idx:stop_idx] = np.linspace(
+            start_power, stop_power, duration
+        )
 
-    return tensor + (10.0 ** (noise_power_db / 20.0)) * (real_noise + 1j * imag_noise) / np.sqrt(2)
+    return tensor + (10.0 ** (noise_power_db / 20.0)) * (
+        real_noise + 1j * imag_noise
+    ) / np.sqrt(2)
 
 
 @njit(cache=False)
@@ -378,7 +375,9 @@ def rayleigh_fading(
         )
     )
     # Generate initial taps
-    rayleigh_taps = np.random.randn(num_taps) + 1j * np.random.randn(num_taps)  # multi-path channel
+    rayleigh_taps = np.random.randn(num_taps) + 1j * np.random.randn(
+        num_taps
+    )  # multi-path channel
 
     # Linear interpolate taps by a factor of 100 -- so we can get accurate coherence bandwidths
     old_time = np.linspace(0, 1.0, num_taps, endpoint=True)
@@ -595,7 +594,9 @@ def continuous_wavelet_transform(
             Scalogram of tensor along time dimension
     """
     scales = np.arange(1, nscales)
-    cwtmatr, _ = pywt.cwt(tensor, scales=scales, wavelet=wavelet, sampling_period=1.0 / sample_rate)
+    cwtmatr, _ = pywt.cwt(
+        tensor, scales=scales, wavelet=wavelet, sampling_period=1.0 / sample_rate
+    )
 
     # if the dtype is complex then return the magnitude
     if np.iscomplexobj(cwtmatr):
@@ -679,7 +680,9 @@ def freq_shift(tensor: np.ndarray, f_shift: float) -> np.ndarray:
         transformed (:class:`numpy.ndarray`):
             Tensor that has been frequency shifted along time dimension of size tensor.shape
     """
-    sinusoid = np.exp(2j * np.pi * f_shift * np.arange(tensor.shape[0], dtype=np.float64))
+    sinusoid = np.exp(
+        2j * np.pi * f_shift * np.arange(tensor.shape[0], dtype=np.float64)
+    )
     return np.multiply(tensor, np.asarray(sinusoid))
 
 
@@ -719,7 +722,9 @@ def freq_shift_avoid_aliasing(
     # Filter to remove out-of-band regions
     taps = low_pass(cutoff=1 / 4, transition_bandwidth=(0.5 - 1 / 4) / 4)
     tensor = sp.convolve(tensor, taps, mode="same")
-    tensor = tensor[: int(num_iq_samples * up)]  # prune to be correct size out of filter
+    tensor = tensor[
+        : int(num_iq_samples * up)
+    ]  # prune to be correct size out of filter
 
     # Decimate back down to correct sample rate
     tensor = sp.resample_poly(tensor, down, up)
@@ -759,7 +764,9 @@ def _fractional_shift_helper(
     return output
 
 
-def fractional_shift(tensor: np.ndarray, taps: np.ndarray, stride: int, delay: float) -> np.ndarray:
+def fractional_shift(
+    tensor: np.ndarray, taps: np.ndarray, stride: int, delay: float
+) -> np.ndarray:
     """Applies fractional sample delay of delay using a polyphase interpolator
 
     Args:
@@ -779,8 +786,12 @@ def fractional_shift(tensor: np.ndarray, taps: np.ndarray, stride: int, delay: f
         transformed (:class:`numpy.ndarray`):
             Tensor that has been fractionally-shifted along time dimension of size tensor.shape
     """
-    real_part = _fractional_shift_helper(taps, tensor.real, stride, int(stride * float(delay)))
-    imag_part = _fractional_shift_helper(taps, tensor.imag, stride, int(stride * float(delay)))
+    real_part = _fractional_shift_helper(
+        taps, tensor.real, stride, int(stride * float(delay))
+    )
+    imag_part = _fractional_shift_helper(
+        taps, tensor.imag, stride, int(stride * float(delay))
+    )
     tensor = real_part[: tensor.shape[0]] + 1j * imag_part[: tensor.shape[0]]
     zero_idx = -1 if delay < 0 else 0  # do not extrapolate, zero-pad.
     tensor[zero_idx] = 0
@@ -928,8 +939,12 @@ def roll_off(
             fltorder += 1
     bandwidth = uppercutfreq - lowercutfreq
     center_freq = lowercutfreq - 0.5 + bandwidth / 2
-    taps = low_pass(cutoff=bandwidth / 2, transition_bandwidth=(0.5 - bandwidth / 2) / 4)
-    sinusoid = np.exp(2j * np.pi * center_freq * np.linspace(0, len(taps) - 1, len(taps)))
+    taps = low_pass(
+        cutoff=bandwidth / 2, transition_bandwidth=(0.5 - bandwidth / 2) / 4
+    )
+    sinusoid = np.exp(
+        2j * np.pi * center_freq * np.linspace(0, len(taps) - 1, len(taps))
+    )
     taps = taps * sinusoid
     return sp.convolve(tensor, taps, mode="same")
 
@@ -1006,17 +1021,22 @@ def drop_samples(
     """
     for idx, drop_start in enumerate(drop_starts):
         if fill == "ffill":
-            drop_region = np.ones(drop_sizes[idx], dtype=np.complex64) * tensor[drop_start - 1]
+            drop_region = (
+                np.ones(drop_sizes[idx], dtype=np.complex64) * tensor[drop_start - 1]
+            )
         elif fill == "bfill":
             drop_region = (
-                np.ones(drop_sizes[idx], dtype=np.complex64) * tensor[drop_start + drop_sizes[idx]]
+                np.ones(drop_sizes[idx], dtype=np.complex64)
+                * tensor[drop_start + drop_sizes[idx]]
             )
         elif fill == "mean":
             drop_region = np.ones(drop_sizes[idx], dtype=np.complex64) * np.mean(tensor)
         elif fill == "zero":
             drop_region = np.zeros(drop_sizes[idx], dtype=np.complex64)
         else:
-            raise ValueError("fill expects ffill, bfill, mean, or zero. Found {}".format(fill))
+            raise ValueError(
+                "fill expects ffill, bfill, mean, or zero. Found {}".format(fill)
+            )
 
         # Update drop region
         tensor[drop_start : drop_start + drop_sizes[idx]] = drop_region
@@ -1208,7 +1228,9 @@ def agc(
         elif sample_idx == 0:  # first sample, no smoothing
             level_db = np.log(np.abs(sample))
         else:
-            level_db = level_db * alpha_smooth + np.log(np.abs(sample)) * (1 - alpha_smooth)
+            level_db = level_db * alpha_smooth + np.log(np.abs(sample)) * (
+                1 - alpha_smooth
+            )
         output_db = level_db + gain_db
         diff_db = ref_level_db - output_db
 
@@ -1268,7 +1290,11 @@ def cut_out(
         real_noise = np.random.randn(cut_mask_length)
         imag_noise = np.random.randn(cut_mask_length)
         noise_power_db = -100
-        cut_mask = (10.0 ** (noise_power_db / 20.0)) * (real_noise + 1j * imag_noise) / np.sqrt(2)
+        cut_mask = (
+            (10.0 ** (noise_power_db / 20.0))
+            * (real_noise + 1j * imag_noise)
+            / np.sqrt(2)
+        )
     elif cut_type == "avg_noise":
         real_noise = np.random.randn(cut_mask_length)
         imag_noise = np.random.randn(cut_mask_length)
@@ -1278,7 +1304,11 @@ def cut_out(
         real_noise = np.random.randn(cut_mask_length)
         imag_noise = np.random.randn(cut_mask_length)
         noise_power_db = 40
-        cut_mask = (10.0 ** (noise_power_db / 20.0)) * (real_noise + 1j * imag_noise) / np.sqrt(2)
+        cut_mask = (
+            (10.0 ** (noise_power_db / 20.0))
+            * (real_noise + 1j * imag_noise)
+            / np.sqrt(2)
+        )
     else:
         raise ValueError(
             "cut_type must be: zeros, ones, low_noise, avg_noise, or high_noise. Found: {}".format(
@@ -1361,34 +1391,52 @@ def drop_spec_samples(
     for idx, drop_start in enumerate(drop_starts):
         if fill == "ffill":
             drop_region_real = np.ones(drop_sizes[idx]) * flat_spec[0, drop_start - 1]
-            drop_region_complex = np.ones(drop_sizes[idx]) * flat_spec[1, drop_start - 1]
+            drop_region_complex = (
+                np.ones(drop_sizes[idx]) * flat_spec[1, drop_start - 1]
+            )
             flat_spec[0, drop_start : drop_start + drop_sizes[idx]] = drop_region_real
-            flat_spec[1, drop_start : drop_start + drop_sizes[idx]] = drop_region_complex
+            flat_spec[
+                1, drop_start : drop_start + drop_sizes[idx]
+            ] = drop_region_complex
         elif fill == "bfill":
-            drop_region_real = np.ones(drop_sizes[idx]) * flat_spec[0, drop_start + drop_sizes[idx]]
+            drop_region_real = (
+                np.ones(drop_sizes[idx]) * flat_spec[0, drop_start + drop_sizes[idx]]
+            )
             drop_region_complex = (
                 np.ones(drop_sizes[idx]) * flat_spec[1, drop_start + drop_sizes[idx]]
             )
             flat_spec[0, drop_start : drop_start + drop_sizes[idx]] = drop_region_real
-            flat_spec[1, drop_start : drop_start + drop_sizes[idx]] = drop_region_complex
+            flat_spec[
+                1, drop_start : drop_start + drop_sizes[idx]
+            ] = drop_region_complex
         elif fill == "mean":
             drop_region_real = np.ones(drop_sizes[idx]) * np.mean(flat_spec[0])
             drop_region_complex = np.ones(drop_sizes[idx]) * np.mean(flat_spec[1])
             flat_spec[0, drop_start : drop_start + drop_sizes[idx]] = drop_region_real
-            flat_spec[1, drop_start : drop_start + drop_sizes[idx]] = drop_region_complex
+            flat_spec[
+                1, drop_start : drop_start + drop_sizes[idx]
+            ] = drop_region_complex
         elif fill == "zero":
             drop_region = np.zeros(drop_sizes[idx])
             flat_spec[:, drop_start : drop_start + drop_sizes[idx]] = drop_region
         elif fill == "min":
             drop_region_real = np.ones(drop_sizes[idx]) * np.min(np.abs(flat_spec[0]))
-            drop_region_complex = np.ones(drop_sizes[idx]) * np.min(np.abs(flat_spec[1]))
+            drop_region_complex = np.ones(drop_sizes[idx]) * np.min(
+                np.abs(flat_spec[1])
+            )
             flat_spec[0, drop_start : drop_start + drop_sizes[idx]] = drop_region_real
-            flat_spec[1, drop_start : drop_start + drop_sizes[idx]] = drop_region_complex
+            flat_spec[
+                1, drop_start : drop_start + drop_sizes[idx]
+            ] = drop_region_complex
         elif fill == "max":
             drop_region_real = np.ones(drop_sizes[idx]) * np.max(np.abs(flat_spec[0]))
-            drop_region_complex = np.ones(drop_sizes[idx]) * np.max(np.abs(flat_spec[1]))
+            drop_region_complex = np.ones(drop_sizes[idx]) * np.max(
+                np.abs(flat_spec[1])
+            )
             flat_spec[0, drop_start : drop_start + drop_sizes[idx]] = drop_region_real
-            flat_spec[1, drop_start : drop_start + drop_sizes[idx]] = drop_region_complex
+            flat_spec[
+                1, drop_start : drop_start + drop_sizes[idx]
+            ] = drop_region_complex
         elif fill == "low":
             drop_region = np.ones(drop_sizes[idx]) * 1e-3
             flat_spec[:, drop_start : drop_start + drop_sizes[idx]] = drop_region
@@ -1397,7 +1445,9 @@ def drop_spec_samples(
             flat_spec[:, drop_start : drop_start + drop_sizes[idx]] = drop_region
         else:
             raise ValueError(
-                "fill expects ffill, bfill, mean, zero, min, max, low, ones. Found {}".format(fill)
+                "fill expects ffill, bfill, mean, zero, min, max, low, ones. Found {}".format(
+                    fill
+                )
             )
     new_tensor = flat_spec.reshape(tensor.shape[0], tensor.shape[1], tensor.shape[2])
     return new_tensor
