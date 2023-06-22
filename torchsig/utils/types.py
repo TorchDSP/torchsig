@@ -2,7 +2,7 @@ from typing import List, Optional, TypedDict
 import numpy as np
 
 
-class SignalDescription(TypedDict):
+class SignalMetadata(TypedDict):
     sample_rate: int
     num_samples: int
 
@@ -13,10 +13,10 @@ class SignalData(TypedDict):
 
 class Signal(TypedDict):
     data: SignalData
-    description: List[SignalDescription]
+    metadata: List[SignalMetadata]
 
 
-class RFSignalDescription(SignalDescription):
+class RFMetadata(SignalMetadata):
     complex: bool
     lower_freq: float
     upper_freq: float
@@ -25,10 +25,10 @@ class RFSignalDescription(SignalDescription):
     start: float
     stop: float
     duration: float
-
-
-class ModulatedRFSignalDescription(RFSignalDescription):
     snr: float
+
+
+class ModulatedRFMetadata(RFMetadata):
     bits_per_symbol: int
     samples_per_symbol: float
     excess_bandwidth: float
@@ -45,7 +45,7 @@ class SignalCapture:
         item_type: np.dtype,
         is_complex: bool,
         byte_offset: int = 0,
-        signal_description: Optional[SignalDescription] = None,
+        signal_description: Optional[SignalMetadata] = None,
     ) -> None:
         self.absolute_path = absolute_path
         self.num_bytes = num_bytes

@@ -4,7 +4,7 @@ import numpy as np
 import torch
 
 from torchsig.transforms.transforms import Transform
-from torchsig.utils.types import SignalDescription
+from torchsig.utils.types import SignalMetadata
 
 __all__ = [
     "DescToClassName",
@@ -46,13 +46,13 @@ class DescToClassName(Transform):
         super(DescToClassName, self).__init__()
 
     def __call__(
-        self, signal_description: Union[List[SignalDescription], SignalDescription]
+        self, signal_description: Union[List[SignalMetadata], SignalMetadata]
     ) -> Union[List[str], str]:
         classes: List[str] = []
         # Handle cases of both SignalDescriptions and lists of SignalDescriptions
-        signal_description_list: List[SignalDescription] = (
+        signal_description_list: List[SignalMetadata] = (
             [signal_description]
-            if isinstance(signal_description, SignalDescription)
+            if isinstance(signal_description, SignalMetadata)
             else signal_description
         )
         for signal_desc_idx, signal_desc in enumerate(signal_description_list):
@@ -82,14 +82,14 @@ class DescToClassNameSNR(Transform):
         super(DescToClassNameSNR, self).__init__()
 
     def __call__(
-        self, signal_description: Union[List[SignalDescription], SignalDescription]
+        self, signal_description: Union[List[SignalMetadata], SignalMetadata]
     ) -> Union[Tuple[List[str], List[float]], Tuple[str, float]]:
         classes: List[str] = []
         snrs: List[float] = []
         # Handle cases of both SignalDescriptions and lists of SignalDescriptions
-        signal_description_list: List[SignalDescription] = (
+        signal_description_list: List[SignalMetadata] = (
             [signal_description]
-            if isinstance(signal_description, SignalDescription)
+            if isinstance(signal_description, SignalMetadata)
             else signal_description
         )
         for signal_desc_idx, signal_desc in enumerate(signal_description_list):
@@ -121,13 +121,13 @@ class DescToClassIndex(Transform):
         self.class_list = class_list
 
     def __call__(
-        self, signal_description: Union[List[SignalDescription], SignalDescription]
+        self, signal_description: Union[List[SignalMetadata], SignalMetadata]
     ) -> Union[List[int], int]:
         classes: List[int] = []
         # Handle cases of both SignalDescriptions and lists of SignalDescriptions
-        signal_description_list: List[SignalDescription] = (
+        signal_description_list: List[SignalMetadata] = (
             [signal_description]
-            if isinstance(signal_description, SignalDescription)
+            if isinstance(signal_description, SignalMetadata)
             else signal_description
         )
         for signal_desc_idx, signal_desc in enumerate(signal_description_list):
@@ -158,14 +158,14 @@ class DescToClassIndexSNR(Transform):
         self.class_list = class_list
 
     def __call__(
-        self, signal_description: Union[List[SignalDescription], SignalDescription]
+        self, signal_description: Union[List[SignalMetadata], SignalMetadata]
     ) -> Union[Tuple[List[int], List[Optional[float]]], Tuple[int, Optional[float]]]:
         classes = []
         snrs = []
         # Handle cases of both SignalDescriptions and lists of SignalDescriptions
-        signal_description_list: List[SignalDescription] = (
+        signal_description_list: List[SignalMetadata] = (
             [signal_description]
-            if isinstance(signal_description, SignalDescription)
+            if isinstance(signal_description, SignalMetadata)
             else signal_description
         )
         for signal_desc_idx, signal_desc in enumerate(signal_description_list):
@@ -198,12 +198,12 @@ class DescToMask(Transform):
         self.height = height
 
     def __call__(
-        self, signal_description: Union[List[SignalDescription], SignalDescription]
+        self, signal_description: Union[List[SignalMetadata], SignalMetadata]
     ) -> np.ndarray:
         # Handle cases of both SignalDescriptions and lists of SignalDescriptions
-        signal_description_list: List[SignalDescription] = (
+        signal_description_list: List[SignalMetadata] = (
             [signal_description]
-            if isinstance(signal_description, SignalDescription)
+            if isinstance(signal_description, SignalMetadata)
             else signal_description
         )
         masks: np.ndarray = np.zeros((self.max_bursts, self.height, self.width))
@@ -226,7 +226,9 @@ class DescToMask(Transform):
                         (signal_desc.upper_frequency + 0.5) * self.height
                     )
                     + 1,
-                    int(signal_desc.start * self.width) : int(signal_desc.stop * self.width),
+                    int(signal_desc.start * self.width) : int(
+                        signal_desc.stop * self.width
+                    ),
                 ] = 1.0
             else:
                 masks[
@@ -234,7 +236,9 @@ class DescToMask(Transform):
                     int((signal_desc.lower_frequency + 0.5) * self.height) : int(
                         (signal_desc.upper_frequency + 0.5) * self.height
                     ),
-                    int(signal_desc.start * self.width) : int(signal_desc.stop * self.width),
+                    int(signal_desc.start * self.width) : int(
+                        signal_desc.stop * self.width
+                    ),
                 ] = 1.0
             idx += 1
         return masks
@@ -258,12 +262,12 @@ class DescToMaskSignal(Transform):
         self.height = height
 
     def __call__(
-        self, signal_description: Union[List[SignalDescription], SignalDescription]
+        self, signal_description: Union[List[SignalMetadata], SignalMetadata]
     ) -> np.ndarray:
         # Handle cases of both SignalDescriptions and lists of SignalDescriptions
-        signal_description_list: List[SignalDescription] = (
+        signal_description_list: List[SignalMetadata] = (
             [signal_description]
-            if isinstance(signal_description, SignalDescription)
+            if isinstance(signal_description, SignalMetadata)
             else signal_description
         )
         masks: np.ndarray = np.zeros((self.height, self.width))
@@ -284,14 +288,18 @@ class DescToMaskSignal(Transform):
                         (signal_desc.upper_frequency + 0.5) * self.height
                     )
                     + 1,
-                    int(signal_desc.start * self.width) : int(signal_desc.stop * self.width),
+                    int(signal_desc.start * self.width) : int(
+                        signal_desc.stop * self.width
+                    ),
                 ] = 1.0
             else:
                 masks[
                     int((signal_desc.lower_frequency + 0.5) * self.height) : int(
                         (signal_desc.upper_frequency + 0.5) * self.height
                     ),
-                    int(signal_desc.start * self.width) : int(signal_desc.stop * self.width),
+                    int(signal_desc.start * self.width) : int(
+                        signal_desc.stop * self.width
+                    ),
                 ] = 1.0
         return masks
 
@@ -382,19 +390,21 @@ class DescToMaskFamily(Transform):
             class_family_dict if class_family_dict else self.class_family_dict
         )
         self.family_list: List[str] = (
-            family_list if family_list else sorted(list(set(self.class_family_dict.values())))
+            family_list
+            if family_list
+            else sorted(list(set(self.class_family_dict.values())))
         )
         self.width = width
         self.height = height
         self.label_encode = label_encode
 
     def __call__(
-        self, signal_description: Union[List[SignalDescription], SignalDescription]
+        self, signal_description: Union[List[SignalMetadata], SignalMetadata]
     ) -> np.ndarray:
         # Handle cases of both SignalDescriptions and lists of SignalDescriptions
-        signal_description_list: List[SignalDescription] = (
+        signal_description_list: List[SignalMetadata] = (
             [signal_description]
-            if isinstance(signal_description, SignalDescription)
+            if isinstance(signal_description, SignalMetadata)
             else signal_description
         )
         masks: np.ndarray = np.zeros((len(self.family_list), self.height, self.width))
@@ -421,7 +431,9 @@ class DescToMaskFamily(Transform):
                         (signal_desc.upper_frequency + 0.5) * self.height
                     )
                     + 1,
-                    int(signal_desc.start * self.width) : int(signal_desc.stop * self.width),
+                    int(signal_desc.start * self.width) : int(
+                        signal_desc.stop * self.width
+                    ),
                 ] = 1.0
             else:
                 masks[
@@ -429,7 +441,9 @@ class DescToMaskFamily(Transform):
                     int((signal_desc.lower_frequency + 0.5) * self.height) : int(
                         (signal_desc.upper_frequency + 0.5) * self.height
                     ),
-                    int(signal_desc.start * self.width) : int(signal_desc.stop * self.width),
+                    int(signal_desc.start * self.width) : int(
+                        signal_desc.stop * self.width
+                    ),
                 ] = 1.0
         if self.label_encode:
             background_mask: np.ndarray = np.zeros((1, self.height, self.height))
@@ -459,12 +473,12 @@ class DescToMaskClass(Transform):
         self.height = height
 
     def __call__(
-        self, signal_description: Union[List[SignalDescription], SignalDescription]
+        self, signal_description: Union[List[SignalMetadata], SignalMetadata]
     ) -> np.ndarray:
         # Handle cases of both SignalDescriptions and lists of SignalDescriptions
-        signal_description_list: List[SignalDescription] = (
+        signal_description_list: List[SignalMetadata] = (
             [signal_description]
-            if isinstance(signal_description, SignalDescription)
+            if isinstance(signal_description, SignalMetadata)
             else signal_description
         )
         masks: np.ndarray = np.zeros((self.num_classes, self.height, self.width))
@@ -486,7 +500,9 @@ class DescToMaskClass(Transform):
                         (signal_desc.upper_frequency + 0.5) * self.height
                     )
                     + 1,
-                    int(signal_desc.start * self.width) : int(signal_desc.stop * self.width),
+                    int(signal_desc.start * self.width) : int(
+                        signal_desc.stop * self.width
+                    ),
                 ] = 1.0
             else:
                 masks[
@@ -494,7 +510,9 @@ class DescToMaskClass(Transform):
                     int((signal_desc.lower_frequency + 0.5) * self.height) : int(
                         (signal_desc.upper_frequency + 0.5) * self.height
                     ),
-                    int(signal_desc.start * self.width) : int(signal_desc.stop * self.width),
+                    int(signal_desc.start * self.width) : int(
+                        signal_desc.stop * self.width
+                    ),
                 ] = 1.0
         return masks
 
@@ -526,12 +544,12 @@ class DescToSemanticClass(Transform):
         self.height = height
 
     def __call__(
-        self, signal_description: Union[List[SignalDescription], SignalDescription]
+        self, signal_description: Union[List[SignalMetadata], SignalMetadata]
     ) -> np.ndarray:
         # Handle cases of both SignalDescriptions and lists of SignalDescriptions
-        signal_description_list: List[SignalDescription] = (
+        signal_description_list: List[SignalMetadata] = (
             [signal_description]
-            if isinstance(signal_description, SignalDescription)
+            if isinstance(signal_description, SignalMetadata)
             else signal_description
         )
         masks: np.ndarray = np.zeros((self.height, self.width))
@@ -550,7 +568,9 @@ class DescToSemanticClass(Transform):
                 signal_desc.upper_frequency = 0.5
 
             # Convert to pixels
-            height_start: int = max(0, int((signal_desc.lower_frequency + 0.5) * self.height))
+            height_start: int = max(
+                0, int((signal_desc.lower_frequency + 0.5) * self.height)
+            )
             height_stop: int = min(
                 int((signal_desc.upper_frequency + 0.5) * self.height), self.height
             )
@@ -567,7 +587,10 @@ class DescToSemanticClass(Transform):
                     # Check SNR against currently stored SNR at pixel
                     if signal_desc.snr >= curr_snrs[height_idx, width_idx]:
                         # If SNR >= currently stored class's SNR, update class & snr
-                        masks[height_start:height_stop, width_start:width_stop,] = (
+                        masks[
+                            height_start:height_stop,
+                            width_start:width_stop,
+                        ] = (
                             signal_desc.class_index + 1
                         )
                         curr_snrs[
@@ -600,12 +623,12 @@ class DescToBBox(Transform):
         self.grid_height = grid_height
 
     def __call__(
-        self, signal_description: Union[List[SignalDescription], SignalDescription]
+        self, signal_description: Union[List[SignalMetadata], SignalMetadata]
     ) -> np.ndarray:
         # Handle cases of both SignalDescriptions and lists of SignalDescriptions
-        signal_description_list: List[SignalDescription] = (
+        signal_description_list: List[SignalMetadata] = (
             [signal_description]
-            if isinstance(signal_description, SignalDescription)
+            if isinstance(signal_description, SignalMetadata)
             else signal_description
         )
         boxes: np.ndarray = np.zeros((self.grid_width, self.grid_height, 5))
@@ -622,7 +645,9 @@ class DescToBBox(Transform):
             elif signal_desc.start + signal_desc.duration * 0.5 >= 1.0:
                 # Center is outside grid cell; re-center to truncated burst
                 signal_desc.duration = 1 - signal_desc.start
-            x: float = (signal_desc.start + signal_desc.duration * 0.5) * self.grid_width
+            x: float = (
+                signal_desc.start + signal_desc.duration * 0.5
+            ) * self.grid_width
             time_cell: int = int(np.floor(x))
             center_time: float = x - time_cell
 
@@ -634,8 +659,12 @@ class DescToBBox(Transform):
                 signal_desc.lower_frequency = -0.5
             if signal_desc.upper_frequency > 0.5:
                 signal_desc.upper_frequency = 0.5
-            signal_desc.bandwidth = signal_desc.upper_frequency - signal_desc.lower_frequency
-            signal_desc.center_frequency = signal_desc.lower_frequency + signal_desc.bandwidth / 2
+            signal_desc.bandwidth = (
+                signal_desc.upper_frequency - signal_desc.lower_frequency
+            )
+            signal_desc.center_frequency = (
+                signal_desc.lower_frequency + signal_desc.bandwidth / 2
+            )
             y: float = (signal_desc.center_frequency + 0.5) * self.grid_height
             freq_cell: int = int(np.floor(y))
             center_freq: float = y - freq_cell
@@ -743,15 +772,17 @@ class DescToAnchorBoxes(Transform):
         return iou
 
     def __call__(
-        self, signal_description: Union[List[SignalDescription], SignalDescription]
+        self, signal_description: Union[List[SignalMetadata], SignalMetadata]
     ) -> np.ndarray:
         # Handle cases of both SignalDescriptions and lists of SignalDescriptions
-        signal_description_list: List[SignalDescription] = (
+        signal_description_list: List[SignalMetadata] = (
             [signal_description]
-            if isinstance(signal_description, SignalDescription)
+            if isinstance(signal_description, SignalMetadata)
             else signal_description
         )
-        boxes: np.ndarray = np.zeros((self.grid_width, self.grid_height, 5 * self.num_anchor_boxes))
+        boxes: np.ndarray = np.zeros(
+            (self.grid_width, self.grid_height, 5 * self.num_anchor_boxes)
+        )
         for signal_desc in signal_description_list:
             assert signal_desc.start is not None
             assert signal_desc.duration is not None
@@ -765,7 +796,9 @@ class DescToAnchorBoxes(Transform):
             elif signal_desc.start + signal_desc.duration * 0.5 > 1.0:
                 # Center is outside grid cell; re-center to truncated burst
                 signal_desc.duration = 1 - signal_desc.start
-            x: float = (signal_desc.start + signal_desc.duration * 0.5) * self.grid_width
+            x: float = (
+                signal_desc.start + signal_desc.duration * 0.5
+            ) * self.grid_width
             time_cell: int = int(np.floor(x))
             center_time: float = x - time_cell
 
@@ -799,7 +832,9 @@ class DescToAnchorBoxes(Transform):
                 )  # Anchor overlaid on burst
                 anchor_duration: float = anchor_box[0]
                 # anchor_center_freq = (freq_cell+0.5) / self.grid_height # Anchor centered on cell
-                anchor_center_freq: float = signal_desc.center_frequency  # Anchor overlaid on burst
+                anchor_center_freq: float = (
+                    signal_desc.center_frequency
+                )  # Anchor overlaid on burst
                 anchor_bw: float = anchor_box[1]
                 iou_score: float = self.iou(
                     signal_desc.start,
@@ -853,8 +888,8 @@ class DescPassThrough(Transform):
         super(DescPassThrough, self).__init__()
 
     def __call__(
-        self, signal_description: Union[List[SignalDescription], SignalDescription]
-    ) -> Union[List[SignalDescription], SignalDescription]:
+        self, signal_description: Union[List[SignalMetadata], SignalMetadata]
+    ) -> Union[List[SignalMetadata], SignalMetadata]:
         return signal_description
 
 
@@ -872,7 +907,7 @@ class DescToBinary(Transform):
         self.label = label
 
     def __call__(
-        self, signal_description: Union[List[SignalDescription], SignalDescription]
+        self, signal_description: Union[List[SignalMetadata], SignalMetadata]
     ) -> int:
         return self.label
 
@@ -891,7 +926,7 @@ class DescToCustom(Transform):
         self.label = label
 
     def __call__(
-        self, signal_description: Union[List[SignalDescription], SignalDescription]
+        self, signal_description: Union[List[SignalMetadata], SignalMetadata]
     ) -> Any:
         return self.label
 
@@ -929,12 +964,12 @@ class DescToClassEncoding(Transform):
             raise ValueError("class_list or num_classes must be provided")
 
     def __call__(
-        self, signal_description: Union[List[SignalDescription], SignalDescription]
+        self, signal_description: Union[List[SignalMetadata], SignalMetadata]
     ) -> np.ndarray:
         # Handle cases of both SignalDescriptions and lists of SignalDescriptions
-        signal_description_list: List[SignalDescription] = (
+        signal_description_list: List[SignalMetadata] = (
             [signal_description]
-            if isinstance(signal_description, SignalDescription)
+            if isinstance(signal_description, SignalMetadata)
             else signal_description
         )
         encoding: np.ndarray = np.zeros((self.num_classes,))
@@ -967,12 +1002,12 @@ class DescToWeightedMixUp(Transform):
         self.num_classes = len(class_list)
 
     def __call__(
-        self, signal_description: Union[List[SignalDescription], SignalDescription]
+        self, signal_description: Union[List[SignalMetadata], SignalMetadata]
     ) -> np.ndarray:
         # Handle cases of both SignalDescriptions and lists of SignalDescriptions
-        signal_description_list: List[SignalDescription] = (
+        signal_description_list: List[SignalMetadata] = (
             [signal_description]
-            if isinstance(signal_description, SignalDescription)
+            if isinstance(signal_description, SignalMetadata)
             else signal_description
         )
         encoding: np.ndarray = np.zeros((self.num_classes,))
@@ -1005,12 +1040,12 @@ class DescToWeightedCutMix(Transform):
         self.num_classes = len(class_list)
 
     def __call__(
-        self, signal_description: Union[List[SignalDescription], SignalDescription]
+        self, signal_description: Union[List[SignalMetadata], SignalMetadata]
     ) -> np.ndarray:
         # Handle cases of both SignalDescriptions and lists of SignalDescriptions
-        signal_description_list: List[SignalDescription] = (
+        signal_description_list: List[SignalMetadata] = (
             [signal_description]
-            if isinstance(signal_description, SignalDescription)
+            if isinstance(signal_description, SignalMetadata)
             else signal_description
         )
         encoding: np.ndarray = np.zeros((self.num_classes,))
@@ -1018,7 +1053,9 @@ class DescToWeightedCutMix(Transform):
         for signal_desc in signal_description_list:
             assert signal_desc.class_name is not None
             assert signal_desc.duration is not None
-            encoding[self.class_list.index(signal_desc.class_name)] += signal_desc.duration
+            encoding[
+                self.class_list.index(signal_desc.class_name)
+            ] += signal_desc.duration
         # Normalize on total signals durations
         encoding = encoding / np.sum(encoding)
         return encoding
@@ -1040,11 +1077,11 @@ class DescToBBoxDict(Transform):
         self.class_list = class_list
 
     def __call__(
-        self, signal_description: Union[List[SignalDescription], SignalDescription]
+        self, signal_description: Union[List[SignalMetadata], SignalMetadata]
     ) -> Dict[str, torch.Tensor]:
-        signal_description_list: List[SignalDescription] = (
+        signal_description_list: List[SignalMetadata] = (
             [signal_description]
-            if isinstance(signal_description, SignalDescription)
+            if isinstance(signal_description, SignalMetadata)
             else signal_description
         )
         labels: List[int] = []
@@ -1089,11 +1126,11 @@ class DescToBBoxSignalDict(Transform):
         self.class_list: List[str] = ["signal"]
 
     def __call__(
-        self, signal_description: Union[List[SignalDescription], SignalDescription]
+        self, signal_description: Union[List[SignalMetadata], SignalMetadata]
     ) -> Dict[str, torch.Tensor]:
-        signal_description_list: List[SignalDescription] = (
+        signal_description_list: List[SignalMetadata] = (
             [signal_description]
-            if isinstance(signal_description, SignalDescription)
+            if isinstance(signal_description, SignalMetadata)
             else signal_description
         )
         labels: List[int] = []
@@ -1202,15 +1239,17 @@ class DescToBBoxFamilyDict(Transform):
             class_family_dict if class_family_dict else self.class_family_dict
         )
         self.family_list: List[str] = (
-            family_list if family_list else sorted(list(set(self.class_family_dict.values())))
+            family_list
+            if family_list
+            else sorted(list(set(self.class_family_dict.values())))
         )
 
     def __call__(
-        self, signal_description: Union[List[SignalDescription], SignalDescription]
+        self, signal_description: Union[List[SignalMetadata], SignalMetadata]
     ) -> Dict[str, torch.Tensor]:
-        signal_description_list: List[SignalDescription] = (
+        signal_description_list: List[SignalMetadata] = (
             [signal_description]
-            if isinstance(signal_description, SignalDescription)
+            if isinstance(signal_description, SignalMetadata)
             else signal_description
         )
         labels: List[int] = []
@@ -1271,11 +1310,11 @@ class DescToInstMaskDict(Transform):
         self.height = height
 
     def __call__(
-        self, signal_description: Union[List[SignalDescription], SignalDescription]
+        self, signal_description: Union[List[SignalMetadata], SignalMetadata]
     ) -> Dict[str, torch.Tensor]:
-        signal_description_list: List[SignalDescription] = (
+        signal_description_list: List[SignalMetadata] = (
             [signal_description]
-            if isinstance(signal_description, SignalDescription)
+            if isinstance(signal_description, SignalMetadata)
             else signal_description
         )
         num_objects: int = len(signal_description_list)
@@ -1301,7 +1340,9 @@ class DescToInstMaskDict(Transform):
                         (signal_desc.upper_frequency + 0.5) * self.height
                     )
                     + 1,
-                    int(signal_desc.start * self.width) : int(signal_desc.stop * self.width),
+                    int(signal_desc.start * self.width) : int(
+                        signal_desc.stop * self.width
+                    ),
                 ] = 1.0
             else:
                 masks[
@@ -1309,7 +1350,9 @@ class DescToInstMaskDict(Transform):
                     int((signal_desc.lower_frequency + 0.5) * self.height) : int(
                         (signal_desc.upper_frequency + 0.5) * self.height
                     ),
-                    int(signal_desc.start * self.width) : int(signal_desc.stop * self.width),
+                    int(signal_desc.start * self.width) : int(
+                        signal_desc.stop * self.width
+                    ),
                 ] = 1.0
 
         targets: Dict[str, torch.Tensor] = {
@@ -1341,11 +1384,11 @@ class DescToSignalInstMaskDict(Transform):
         self.height = height
 
     def __call__(
-        self, signal_description: Union[List[SignalDescription], SignalDescription]
+        self, signal_description: Union[List[SignalMetadata], SignalMetadata]
     ) -> Dict[str, torch.Tensor]:
-        signal_description_list: List[SignalDescription] = (
+        signal_description_list: List[SignalMetadata] = (
             [signal_description]
-            if isinstance(signal_description, SignalDescription)
+            if isinstance(signal_description, SignalMetadata)
             else signal_description
         )
         num_objects: int = len(signal_description_list)
@@ -1370,7 +1413,9 @@ class DescToSignalInstMaskDict(Transform):
                         (signal_desc.upper_frequency + 0.5) * self.height
                     )
                     + 1,
-                    int(signal_desc.start * self.width) : int(signal_desc.stop * self.width),
+                    int(signal_desc.start * self.width) : int(
+                        signal_desc.stop * self.width
+                    ),
                 ] = 1.0
             else:
                 masks[
@@ -1378,7 +1423,9 @@ class DescToSignalInstMaskDict(Transform):
                     int((signal_desc.lower_frequency + 0.5) * self.height) : int(
                         (signal_desc.upper_frequency + 0.5) * self.height
                     ),
-                    int(signal_desc.start * self.width) : int(signal_desc.stop * self.width),
+                    int(signal_desc.start * self.width) : int(
+                        signal_desc.stop * self.width
+                    ),
                 ] = 1.0
 
         targets: Dict[str, torch.Tensor] = {
@@ -1475,17 +1522,19 @@ class DescToSignalFamilyInstMaskDict(Transform):
             class_family_dict if class_family_dict else self.class_family_dict
         )
         self.family_list: List[str] = (
-            family_list if family_list else sorted(list(set(self.class_family_dict.values())))
+            family_list
+            if family_list
+            else sorted(list(set(self.class_family_dict.values())))
         )
         self.width = width
         self.height = height
 
     def __call__(
-        self, signal_description: Union[List[SignalDescription], SignalDescription]
+        self, signal_description: Union[List[SignalMetadata], SignalMetadata]
     ) -> Dict[str, torch.Tensor]:
-        signal_description_list: List[SignalDescription] = (
+        signal_description_list: List[SignalMetadata] = (
             [signal_description]
-            if isinstance(signal_description, SignalDescription)
+            if isinstance(signal_description, SignalMetadata)
             else signal_description
         )
         num_objects: int = len(signal_description_list)
@@ -1514,7 +1563,9 @@ class DescToSignalFamilyInstMaskDict(Transform):
                         (signal_desc.upper_frequency + 0.5) * self.height
                     )
                     + 1,
-                    int(signal_desc.start * self.width) : int(signal_desc.stop * self.width),
+                    int(signal_desc.start * self.width) : int(
+                        signal_desc.stop * self.width
+                    ),
                 ] = 1.0
             else:
                 masks[
@@ -1522,7 +1573,9 @@ class DescToSignalFamilyInstMaskDict(Transform):
                     int((signal_desc.lower_frequency + 0.5) * self.height) : int(
                         (signal_desc.upper_frequency + 0.5) * self.height
                     ),
-                    int(signal_desc.start * self.width) : int(signal_desc.stop * self.width),
+                    int(signal_desc.start * self.width) : int(
+                        signal_desc.stop * self.width
+                    ),
                 ] = 1.0
 
         targets: Dict[str, torch.Tensor] = {
@@ -1548,13 +1601,13 @@ class DescToListTuple(Transform):
         self.precision = precision
 
     def __call__(
-        self, signal_description: Union[List[SignalDescription], SignalDescription]
+        self, signal_description: Union[List[SignalMetadata], SignalMetadata]
     ) -> List[Tuple[str, float, float, float, float, float]]:
         output: List[Tuple[str, float, float, float, float, float]] = []
         # Handle cases of both SignalDescriptions and lists of SignalDescriptions
-        signal_description_list: List[SignalDescription] = (
+        signal_description_list: List[SignalMetadata] = (
             [signal_description]
-            if isinstance(signal_description, SignalDescription)
+            if isinstance(signal_description, SignalMetadata)
             else signal_description
         )
         # Loop through SignalDescription's, converting values of interest to tuples
@@ -1609,14 +1662,14 @@ class ListTupleToDesc(Transform):
     def __call__(
         self,
         list_tuple: List[Tuple[str, float, float, float, float, float]],
-    ) -> List[SignalDescription]:
-        output: List[SignalDescription] = []
+    ) -> List[SignalMetadata]:
+        output: List[SignalMetadata] = []
         # Loop through SignalDescription's, converting values of interest to tuples
         for tuple_idx, curr_tuple in enumerate(list_tuple):
             processed_curr_tuple: Tuple[Any, ...] = tuple(
                 [l.numpy() if isinstance(l, torch.Tensor) else l for l in curr_tuple]
             )
-            curr_signal_desc: SignalDescription = SignalDescription(
+            curr_signal_desc: SignalMetadata = SignalMetadata(
                 sample_rate=self.sample_rate,
                 num_iq_samples=self.num_iq_samples,
                 class_name=processed_curr_tuple[0],

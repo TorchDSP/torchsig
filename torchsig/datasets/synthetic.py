@@ -11,7 +11,7 @@ from torchsig.datasets import estimate_filter_length
 from torchsig.transforms.functional import FloatParameter, IntParameter
 from torchsig.utils.dataset import SignalDataset
 from torchsig.utils.dsp import convolve, gaussian_taps, low_pass, rrc_taps
-from torchsig.utils.types import SignalData, SignalDescription
+from torchsig.utils.types import SignalData, SignalMetadata
 
 
 def remove_corners(const):
@@ -314,7 +314,7 @@ class ConstellationDataset(SyntheticDataset):
 
         for const_idx, const_name in enumerate(map(str.lower, self.constellations)):
             for idx in range(self.num_samples_per_class):
-                signal_description = SignalDescription(
+                signal_description = SignalMetadata(
                     sample_rate=0,
                     bits_per_symbol=np.log2(len(self.const_map[const_name])),
                     samples_per_symbol=iq_samples_per_symbol,
@@ -491,7 +491,7 @@ class OFDMDataset(SyntheticDataset):
                     dc_subcarrier,
                     time_varying_realism,
                 ) = combinations[np.random.randint(len(combinations))]
-                signal_description = SignalDescription(
+                signal_description = SignalMetadata(
                     sample_rate=0,
                     bits_per_symbol=2,
                     samples_per_symbol=2,  # Not accurate, but useful in calculating effective half bandwidth target
@@ -820,7 +820,7 @@ class FSKDataset(SyntheticDataset):
                     if self.random_pulse_shaping
                     else 0.0
                 )
-                signal_description = SignalDescription(
+                signal_description = SignalMetadata(
                     sample_rate=0,
                     bits_per_symbol=np.log2(len(freq_map[freq_name])),
                     samples_per_symbol=iq_samples_per_symbol,
@@ -936,7 +936,7 @@ class AMDataset(SyntheticDataset):
         self.index = []
 
         for class_idx, class_name in enumerate(self.classes):
-            signal_description = SignalDescription(sample_rate=0)
+            signal_description = SignalMetadata(sample_rate=0)
             for idx in range(self.num_samples_per_class):
                 self.index.append(
                     (
@@ -998,7 +998,7 @@ class FMDataset(SyntheticDataset):
         self.index = []
 
         for class_idx, class_name in enumerate(self.classes):
-            signal_description = SignalDescription(sample_rate=0)
+            signal_description = SignalMetadata(sample_rate=0)
             for idx in range(self.num_samples_per_class):
                 self.index.append(
                     (

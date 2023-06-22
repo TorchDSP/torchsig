@@ -9,7 +9,7 @@ import numpy as np
 from torchsig.datasets import conf
 from torchsig.datasets.modulations import ModulationsDataset
 from torchsig.transforms import Identity
-from torchsig.utils.types import SignalData, SignalDescription
+from torchsig.utils.types import SignalData, SignalMetadata
 
 
 class Sig53:
@@ -108,7 +108,7 @@ class Sig53:
 
         mod = int(mod.numpy())
         if self.use_signal_data:
-            signal_desc = SignalDescription(
+            signal_desc = SignalMetadata(
                 class_name=self._idx_to_name_dict[mod],
                 class_index=mod,
                 snr=snr,

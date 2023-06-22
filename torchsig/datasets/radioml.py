@@ -11,7 +11,7 @@ from torchsig.transforms.target_transforms import (
     DescToClassNameSNR,
 )
 from torchsig.utils.dataset import SignalDataset
-from torchsig.utils.types import SignalData, SignalDescription
+from torchsig.utils.types import SignalData, SignalMetadata
 
 
 class RadioML2016(SignalDataset):
@@ -61,7 +61,9 @@ class RadioML2016(SignalDataset):
             for idx in range(len(data[k])):
                 mods.append(k[0])
                 snrs.append(k[1])
-                iq_data.append(np.asarray(data[k][idx][::2] + 1j * data[k][idx][1::2]).squeeze())
+                iq_data.append(
+                    np.asarray(data[k][idx][::2] + 1j * data[k][idx][1::2]).squeeze()
+                )
         data_dict = {"class_name": mods, "snr": snrs, "data": iq_data}
         self.data_table = pd.DataFrame(data_dict)
 
@@ -89,7 +91,7 @@ class RadioML2016(SignalDataset):
         self.transform = transform
 
     def __getitem__(self, item: int):
-        signal_description = SignalDescription(
+        signal_description = SignalMetadata(
             sample_rate=0,
             samples_per_symbol=8,
             class_name=self.data_table["class_name"].iloc[item],
@@ -189,7 +191,9 @@ class RadioML2018(SignalDataset):
         if not target_transform:
             if use_class_idx:
                 if include_snr:
-                    self.target_transform = DescToClassIndexSNR(class_list=self.class_list)
+                    self.target_transform = DescToClassIndexSNR(
+                        class_list=self.class_list
+                    )
                 else:
                     self.target_transform = DescToClassIndex(class_list=self.class_list)
             else:
@@ -200,7 +204,7 @@ class RadioML2018(SignalDataset):
         self.transform = transform
 
     def __getitem__(self, item: int):
-        signal_description = SignalDescription(
+        signal_description = SignalMetadata(
             sample_rate=0,
             samples_per_symbol=8,
             class_name=self.class_list[np.argmax(self.modulation_onehot[item])],

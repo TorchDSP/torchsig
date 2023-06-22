@@ -40,10 +40,10 @@ from torchsig.transforms.functional import (
 )
 from torchsig.utils.dataset import SignalDataset
 from torchsig.utils.dsp import low_pass
-from torchsig.utils.types import SignalData, SignalDescription
+from torchsig.utils.types import SignalData, SignalMetadata
 
 
-class SignalBurst(SignalDescription):
+class SignalBurst(SignalMetadata):
     """SignalBurst is a class that inherits from the SignalDescription class but adds a
     `generate_iq` method that should be implemented by subclasses in order to
     generate the IQ for the signal described by the SignalDescription contents.
@@ -781,7 +781,7 @@ class WidebandDataset(SignalDataset):
             iq_data = signal_iq_data if iq_data else iq_data + signal_iq_data
             signal_description = (
                 [signal_description]
-                if isinstance(signal_description, SignalDescription)
+                if isinstance(signal_description, SignalMetadata)
                 else signal_description
             )
             signal_description_collection.extend(signal_description)
@@ -1282,7 +1282,7 @@ class WidebandModulationsDataset(SignalDataset):
             iq_data = signal_iq_data if iq_data is None else iq_data + signal_iq_data
             signal_description = (
                 [signal_description]
-                if isinstance(signal_description, SignalDescription)
+                if isinstance(signal_description, SignalMetadata)
                 else signal_description
             )
             signal_description_collection.extend(signal_description)
@@ -1457,9 +1457,9 @@ class RandomSignalInsertion(SignalTransform):
 
             # Read existing SignalDescription for unoccupied freq bands
             new_signal_description = deepcopy(data.signal_description)
-            new_signal_description_list: List[SignalDescription] = (
+            new_signal_description_list: List[SignalMetadata] = (
                 [new_signal_description]
-                if isinstance(new_signal_description, SignalDescription)
+                if isinstance(new_signal_description, SignalMetadata)
                 else new_signal_description
             )
             occupied_bands = []

@@ -17,10 +17,10 @@ from torchsig.utils.dataset import SignalDataset
 from torchsig.utils.dsp import low_pass
 from torchsig.utils.types import (
     SignalData,
-    SignalDescription,
+    SignalMetadata,
     Signal,
-    RFSignalDescription,
-    ModulatedRFSignalDescription,
+    RFMetadata,
+    ModulatedRFMetadata,
 )
 
 __all__ = [
@@ -56,7 +56,7 @@ __all__ = [
     "ReshapeTransform",
     "RandomTimeShift",
     "TimeCrop",
-    "TimeReversal",
+    "TimeReversal",DescriptionTransform
     "AmplitudeReversal",
     "RandomFrequencyShift",
     "RandomDelayedFrequencyShift",
@@ -252,45 +252,6 @@ class RandomApply(Transform):
             else data
         )
 
-
-class DescriptionTransform(Transform):
-    def __call__(self, signal: Signal, params: tuple) -> Signal:
-        raise NotImplementedError
-
-
-class SignalTransform(Transform):
-    """An abstract base class which explicitly only operates on Signal data"""
-
-    def __init__(
-        self,
-        desc_transform: DescriptionTransform | None = None,
-        **kwargs,
-    ) -> None:
-        super(SignalTransform, self).__init__(**kwargs)
-        self.desc_transform = desc_transform
-        self.string: str = self.__class__.__name__
-        self._parameters = ()
-
-    @property
-    def parameters(self) -> tuple:
-        return self._parameters
-
-    @parameters.setter
-    def parameters(self, parameters: tuple):
-        self._parameters = parameters
-
-    def __call__(self, signal: Signal) -> Signal:
-        signal = self.transform(signal)
-
-        if self.desc_transform:
-            signal = self.desc_transform(signal, self.parameters)
-
-        return signal
-
-    def transform(self, signal: Signal) -> Signal:
-        raise NotImplementedError
-
-
 class TargetConcatenate(Transform):
     """Concatenates Target Transforms into a Tuple
 
@@ -313,6 +274,48 @@ class TargetConcatenate(Transform):
 
     def __call__(self, target: Any) -> Any:
         return tuple([transform(target) for transform in self.transforms])
+
+
+class MetadataTransform(Transform):
+    def __call__(self, signal: Signal, params: tuple) -> Signal:
+        raise NotImplementedError
+
+class SignalTransform(Transform):
+    """An abstract base class which explicitly only operates on Signal data"""
+
+    def __init__(
+        self,
+        transform_meta: MetadataTransform | None = None,
+        **kwargs,
+    ) -> None:
+        super(SignalTransform, self).__init__(**kwargs)
+        self.transform_meta = transform_meta
+        self.string: str = self.__class__.__name__
+
+    def __call__(self, signal: Signal) -> Signal:
+        parameters = self.parameters()
+
+        signal = self.convert_to_signal(signal)
+        signal = self.transform_data(signal, parameters)
+
+        if self.transform_meta:
+            signal = self.transform_meta(signal, parameters)
+
+        return signal
+    
+    def convert_to_signal(self, signal: Any) -> Signal:
+        if isinstance(signal, Signal):
+            return signal
+        
+        return Signal(data=SignalData(samples=signal), description=[SignalMetadata(sample_rate=1, num_samples=signal.shape[0])])
+    
+    def parameters(self) -> tuple:
+        raise NotImplementedError
+    
+    def transform_data(self, signal: Signal, params: tuple) -> Signal:
+        raise NotImplementedError
+
+
 
 
 class Concatenate(SignalTransform):
@@ -351,9 +354,12 @@ class Concatenate(SignalTransform):
             + ")"
         )
 
-    def transform(self, signal: Signal) -> Signal:
-        signal["data"] = np.concatenate(
-            [transform(deepcopy(signal["data"])) for transform in self.transforms],
+    def transform_data(self, signal: Signal) -> Signal:
+        signal["data"]["samples"] = np.concatenate(
+            [
+                transform(deepcopy(signal["data"]["samples"]))
+                for transform in self.transforms
+            ],
             axis=self.concat_dim,
         )
         return signal
@@ -397,18 +403,20 @@ class RandAugment(SignalTransform):
             + "allow_multiple_same={}".format(allow_multiple_same)
             + ")"
         )
-
-    def transform(self, signal: Signal) -> Signal:
-        self.parameters = tuple(
+    def parameters(self) -> tuple:
+        return tuple(
             self.random_generator.choice(
                 len(self.transforms),
                 size=self.num_transforms,
                 replace=self.allow_multiple_same,
             )
         )
-        for t in self.transforms[self.parameters]:
+    def transform_data(self, signal: Signal, params: tuple) -> Signal:
+        for t in self.transforms[params]:
             signal = t(signal)
         return signal
+    
+
 
 
 class RandChoice(SignalTransform):
@@ -450,17 +458,18 @@ class RandChoice(SignalTransform):
             + "probabilities=[{}]".format(self.probabilities)
             + ")"
         )
-
-    def transform(self, signal: Signal) -> Signal:
-        self.parameters = tuple(
+    def parameters(self) -> tuple:
+        return tuple(
             self.random_generator.choice(
                 len(self.transforms),
                 p=self.probabilities,
             )
         )
-        return self.transforms[self.parameters[0]](signal)
+    def transform_data(self, signal: Signal, params: tuple) -> Signal:
+        return self.transforms[params[0]](signal)
 
 
+    
 class Normalize(SignalTransform):
     """Normalize a IQ vector with mean and standard deviation.
 
@@ -496,12 +505,12 @@ class Normalize(SignalTransform):
             + ")"
         )
 
-    def transform(self, data: Signal) -> Signal:
-        data["samples"] = F.normalize(data["samples"], self.norm, self.flatten)
-        return data
+    def transform_data(self, signal: Signal, params: tuple) -> Signal:
+        signal["data"]["samples"] = F.normalize(signal["data"]["samples"], self.norm, self.flatten)
+        return signal
 
 
-class RFRandomResampleDescriptionTransform(DescriptionTransform):
+class RandomResampleRFMetadataTransform(MetadataTransform):
     def __call__(self, signal: Signal, params: tuple) -> Signal:
         new_rate, num_iq_samples = params
         anti_alias_lpf: bool = False
@@ -509,7 +518,7 @@ class RFRandomResampleDescriptionTransform(DescriptionTransform):
             desc["num_samples"] *= new_rate
             desc["sample_rate"] *= new_rate
 
-            if not isinstance(desc, RFSignalDescription):
+            if not isinstance(desc, RFMetadata):
                 continue
 
             desc["start"] *= new_rate
@@ -540,7 +549,7 @@ class RFRandomResampleDescriptionTransform(DescriptionTransform):
                 continue
 
             # Update frequency descriptions
-            if isinstance(desc, ModulatedRFSignalDescription):
+            if isinstance(desc, ModulatedRFMetadata):
                 desc["samples_per_symbol"] *= new_rate
 
             # Check freq bounds for cases of partial signals
@@ -583,7 +592,9 @@ class RFRandomResampleDescriptionTransform(DescriptionTransform):
                 cutoff=new_rate * 0.98 / 2,
                 transition_bandwidth=(0.5 - (new_rate * 0.98) / 2) / 4,
             )
-            signal["data"] = sp.convolve(signal["data"], taps, mode="same")
+            signal["data"]["samples"] = sp.convolve(
+                signal["data"]["samples"], taps, mode="same"
+            )
 
         return signal
 
@@ -632,9 +643,9 @@ class RandomResample(SignalTransform):
         rate_ratio: NumericParameter = (1.5, 3.0),
         num_iq_samples: int = 4096,
         keep_samples: bool = False,
-        desc_transform: DescriptionTransform = RFRandomResampleDescriptionTransform(),
+        transform_meta: MetadataTransform = RandomResampleRFMetadataTransform(),
     ) -> None:
-        super(RandomResample, self).__init__(desc_transform=desc_transform)
+        super(RandomResample, self).__init__(transform_meta=transform_meta)
         self.rate_ratio: Callable = to_distribution(rate_ratio, self.random_generator)
         self.num_iq_samples = num_iq_samples
         self.keep_samples = keep_samples
@@ -647,17 +658,19 @@ class RandomResample(SignalTransform):
             + ")"
         )
 
-    def transform(self, signal: Signal) -> Signal:
-        self.parameters = self.rate_ratio(), self.num_iq_samples
-        new_rate: float = self.parameters[0]
+    def parameters(self) -> tuple:
+        return self.rate_ratio(), self.num_iq_samples
+    
+    def transform_data(self, signal: Signal, params: tuple) -> Signal:
+        new_rate: float = params[0]
 
         # Do not do anything, no rate change
         if new_rate == 1.0:
             return signal
 
         # Apply transform to data
-        signal["data"] = F.resample(
-            signal["data"],
+        signal["data"]["samples"] = F.resample(
+            signal["data"]["samples"],
             np.floor(new_rate * 100).astype(np.int32),
             100,
             self.num_iq_samples,
@@ -665,11 +678,16 @@ class RandomResample(SignalTransform):
         )
 
         return signal
+    
 
 
-class RFTargetSNRDescriptionTransform(DescriptionTransform):
+
+class TargetSNRRFMetadataTransform(MetadataTransform):
     def __call__(self, signal: Signal, params: tuple):
-        signal["description"][0]["snr"] = params[0]
+        if not isinstance(signal["metadata"][0], RFMetadata):
+            return signal
+
+        signal["metadata"][0]["snr"] = params[0]
         return signal
 
 
@@ -707,10 +725,10 @@ class TargetSNR(SignalTransform):
         self,
         target_snr_db: NumericParameter = uniform_continuous_distribution(-10, 10),
         eb_no: bool = False,
-        desc_transform: ModulatedRFSignalDescription = RFTargetSNRDescriptionTransform(),
+        transform_meta: MetadataTransform = TargetSNRRFMetadataTransform(),
         **kwargs,
     ) -> None:
-        super(TargetSNR, self).__init__(desc_transform=desc_transform, **kwargs)
+        super(TargetSNR, self).__init__(transform_meta=transform_meta, **kwargs)
         self.target_snr = to_distribution(target_snr_db, self.random_generator)
         self.eb_no = eb_no
         self.string = (
@@ -721,33 +739,38 @@ class TargetSNR(SignalTransform):
             + ")"
         )
 
-    def transform(self, signal: Signal) -> Signal:
-        self.parameters = (self.target_snr(),)
-        target_snr_db = self.parameters[0]
-        signal_power_db = 10 * np.log10(np.mean(np.abs(signal["data"]) ** 2, axis=0))
+    def parameters(self) -> tuple:
+        return (self.target_snr(),)
+
+    def transform_data(self, signal: Signal, params: tuple) -> Signal:
+        target_snr_db: float = params[0]
+        signal_power_db = 10 * np.log10(
+            np.mean(np.abs(signal["data"]["samples"]) ** 2, axis=0)
+        )
         noise_power_db = signal_power_db - target_snr_db
 
-        if not isinstance(signal["description"][0], ModulatedRFSignalDescription):
-            signal["data"] = F.awgn(signal["data"], noise_power_db)
+        if not isinstance(signal["metadata"][0], ModulatedRFMetadata):
+            signal["data"]["samples"] = F.awgn(
+                signal["data"]["samples"], noise_power_db
+            )
             return signal
 
-        if "ofdm" not in signal["description"][0]["class_name"]:
+        if "ofdm" not in signal["metadata"][0]["class_name"]:
             # EbNo not available for OFDM
             noise_power_db -= 10 * np.log10(
-                (signal["description"][0]["bits_per_symbol"] if self.eb_no else 0)
+                (signal["metadata"][0]["bits_per_symbol"] if self.eb_no else 0)
             )
-        noise_power_db += 10 * np.log10(signal["description"][0]["samples_per_symbol"])
-        signal["data"] = F.awgn(signal["data"], noise_power_db)
+        noise_power_db += 10 * np.log10(signal["metadata"][0]["samples_per_symbol"])
+        signal["data"]["samples"] = F.awgn(signal["data"]["samples"], noise_power_db)
         return signal
 
-
-class RFAddNoiseDescriptionTransform(DescriptionTransform):
+class AddNoiseRFMetadataTransform(MetadataTransform):
     def __call__(self, signal: Signal, params: tuple) -> Signal:
-        if not isinstance(signal["description"], RFSignalDescription):
+        if not isinstance(signal["metadata"][0], RFMetadata):
             return signal
 
         noise_power_db, noise_floor_db = params
-        for desc in signal["description"]:
+        for desc in signal["metadata"]:
             desc["snr"] = (
                 (desc["snr"] - noise_power_db)
                 if noise_power_db > noise_floor_db
@@ -794,10 +817,10 @@ class AddNoise(SignalTransform):
         self,
         noise_power_db: NumericParameter = uniform_continuous_distribution(-80, -60),
         input_noise_floor_db: float = 0.0,
-        desc_transform: DescriptionTransform = RFAddNoiseDescriptionTransform(),
+        transform_meta: MetadataTransform = AddNoiseRFMetadataTransform(),
         **kwargs,
     ) -> None:
-        super(AddNoise, self).__init__(desc_transform=desc_transform, **kwargs)
+        super(AddNoise, self).__init__(transform_meta=transform_meta, **kwargs)
         self.noise_power_db = to_distribution(noise_power_db, self.random_generator)
         self.input_noise_floor_db = input_noise_floor_db
         self.string = (
@@ -808,21 +831,25 @@ class AddNoise(SignalTransform):
             + ")"
         )
 
-    def transform(self, signal: Signal) -> Signal:
+    def transform_data(self, signal: Signal) -> Signal:
         self.parameters = self.noise_power_db(), self.input_noise_floor_db
-        signal["data"] = F.awgn(signal["data"], self.parameters[0])
+        signal["data"]["samples"] = F.awgn(
+            signal["data"]["samples"], self.parameters[0]
+        )
         return signal
 
 
-class RFTimeVaryingNoiseDescriptionTransform(DescriptionTransform):
+class TimeVaryingNoiseRFMetadataTransform(MetadataTransform):
     def __call__(self, signal: Signal, params: tuple) -> Signal:
+        if not isinstance(signal["metadata"][0], ModulatedRFMetadata):
+            return signal
+
         noise_power_db_change = np.abs(params[1] - params[0])
-        avg_noise_power_db = (
-            min(params[0], params[1]) + noise_power_db_change / 2
-        )
-        for desc in signal["description"]:
+        avg_noise_power_db = min(params[0], params[1]) + noise_power_db_change / 2
+        for desc in signal["metadata"]:
             desc["snr"] -= avg_noise_power_db
         return signal
+
 
 class TimeVaryingNoise(SignalTransform):
     """Add time-varying random AWGN at specified input parameters
@@ -874,11 +901,10 @@ class TimeVaryingNoise(SignalTransform):
         ),
         inflections: IntParameter = uniform_continuous_distribution(0, 10),
         random_regions: Union[List, bool] = True,
-        linear: bool = False,
-        desc_transform: DescriptionTransform = RFTimeVaryingNoiseDescriptionTransform(),
+        transform_meta: MetadataTransform = TimeVaryingNoiseRFMetadataTransform(),
         **kwargs,
     ) -> None:
-        super(TimeVaryingNoise, self).__init__(desc_transform=desc_transform, **kwargs)
+        super(TimeVaryingNoise, self).__init__(transform_meta=transform_meta, **kwargs)
         self.noise_power_db_low = to_distribution(
             noise_power_db_low, self.random_generator
         )
@@ -887,7 +913,6 @@ class TimeVaryingNoise(SignalTransform):
         )
         self.inflections = to_distribution(inflections, self.random_generator)
         self.random_regions = to_distribution(random_regions, self.random_generator)
-        self.linear = linear
         self.string = (
             self.__class__.__name__
             + "("
@@ -895,14 +920,18 @@ class TimeVaryingNoise(SignalTransform):
             + "noise_power_db_high={}, ".format(noise_power_db_high)
             + "inflections={}, ".format(inflections)
             + "random_regions={}, ".format(random_regions)
-            + "linear={}".format(linear)
             + ")"
         )
 
-    def transform(self, signal: Signal) -> Signal:
-        self.parameters = self.noise_power_db_low(), self.noise_power_db_high(), self.inflections(), self.random_regions()
-        signal["data"] = F.time_varying_awgn(
-            signal["data"],
+    def transform_data(self, signal: Signal) -> Signal:
+        self.parameters = (
+            self.noise_power_db_low(),
+            self.noise_power_db_high(),
+            self.inflections(),
+            self.random_regions(),
+        )
+        signal["data"]["samples"] = F.time_varying_awgn(
+            signal["data"]["samples"],
             self.parameters[0],
             self.parameters[1],
             self.parameters[2],
@@ -969,18 +998,12 @@ class RayleighFadingChannel(SignalTransform):
             + ")"
         )
 
-    def __call__(self, data: Any) -> Any:
-        coherence_bandwidth = self.coherence_bandwidth()
-        if isinstance(data, SignalData):
-            assert data.iq_data is not None
-            data.iq_data = F.rayleigh_fading(
-                data.iq_data, coherence_bandwidth, self.power_delay_profile
-            )
-        else:
-            data = F.rayleigh_fading(
-                data, coherence_bandwidth, self.power_delay_profile
-            )
-        return data
+    def transform_data(self, signal: Signal) -> Signal:
+        self.parameters = (self.coherence_bandwidth(),)
+        signal["data"]["samples"] = F.rayleigh_fading(
+            signal["data"]["samples"], self.parameters[0], self.power_delay_profile
+        )
+        return signal
 
 
 class ImpulseInterferer(SignalTransform):
@@ -1018,18 +1041,15 @@ class ImpulseInterferer(SignalTransform):
             + ")"
         )
 
-    def __call__(self, data: Any) -> Any:
-        amp = self.amp()
-        pulse_offset = self.pulse_offset()
-        pulse_offset = 1.0 if pulse_offset > 1.0 else np.max((0.0, pulse_offset))
-        if isinstance(data, SignalData):
-            assert data.iq_data is not None
-            data.iq_data = F.impulsive_interference(
-                data.iq_data, amp, self.pulse_offset
-            )
-        else:
-            data = F.impulsive_interference(data, amp, self.pulse_offset)
-        return data
+    def transform_data(self, signal: Signal) -> Signal:
+        self.parameters = self.amp(), self.pulse_offset()
+        self.parameters[1] = (
+            1.0 if self.parameters[1] > 1.0 else np.max((0.0, self.parameters[1]))
+        )
+        signal["data"]["samples"] = F.impulsive_interference(
+            signal["data"]["samples"], self.parameters[0], self.parameters[1]
+        )
+        return signal
 
 
 class RandomPhaseShift(SignalTransform):
@@ -1067,14 +1087,12 @@ class RandomPhaseShift(SignalTransform):
             self.__class__.__name__ + "(" + "phase_offset={}".format(phase_offset) + ")"
         )
 
-    def __call__(self, data: Any) -> Any:
-        phases = self.phase_offset()
-        if isinstance(data, SignalData):
-            assert data.iq_data is not None
-            data.iq_data = F.phase_offset(data.iq_data, phases * np.pi)
-        else:
-            data = F.phase_offset(data, phases * np.pi)
-        return data
+    def transform_data(self, signal: Signal) -> Signal:
+        self.parameters = (self.phase_offset(),)
+        signal["data"]["samples"] = F.phase_offset(
+            signal["data"]["samples"], self.parameters[0] * np.pi
+        )
+        return signal
 
 
 class InterleaveComplex(SignalTransform):
@@ -1087,16 +1105,9 @@ class InterleaveComplex(SignalTransform):
 
     """
 
-    def __init__(self) -> None:
-        super(InterleaveComplex, self).__init__()
-
-    def __call__(self, data: Any) -> Any:
-        if isinstance(data, SignalData):
-            assert data.iq_data is not None
-            data.iq_data = F.interleave_complex(data.iq_data)
-        else:
-            data = F.interleave_complex(data)
-        return data
+    def transform_data(self, signal: Signal) -> Signal:
+        signal["data"]["samples"] = F.interleave_complex(signal["data"]["samples"])
+        return signal
 
 
 class ComplexTo2D(SignalTransform):
@@ -1109,16 +1120,9 @@ class ComplexTo2D(SignalTransform):
 
     """
 
-    def __init__(self) -> None:
-        super(ComplexTo2D, self).__init__()
-
-    def __call__(self, data: Any) -> Any:
-        if isinstance(data, SignalData):
-            assert data.iq_data is not None
-            data.iq_data = F.complex_to_2d(data.iq_data)
-        else:
-            data = F.complex_to_2d(data)
-        return data
+    def transform_data(self, signal: Signal) -> Signal:
+        signal["data"]["samples"] = F.complex_to_2d(signal["data"]["samples"])
+        return signal
 
 
 class Real(SignalTransform):
@@ -1130,16 +1134,9 @@ class Real(SignalTransform):
 
     """
 
-    def __init__(self) -> None:
-        super(Real, self).__init__()
-
-    def __call__(self, data: Any) -> Any:
-        if isinstance(data, SignalData):
-            assert data.iq_data is not None
-            data.iq_data = F.real(data.iq_data)
-        else:
-            data = F.real(data)
-        return data
+    def transform_data(self, signal: Signal) -> Signal:
+        signal["data"]["samples"] = F.real(signal["data"]["samples"])
+        return signal
 
 
 class Imag(SignalTransform):
@@ -1151,16 +1148,9 @@ class Imag(SignalTransform):
 
     """
 
-    def __init__(self) -> None:
-        super(Imag, self).__init__()
-
-    def __call__(self, data: Any) -> Any:
-        if isinstance(data, SignalData):
-            assert data.iq_data is not None
-            data.iq_data = F.imag(data.iq_data)
-        else:
-            data = F.imag(data)
-        return data
+    def transform_data(self, signal: Signal) -> Signal:
+        signal["data"]["samples"] = F.imag(signal["data"]["samples"])
+        return signal
 
 
 class ComplexMagnitude(SignalTransform):
@@ -1172,16 +1162,9 @@ class ComplexMagnitude(SignalTransform):
 
     """
 
-    def __init__(self) -> None:
-        super(ComplexMagnitude, self).__init__()
-
-    def __call__(self, data: Any) -> Any:
-        if isinstance(data, SignalData):
-            assert data.iq_data is not None
-            data.iq_data = F.complex_magnitude(data.iq_data)
-        else:
-            data = F.complex_magnitude(data)
-        return data
+    def transform_data(self, signal: Signal) -> Signal:
+        signal["data"]["samples"] = F.complex_magnitude(signal["data"]["samples"])
+        return signal
 
 
 class WrappedPhase(SignalTransform):
@@ -1193,16 +1176,9 @@ class WrappedPhase(SignalTransform):
 
     """
 
-    def __init__(self) -> None:
-        super(WrappedPhase, self).__init__()
-
-    def __call__(self, data: Any) -> Any:
-        if isinstance(data, SignalData):
-            assert data.iq_data is not None
-            data.iq_data = F.wrapped_phase(data.iq_data)
-        else:
-            data = F.wrapped_phase(data)
-        return data
+    def transform_data(self, signal: Signal) -> Signal:
+        signal["data"]["samples"] = F.wrapped_phase(signal["data"]["samples"])
+        return signal
 
 
 class DiscreteFourierTransform(SignalTransform):
@@ -1214,16 +1190,11 @@ class DiscreteFourierTransform(SignalTransform):
 
     """
 
-    def __init__(self) -> None:
-        super(DiscreteFourierTransform, self).__init__()
-
-    def __call__(self, data: Any) -> Any:
-        if isinstance(data, SignalData):
-            assert data.iq_data is not None
-            data.iq_data = F.discrete_fourier_transform(data.iq_data)
-        else:
-            data = F.discrete_fourier_transform(data)
-        return data
+    def transform_data(self, signal: Signal) -> Signal:
+        signal["data"]["samples"] = F.discrete_fourier_transform(
+            signal["data"]["samples"]
+        )
+        return signal
 
 
 class ChannelConcatIQDFT(SignalTransform):
@@ -1239,21 +1210,12 @@ class ChannelConcatIQDFT(SignalTransform):
 
     """
 
-    def __init__(self) -> None:
-        super(ChannelConcatIQDFT, self).__init__()
-
-    def __call__(self, data: Any) -> Any:
-        iq_data = data.iq_data if isinstance(data, SignalData) else data
-        assert iq_data is not None
-        dft_data = F.discrete_fourier_transform(iq_data)
-        iq_data = F.complex_to_2d(iq_data)
+    def transform_data(self, signal: Signal) -> Signal:
+        dft_data = F.discrete_fourier_transform(signal["data"]["samples"])
+        iq_data = F.complex_to_2d(signal["data"]["samples"])
         dft_data = F.complex_to_2d(dft_data)
-        output_data = np.concatenate([iq_data, dft_data], axis=0)
-        if isinstance(data, SignalData):
-            data.iq_data = output_data
-        else:
-            data = output_data
-        return data
+        signal["data"]["samples"] = np.concatenate([iq_data, dft_data], axis=0)
+        return signal
 
 
 class Spectrogram(SignalTransform):
@@ -1320,36 +1282,27 @@ class Spectrogram(SignalTransform):
             + ")"
         )
 
-    def __call__(self, data: Any) -> Any:
-        if isinstance(data, SignalData):
-            assert data.iq_data is not None
-            data.iq_data = F.spectrogram(
-                data.iq_data,
-                self.nperseg,
-                self.noverlap,
-                self.nfft,
-                self.window_fcn,
-                self.mode,
-            )
-            if self.mode == "complex":
-                new_tensor = np.zeros(
-                    (2, data.iq_data.shape[0], data.iq_data.shape[1]), dtype=np.float32
-                )
-                new_tensor[0, :, :] = np.real(data.iq_data).astype(np.float32)
-                new_tensor[1, :, :] = np.imag(data.iq_data).astype(np.float32)
-                data.iq_data = new_tensor
-        else:
-            data = F.spectrogram(
-                data, self.nperseg, self.noverlap, self.nfft, self.window_fcn, self.mode
-            )
-            if self.mode == "complex":
-                new_tensor = np.zeros(
-                    (2, data.shape[0], data.shape[1]), dtype=np.float32
-                )
-                new_tensor[0, :, :] = np.real(data).astype(np.float32)
-                new_tensor[1, :, :] = np.imag(data).astype(np.float32)
-                data = new_tensor
-        return data
+    def transform_data(self, signal: Signal) -> Signal:
+        signal["data"]["samples"] = F.spectrogram(
+            signal["data"]["samples"],
+            self.nperseg,
+            self.noverlap,
+            self.nfft,
+            self.window_fcn,
+            self.mode,
+        )
+        if self.mode != "complex":
+            return signal
+
+        new_tensor = np.zeros(
+            (2, signal["data"]["samples"].shape[0], signal["data"]["samples"].shape[1]),
+            dtype=np.float32,
+        )
+        new_tensor[0, :, :] = np.real(signal["data"]["samples"]).astype(np.float32)
+        new_tensor[1, :, :] = np.imag(signal["data"]["samples"]).astype(np.float32)
+        signal["data"]["samples"] = new_tensor
+
+        return signal
 
 
 class ContinuousWavelet(SignalTransform):
@@ -1395,23 +1348,14 @@ class ContinuousWavelet(SignalTransform):
             + ")"
         )
 
-    def __call__(self, data: Any) -> Any:
-        if isinstance(data, SignalData):
-            assert data.iq_data is not None
-            data.iq_data = F.continuous_wavelet_transform(
-                data.iq_data,
-                self.wavelet,
-                self.nscales,
-                self.sample_rate,
-            )
-        else:
-            data = F.continuous_wavelet_transform(
-                data,
-                self.wavelet,
-                self.nscales,
-                self.sample_rate,
-            )
-        return data
+    def transform_data(self, signal: Signal) -> Signal:
+        signal["data"]["samples"] = F.continuous_wavelet_transform(
+            signal["data"]["samples"],
+            self.wavelet,
+            self.nscales,
+            self.sample_rate,
+        )
+        return signal
 
 
 class ReshapeTransform(SignalTransform):
@@ -1430,13 +1374,28 @@ class ReshapeTransform(SignalTransform):
             self.__class__.__name__ + "(" + "new_shape={}".format(new_shape) + ")"
         )
 
-    def __call__(self, data: Any) -> Any:
-        if isinstance(data, SignalData):
-            assert data.iq_data is not None
-            data.iq_data = data.iq_data.reshape(*self.new_shape)
-        else:
-            data = data.reshape(*self.new_shape)
-        return data
+    def transform_data(self, signal: Signal) -> Signal:
+        signal["data"]["samples"] = signal["data"]["samples"].reshape(*self.new_shape)
+        return signal
+
+
+class RandomTimeShiftRFMetadataTransform(MetadataTransform):
+    def __call__(self, signal: Signal, params: tuple) -> Signal:
+        if not isinstance(signal["metadata"][0], RFMetadata):
+            return signal
+
+        for desc in signal["metadata"]:
+            desc["start"] += params[0] / signal["data"]["samples"].shape[0]
+            desc["stop"] += params[0] / signal["data"]["samples"].shape[0]
+            desc["start"] = np.clip(desc["start"], a_min=0.0)
+            desc["stop"] = np.clip(desc["stop"], a_max=1.0)
+            desc["duration"] = desc["stop"] - desc["start"]
+
+
+        # keep only signals that are in (0.0, 1.0)
+        signal["metadata"][:] = [d for d in signal["metadata"] if d["start"] < 1.0]
+        signal["metadata"][:] = [d for d in signal["metadata"] if d["stop"] > 1.0]
+        return signal
 
 
 class RandomTimeShift(SignalTransform):
@@ -1477,8 +1436,9 @@ class RandomTimeShift(SignalTransform):
         shift: NumericParameter = (-10, 10),
         interp_rate: int = 100,
         taps_per_arm: int = 24,
+        transform_meta: MetadataTransform = RandomTimeShiftRFMetadataTransform()
     ) -> None:
-        super(RandomTimeShift, self).__init__()
+        super(RandomTimeShift, self).__init__(transform_meta=transform_meta)
         self.shift = to_distribution(shift, self.random_generator)
         self.interp_rate = interp_rate
         num_taps = int(taps_per_arm * interp_rate)
@@ -1495,75 +1455,46 @@ class RandomTimeShift(SignalTransform):
             + ")"
         )
 
-    def __call__(self, data: Any) -> Any:
-        shift: float = float(self.shift())
-        integer_part, decimal_part = divmod(shift, 1)
+    def parameters(self) -> tuple:
+        return (float(self.shift()),)
+    
+    def transform_data(self, signal: Signal, params: tuple) -> Signal:
+        integer_part, decimal_part = divmod(params[0], 1)
         integer_time_shift: int = int(integer_part) if integer_part else 0
         float_decimal_part: float = float(decimal_part) if decimal_part else 0.0
 
-        if isinstance(data, SignalData):
-            assert data.iq_data is not None
-            assert data.signal_description is not None
-
-            # Create new SignalData object for transformed data
-            new_data: SignalData = SignalData(
-                data=None,
-                item_type=np.dtype(np.float64),
-                data_type=np.dtype(np.complex128),
-                signal_description=[],
+        # Apply data transformation
+        if float_decimal_part != 0:
+            signal["data"]["samples"] = F.fractional_shift(
+                signal["data"]["samples"],
+                self.taps,
+                self.interp_rate,
+                -float_decimal_part,  # this needed to be negated to be consistent with the previous implementation
             )
+        signal["data"]["samples"] = F.time_shift(
+            signal["data"]["samples"], integer_time_shift
+        )
 
-            # Apply data transformation
-            if float_decimal_part != 0:
-                new_data.iq_data = F.fractional_shift(
-                    data.iq_data,
-                    self.taps,
-                    self.interp_rate,
-                    -float_decimal_part,  # this needed to be negated to be consistent with the previous implementation
-                )
-            else:
-                new_data.iq_data = data.iq_data
-            new_data.iq_data = F.time_shift(new_data.iq_data, integer_time_shift)
+        return signal
 
-            # Update SignalDescription
-            new_signal_description: List[SignalDescription] = []
-            signal_description_list: List[SignalDescription] = (
-                [data.signal_description]
-                if isinstance(data.signal_description, SignalDescription)
-                else data.signal_description
-            )
-            for signal_desc in signal_description_list:
-                new_signal_desc = deepcopy(signal_desc)
-                assert new_signal_desc.start is not None
-                assert new_signal_desc.stop is not None
+class TimeCropRFMetadataTransform(MetadataTransform):
+    def __call__(self, signal: Signal, params: tuple) -> Signal:
+        if not isinstance(signal["metadata"][0], RFMetadata):
+            return signal
+        
+        for meta in signal["metadata"]:
+            original_start_sample = meta["start"] * signal["data"]["samples"].shape[0]
+            original_stop_sample = meta["stop"] * signal["data"]["samples"].shape[0]
+            new_start_sample = original_start_sample - params[0]
+            new_stop_sample = original_stop_sample - params[0]
+            meta["start"] = np.clip(float(new_start_sample / params[1]), a_min=0.0)
+            meta["stop"] = np.clip(float(new_stop_sample / params[1]), a_max=1.0)
+            meta["duration"] = meta["stop"] - meta["start"]
+            meta["num_samples"] = params[1]
 
-                new_signal_desc.start += shift / new_data.iq_data.shape[0]
-                new_signal_desc.stop += shift / new_data.iq_data.shape[0]
-                new_signal_desc.start = (
-                    0.0 if new_signal_desc.start < 0.0 else new_signal_desc.start
-                )
-                new_signal_desc.stop = (
-                    1.0 if new_signal_desc.stop > 1.0 else new_signal_desc.stop
-                )
-                new_signal_desc.duration = new_signal_desc.stop - new_signal_desc.start
-                if new_signal_desc.start > 1.0 or new_signal_desc.stop < 0.0:
-                    continue
-                new_signal_description.append(new_signal_desc)
-            new_data.signal_description = new_signal_description
-            return new_data
-
-        else:
-            output: np.ndarray = data.copy()
-            if float_decimal_part != 0:
-                output = F.fractional_shift(
-                    output,
-                    self.taps,
-                    self.interp_rate,
-                    -float_decimal_part,  # this needed to be negated to be consistent with the previous implementation
-                )
-            output = F.time_shift(output, integer_time_shift)
-            return output
-
+        signal["metadata"][:] = [d for d in signal["metadata"] if d["start"] < 1.0]
+        signal["metadata"][:] = [d for d in signal["metadata"] if d["stop"] > 1.0]
+        return signal
 
 class TimeCrop(SignalTransform):
     """Crops a tensor in the time dimension to the specified length. Optional
@@ -1594,91 +1525,69 @@ class TimeCrop(SignalTransform):
 
     """
 
-    def __init__(self, crop_type: str = "random", length: int = 256) -> None:
+    def __init__(self, crop_type: str = "random", crop_length: int = 256, signal_length: int = 1024) -> None:
         super(TimeCrop, self).__init__()
         self.crop_type = crop_type
-        self.length = length
+        self.crop_length = crop_length
+        self.signal_length = signal_length
+        if self.crop_type not in ("start", "center", "end", "random"):
+            raise ValueError("Crop type must be: `start`, `center`, `end`, or `random`")
+
         self.string = (
             self.__class__.__name__
             + "("
             + "crop_type={}, ".format(crop_type)
-            + "length={}".format(length)
+            + "length={}".format(crop_length)
             + ")"
         )
 
-    def __call__(self, data: Any) -> Any:
-        iq_data = data.iq_data if isinstance(data, SignalData) else data
-        assert iq_data is not None
-
-        if iq_data.shape[0] == self.length:
-            return data
-        elif iq_data.shape[0] < self.length:
-            raise ValueError(
-                "Input data length {} is less than requested length {}".format(
-                    iq_data.shape[0], self.length
-                )
-            )
-
+    def parameters(self) -> tuple:
         if self.crop_type == "start":
             start = 0
         elif self.crop_type == "end":
-            start = iq_data.shape[0] - self.length
+            start = self.signal_length - self.crop_length
         elif self.crop_type == "center":
-            start = (iq_data.shape[0] - self.length) // 2
+            start = (self.signal_length - self.crop_length) // 2
         elif self.crop_type == "random":
-            start = np.random.randint(0, iq_data.shape[0] - self.length)
-        else:
-            raise ValueError("Crop type must be: `start`, `center`, `end`, or `random`")
-
-        if isinstance(data, SignalData):
-            assert data.signal_description is not None
-            # Create new SignalData object for transformed data
-            new_data: SignalData = SignalData(
-                data=None,
-                item_type=np.dtype(np.float64),
-                data_type=np.dtype(np.complex128),
-                signal_description=[],
+            start = np.random.randint(0, self.signal_length - self.crop_length)
+        
+        return start, self.crop_length
+    
+    def transform_data(self, signal: Signal, params: tuple) -> Signal:
+        if signal["metadata"][0]["num_samples"] == self.crop_length:
+            return signal
+        
+        if signal["metadata"][0]["num_samples"] < self.crop_length:
+            raise ValueError(
+                "Input data length {} is less than requested length {}".format(
+                    signal["data"]["samples"].shape[0], self.crop_length
+                )
             )
 
-            # Perform data augmentation
-            new_data.iq_data = F.time_crop(iq_data, start, self.length)
-            assert new_data.iq_data is not None
+        signal["data"]["samples"] = F.time_crop(signal["data"]["samples"], params[0], self.crop_length)
+        return signal
+    
+class TimeReversalRFMetadataTransform(MetadataTransform):
+    def __call__(self, signal: Signal, params: tuple) -> Signal:
+        if not isinstance(signal["metadata"][0], RFMetadata):
+            return signal
+        
+        for meta in signal["metadata"]:
+            # Invert time labels
+            original_start = meta["start"]
+            original_stop = meta["stop"]
+            meta["start"] = original_stop * -1 + 1.0
+            meta["stop"] = original_start * -1 + 1.0
 
-            # Update SignalDescription
-            new_signal_description: List[SignalDescription] = []
-            signal_description_list: List[SignalDescription] = (
-                [data.signal_description]
-                if isinstance(data.signal_description, SignalDescription)
-                else data.signal_description
-            )
-            for signal_desc in signal_description_list:
-                new_signal_desc = deepcopy(signal_desc)
-                assert new_signal_desc.start is not None
-                assert new_signal_desc.stop is not None
+            if not params[0]:
+                # Invert freq labels
+                original_lower = meta["lower_freq"]
+                original_upper = meta["upper_freq"]
+                meta["lower_freq"] = original_upper * -1
+                meta["upper_freq"] = original_lower * -1
+                meta["center_freq"] *= -1
 
-                original_start_sample = signal_desc.start * iq_data.shape[0]
-                original_stop_sample = signal_desc.stop * iq_data.shape[0]
-                new_start_sample = original_start_sample - start
-                new_stop_sample = original_stop_sample - start
-                new_signal_desc.start = float(new_start_sample / self.length)
-                new_signal_desc.stop = float(new_stop_sample / self.length)
-                new_signal_desc.start = (
-                    0.0 if new_signal_desc.start < 0.0 else new_signal_desc.start
-                )
-                new_signal_desc.stop = (
-                    1.0 if new_signal_desc.stop > 1.0 else new_signal_desc.stop
-                )
-                new_signal_desc.duration = new_signal_desc.stop - new_signal_desc.start
-                new_signal_desc.num_iq_samples = self.length
-                if new_signal_desc.start > 1.0 or new_signal_desc.stop < 0.0:
-                    continue
-                new_signal_description.append(new_signal_desc)
-            new_data.signal_description = new_signal_description
-            return new_data
-
-        else:
-            output: np.ndarray = F.time_crop(data, start, self.length)
-            return output
+        return signal
 
 
 class TimeReversal(SignalTransform):
@@ -1699,8 +1608,9 @@ class TimeReversal(SignalTransform):
     def __init__(
         self,
         undo_spectral_inversion: Union[bool, float] = True,
+        **kwargs
     ) -> None:
-        super(TimeReversal, self).__init__()
+        super(TimeReversal, self).__init__(**kwargs)
         if isinstance(undo_spectral_inversion, bool):
             self.undo_spectral_inversion: float = (
                 1.0 if undo_spectral_inversion else 0.0
@@ -1714,96 +1624,72 @@ class TimeReversal(SignalTransform):
             + ")"
         )
 
-    def __call__(self, data: Any) -> Any:
-        spec_inversion_prob = np.random.rand()
-        undo_spec_inversion = spec_inversion_prob <= self.undo_spectral_inversion
-        if isinstance(data, SignalData):
-            assert data.iq_data is not None
-            assert data.signal_description is not None
+    def parameters(self) -> tuple:
+        return (np.random.rand() <= self.undo_spectral_inversion,)
 
-            # Create new SignalData object for transformed data
-            new_data: SignalData = SignalData(
-                data=None,
-                item_type=np.dtype(np.float64),
-                data_type=np.dtype(np.complex128),
-                signal_description=[],
-            )
+    def transform_data(self, signal: Signal, params: tuple) -> Signal:
+        signal["data"]["samples"] = F.time_reversal(signal["data"]["samples"])
+        if params[0]:
+            signal["data"]["samples"] = F.spectral_inversion(signal["data"]["samples"])
 
-            # Perform data augmentation
-            new_data.iq_data = F.time_reversal(data.iq_data)
-            if undo_spec_inversion:
-                # If spectral inversion not desired, reverse effect
-                new_data.iq_data = F.spectral_inversion(new_data.iq_data)
-
-            # Update SignalDescription
-            new_signal_description: List[SignalDescription] = []
-            signal_description_list: List[SignalDescription] = (
-                [data.signal_description]
-                if isinstance(data.signal_description, SignalDescription)
-                else data.signal_description
-            )
-            for signal_desc in signal_description_list:
-                new_signal_desc = deepcopy(signal_desc)
-                assert new_signal_desc.start is not None
-                assert new_signal_desc.stop is not None
-                assert new_signal_desc.lower_frequency is not None
-                assert new_signal_desc.upper_frequency is not None
-                assert new_signal_desc.center_frequency is not None
-
-                # Invert time labels
-                original_start = new_signal_desc.start
-                original_stop = new_signal_desc.stop
-                new_signal_desc.start = original_stop * -1 + 1.0
-                new_signal_desc.stop = original_start * -1 + 1.0
-
-                if not undo_spec_inversion:
-                    # Invert freq labels
-                    original_lower = new_signal_desc.lower_frequency
-                    original_upper = new_signal_desc.upper_frequency
-                    new_signal_desc.lower_frequency = original_upper * -1
-                    new_signal_desc.upper_frequency = original_lower * -1
-                    new_signal_desc.center_frequency *= -1
-
-                new_signal_description.append(new_signal_desc)
-
-            new_data.signal_description = new_signal_description
-            return new_data
-
-        else:
-            output: np.ndarray = F.time_reversal(data)
-            if undo_spec_inversion:
-                # If spectral inversion not desired, reverse effect
-                output = F.spectral_inversion(output)
-            return output
-
+        return signal
 
 class AmplitudeReversal(SignalTransform):
     """Applies an amplitude reversal to the input tensor by applying a value of
     -1 to each sample. Effectively the same as a static phase shift of pi
 
     """
+    def __init__(
+        self,
+        **kwargs
+    ) -> None:
+        super(AmplitudeReversal, self).__init__(**kwargs)
 
-    def __init__(self) -> None:
-        super(AmplitudeReversal, self).__init__()
+    def transform_data(self, signal: Signal, params: tuple) -> Signal:
+        signal["data"]["samples"] = F.amplitude_reversal(signal["data"]["samples"])
+        return signal
 
-    def __call__(self, data: Any) -> Any:
-        if isinstance(data, SignalData):
-            assert data.iq_data is not None
-            # Create new SignalData object for transformed data
-            new_data: SignalData = SignalData(
-                data=None,
-                item_type=np.dtype(np.float64),
-                data_type=np.dtype(np.complex128),
-                signal_description=data.signal_description,
+class RandomFrequencyShiftRFMetadataTransform(MetadataTransform):
+    def __call__(self, signal: Signal, params: tuple) -> Signal:
+        if not isinstance(signal["metadata"][0], RFMetadata):
+            return signal
+        
+        avoid_aliasing = False
+        for meta in signal["metadata"]:
+            # Check bounds for partial signals
+            meta["lower_freq"] = np.clip(meta["lower_freq"], a_min=-.5)
+            meta["upper_freq"] = np.clip(meta["upper_freq"], a_max=.5)
+            meta["bandwidth"] = (
+                meta["upper_freq"] - meta["lower_freq"]
+            )
+            meta["center_freq"] = (
+                meta["lower_freq"] + meta["bandwidth"] * 0.5
             )
 
-            # Perform data augmentation
-            new_data.iq_data = F.amplitude_reversal(data.iq_data)
-            return new_data
-        else:
-            output: np.ndarray = F.amplitude_reversal(data)
-            return output
+            # Shift freq descriptions
+            meta["lower_freq"] += float(params[0])
+            meta["upper_freq"] += float(params[0])
+            meta["center_freq"] += float(params[0])
 
+            # Check bounds for aliasing
+            if (
+                meta["lower_freq"] >= 0.5
+                or meta["upper_freq"] <= -0.5
+            ):
+                avoid_aliasing = True
+            if (
+                meta["lower_freq"] < -0.45
+                or meta["upper_freq"] > 0.45
+            ):
+                avoid_aliasing = True
+
+        signal["metadata"][:] = [d for d in signal["metadata"] if d["lower_freq"] >= .5]
+        signal["metadata"][:] = [d for d in signal["metadata"] if d["upper_freq"] <= -.5]
+
+        if avoid_aliasing:
+            signal["data"]["samples"] = F.freq_shift_avoid_aliasing(signal["data"]["samples"], params[0])
+        
+        return signal
 
 class RandomFrequencyShift(SignalTransform):
     """Shifts each tensor in freq by freq_shift along the time dimension.
@@ -1828,111 +1714,21 @@ class RandomFrequencyShift(SignalTransform):
 
     """
 
-    def __init__(self, freq_shift: NumericParameter = (-0.5, 0.5)) -> None:
-        super(RandomFrequencyShift, self).__init__()
+    def __init__(self, freq_shift: NumericParameter = (-0.5, 0.5), **kwargs) -> None:
+        super(RandomFrequencyShift, self).__init__(**kwargs)
         self.freq_shift = to_distribution(freq_shift, self.random_generator)
         self.string = (
             self.__class__.__name__ + "(" + "freq_shift={}".format(freq_shift) + ")"
         )
 
-    def __call__(self, data: Any) -> Any:
-        freq_shift = self.freq_shift()
-        if isinstance(data, SignalData):
-            assert data.iq_data is not None
-            assert data.signal_description is not None
+    def parameters(self) -> tuple:
+        return (self.freq_shift(),)
+    
+    def transform_data(self, signal: Signal, params: tuple) -> Signal:
+        if not isinstance(signal["metadata"][0], RFMetadata):
+            signal["data"]["samples"] = F.freq_shift(signal["data"]["samples"], params[0])
 
-            # Create new SignalData object for transformed data
-            new_data: SignalData = SignalData(
-                data=None,
-                item_type=np.dtype(np.float64),
-                data_type=np.dtype(np.complex128),
-                signal_description=[],
-            )
-
-            # Update SignalDescription
-            new_signal_description: List[SignalDescription] = []
-            signal_description_list: List[SignalDescription] = (
-                [data.signal_description]
-                if isinstance(data.signal_description, SignalDescription)
-                else data.signal_description
-            )
-            avoid_aliasing = False
-            for signal_desc in signal_description_list:
-                new_signal_desc = deepcopy(signal_desc)
-                assert new_signal_desc.lower_frequency is not None
-                assert new_signal_desc.upper_frequency is not None
-
-                # Check bounds for partial signals
-                new_signal_desc.lower_frequency = (
-                    -0.5
-                    if new_signal_desc.lower_frequency < -0.5
-                    else new_signal_desc.lower_frequency
-                )
-                new_signal_desc.upper_frequency = (
-                    0.5
-                    if new_signal_desc.upper_frequency > 0.5
-                    else new_signal_desc.upper_frequency
-                )
-                new_signal_desc.bandwidth = (
-                    new_signal_desc.upper_frequency - new_signal_desc.lower_frequency
-                )
-                new_signal_desc.center_frequency = (
-                    new_signal_desc.lower_frequency + new_signal_desc.bandwidth * 0.5
-                )
-
-                # Shift freq descriptions
-                new_signal_desc.lower_frequency += float(freq_shift)
-                new_signal_desc.upper_frequency += float(freq_shift)
-                new_signal_desc.center_frequency += float(freq_shift)
-
-                # Check bounds for aliasing
-                if (
-                    new_signal_desc.lower_frequency >= 0.5
-                    or new_signal_desc.upper_frequency <= -0.5
-                ):
-                    avoid_aliasing = True
-                    continue
-                if (
-                    new_signal_desc.lower_frequency < -0.45
-                    or new_signal_desc.upper_frequency > 0.45
-                ):
-                    avoid_aliasing = True
-                new_signal_desc.lower_frequency = (
-                    -0.5
-                    if new_signal_desc.lower_frequency < -0.5
-                    else new_signal_desc.lower_frequency
-                )
-                new_signal_desc.upper_frequency = (
-                    0.5
-                    if new_signal_desc.upper_frequency > 0.5
-                    else new_signal_desc.upper_frequency
-                )
-
-                # Update bw & fc
-                new_signal_desc.bandwidth = (
-                    new_signal_desc.upper_frequency - new_signal_desc.lower_frequency
-                )
-                new_signal_desc.center_frequency = (
-                    new_signal_desc.lower_frequency + new_signal_desc.bandwidth * 0.5
-                )
-
-                # Append SignalDescription to list
-                new_signal_description.append(new_signal_desc)
-
-            new_data.signal_description = new_signal_description
-
-            # Apply data augmentation
-            if avoid_aliasing:
-                # If any potential aliasing detected, perform shifting at higher sample rate
-                new_data.iq_data = F.freq_shift_avoid_aliasing(data.iq_data, freq_shift)
-            else:
-                # Otherwise, use faster freq shifter
-                new_data.iq_data = F.freq_shift(data.iq_data, freq_shift)
-            return new_data
-        else:
-            output: np.ndarray = F.freq_shift(data, freq_shift)
-            return output
-
+        return signal
 
 class RandomDelayedFrequencyShift(SignalTransform):
     """Apply a delayed frequency shift to the input data
@@ -1992,10 +1788,10 @@ class RandomDelayedFrequencyShift(SignalTransform):
             num_iq_samples = data.iq_data.shape[0]
 
             # Setup new SignalDescription object
-            new_signal_description: List[SignalDescription] = []
-            signal_description_list: List[SignalDescription] = (
+            new_signal_description: List[SignalMetadata] = []
+            signal_description_list: List[SignalMetadata] = (
                 [data.signal_description]
-                if isinstance(data.signal_description, SignalDescription)
+                if isinstance(data.signal_description, SignalMetadata)
                 else data.signal_description
             )
             avoid_aliasing = False
@@ -2201,10 +1997,10 @@ class LocalOscillatorDrift(SignalTransform):
             )
 
             # Update SignalDescription
-            new_signal_description: List[SignalDescription] = []
-            signal_description_list: List[SignalDescription] = (
+            new_signal_description: List[SignalMetadata] = []
+            signal_description_list: List[SignalMetadata] = (
                 [data.signal_description]
-                if isinstance(data.signal_description, SignalDescription)
+                if isinstance(data.signal_description, SignalMetadata)
                 else data.signal_description
             )
             for signal_desc in signal_description_list:
@@ -2630,10 +2426,10 @@ class SpectralInversion(SignalTransform):
             new_data.iq_data = F.spectral_inversion(data.iq_data)
 
             # Update SignalDescription
-            new_signal_description: List[SignalDescription] = []
-            signal_description_list: List[SignalDescription] = (
+            new_signal_description: List[SignalMetadata] = []
+            signal_description_list: List[SignalMetadata] = (
                 [data.signal_description]
-                if isinstance(data.signal_description, SignalDescription)
+                if isinstance(data.signal_description, SignalMetadata)
                 else data.signal_description
             )
             for signal_desc in signal_description_list:
@@ -2679,10 +2475,10 @@ class ChannelSwap(SignalTransform):
             )
 
             # Update SignalDescription
-            new_signal_description: List[SignalDescription] = []
-            signal_description_list: List[SignalDescription] = (
+            new_signal_description: List[SignalMetadata] = []
+            signal_description_list: List[SignalMetadata] = (
                 [data.signal_description]
-                if isinstance(data.signal_description, SignalDescription)
+                if isinstance(data.signal_description, SignalMetadata)
                 else data.signal_description
             )
             for signal_desc in signal_description_list:
@@ -3097,9 +2893,9 @@ class DatasetBasebandMixUp(SignalTransform):
             assert data.signal_description is not None
 
             # Input checks
-            signal_description_list: List[SignalDescription] = (
+            signal_description_list: List[SignalMetadata] = (
                 [data.signal_description]
-                if isinstance(data.signal_description, SignalDescription)
+                if isinstance(data.signal_description, SignalMetadata)
                 else data.signal_description
             )
             if len(signal_description_list) > 1:
@@ -3154,9 +2950,9 @@ class DatasetBasebandMixUp(SignalTransform):
             new_signal_description = []
             new_signal_description.append(signal_description_list[0])
             assert insert_signal_data.signal_description is not None
-            insert_desc: List[SignalDescription] = (
+            insert_desc: List[SignalMetadata] = (
                 [insert_signal_data.signal_description]
-                if isinstance(insert_signal_data.signal_description, SignalDescription)
+                if isinstance(insert_signal_data.signal_description, SignalMetadata)
                 else insert_signal_data.signal_description
             )
             new_signal_description.append(insert_desc[0])
@@ -3240,9 +3036,9 @@ class DatasetBasebandCutMix(SignalTransform):
             assert data.iq_data is not None
             assert data.signal_description is not None
 
-            signal_description_list: List[SignalDescription] = (
+            signal_description_list: List[SignalMetadata] = (
                 [data.signal_description]
-                if isinstance(data.signal_description, SignalDescription)
+                if isinstance(data.signal_description, SignalMetadata)
                 else data.signal_description
             )
             if len(signal_description_list) > 1:
@@ -3300,7 +3096,7 @@ class DatasetBasebandCutMix(SignalTransform):
             new_data.iq_data = data.iq_data + insert_signal_data.iq_data
 
             # Update SignalDescription
-            new_signal_description: List[SignalDescription] = []
+            new_signal_description: List[SignalMetadata] = []
             if insert_start != 0 and insert_stop != num_iq_samples:
                 # Data description becomes two SignalDescriptions
                 new_signal_desc = deepcopy(signal_description_list[0])
@@ -3330,9 +3126,9 @@ class DatasetBasebandCutMix(SignalTransform):
             # Repeat for insert's SignalDescription
 
             assert insert_signal_data.signal_description is not None
-            insert_desc: List[SignalDescription] = (
+            insert_desc: List[SignalMetadata] = (
                 [insert_signal_data.signal_description]
-                if isinstance(insert_signal_data.signal_description, SignalDescription)
+                if isinstance(insert_signal_data.signal_description, SignalMetadata)
                 else insert_signal_data.signal_description
             )
             new_signal_desc = deepcopy(insert_desc[0])
@@ -3425,10 +3221,10 @@ class CutOut(SignalTransform):
             )
 
             # Update SignalDescription
-            new_signal_description: List[SignalDescription] = []
-            signal_description_list: List[SignalDescription] = (
+            new_signal_description: List[SignalMetadata] = []
+            signal_description_list: List[SignalMetadata] = (
                 [data.signal_description]
-                if isinstance(data.signal_description, SignalDescription)
+                if isinstance(data.signal_description, SignalMetadata)
                 else data.signal_description
             )
             for signal_desc in signal_description_list:
@@ -3637,10 +3433,10 @@ class DatasetWidebandCutMix(SignalTransform):
             new_data.iq_data = data.iq_data + insert_iq_data
 
             # Update SignalDescription
-            new_signal_description: List[SignalDescription] = []
-            signal_description_list: List[SignalDescription] = (
+            new_signal_description: List[SignalMetadata] = []
+            signal_description_list: List[SignalMetadata] = (
                 [data.signal_description]
-                if isinstance(data.signal_description, SignalDescription)
+                if isinstance(data.signal_description, SignalMetadata)
                 else data.signal_description
             )
             for signal_desc in signal_description_list:
@@ -3811,10 +3607,10 @@ class DatasetWidebandMixUp(SignalTransform):
             new_data.iq_data = data.iq_data * (1 - alpha) + insert_iq_data * alpha
 
             # Update SignalDescription
-            new_signal_description: List[SignalDescription] = []
-            signal_description_list: List[SignalDescription] = (
+            new_signal_description: List[SignalMetadata] = []
+            signal_description_list: List[SignalMetadata] = (
                 [data.signal_description]
-                if isinstance(data.signal_description, SignalDescription)
+                if isinstance(data.signal_description, SignalMetadata)
                 else data.signal_description
             )
             new_signal_description.extend(signal_description_list)
@@ -4014,10 +3810,10 @@ class SpectrogramRandomResizeCrop(SignalTransform):
             new_data.iq_data = spec_data
 
             # Update SignalDescription
-            new_signal_description: List[SignalDescription] = []
-            signal_description_list: List[SignalDescription] = (
+            new_signal_description: List[SignalMetadata] = []
+            signal_description_list: List[SignalMetadata] = (
                 [data.signal_description]
-                if isinstance(data.signal_description, SignalDescription)
+                if isinstance(data.signal_description, SignalMetadata)
                 else data.signal_description
             )
             for signal_desc in signal_description_list:
@@ -4374,10 +4170,10 @@ class SpectrogramTranslation(SignalTransform):
             new_data.iq_data = F.spec_translate(data.iq_data, time_shift, freq_shift)
 
             # Update SignalDescription
-            new_signal_description: List[SignalDescription] = []
-            signal_description_list: List[SignalDescription] = (
+            new_signal_description: List[SignalMetadata] = []
+            signal_description_list: List[SignalMetadata] = (
                 [data.signal_description]
-                if isinstance(data.signal_description, SignalDescription)
+                if isinstance(data.signal_description, SignalMetadata)
                 else data.signal_description
             )
             for signal_desc in signal_description_list:
@@ -4518,9 +4314,9 @@ class SpectrogramMosaicCrop(SignalTransform):
             ] = data.iq_data
 
             # Update original data's SignalDescription objects given the cell index
-            signal_description_list: List[SignalDescription] = (
+            signal_description_list: List[SignalMetadata] = (
                 [data.signal_description]
-                if isinstance(data.signal_description, SignalDescription)
+                if isinstance(data.signal_description, SignalMetadata)
                 else data.signal_description
             )
             for signal_desc in signal_description_list:
@@ -4637,7 +4433,7 @@ class SpectrogramMosaicCrop(SignalTransform):
                 # Update inserted data's SignalDescription objects given the cell index
                 signal_description_list = (
                     [curr_signal_desc]
-                    if isinstance(curr_signal_desc, SignalDescription)
+                    if isinstance(curr_signal_desc, SignalMetadata)
                     else curr_signal_desc
                 )
                 for signal_desc in signal_description_list:
@@ -4843,9 +4639,9 @@ class SpectrogramMosaicDownsample(SignalTransform):
             ] = data.iq_data
 
             # Update original data's SignalDescription objects given the cell index
-            signal_description_list: List[SignalDescription] = (
+            signal_description_list: List[SignalMetadata] = (
                 [data.signal_description]
-                if isinstance(data.signal_description, SignalDescription)
+                if isinstance(data.signal_description, SignalMetadata)
                 else data.signal_description
             )
             for signal_desc in signal_description_list:
@@ -4934,7 +4730,7 @@ class SpectrogramMosaicDownsample(SignalTransform):
                 # Update inserted data's SignalDescription objects given the cell index
                 signal_description_list = (
                     [curr_signal_desc]
-                    if isinstance(curr_signal_desc, SignalDescription)
+                    if isinstance(curr_signal_desc, SignalMetadata)
                     else curr_signal_desc
                 )
                 for signal_desc in signal_description_list:
