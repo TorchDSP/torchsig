@@ -64,7 +64,7 @@ def test_time_crop_start():
     length = 4
     t = TimeCrop(
         crop_type="start",
-        length=length,
+        crop_length=length,
     )
     new_data: np.ndarray = t(data)
     assert np.allclose(data[:length], new_data)
@@ -88,7 +88,7 @@ def test_time_crop_center():
     length = 4
     t = TimeCrop(
         crop_type="center",
-        length=length,
+        crop_length=length,
     )
     new_data: np.ndarray = t(data)
     extra_samples = num_iq_samples - length
@@ -113,7 +113,7 @@ def test_time_crop_end():
     length = 4
     t = TimeCrop(
         crop_type="end",
-        length=length,
+        crop_length=length,
     )
     new_data: np.ndarray = t(data)
     assert np.allclose(data[-length:], new_data)

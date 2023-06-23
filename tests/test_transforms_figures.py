@@ -1,6 +1,6 @@
 from torchsig.datasets.synthetic import DigitalModulationDataset
 from torchsig.transforms.transforms import *
-from torchsig.utils.types import SignalData, SignalDescription
+from torchsig.utils.types import SignalData, SignalMetadata
 from matplotlib import pyplot as plt
 import itertools
 import numpy as np
@@ -20,7 +20,7 @@ def generate_data(modulation_name):
         dataset[0][0].tobytes(),
         item_type=np.float64,
         data_type=np.complex128,
-        signal_description=SignalDescription(),
+        signal_description=SignalMetadata(),
     )
 
     dataset = DigitalModulationDataset(
@@ -35,7 +35,7 @@ def generate_data(modulation_name):
         dataset[0][0].tobytes(),
         item_type=np.float64,
         data_type=np.complex128,
-        signal_description=SignalDescription(),
+        signal_description=SignalMetadata(),
     )
     return short_data, long_data
 
@@ -62,8 +62,8 @@ transforms_list = [
     ("time_shift", RandomTimeShift(-100.5), RandomTimeShift(-2.5)),
     (
         "time_crop",
-        TimeCrop("random", length=64),
-        TimeCrop("random", length=2048),
+        TimeCrop("random", crop_length=64),
+        TimeCrop("random", crop_length=2048),
     ),
     ("time_reversal", TimeReversal(False), TimeReversal(False)),
     ("frequency_shift", RandomFrequencyShift(-0.25), RandomFrequencyShift(-0.25)),
