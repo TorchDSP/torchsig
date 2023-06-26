@@ -86,7 +86,7 @@ class LMDBDatasetWriter(DatasetWriter):
     def __init__(self, path: str, *args, **kwargs):
         super(LMDBDatasetWriter, self).__init__(*args, **kwargs)
         self.path = path
-        self.env = lmdb.Environment(path, subdir=True, map_size=int(1e12), max_dbs=2)
+        self.env = lmdb.Environment(path, subdir=True, map_size=int(4e12), max_dbs=2)
         self.data_db = self.env.open_db(b"data")
         self.label_db = self.env.open_db(b"label")
 

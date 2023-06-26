@@ -617,7 +617,7 @@ class OFDMDataset(SyntheticDataset):
             min_num_blocks = 2
             max_num_blocks = 16
             num_blocks = np.random.randint(min_num_blocks, max_num_blocks)
-            for block_idx in range(num_blocks):
+            for _ in range(num_blocks):
                 block_start = np.random.uniform(0.0, 0.9)
                 block_dur = np.random.uniform(0.05, 1.0 - block_start)
                 block_start = int(block_start * zero_pad.shape[1])
@@ -737,23 +737,29 @@ class OFDMDataset(SyntheticDataset):
         if num_subcarriers * 4 * burst_dur < self.num_iq_samples:
             start_idx = np.random.randint(0, output.shape[0] - self.num_iq_samples)
         else:
-            if original_on:
-                lower: int = int(
-                    max(0, int(symbol_dur * burst_dur) - self.num_iq_samples * 0.7)
-                )
-                upper: int = int(
-                    min(
-                        int(symbol_dur * burst_dur),
-                        output.shape[0] - self.num_iq_samples,
-                    )
-                )
-                start_idx = np.random.randint(lower, upper)
-            elif "win" in sidelobe_suppression_method:
+            if "win" in sidelobe_suppression_method:
                 start_idx = np.random.randint(
                     window_len, int(symbol_dur * burst_dur) + window_len
                 )
             else:
                 start_idx = np.random.randint(0, int(symbol_dur * burst_dur))
+            # if original_on:
+            #     lower: int = int(
+            #         max(0, int(symbol_dur * burst_dur) - self.num_iq_samples * 0.7)
+            #     )
+            #     upper: int = int(
+            #         min(
+            #             int(symbol_dur * burst_dur),
+            #             output.shape[0] - self.num_iq_samples,
+            #         )
+            #     )
+            #     start_idx = np.random.randint(lower, upper)
+            # elif "win" in sidelobe_suppression_method:
+            #     start_idx = np.random.randint(
+            #         window_len, int(symbol_dur * burst_dur) + window_len
+            #     )
+            # else:
+            #     start_idx = np.random.randint(0, int(symbol_dur * burst_dur))
 
         if not self.random_data:
             np.random.set_state(orig_state)  # return numpy back to its previous state
