@@ -2455,27 +2455,14 @@ class Quantize(SignalTransform):
             + ")"
         )
 
-    def __call__(self, data: Any) -> Any:
-        num_levels = self.num_levels()
-        round_type = self.round_type()
+    def parameters(self) -> tuple:
+        return (self.num_levels(), self.round_type())
 
-        if isinstance(data, SignalData):
-            assert data.iq_data is not None
-            # Create new SignalData object for transformed data
-            new_data: SignalData = SignalData(
-                data=None,
-                item_type=np.dtype(np.float64),
-                data_type=np.dtype(np.complex128),
-                signal_description=data.signal_description,
-            )
-
-            # Perform data augmentation
-            new_data.iq_data = F.quantize(data.iq_data, num_levels, round_type)
-            return new_data
-        else:
-            output: np.ndarray = F.quantize(data, num_levels, round_type)
-            return output
-
+    def transform_data(self, signal: Signal, params: tuple) -> Signal:
+        num_levels, round_type = params
+        signal["data"]["samples"] = F.quantize(signal["data"]["samples"], num_levels, round_type)
+        return signal
+        
 
 class Clip(SignalTransform):
     """Clips the input values to a percentage of the max/min values
@@ -2504,26 +2491,13 @@ class Clip(SignalTransform):
             + ")"
         )
 
-    def __call__(self, data: Any) -> Any:
-        clip_percentage = self.clip_percentage()
+    def parameters(self) -> tuple:
+        return (self.clip_percentage(),)
 
-        if isinstance(data, SignalData):
-            assert data.iq_data is not None
-            # Create new SignalData object for transformed data
-            new_data: SignalData = SignalData(
-                data=None,
-                item_type=np.dtype(np.float64),
-                data_type=np.dtype(np.complex128),
-                signal_description=data.signal_description,
-            )
-
-            # Apply data augmentation
-            new_data.iq_data = F.clip(data.iq_data, clip_percentage)
-            return new_data
-
-        else:
-            output: np.ndarray = F.clip(data, clip_percentage)
-            return output
+    def transform_data(self, signal: Signal, params: tuple) -> Signal:
+        clip_percentage = params
+        signal["data"]["samples"] = F.clip(signal["data"]["samples"], clip_percentage)
+        return signal
 
 
 class RandomConvolve(SignalTransform):
@@ -2567,27 +2541,13 @@ class RandomConvolve(SignalTransform):
             + ")"
         )
 
-    def __call__(self, data: Any) -> Any:
-        num_taps = int(self.num_taps())
-        alpha = self.alpha()
+    def parameters(self) -> tuple:
+        return (self.num_taps(), self.alpha())
 
-        if isinstance(data, SignalData):
-            assert data.iq_data is not None
-            # Create new SignalData object for transformed data
-            new_data: SignalData = SignalData(
-                data=None,
-                item_type=np.dtype(np.float64),
-                data_type=np.dtype(np.complex128),
-                signal_description=data.signal_description,
-            )
-
-            # Apply data augmentation
-            new_data.iq_data = F.random_convolve(data.iq_data, num_taps, alpha)
-            return new_data
-        else:
-            output: np.ndarray = F.random_convolve(data, num_taps, alpha)
-            return output
-
+    def transform_data(self, signal: Signal, params: tuple) -> Signal:
+        num_taps, alpha = params
+        signal["data"]["samples"] = F.random_convolve(signal["data"]["samples"], num_taps, alpha)
+        return signal
 
 class DatasetBasebandMixUp(SignalTransform):
     """Signal Transform that inputs a dataset to randomly sample from and insert
@@ -2651,86 +2611,39 @@ class DatasetBasebandMixUp(SignalTransform):
             + ")"
         )
 
-    def __call__(self, data: Any) -> Any:
-        alpha = self.alpha()
-        if isinstance(data, SignalData):
-            assert data.iq_data is not None
-            assert data.signal_description is not None
+    def parameters(self) -> tuple:
+        return (self.alpha(),)
 
-            # Input checks
-            signal_description_list: List[SignalMetadata] = (
-                [data.signal_description]
-                if isinstance(data.signal_description, SignalMetadata)
-                else data.signal_description
-            )
-            if len(signal_description_list) > 1:
-                raise ValueError(
-                    "Expected single `SignalDescription` for input `SignalData` but {} detected.".format(
-                        len(signal_description_list)
-                    )
-                )
-            assert signal_description_list[0].snr is not None
+    def transform_data(self, signal: Signal, params: tuple) -> Signal:
+        return signal
 
-            # Calculate target SNR of signal to be inserted
-            target_snr_db = signal_description_list[0].snr + alpha
+    def transform_meta(self, signal: Signal, params: tuple) -> Signal:
+        alpha = params[0]
+        if not isinstance(signal["metadata"][0], ModulatedRFMetadata):
+            return signal
+        
+        # Calculate target SNR of signal to be inserted
+        target_snr_db = signal["metadata"][0]["snr"] + alpha
 
-            # Randomly sample from provided dataset
-            idx = np.random.randint(self.dataset_num_samples)
-            insert_data, insert_signal_description = self.dataset[idx]
-            if isinstance(insert_data, SignalData):
-                assert insert_data.iq_data is not None
-                insert_iq_data: np.ndarray = insert_data.iq_data
-            else:
-                insert_iq_data = insert_data
+        # Randomly sample from provided dataset
+        idx = np.random.randint(self.dataset_num_samples)
+        insert_data, insert_metadata = self.dataset[idx]
 
-            if insert_iq_data.shape[0] != data.iq_data.shape[0]:
-                raise ValueError(
-                    "Input dataset's `num_iq_samples` does not match main dataset.\n\t\
-                    Found {}, but expected {} samples".format(
-                        insert_iq_data.shape[0], data.iq_data.shape[0]
-                    )
-                )
-            insert_signal_data = SignalData(
-                data=None,
-                item_type=np.dtype(np.float64),
-                data_type=np.dtype(np.complex128),
-                signal_description=insert_signal_description,
-            )
-            insert_signal_data.iq_data = insert_iq_data
-
-            # Set insert data's SNR
-            target_snr_transform = TargetSNR(target_snr_db)
-            insert_signal_data = target_snr_transform(insert_signal_data)
-
-            # Create new SignalData object for transformed data
-            new_data = SignalData(
-                data=None,
-                item_type=np.dtype(np.float64),
-                data_type=np.dtype(np.complex128),
-                signal_description=[],
-            )
-            new_data.iq_data = data.iq_data + insert_signal_data.iq_data
-
-            # Update SignalDescription
-            new_signal_description = []
-            new_signal_description.append(signal_description_list[0])
-            assert insert_signal_data.signal_description is not None
-            insert_desc: List[SignalMetadata] = (
-                [insert_signal_data.signal_description]
-                if isinstance(insert_signal_data.signal_description, SignalMetadata)
-                else insert_signal_data.signal_description
-            )
-            new_signal_description.append(insert_desc[0])
-            new_data.signal_description = new_signal_description
-
-            return new_data
-        else:
+        if insert_iq_data.shape[0] != signal["data"]["samples"].shape[0]:
             raise ValueError(
-                "Expected input type `SignalData`. Received {}. \n\t\
-                The `SignalDatasetBasebandMixUp` transform depends on metadata from a `SignalData` object.".format(
-                    type(data)
+                "Input dataset's `num_iq_samples` does not match main dataset.\n\t\
+                Found {}, but expected {} samples".format(
+                    insert_data.shape[0], signal["data"]["samples"].shape[0]
                 )
             )
+    
+        # Set insert data's SNR
+        target_snr_transform = TargetSNR(target_snr_db)
+        insert_signal_data = target_snr_transform(insert_signal_data)
+
+        signal["data"]["samples"] = signal["data"]["samples"] + insert_data
+        signal["metadata"].extend(insert_metadata)
+        return signal
 
 
 class DatasetBasebandCutMix(SignalTransform):
@@ -2794,128 +2707,70 @@ class DatasetBasebandCutMix(SignalTransform):
             + ")"
         )
 
-    def __call__(self, data: Any) -> Any:
-        alpha = self.alpha()
-        if isinstance(data, SignalData):
-            # Input checks
-            assert data.iq_data is not None
-            assert data.signal_description is not None
+    def parameters(self) -> tuple:
+        return (self.alpha(),)
+    
+    def transform_data(self, signal: Signal, params: tuple) -> Signal:
+        return signal
 
-            signal_description_list: List[SignalMetadata] = (
-                [data.signal_description]
-                if isinstance(data.signal_description, SignalMetadata)
-                else data.signal_description
-            )
-            if len(signal_description_list) > 1:
-                raise ValueError(
-                    "Expected single `SignalDescription` for input `SignalData` but {} detected.".format(
-                        len(signal_description_list)
-                    )
-                )
-            assert signal_description_list[0].snr is not None
-
-            # Randomly sample from provided dataset
-            idx = np.random.randint(self.dataset_num_samples)
-            insert_data, insert_signal_description = self.dataset[idx]
-            if isinstance(insert_data, SignalData):
-                assert insert_data.iq_data is not None
-                insert_iq_data: np.ndarray = insert_data.iq_data
-            else:
-                insert_iq_data = insert_data
-            num_iq_samples = data.iq_data.shape[0]
-            if insert_iq_data.shape[0] != num_iq_samples:
-                raise ValueError(
-                    "Input dataset's `num_iq_samples` does not match main dataset.\n\t\
-                    Found {}, but expected {} samples".format(
-                        insert_iq_data.shape[0], data.iq_data.shape[0]
-                    )
-                )
-            insert_signal_data = SignalData(
-                data=None,
-                item_type=np.dtype(np.float64),
-                data_type=np.dtype(np.complex128),
-                signal_description=insert_signal_description,
-            )
-            insert_signal_data.iq_data = insert_iq_data
-
-            # Set insert data's SNR
-            target_snr_transform = TargetSNR(signal_description_list[0].snr)
-            insert_signal_data = target_snr_transform(insert_signal_data)
-            assert insert_signal_data.iq_data is not None
-
-            # Mask both data examples based on alpha and a random start value
-            insert_num_iq_samples = int(alpha * num_iq_samples)
-            insert_start = np.random.randint(num_iq_samples - insert_num_iq_samples)
-            insert_stop = insert_start + insert_num_iq_samples
-            data.iq_data[insert_start:insert_stop] = 0
-            insert_signal_data.iq_data[:insert_start] = 0
-            insert_signal_data.iq_data[insert_stop:] = 0
-
-            # Create new SignalData object for transformed data
-            new_data = SignalData(
-                data=None,
-                item_type=np.dtype(np.float64),
-                data_type=np.dtype(np.complex128),
-                signal_description=[],
-            )
-            new_data.iq_data = data.iq_data + insert_signal_data.iq_data
-
-            # Update SignalDescription
-            new_signal_description: List[SignalMetadata] = []
-            if insert_start != 0 and insert_stop != num_iq_samples:
-                # Data description becomes two SignalDescriptions
-                new_signal_desc = deepcopy(signal_description_list[0])
-                new_signal_desc.start = 0.0
-                new_signal_desc.stop = insert_start / num_iq_samples
-                new_signal_desc.duration = new_signal_desc.stop - new_signal_desc.start
-                new_signal_description.append(new_signal_desc)
-                new_signal_desc = deepcopy(signal_description_list[0])
-                new_signal_desc.start = insert_stop / num_iq_samples
-                new_signal_desc.stop = 1.0
-                new_signal_desc.duration = new_signal_desc.stop - new_signal_desc.start
-                new_signal_description.append(new_signal_desc)
-            elif insert_start == 0:
-                # Data description remains one SignalDescription up to end
-                new_signal_desc = deepcopy(signal_description_list[0])
-                new_signal_desc.start = insert_stop / num_iq_samples
-                new_signal_desc.stop = 1.0
-                new_signal_desc.duration = new_signal_desc.stop - new_signal_desc.start
-                new_signal_description.append(new_signal_desc)
-            else:
-                # Data description remains one SignalDescription at beginning
-                new_signal_desc = deepcopy(signal_description_list[0])
-                new_signal_desc.start = 0.0
-                new_signal_desc.stop = insert_start / num_iq_samples
-                new_signal_desc.duration = new_signal_desc.stop - new_signal_desc.start
-                new_signal_description.append(new_signal_desc)
-            # Repeat for insert's SignalDescription
-
-            assert insert_signal_data.signal_description is not None
-            insert_desc: List[SignalMetadata] = (
-                [insert_signal_data.signal_description]
-                if isinstance(insert_signal_data.signal_description, SignalMetadata)
-                else insert_signal_data.signal_description
-            )
-            new_signal_desc = deepcopy(insert_desc[0])
-            assert new_signal_desc.start is not None
-            assert new_signal_desc.stop is not None
-            new_signal_desc.start = insert_start / num_iq_samples
-            new_signal_desc.stop = insert_stop / num_iq_samples
-            new_signal_desc.duration = new_signal_desc.stop - new_signal_desc.start
-            new_signal_description.append(new_signal_desc)
-
-            # Set output data's SignalDescription to above list
-            new_data.signal_description = new_signal_description
-
-            return new_data
-        else:
+    def transform_meta(self, signal: Signal, params: tuple) -> Signal:
+        alpha = params[0]
+        if not isinstance(signal["metadata"][0], ModulatedRFMetadata):
+            return signal
+        
+        if len(signal["metadata"]) > 1:
             raise ValueError(
-                "Expected input type `SignalData`. Received {}. \n\t\
-                The `SignalDatasetBasebandCutMix` transform depends on metadata from a `SignalData` object.".format(
-                    type(data)
+                "Expected single `SignalMetadata` but {} were detected.".format(
+                    len(signal["metadata"])
                 )
             )
 
+        # Randomly sample from provided dataset
+        idx = np.random.randint(self.dataset_num_samples)
+        insert_data, insert_metadata = self.dataset[idx]
+
+        num_iq_samples = signal["data"]["samples"].shape[0]
+        
+        # Set insert data's SNR
+        target_snr_transform = TargetSNR(signal["metadata"][0]["snr"])
+        insert_signal_data = target_snr_transform(insert_signal_data)
+
+        # Mask both data examples based on alpha and a random start value
+        insert_num_iq_samples = int(alpha * num_iq_samples)
+        insert_start = np.random.randint(num_iq_samples - insert_num_iq_samples)
+        insert_stop = insert_start + insert_num_iq_samples
+
+        # Combine two pieces of data
+        signal["data"]["samples"][insert_start:insert_stop] = 0
+        insert_data["data"]["samples"][:insert_start] = 0
+        insert_data["data"]["samples"][insert_stop:] = 0
+        signal["data"]["samples"] = signal["data"]["samples"] + insert_signal_data["data"]["samples"]
+
+        # Update SignalDescription
+        if insert_start == 0:
+            signal["metadata"][0]["start"] = insert_stop / num_iq_samples
+            signal["metadata"][0]["stop"] = 1.0
+
+        if insert_stop == num_iq_samples:
+            signal["metadata"][0]["start"] = 0.0
+            signal["metadata"][0]["stop"] = insert_start / num_iq_samples
+
+        if insert_start != 0 and insert_stop != num_iq_samples:
+            # MetaData becomes two
+            new_meta = deepcopy(signal["metadata"][0])
+            new_meta["start"] = 0.0
+            new_meta["stop"] = insert_start / num_iq_samples
+            signal["metadata"][0] = new_meta
+
+            new_meta["start"] = insert_stop / num_iq_samples
+            new_meta["stop"] = 1.0
+            signal["metadata"].append(new_meta)
+
+
+        for meta in signal["metadata"]:
+            meta["duration"] = meta["stop"] - meta["start"]
+
+        return signal
 
 class CutOut(SignalTransform):
     """A transform that applies the CutOut transform in the time domain. The
