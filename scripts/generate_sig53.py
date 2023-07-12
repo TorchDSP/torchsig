@@ -40,7 +40,7 @@ def generate(path: str, configs: List[conf.Sig53Config]):
     help="Generate impaired dataset. Ignored if --all=True (default)",
 )
 def main(root: str, all: bool, impaired: bool):
-    if not os.root.isdir(root):
+    if not os.path.isdir(root):
         os.mkdir(root)
 
     configs = [
