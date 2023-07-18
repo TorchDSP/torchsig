@@ -1,5 +1,8 @@
 from typing import List, Optional, TypedDict
+from torch import Tensor
 import numpy as np
+
+n_type = (float, int, Tensor)
 
 
 class SignalMetadata(TypedDict):
@@ -25,15 +28,106 @@ class RFMetadata(SignalMetadata):
     start: float
     stop: float
     duration: float
-    snr: float
 
 
 class ModulatedRFMetadata(RFMetadata):
+    snr: float
     bits_per_symbol: int
     samples_per_symbol: float
     excess_bandwidth: float
     class_name: str
     class_index: int
+
+
+def data_shape(data: SignalData) -> tuple:
+    return data["samples"].shape
+
+
+def is_signal_data(d: dict) -> bool:
+    if "samples" not in d.keys():
+        return False
+
+    return isinstance(d["samples"], np.ndarray)
+
+
+def is_signal_metadata(d: dict) -> bool:
+    if "sample_rate" not in d.keys() or "num_samples" not in d.keys():
+        return False
+
+    return isinstance(d["sample_rate"], n_type) and isinstance(d["num_samples"], n_type)
+
+
+def is_rf_metadata(d: dict) -> bool:
+    keys = (
+        "complex",
+        "lower_freq",
+        "upper_freq",
+        "center_freq",
+        "bandwidth",
+        "start",
+        "stop",
+        "duration",
+    )
+    types = (bool, n_type, n_type, n_type, n_type, n_type, n_type, n_type)
+    if not all(k in d for k in keys):
+        return False
+
+    if not all(isinstance(d[k], t) for k, t in zip(keys, types)):
+        return False
+
+    return is_signal_metadata(d)
+
+
+def is_rf_modulated_metadata(d: dict) -> bool:
+    keys = (
+        "snr",
+        "bits_per_symbol",
+        "samples_per_symbol",
+        "excess_bandwidth",
+        "class_name",
+        "class_index",
+    )
+    types = (n_type, n_type, n_type, n_type, str, int)
+    if not all(k in d for k in keys):
+        return False
+
+    return is_rf_metadata(d) and all(isinstance(d[k], t) for k, t in zip(keys, types))
+
+
+def is_signal(d: dict) -> bool:
+    if "data" not in d.keys() or "metadata" not in d.keys():
+        return False
+
+    if not isinstance(d["metadata"], list):
+        return False
+
+    return is_signal_data(d["data"]) and all(
+        [is_signal_metadata(m) for m in d["metadata"]]
+    )
+
+
+def meta_bound_frequency(meta: RFMetadata) -> RFMetadata:
+    # Check bounds for partial signals
+    meta["lower_freq"] = np.clip(meta["lower_freq"], a_min=-0.5)
+    meta["upper_freq"] = np.clip(meta["upper_freq"], a_max=0.5)
+    meta["bandwidth"] = meta["upper_freq"] - meta["lower_freq"]
+    meta["center_freq"] = (meta["lower_freq"] + meta["upper_freq"]) * 0.5
+    return meta
+
+
+def meta_pad_height(
+    meta: RFMetadata, height: float, pixel_height: float, pad_start: float
+):
+    meta["lower_freq"] = (
+        (meta["lower_freq"] + 0.5) * height + pad_start
+    ) / pixel_height - 0.5
+    meta["upper_freq"] = (
+        (meta["upper_freq"] + 0.5) * height + pad_start
+    ) / pixel_height - 0.5
+    meta["center_freq"] = (
+        (meta["center_freq"] + 0.5) * height + pad_start
+    ) / pixel_height - 0.5
+    meta["bandwidth"] = meta["upper_freq"] - meta["lower_freq"]
 
 
 # TODO[GV] Very niche class, probably can refactor this out.

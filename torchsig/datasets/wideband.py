@@ -10,7 +10,7 @@ import torch
 from scipy import signal as sp
 from tqdm import tqdm
 
-from torchsig.datasets import estimate_filter_length
+from torchsig.utils.dsp import estimate_filter_length
 from torchsig.datasets.synthetic import ConstellationDataset, FSKDataset, OFDMDataset
 from torchsig.transforms import (
     AddNoise,
@@ -40,24 +40,26 @@ from torchsig.transforms.functional import (
 )
 from torchsig.utils.dataset import SignalDataset
 from torchsig.utils.dsp import low_pass
-from torchsig.utils.types import SignalData, SignalMetadata
+from torchsig.utils.types import SignalData, SignalMetadata, Signal
 
 
-class SignalBurst(SignalMetadata):
-    """SignalBurst is a class that inherits from the SignalDescription class but adds a
+class SignalBurst:
+    """SignalBurst is a class that contains from the SignalMetadata class but adds a
     `generate_iq` method that should be implemented by subclasses in order to
-    generate the IQ for the signal described by the SignalDescription contents.
+    generate the IQ for the signal described by the SignalMetadata contents.
     This class should be inherited to represent several kinds of burst
     generation techniques.
 
     """
 
-    def __init__(self, random_generator, **kwargs):
+    def __init__(
+        self, meta: SignalMetadata, random_generator: np.random.RandomState, **kwargs
+    ):
         super(SignalBurst, self).__init__(**kwargs)
+        self.meta = meta
         self.random_generator = random_generator
 
     def generate_iq(self):
-        # meant to be implemented by sub-class
         raise NotImplementedError
 
 
@@ -72,21 +74,21 @@ class ShapedNoiseSignalBurst(SignalBurst):
     def __init__(self, **kwargs):
         super(ShapedNoiseSignalBurst, self).__init__(**kwargs)
         # Update freq values
-        self.lower_frequency = self.center_frequency - self.bandwidth / 2
-        self.upper_frequency = self.center_frequency + self.bandwidth / 2
+        self.meta["lower_freq"] = self.meta["center_freq"] - self.meta["bandwidth"] / 2
+        self.meta["upper_freq"] = self.meta["center_freq"] + self.meta["bandwidth"] / 2
 
     def generate_iq(self):
         real_noise = self.random_generator.randn(
-            int(self.num_iq_samples * self.duration)
+            int(self.meta["num_samples"] * self.meta["duration"])
         )
         imag_noise = self.random_generator.randn(
-            int(self.num_iq_samples * self.duration)
+            int(self.meta["num_samples"] * self.meta["duration"])
         )
         iq_samples = real_noise + 1j * imag_noise
 
         # Precompute non-aliased low,upper,center,bw freqs
-        upper = 0.5 if self.upper_frequency > 0.5 else self.upper_frequency
-        lower = -0.5 if self.lower_frequency < -0.5 else self.lower_frequency
+        upper = 0.5 if self.meta["upper_freq"] > 0.5 else self.meta["upper_freq"]
+        lower = -0.5 if self.meta["lower_freq"] < -0.5 else self.meta["lower_freq"]
         bandwidth = upper - lower
         center = lower + bandwidth / 2
 
@@ -101,7 +103,9 @@ class ShapedNoiseSignalBurst(SignalBurst):
         iq_samples = sp.convolve(iq_samples, taps, mode="same")
 
         # prune to be correct size out of filter
-        iq_samples = iq_samples[-int(self.num_iq_samples * self.duration) :]
+        iq_samples = iq_samples[
+            -int(self.meta["num_samples"] * self.meta["duration"]) :
+        ]
 
         # We ultimately want E_s/N_0 to be snr. We can also express this as:
         # E_s/(N*B_n) -- N is noise energy per hertz and B_n is the noise bandwidth
@@ -110,7 +114,7 @@ class ShapedNoiseSignalBurst(SignalBurst):
         iq_samples = iq_samples / np.sqrt(np.mean(np.abs(iq_samples) ** 2))
 
         # Next, we assume that N_0 will be fixed at 1.0 because we will have something else add a uniform noise floor.
-        # Also, since B_n is the bandwidth of the noise that is in the same band as our signal, B_n = self.bandwidth
+        # Also, since B_n is the bandwidth of the noise that is in the same band as our signal, B_n = self.meta["bandwidth"]
         # Therefore, we multiply the signal by bandwidth so that we achieve E_s/N_0.
         # Intuitively, we are reducing our signal power the smaller bandwidth we have since we will also have
         # correspondingly less noise energy in the same band as our signal the smaller bandwidth the signal is.
@@ -125,8 +129,8 @@ class ShapedNoiseSignalBurst(SignalBurst):
             iq_samples[-25:] *= window[-25:]  # burst-shape the tail
 
         # zero-pad to fit num_iq_samples
-        leading_silence = int(self.num_iq_samples * self.start)
-        trailing_silence = self.num_iq_samples - len(iq_samples) - leading_silence
+        leading_silence = int(self.meta["num_samples"] * self.meta["start"])
+        trailing_silence = self.meta["num_samples"] - len(iq_samples) - leading_silence
         trailing_silence = 0 if trailing_silence < 0 else trailing_silence
 
         iq_samples = np.pad(
@@ -136,7 +140,7 @@ class ShapedNoiseSignalBurst(SignalBurst):
             constant_values=0,
         )
         # Prune if burst goes over
-        return iq_samples[: self.num_iq_samples]
+        return iq_samples[: self.meta["num_samples"]]
 
 
 class ModulatedSignalBurst(SignalBurst):
@@ -232,10 +236,10 @@ class ModulatedSignalBurst(SignalBurst):
         )
 
         # Update freq values
-        assert self.center_frequency is not None
-        assert self.bandwidth is not None
-        self.lower_frequency = self.center_frequency - self.bandwidth / 2
-        self.upper_frequency = self.center_frequency + self.bandwidth / 2
+        assert self.meta["center_freq"] is not None
+        assert self.meta["bandwidth"] is not None
+        self.meta["lower_freq"] = self.meta["center_freq"] - self.meta["bandwidth"] / 2
+        self.meta["upper_freq"] = self.meta["center_freq"] + self.meta["bandwidth"] / 2
 
     def generate_iq(self):
         # Read mod_index to determine which synthetic dataset to read from
@@ -245,14 +249,14 @@ class ModulatedSignalBurst(SignalBurst):
             self.class_name if isinstance(self.class_name, list) else [self.class_name]
         )
         approx_samp_per_sym = (
-            int(np.ceil(self.bandwidth**-1))
-            if self.bandwidth < 1.0
-            else int(np.ceil(self.bandwidth))
+            int(np.ceil(self.meta["bandwidth"] ** -1))
+            if self.meta["bandwidth"] < 1.0
+            else int(np.ceil(self.meta["bandwidth"]))
         )
         approx_bandwidth = (
             approx_samp_per_sym**-1
-            if self.bandwidth < 1.0
-            else int(np.ceil(self.bandwidth))
+            if self.meta["bandwidth"] < 1.0
+            else int(np.ceil(self.meta["bandwidth"]))
         )
 
         # Determine if the new rate of the requested signal to determine how many samples to request
@@ -274,10 +278,10 @@ class ModulatedSignalBurst(SignalBurst):
         else:
             occupied_bandwidth = approx_bandwidth * (1 + self.excess_bandwidth)
 
-        self.duration = self.stop - self.start
-        new_rate = occupied_bandwidth / self.bandwidth
+        self.meta["duration"] = self.meta["stop"] - self.meta["start"]
+        new_rate = occupied_bandwidth / self.meta["bandwidth"]
         num_iq_samples = int(
-            np.ceil(self.num_iq_samples * self.duration / new_rate * 1.1)
+            np.ceil(self.meta["num_samples"] * self.meta["duration"] / new_rate * 1.1)
         )
 
         # Create modulated burst
@@ -336,10 +340,14 @@ class ModulatedSignalBurst(SignalBurst):
 
         # Resample to target bandwidth * oversample to avoid freq wrap during shift
         if (
-            self.center_frequency + self.bandwidth / 2 > 0.4
-            or self.center_frequency - self.bandwidth / 2 < -0.4
+            self.meta["center_freq"] + self.meta["bandwidth"] / 2 > 0.4
+            or self.meta["center_freq"] - self.meta["bandwidth"] / 2 < -0.4
         ):
-            oversample = 2 if self.bandwidth < 1.0 else int(np.ceil(self.bandwidth * 2))
+            oversample = (
+                2
+                if self.meta["bandwidth"] < 1.0
+                else int(np.ceil(self.meta["bandwidth"] * 2))
+            )
         else:
             oversample = 1
         up_rate = np.floor(new_rate * 100 * oversample).astype(np.int32)
@@ -349,16 +357,18 @@ class ModulatedSignalBurst(SignalBurst):
         # Freq shift to desired center freq
         time_vector = np.arange(iq_samples.shape[0], dtype=float)
         iq_samples = iq_samples * np.exp(
-            2j * np.pi * self.center_frequency / oversample * time_vector
+            2j * np.pi * self.meta["center_freq"] / oversample * time_vector
         )
 
         if oversample == 1:
             # Prune to length
-            iq_samples = iq_samples[-int(self.num_iq_samples * self.duration) :]
+            iq_samples = iq_samples[
+                -int(self.meta["num_samples"] * self.meta["duration"]) :
+            ]
         else:
             # Pre-prune to reduce filtering cost
             iq_samples = iq_samples[
-                -int(self.num_iq_samples * self.duration * oversample) :
+                -int(self.meta["num_samples"] * self.meta["duration"] * oversample) :
             ]
             taps = low_pass(
                 cutoff=1 / oversample / 2,
@@ -368,12 +378,14 @@ class ModulatedSignalBurst(SignalBurst):
 
             # Decimate back down to correct sample rate
             iq_samples = sp.resample_poly(iq_samples, 1, oversample)
-            iq_samples = iq_samples[-int(self.num_iq_samples * self.duration) :]
+            iq_samples = iq_samples[
+                -int(self.meta["num_samples"] * self.meta["duration"]) :
+            ]
 
         # Set power
         iq_samples = iq_samples / np.sqrt(np.mean(np.abs(iq_samples) ** 2))
         iq_samples = (
-            np.sqrt(self.bandwidth)
+            np.sqrt(self.meta["bandwidth"])
             * (10 ** (self.snr / 20.0))
             * iq_samples
             / np.sqrt(2)
@@ -385,8 +397,8 @@ class ModulatedSignalBurst(SignalBurst):
             iq_samples[-25:] *= window[-25:]
 
         # Zero-pad to fit num_iq_samples
-        leading_silence = int(self.num_iq_samples * self.start)
-        trailing_silence = self.num_iq_samples - len(iq_samples) - leading_silence
+        leading_silence = int(self.meta["num_samples"] * self.meta["start"])
+        trailing_silence = self.meta["num_samples"] - len(iq_samples) - leading_silence
         trailing_silence = 0 if trailing_silence < 0 else trailing_silence
 
         iq_samples = np.pad(
@@ -395,7 +407,7 @@ class ModulatedSignalBurst(SignalBurst):
             mode="constant",
             constant_values=0,
         )
-        return iq_samples[: self.num_iq_samples]
+        return iq_samples[: self.meta["num_samples"]]
 
 
 class SignalOfInterestSignalBurst(SignalBurst):
@@ -438,17 +450,17 @@ class SignalOfInterestSignalBurst(SignalBurst):
         self.class_name = soi_class if soi_class else "soi0"
         self.class_list = soi_class_list if soi_class_list else ["soi0"]
         self.class_index = self.class_list.index(self.class_name)
-        assert self.center_frequency is not None
-        assert self.bandwidth is not None
-        self.lower_frequency = self.center_frequency - self.bandwidth / 2
-        self.upper_frequency = self.center_frequency + self.bandwidth / 2
+        assert self.meta["center_freq"] is not None
+        assert self.meta["bandwidth"] is not None
+        self.meta["lower_freq"] = self.meta["center_freq"] - self.meta["bandwidth"] / 2
+        self.meta["upper_freq"] = self.meta["center_freq"] + self.meta["bandwidth"] / 2
 
     def generate_iq(self):
         # Generate the IQ from the provided SOI generator
         iq_samples = self.soi_gen_iq()
 
         # Resample to target bandwidth * 2 to avoid freq wrap during shift
-        new_rate = self.soi_gen_bw / self.bandwidth
+        new_rate = self.soi_gen_bw / self.meta["bandwidth"]
         up_rate = np.floor(new_rate * 100 * 2).astype(np.int32)
         down_rate = 100
         iq_samples = sp.resample_poly(iq_samples, up_rate, down_rate)
@@ -456,7 +468,7 @@ class SignalOfInterestSignalBurst(SignalBurst):
         # Freq shift to desired center freq
         time_vector = np.arange(iq_samples.shape[0], dtype=float)
         iq_samples = iq_samples * np.exp(
-            2j * np.pi * self.center_frequency / 2 * time_vector
+            2j * np.pi * self.meta["center_freq"] / 2 * time_vector
         )
 
         # Filter around center
@@ -465,12 +477,14 @@ class SignalOfInterestSignalBurst(SignalBurst):
 
         # Decimate back down to correct sample rate
         iq_samples = sp.resample_poly(iq_samples, 1, 2)
-        iq_samples = iq_samples[-int(self.num_iq_samples * self.duration) :]
+        iq_samples = iq_samples[
+            -int(self.meta["num_samples"] * self.meta["duration"]) :
+        ]
 
         # Set power
         iq_samples = iq_samples / np.sqrt(np.mean(np.abs(iq_samples) ** 2))
         iq_samples = (
-            np.sqrt(self.bandwidth)
+            np.sqrt(self.meta["bandwidth"])
             * (10 ** (self.snr / 20.0))
             * iq_samples
             / np.sqrt(2)
@@ -482,8 +496,8 @@ class SignalOfInterestSignalBurst(SignalBurst):
             iq_samples[-25:] *= window[-25:]
 
         # Zero-pad to fit num_iq_samples
-        leading_silence = int(self.num_iq_samples * self.start)
-        trailing_silence = self.num_iq_samples - len(iq_samples) - leading_silence
+        leading_silence = int(self.meta["num_samples"] * self.meta["start"])
+        trailing_silence = self.meta["num_samples"] - len(iq_samples) - leading_silence
         trailing_silence = 0 if trailing_silence < 0 else trailing_silence
 
         iq_samples = np.pad(
@@ -492,7 +506,7 @@ class SignalOfInterestSignalBurst(SignalBurst):
             mode="constant",
             constant_values=0,
         )
-        return iq_samples[: self.num_iq_samples]
+        return iq_samples[: self.meta["num_samples"]]
 
 
 class FileSignalBurst(SignalBurst):
@@ -532,10 +546,10 @@ class FileSignalBurst(SignalBurst):
         )
         self.file_reader = file_reader
         self.class_list = class_list
-        assert self.center_frequency is not None
-        assert self.bandwidth is not None
-        self.lower_frequency = self.center_frequency - self.bandwidth / 2
-        self.upper_frequency = self.center_frequency + self.bandwidth / 2
+        assert self.meta["center_freq"] is not None
+        assert self.meta["bandwidth"] is not None
+        self.meta["lower_freq"] = self.meta["center_freq"] - self.meta["bandwidth"] / 2
+        self.meta["upper_freq"] = self.meta["center_freq"] + self.meta["bandwidth"] / 2
 
     def generate_iq(self):
         # Read the IQ from the file_path using the file_reader
@@ -549,7 +563,7 @@ class FileSignalBurst(SignalBurst):
         self.class_index = self.class_list.index(self.class_name)
 
         # Resample to target bandwidth * 2 to avoid freq wrap during shift
-        new_rate = file_bw / self.bandwidth
+        new_rate = file_bw / self.meta["bandwidth"]
         up_rate = np.floor(new_rate * 100 * 2).astype(np.int32)
         down_rate = 100
         iq_samples = sp.resample_poly(iq_samples, up_rate, down_rate)
@@ -557,7 +571,7 @@ class FileSignalBurst(SignalBurst):
         # Freq shift to desired center freq
         time_vector = np.arange(iq_samples.shape[0], dtype=float)
         iq_samples = iq_samples * np.exp(
-            2j * np.pi * self.center_frequency / 2 * time_vector
+            2j * np.pi * self.meta["center_freq"] / 2 * time_vector
         )
 
         # Filter around center
@@ -568,15 +582,17 @@ class FileSignalBurst(SignalBurst):
         iq_samples = sp.resample_poly(iq_samples, 1, 2)
 
         # Inspect/set duration
-        if iq_samples.shape[0] < self.num_iq_samples * self.duration:
-            self.duration = iq_samples.shape[0] / self.num_iq_samples
-            self.stop = self.start + self.duration
-        iq_samples = iq_samples[-int(self.num_iq_samples * self.duration) :]
+        if iq_samples.shape[0] < self.meta["num_samples"] * self.meta["duration"]:
+            self.meta["duration"] = iq_samples.shape[0] / self.meta["num_samples"]
+            self.meta["stop"] = self.meta["start"] + self.meta["duration"]
+        iq_samples = iq_samples[
+            -int(self.meta["num_samples"] * self.meta["duration"]) :
+        ]
 
         # Set power
         iq_samples = iq_samples / np.sqrt(np.mean(np.abs(iq_samples) ** 2))
         iq_samples = (
-            np.sqrt(self.bandwidth)
+            np.sqrt(self.meta["bandwidth"])
             * (10 ** (self.snr / 20.0))
             * iq_samples
             / np.sqrt(2)
@@ -588,8 +604,8 @@ class FileSignalBurst(SignalBurst):
             iq_samples[-25:] *= window[-25:]
 
         # Zero-pad to fit num_iq_samples
-        leading_silence = int(self.num_iq_samples * self.start)
-        trailing_silence = self.num_iq_samples - len(iq_samples) - leading_silence
+        leading_silence = int(self.meta["num_samples"] * self.meta["start"])
+        trailing_silence = self.meta["num_samples"] - len(iq_samples) - leading_silence
         trailing_silence = 0 if trailing_silence < 0 else trailing_silence
 
         iq_samples = np.pad(
@@ -598,7 +614,7 @@ class FileSignalBurst(SignalBurst):
             mode="constant",
             constant_values=0,
         )
-        return iq_samples[: self.num_iq_samples]
+        return iq_samples[: self.meta["num_samples"]]
 
 
 class BurstSourceDataset(SignalDataset):
@@ -619,30 +635,20 @@ class BurstSourceDataset(SignalDataset):
         self.index: List[Tuple[Any, ...]] = []
 
     def __getitem__(self, item: int) -> Tuple[np.ndarray, Any]:
-        burst_collection = self.index[item][0]
+        burst_collection: List[SignalBurst] = self.index[item][0]
         iq_samples = np.zeros((self.num_iq_samples,), dtype=np.complex128)
-        for burst_idx, burst in enumerate(burst_collection):
+        for burst in burst_collection:
             iq_samples += burst.generate_iq()
 
         # Format into single SignalData object
-        signal_data = SignalData(
-            data=iq_samples.tobytes(),
-            item_type=np.dtype(np.float64),
-            data_type=np.dtype(np.complex128),
-            signal_description=burst_collection,
-        )
+        signal_data = SignalData(samples=iq_samples)
+        signal_meta = [b.meta for b in burst_collection]
+        signal = Signal(data=signal_data, metadata=signal_meta)
 
         # Apply transforms
-        signal_data = self.transform(signal_data) if self.transform else signal_data
-        target = (
-            self.target_transform(signal_data.signal_description)
-            if self.target_transform
-            else signal_data.signal_description
-        )
-        iq_data = signal_data.iq_data
-        assert iq_data is not None
+        signal = self.transform(signal)
 
-        return iq_data, target
+        return signal["data"], signal["metadata"]
 
     def __len__(self) -> int:
         return len(self.index)
@@ -773,6 +779,7 @@ class WidebandDataset(SignalDataset):
     def __getitem__(self, item: int) -> Tuple[np.ndarray, Any]:
         if self.pregenerate:
             return self.index[item]
+
         # Retrieve data & metadata from all signal sources
         iq_data: Optional[np.ndarray] = None
         signal_description_collection = []

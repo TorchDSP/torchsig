@@ -1,17 +1,15 @@
-import itertools
-import pickle
-from collections import OrderedDict
-from typing import Any, Dict, List, Optional, Tuple, Union
-
-import numpy as np
-from scipy import signal as sp
-from torch.utils.data import ConcatDataset
-
-from torchsig.datasets import estimate_filter_length
+from torchsig.utils.types import SignalData, SignalMetadata, Signal, ModulatedRFMetadata
+from torchsig.utils.dsp import convolve, gaussian_taps, low_pass, rrc_taps
 from torchsig.transforms.functional import FloatParameter, IntParameter
 from torchsig.utils.dataset import SignalDataset
-from torchsig.utils.dsp import convolve, gaussian_taps, low_pass, rrc_taps
-from torchsig.utils.types import SignalData, SignalMetadata
+from torchsig.utils.dsp import estimate_filter_length
+from typing import Any, Dict, List, Optional, Tuple, Union
+from torch.utils.data import ConcatDataset
+from scipy import signal as sp
+from collections import OrderedDict
+import numpy as np
+import itertools
+import pickle
 
 
 def remove_corners(const):
@@ -197,8 +195,6 @@ class DigitalModulationDataset(ConcatDataset):
             num_iq_samples=num_iq_samples,
             num_samples_per_class=num_samples_per_class,
             iq_samples_per_symbol=8,
-            random_data=random_data,
-            random_pulse_shaping=random_pulse_shaping,
             **kwargs,
         )
         gfsks_dataset = FSKDataset(
@@ -221,24 +217,18 @@ class SyntheticDataset(SignalDataset):
         self.index: List[Tuple[Any, ...]] = []
 
     def __getitem__(self, index: int) -> Tuple[Union[SignalData, np.ndarray], Any]:
-        signal_description = self.index[index][-1]
-        signal_data = SignalData(
-            data=self._generate_samples(self.index[index]).tobytes(),
-            item_type=np.dtype(np.float64),
-            data_type=np.dtype(np.complex128),
-            signal_description=signal_description,
-        )
+        signal_meta = self.index[index][-1]
+        signal_data = SignalData(samples=self._generate_samples(self.index[index]))
+        signal = Signal(data=signal_data, metadata=[signal_meta])
 
         if self.transform:
-            signal_data = self.transform(signal_data)
-        assert signal_data.iq_data is not None
+            signal = self.transform(signal)
 
+        target = signal["metadata"]
         if self.target_transform:
-            target = self.target_transform(signal_data.signal_description)
-        else:
-            target = signal_description
+            target = self.target_transform(signal["metadata"])
 
-        return signal_data.iq_data, target
+        return signal["data"]["samples"], target
 
     def __len__(self) -> int:
         return len(self.index)
@@ -314,11 +304,22 @@ class ConstellationDataset(SyntheticDataset):
 
         for const_idx, const_name in enumerate(map(str.lower, self.constellations)):
             for idx in range(self.num_samples_per_class):
-                signal_description = SignalMetadata(
-                    sample_rate=0,
+                meta = ModulatedRFMetadata(
+                    sample_rate=0.0,
+                    num_samples=self.num_iq_samples,
+                    complex=True,
+                    lower_freq=-0.25,
+                    upper_freq=0.25,
+                    center_freq=0.0,
+                    bandwidth=0.5,
+                    start=0.0,
+                    stop=1.0,
+                    duration=1.0,
+                    snr=0.0,
                     bits_per_symbol=np.log2(len(self.const_map[const_name])),
-                    samples_per_symbol=iq_samples_per_symbol,
+                    samples_per_symbol=float(iq_samples_per_symbol),
                     class_name=const_name,
+                    class_index=const_idx,
                     excess_bandwidth=alphas[
                         int(const_idx * self.num_samples_per_class + idx)
                     ],
@@ -327,14 +328,14 @@ class ConstellationDataset(SyntheticDataset):
                     (
                         const_name,
                         const_idx * self.num_samples_per_class + idx,
-                        signal_description,
+                        meta,
                     )
                 )
 
     def _generate_samples(self, item: Tuple) -> np.ndarray:
         class_name = item[0]
         index = item[1]
-        signal_description = item[2]
+        meta = item[2]
         orig_state = np.random.get_state()
         if not self.random_data:
             np.random.seed(index)
@@ -351,7 +352,7 @@ class ConstellationDataset(SyntheticDataset):
         # excess bandwidth is defined in porportion to signal bandwidth, not sampling rate,
         # thus needs to be scaled by the samples per symbol
         pulse_shape_filter_length = estimate_filter_length(
-            signal_description.excess_bandwidth / self.iq_samples_per_symbol
+            meta["excess_bandwidth"] / self.iq_samples_per_symbol
         )
         pulse_shape_filter_span = int(
             (pulse_shape_filter_length - 1) / 2
@@ -359,7 +360,7 @@ class ConstellationDataset(SyntheticDataset):
         self.pulse_shape_filter = rrc_taps(
             self.iq_samples_per_symbol,
             pulse_shape_filter_span,
-            signal_description.excess_bandwidth,
+            meta["excess_bandwidth"],
         )
         filtered = convolve(zero_padded, self.pulse_shape_filter)
 
@@ -491,11 +492,23 @@ class OFDMDataset(SyntheticDataset):
                     dc_subcarrier,
                     time_varying_realism,
                 ) = combinations[np.random.randint(len(combinations))]
-                signal_description = SignalMetadata(
-                    sample_rate=0,
-                    bits_per_symbol=2,
-                    samples_per_symbol=2,  # Not accurate, but useful in calculating effective half bandwidth target
+                meta = ModulatedRFMetadata(
+                    sample_rate=0.0,
+                    num_samples=self.num_iq_samples,
+                    complex=True,
+                    lower_freq=-0.25,
+                    upper_freq=0.25,
+                    center_freq=0.0,
+                    bandwidth=0.5,
+                    start=0.0,
+                    stop=1.0,
+                    duration=1.0,
+                    snr=0.0,
+                    bits_per_symbol=2.0,
+                    samples_per_symbol=0.0,
                     class_name=class_name,
+                    class_index=class_idx,
+                    excess_bandwidth=0.0,
                 )
                 self.index.append(
                     (
@@ -508,7 +521,7 @@ class OFDMDataset(SyntheticDataset):
                         sidelobe_suppression_method,
                         dc_subcarrier,
                         time_varying_realism,
-                        signal_description,
+                        meta,
                     )
                 )
 
@@ -820,11 +833,22 @@ class FSKDataset(SyntheticDataset):
                     if self.random_pulse_shaping
                     else 0.0
                 )
-                signal_description = SignalMetadata(
-                    sample_rate=0,
+                meta = ModulatedRFMetadata(
+                    sample_rate=0.0,
+                    num_samples=float(self.num_iq_samples),
+                    complex=True,
+                    lower_freq=-0.25,
+                    upper_freq=0.25,
+                    center_freq=0.0,
+                    bandwidth=0.5,
+                    start=0.0,
+                    stop=1.0,
+                    duration=1.0,
+                    snr=0.0,
                     bits_per_symbol=np.log2(len(freq_map[freq_name])),
-                    samples_per_symbol=iq_samples_per_symbol,
+                    samples_per_symbol=float(iq_samples_per_symbol),
                     class_name=freq_name,
+                    class_index=freq_idx,
                     excess_bandwidth=bandwidth,
                 )
                 self.index.append(
@@ -832,7 +856,7 @@ class FSKDataset(SyntheticDataset):
                         freq_name,
                         freq_idx * self.num_samples_per_class + idx,
                         bandwidth,
-                        signal_description,
+                        meta,
                     )
                 )
 
@@ -840,7 +864,7 @@ class FSKDataset(SyntheticDataset):
         const_name = item[0]
         index = item[1]
         bandwidth = item[2]
-        signal_description = item[3]
+        metadata = item[3]
 
         # calculate the modulation order, ex: the "4" in "4-FSK"
         const = freq_map[const_name]
@@ -873,7 +897,7 @@ class FSKDataset(SyntheticDataset):
         if "g" in const_name:
             # GMSK, GFSK
             taps = gaussian_taps(samples_per_symbol_recalculated, bandwidth)
-            signal_description.excess_bandwidth = bandwidth
+            metadata["excess_bandwidth"] = bandwidth
             filtered = convolve(symbols_repeat, taps)
         else:
             # FSK, MSK
@@ -936,13 +960,30 @@ class AMDataset(SyntheticDataset):
         self.index = []
 
         for class_idx, class_name in enumerate(self.classes):
-            signal_description = SignalMetadata(sample_rate=0)
+            meta = ModulatedRFMetadata(
+                sample_rate=0.0,
+                num_samples=self.num_iq_samples,
+                complex=True,
+                lower_freq=-0.25,
+                upper_freq=0.25,
+                center_freq=0.0,
+                bandwidth=0.5,
+                start=0.0,
+                stop=1.0,
+                duration=1.0,
+                snr=0.0,
+                bits_per_symbol=0.0,
+                samples_per_symbol=0.0,
+                class_name=class_name,
+                class_index=class_idx,
+                excess_bandwidth=0.0,
+            )
             for idx in range(self.num_samples_per_class):
                 self.index.append(
                     (
                         class_name,
                         class_idx * self.num_samples_per_class + idx,
-                        signal_description,
+                        meta,
                     )
                 )
 
@@ -998,13 +1039,30 @@ class FMDataset(SyntheticDataset):
         self.index = []
 
         for class_idx, class_name in enumerate(self.classes):
-            signal_description = SignalMetadata(sample_rate=0)
+            meta = ModulatedRFMetadata(
+                sample_rate=0.0,
+                num_samples=self.num_iq_samples,
+                complex=True,
+                lower_freq=-0.25,
+                upper_freq=0.25,
+                center_freq=0.0,
+                bandwidth=0.5,
+                start=0.0,
+                stop=1.0,
+                duration=1.0,
+                snr=0.0,
+                bits_per_symbol=0.0,
+                samples_per_symbol=0.0,
+                class_name=class_name,
+                class_index=class_idx,
+                excess_bandwidth=0.0,
+            )
             for idx in range(self.num_samples_per_class):
                 self.index.append(
                     (
                         class_name,
                         class_idx * self.num_samples_per_class + idx,
-                        signal_description,
+                        meta,
                     )
                 )
 

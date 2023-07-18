@@ -1,15 +1,13 @@
-import pickle
+from torchsig.utils.types import SignalData, ModulatedRFMetadata, Signal
+from torchsig.datasets.modulations import ModulationsDataset
+from typing import Any, Callable, Optional, Tuple
+from torchsig.transforms import Identity
+from torchsig.datasets import conf
 from copy import deepcopy
 from pathlib import Path
-from typing import Any, Callable, Optional, Tuple
-
-import lmdb
 import numpy as np
-
-from torchsig.datasets import conf
-from torchsig.datasets.modulations import ModulationsDataset
-from torchsig.transforms import Identity
-from torchsig.utils.types import SignalData, SignalMetadata
+import pickle
+import lmdb
 
 
 class Sig53:
@@ -107,25 +105,32 @@ class Sig53:
             mod, snr = pickle.loads(label_txn.get(encoded_idx))
 
         mod = int(mod.numpy())
+        signal_meta = ModulatedRFMetadata(
+            sample_rate=0.0,
+            num_samples=iq_data.shape[0],
+            complex=True,
+            lower_freq=-0.25,
+            upper_freq=0.25,
+            center_freq=0.0,
+            bandwidth=0.5,
+            start=0.0,
+            stop=1.0,
+            duration=1.0,
+            bits_per_symbol=0.0,
+            samples_per_symbol=0.0,
+            excess_bandwidth=0.0,
+            class_name=self._idx_to_name_dict[mod],
+            class_index=mod,
+            snr=snr,
+        )
+        signal_data: SignalData = SignalData(samples=iq_data)
+        signal = Signal(data=signal_data, metadata=[signal_meta])
         if self.use_signal_data:
-            signal_desc = SignalMetadata(
-                class_name=self._idx_to_name_dict[mod],
-                class_index=mod,
-                snr=snr,
-            )
-            data: SignalData = SignalData(
-                data=deepcopy(iq_data.tobytes()),
-                item_type=np.dtype(np.float64),
-                data_type=np.dtype(np.complex128),
-                signal_description=[signal_desc],
-            )
-            data = self.T(data)  # type: ignore
-            target = self.TT(data.signal_description)  # type: ignore
-            assert data.iq_data is not None
-            sig_iq_data: np.ndarray = data.iq_data
-            return sig_iq_data, target
+            signal = self.T(signal)  # type: ignore
+            target = self.TT(signal["metadata"])  # type: ignore
+            return signal["data"]["samples"], target
 
-        np_data: np.ndarray = self.T(iq_data)  # type: ignore
+        signal = self.T(signal)  # type: ignore
         target = (self.TT(mod), snr)  # type: ignore
 
-        return np_data, target
+        return signal["data"]["samples"], target

@@ -157,9 +157,11 @@ def normalize(
     if flatten:
         flat_tensor = tensor.reshape(tensor.size)
         norm = np.linalg.norm(flat_tensor, norm_order, keepdims=True)
-    else:
-        norm = np.linalg.norm(tensor, norm_order, keepdims=True)
+        return np.multiply(tensor, 1.0 / norm)
+
+    norm = np.linalg.norm(tensor, norm_order, keepdims=True)
     return np.multiply(tensor, 1.0 / norm)
+
 
 
 def resample(

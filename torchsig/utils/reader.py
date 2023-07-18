@@ -1,6 +1,5 @@
-import numpy as np
-
 from torchsig.utils.types import SignalCapture, SignalData
+import numpy as np
 
 
 def reader_from_sigmf(signal_file: SignalCapture) -> SignalData:
@@ -17,6 +16,8 @@ def reader_from_sigmf(signal_file: SignalCapture) -> SignalData:
         return SignalData(
             data=file_object.read(signal_file.num_bytes),
             item_type=signal_file.item_type,
-            data_type=np.dtype(np.complex128) if signal_file.is_complex else np.dtype(np.float64),
+            data_type=np.dtype(np.complex128)
+            if signal_file.is_complex
+            else np.dtype(np.float64),
             signal_description=signal_file.signal_description,
         )
