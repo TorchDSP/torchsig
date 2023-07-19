@@ -10,7 +10,7 @@ import numpy as np
 from torchsig.datasets import conf
 from torchsig.transforms.target_transforms import ListTupleToDesc
 from torchsig.transforms.transforms import Identity
-from torchsig.utils.types import SignalData
+from torchsig.utils.types import Signal, create_signal_data
 
 
 class WidebandSig53:
@@ -143,18 +143,11 @@ class WidebandSig53:
         with self.env.begin(db=self.label_db) as label_txn:
             label = pickle.loads(label_txn.get(encoded_idx))
 
-        if self.use_signal_data:
-            data = SignalData(
-                data=deepcopy(iq_data.tobytes()),
-                item_type=np.dtype(np.float64),
-                data_type=np.dtype(np.complex128),
-                signal_description=self.signal_desc_transform(label),
-            )
-            data = self.T(data)  # type: ignore
-            target = self.TT(data.signal_description)  # type: ignore
-            assert data.iq_data is not None
-            iq_data = data.iq_data
-        else:
-            iq_data = self.T(iq_data)  # type: ignore
-            target = self.TT(label)  # type: ignore
-        return iq_data, target
+        signal = Signal(
+            data=create_signal_data(samples=iq_data),
+            metadata=self.signal_desc_transform(label),
+        )
+        signal = self.T(signal)  # type: ignore
+        target = self.TT(signal["metadata"])  # type: ignore
+
+        return signal["data"]["samples"], target

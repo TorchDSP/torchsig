@@ -1,6 +1,6 @@
 from torchsig.datasets.synthetic import DigitalModulationDataset
 from torchsig.transforms.transforms import *
-from torchsig.utils.types import SignalData, SignalMetadata
+from torchsig.utils.types import create_modulated_rf_metadata, create_signal, SignalData
 from matplotlib import pyplot as plt
 import itertools
 import numpy as np
@@ -16,12 +16,10 @@ def generate_data(modulation_name):
         random_pulse_shaping=False,
         random_data=False,
     )
-    short_data = SignalData(
-        dataset[0][0].tobytes(),
-        item_type=np.float64,
-        data_type=np.complex128,
-        signal_description=SignalMetadata(),
-    )
+    iq_data = dataset[0][0]
+    short_data_iq = SignalData(samples=iq_data)
+    short_data_meta = create_modulated_rf_metadata(num_samples=iq_data.shape[0])
+    short_data = create_signal(short_data_iq, [short_data_meta])
 
     dataset = DigitalModulationDataset(
         [modulation_name],
@@ -31,12 +29,10 @@ def generate_data(modulation_name):
         random_pulse_shaping=False,
         random_data=False,
     )
-    long_data = SignalData(
-        dataset[0][0].tobytes(),
-        item_type=np.float64,
-        data_type=np.complex128,
-        signal_description=SignalMetadata(),
-    )
+    iq_data = dataset[0][0]
+    long_data_iq = SignalData(samples=iq_data)
+    long_data_meta = create_modulated_rf_metadata(num_samples=iq_data.shape[0])
+    long_data = create_signal(long_data_iq, [long_data_meta])
     return short_data, long_data
 
 
@@ -62,8 +58,8 @@ transforms_list = [
     ("time_shift", RandomTimeShift(-100.5), RandomTimeShift(-2.5)),
     (
         "time_crop",
-        TimeCrop("random", crop_length=64),
-        TimeCrop("random", crop_length=2048),
+        TimeCrop("random", crop_length=64, signal_length=128),
+        TimeCrop("random", crop_length=2048, signal_length=4096),
     ),
     ("time_reversal", TimeReversal(False), TimeReversal(False)),
     ("frequency_shift", RandomFrequencyShift(-0.25), RandomFrequencyShift(-0.25)),
@@ -106,11 +102,11 @@ modulations = ["bpsk", "4fsk"]
 def test_transform_figures(transform, modulation_name):
     short_data, long_data = generate_data(modulation_name)
 
-    short_data_iq = short_data.iq_data
-    long_data_iq = long_data.iq_data
+    short_data_iq = short_data["data"]["samples"]
+    long_data_iq = long_data["data"]["samples"]
 
-    short_data_transform = transform[1](short_data).iq_data
-    long_data_transform = transform[2](long_data).iq_data
+    short_data_transform = transform[1](short_data)["data"]["samples"]
+    long_data_transform = transform[2](long_data)["data"]["samples"]
 
     # IQ Data
     figure = plt.figure(figsize=(9, 4))

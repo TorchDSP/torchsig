@@ -3,7 +3,13 @@ from copy import deepcopy
 from functools import partial
 from itertools import chain
 from typing import Any, Callable, List, Optional, Tuple, Union
-
+from torchsig.utils.types import (
+    create_signal_data,
+    create_signal_metadata,
+    create_modulated_rf_metadata,
+    create_rf_metadata,
+    is_signal_data,
+)
 import numpy as np
 import pandas as pd
 import torch
@@ -52,10 +58,8 @@ class SignalBurst:
 
     """
 
-    def __init__(
-        self, meta: SignalMetadata, random_generator: np.random.RandomState, **kwargs
-    ):
-        super(SignalBurst, self).__init__(**kwargs)
+    def __init__(self, meta: SignalMetadata, random_generator: np.random.RandomState):
+        super(SignalBurst, self).__init__()
         self.meta = meta
         self.random_generator = random_generator
 
@@ -243,11 +247,8 @@ class ModulatedSignalBurst(SignalBurst):
 
     def generate_iq(self):
         # Read mod_index to determine which synthetic dataset to read from
-        self.class_name = self.classes()
-        self.class_index = self.class_list.index(self.class_name)
-        self.class_name = (
-            self.class_name if isinstance(self.class_name, list) else [self.class_name]
-        )
+        self.meta["class_name"] = self.classes()
+        self.meta["class_index"] = self.class_list.index(self.meta["class_name"])
         approx_samp_per_sym = (
             int(np.ceil(self.meta["bandwidth"] ** -1))
             if self.meta["bandwidth"] < 1.0
@@ -260,23 +261,23 @@ class ModulatedSignalBurst(SignalBurst):
         )
 
         # Determine if the new rate of the requested signal to determine how many samples to request
-        if "ofdm" in self.class_name[0]:
+        if "ofdm" in self.meta["class_name"]:
             occupied_bandwidth = 0.5
-        elif "g" in self.class_name[0]:
-            if "m" in self.class_name[0]:
+        elif "g" in self.meta["class_name"]:
+            if "m" in self.meta["class_name"]:
                 occupied_bandwidth = approx_bandwidth * (
-                    1 - 0.5 + self.excess_bandwidth
+                    1 - 0.5 + self.meta["excess_bandwidth"]
                 )
             else:
                 occupied_bandwidth = approx_bandwidth * (
-                    1 + 0.25 + self.excess_bandwidth
+                    1 + 0.25 + self.meta["excess_bandwidth"]
                 )
-        elif "fsk" in self.class_name[0]:
+        elif "fsk" in self.meta["class_name"]:
             occupied_bandwidth = approx_bandwidth * (1 + 1)
-        elif "msk" in self.class_name[0]:
+        elif "msk" in self.meta["class_name"]:
             occupied_bandwidth = approx_bandwidth
         else:
-            occupied_bandwidth = approx_bandwidth * (1 + self.excess_bandwidth)
+            occupied_bandwidth = approx_bandwidth * (1 + self.meta["excess_bandwidth"])
 
         self.meta["duration"] = self.meta["stop"] - self.meta["start"]
         new_rate = occupied_bandwidth / self.meta["bandwidth"]
@@ -285,8 +286,8 @@ class ModulatedSignalBurst(SignalBurst):
         )
 
         # Create modulated burst
-        if "ofdm" in self.class_name[0]:
-            num_subcarriers = [int(self.class_name[0][5:])]
+        if "ofdm" in self.meta["class_name"]:
+            num_subcarriers = [int(self.meta["class_name"][5:])]
             sidelobe_suppression_methods = ("lpf", "win_start")
             modulated_burst = OFDMDataset(
                 constellations=(
@@ -307,18 +308,18 @@ class ModulatedSignalBurst(SignalBurst):
                 dc_subcarrier=("on", "off"),
                 time_varying_realism=("on", "off"),
             )
-        elif "g" in self.class_name[0]:
+        elif "g" in self.meta["class_name"]:
             modulated_burst = FSKDataset(
-                modulations=self.class_name,
+                modulations=self.meta["class_name"],
                 num_iq_samples=num_iq_samples,
                 num_samples_per_class=1,
                 iq_samples_per_symbol=approx_samp_per_sym,
                 random_data=True,
                 random_pulse_shaping=True,
             )
-        elif "fsk" in self.class_name[0] or "msk" in self.class_name[0]:
+        elif "fsk" in self.meta["class_name"] or "msk" in self.meta["class_name"]:
             modulated_burst = FSKDataset(
-                modulations=self.class_name,
+                modulations=[self.meta["class_name"]],
                 num_iq_samples=num_iq_samples,
                 num_samples_per_class=1,
                 iq_samples_per_symbol=approx_samp_per_sym,
@@ -327,7 +328,7 @@ class ModulatedSignalBurst(SignalBurst):
             )
         else:
             modulated_burst = ConstellationDataset(
-                constellations=self.class_name,
+                constellations=[self.meta["class_name"]],
                 num_iq_samples=num_iq_samples,
                 num_samples_per_class=1,
                 iq_samples_per_symbol=approx_samp_per_sym,
@@ -386,7 +387,7 @@ class ModulatedSignalBurst(SignalBurst):
         iq_samples = iq_samples / np.sqrt(np.mean(np.abs(iq_samples) ** 2))
         iq_samples = (
             np.sqrt(self.meta["bandwidth"])
-            * (10 ** (self.snr / 20.0))
+            * (10 ** (self.meta["snr"] / 20.0))
             * iq_samples
             / np.sqrt(2)
         )
@@ -447,9 +448,9 @@ class SignalOfInterestSignalBurst(SignalBurst):
         super(SignalOfInterestSignalBurst, self).__init__(**kwargs)
         self.soi_gen_iq = soi_gen_iq
         self.soi_gen_bw = soi_gen_bw
-        self.class_name = soi_class if soi_class else "soi0"
+        self.meta["class_name"] = soi_class if soi_class else "soi0"
         self.class_list = soi_class_list if soi_class_list else ["soi0"]
-        self.class_index = self.class_list.index(self.class_name)
+        self.meta["class_index"] = self.class_list.index(self.meta["class_name"])
         assert self.meta["center_freq"] is not None
         assert self.meta["bandwidth"] is not None
         self.meta["lower_freq"] = self.meta["center_freq"] - self.meta["bandwidth"] / 2
@@ -485,7 +486,7 @@ class SignalOfInterestSignalBurst(SignalBurst):
         iq_samples = iq_samples / np.sqrt(np.mean(np.abs(iq_samples) ** 2))
         iq_samples = (
             np.sqrt(self.meta["bandwidth"])
-            * (10 ** (self.snr / 20.0))
+            * (10 ** (self.meta["snr"] / 20.0))
             * iq_samples
             / np.sqrt(2)
         )
@@ -559,8 +560,8 @@ class FileSignalBurst(SignalBurst):
         iq_samples, class_name, file_bw = self.file_reader(file_path)
 
         # Assign read class information to SignalBurst
-        self.class_name = class_name
-        self.class_index = self.class_list.index(self.class_name)
+        self.meta["class_name"] = class_name
+        self.meta["class_index"] = self.class_list.index(self.meta["class_name"])
 
         # Resample to target bandwidth * 2 to avoid freq wrap during shift
         new_rate = file_bw / self.meta["bandwidth"]
@@ -593,7 +594,7 @@ class FileSignalBurst(SignalBurst):
         iq_samples = iq_samples / np.sqrt(np.mean(np.abs(iq_samples) ** 2))
         iq_samples = (
             np.sqrt(self.meta["bandwidth"])
-            * (10 ** (self.snr / 20.0))
+            * (10 ** (self.meta["snr"] / 20.0))
             * iq_samples
             / np.sqrt(2)
         )
@@ -641,12 +642,13 @@ class BurstSourceDataset(SignalDataset):
             iq_samples += burst.generate_iq()
 
         # Format into single SignalData object
-        signal_data = SignalData(samples=iq_samples)
+        signal_data = create_signal_data(samples=iq_samples)
         signal_meta = [b.meta for b in burst_collection]
         signal = Signal(data=signal_data, metadata=signal_meta)
 
         # Apply transforms
-        signal = self.transform(signal)
+        if self.transform:
+            signal = self.transform(signal)
 
         return signal["data"], signal["metadata"]
 
@@ -720,12 +722,15 @@ class SyntheticBurstSourceDataset(BurstSourceDataset):
 
                 sample_burst_collection.append(
                     self.burst_class(  # type: ignore
-                        num_iq_samples=self.num_iq_samples,
-                        start=0 if start < 0 else start,
-                        stop=start + burst_duration,
-                        center_frequency=center_frequency,
-                        bandwidth=bandwidth,
-                        snr=snr,
+                        meta=create_modulated_rf_metadata(
+                            num_samples=self.num_iq_samples,
+                            start=0 if start < 0 else start,
+                            stop=start + burst_duration,
+                            duration=burst_duration,
+                            center_freq=center_frequency,
+                            bandwidth=bandwidth,
+                            snr=snr,
+                        ),
                         random_generator=self.random_generator,
                     )
                 )
@@ -782,37 +787,21 @@ class WidebandDataset(SignalDataset):
 
         # Retrieve data & metadata from all signal sources
         iq_data: Optional[np.ndarray] = None
-        signal_description_collection = []
+        metadata = []
         for source_idx in range(len(self.signal_sources)):
-            signal_iq_data, signal_description = self.signal_sources[source_idx][item]
-            iq_data = signal_iq_data if iq_data else iq_data + signal_iq_data
-            signal_description = (
-                [signal_description]
-                if isinstance(signal_description, SignalMetadata)
-                else signal_description
-            )
-            signal_description_collection.extend(signal_description)
+            data, meta = self.signal_sources[source_idx][item]
+            iq_data = data if iq_data else iq_data + data
+            metadata.extend(meta)
 
         # Format into single SignalData object
         assert iq_data is not None
-        signal_data = SignalData(
-            data=iq_data.tobytes(),
-            item_type=np.dtype(np.float64),
-            data_type=np.dtype(np.complex128),
-            signal_description=signal_description_collection,
-        )
+        signal = Signal(data=create_signal_data(samples=iq_data), metadata=metadata)
 
         # Apply transforms
-        signal_data = self.transform(signal_data) if self.transform else signal_data
-        target = (
-            self.target_transform(signal_data.signal_description)
-            if self.target_transform
-            else signal_data.signal_description
-        )
-        assert signal_data.iq_data is not None
-        iq_data = signal_data.iq_data
+        signal = self.transform(signal) if self.transform else signal
+        target = self.target_transform(signal["metadata"])
 
-        return iq_data, target
+        return signal["data"]["samples"], target
 
     def __len__(self) -> int:
         return self.num_samples
@@ -1273,6 +1262,11 @@ class WidebandModulationsDataset(SignalDataset):
                         ModulatedSignalBurst,
                         modulation=modulation,
                         modulation_list=self.modulation_list,
+                        meta=create_modulated_rf_metadata(
+                            bandwidth=bandwidth,
+                            center_freq=center_freq,
+                            start=start,
+                        ),
                     ),
                     num_iq_samples=self.num_iq_samples,
                     num_samples=1,
@@ -1283,16 +1277,11 @@ class WidebandModulationsDataset(SignalDataset):
             sig_counter += 1
 
         iq_data = None
-        signal_description_collection = []
+        metadata = []
         for source_idx in range(len(signal_sources)):
-            signal_iq_data, signal_description = signal_sources[source_idx][0]
-            iq_data = signal_iq_data if iq_data is None else iq_data + signal_iq_data
-            signal_description = (
-                [signal_description]
-                if isinstance(signal_description, SignalMetadata)
-                else signal_description
-            )
-            signal_description_collection.extend(signal_description)
+            data, meta = signal_sources[source_idx][0]
+            iq_data = data["samples"] if iq_data is None else iq_data + data["samples"]
+            metadata.extend(meta)
 
         # If no signal sources present, add noise
         if iq_data is None:
@@ -1305,24 +1294,12 @@ class WidebandModulationsDataset(SignalDataset):
             iq_data = real_noise + 1j * imag_noise
 
         # Format into single SignalData object
-        signal_data = SignalData(
-            data=iq_data.tobytes(),
-            item_type=np.dtype(np.float64),
-            data_type=np.dtype(np.complex128),
-            signal_description=signal_description_collection,
-        )
+        signal = Signal(data=SignalData(samples=iq_data), metadata=metadata)
 
         # Apply transforms
-        signal_data = self.transform(signal_data) if self.transform else signal_data
-        target = (
-            self.target_transform(signal_data.signal_description)
-            if self.target_transform
-            else signal_data.signal_description
-        )
-        iq_data = signal_data.iq_data
-        assert iq_data is not None
-
-        return iq_data, target
+        signal = self.transform(signal) if self.transform else signal
+        target = self.target_transform(signal["metadata"])
+        return signal["data"]["samples"], target
 
     def __len__(self) -> int:
         return self.num_samples
@@ -1365,8 +1342,8 @@ class Interferers(SignalTransform):
 
     def __call__(self, data: Any) -> Any:
         idx = np.random.randint(self.num_samples)
-        if isinstance(data, SignalData):
-            data.iq_data = data.iq_data + self.interferers[idx][0]
+        if is_signal_data(data):
+            data["data"]["samples"] = data["data"]["samples"] + self.interferers[idx][0]
         else:
             data = data + self.interferers[idx][0]
         return data

@@ -2,7 +2,7 @@ from typing import List, Optional, TypedDict
 from torch import Tensor
 import numpy as np
 
-n_type = (float, int, Tensor)
+n_type = (float, int, Tensor, np.float16)
 
 
 class SignalMetadata(TypedDict):
@@ -10,13 +10,31 @@ class SignalMetadata(TypedDict):
     num_samples: int
 
 
+def create_signal_metadata(
+    sample_rate: int = 0, num_samples: int = 0
+) -> SignalMetadata:
+    return SignalMetadata(sample_rate=sample_rate, num_samples=num_samples)
+
+
 class SignalData(TypedDict):
     samples: np.ndarray
+
+
+def create_signal_data(samples: np.ndarray = np.empty((1,))) -> SignalData:
+    return SignalData(samples=samples)
 
 
 class Signal(TypedDict):
     data: SignalData
     metadata: List[SignalMetadata]
+
+
+def create_signal(
+    data: SignalData = None, metadata: List[SignalMetadata] = None
+) -> Signal:
+    signal_data = data if data else create_signal_data()
+    signal_metadata = metadata if metadata else create_signal_metadata()
+    return Signal(data=signal_data, metadata=signal_metadata)
 
 
 class RFMetadata(SignalMetadata):
@@ -30,6 +48,32 @@ class RFMetadata(SignalMetadata):
     duration: float
 
 
+def create_rf_metadata(
+    sample_rate: int = 0,
+    num_samples: int = 0,
+    complex: bool = True,
+    lower_freq: float = -0.25,
+    upper_freq: float = 0.25,
+    center_freq: float = 0.0,
+    bandwidth: float = 0.5,
+    start: float = 0.0,
+    stop: float = 1.0,
+    duration: float = 1.0,
+) -> RFMetadata:
+    return RFMetadata(
+        sample_rate=sample_rate,
+        num_samples=num_samples,
+        complex=complex,
+        lower_freq=lower_freq,
+        upper_freq=upper_freq,
+        center_freq=center_freq,
+        bandwidth=bandwidth,
+        start=start,
+        stop=stop,
+        duration=duration,
+    )
+
+
 class ModulatedRFMetadata(RFMetadata):
     snr: float
     bits_per_symbol: int
@@ -37,6 +81,44 @@ class ModulatedRFMetadata(RFMetadata):
     excess_bandwidth: float
     class_name: str
     class_index: int
+
+
+def create_modulated_rf_metadata(
+    sample_rate: int = 0,
+    num_samples: int = 0,
+    complex: bool = True,
+    lower_freq: float = -0.25,
+    upper_freq: float = 0.25,
+    center_freq: float = 0.0,
+    bandwidth: float = 0.5,
+    start: float = 0.0,
+    stop: float = 1.0,
+    duration: float = 1.0,
+    snr: float = 0.0,
+    bits_per_symbol: int = 0.0,
+    samples_per_symbol: float = 0.0,
+    excess_bandwidth: float = 0.0,
+    class_name: str = "",
+    class_index: int = 0,
+) -> RFMetadata:
+    return ModulatedRFMetadata(
+        sample_rate=sample_rate,
+        num_samples=num_samples,
+        complex=complex,
+        lower_freq=lower_freq,
+        upper_freq=upper_freq,
+        center_freq=center_freq,
+        bandwidth=bandwidth,
+        start=start,
+        stop=stop,
+        duration=duration,
+        snr=snr,
+        bits_per_symbol=bits_per_symbol,
+        samples_per_symbol=samples_per_symbol,
+        excess_bandwidth=excess_bandwidth,
+        class_name=class_name,
+        class_index=class_index,
+    )
 
 
 def data_shape(data: SignalData) -> tuple:
@@ -95,6 +177,9 @@ def is_rf_modulated_metadata(d: dict) -> bool:
 
 
 def is_signal(d: dict) -> bool:
+    if not isinstance(d, dict):
+        return False
+
     if "data" not in d.keys() or "metadata" not in d.keys():
         return False
 

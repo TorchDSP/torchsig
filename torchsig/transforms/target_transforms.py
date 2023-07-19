@@ -1,7 +1,11 @@
 from typing import Any, Dict, List, Optional, Tuple, Union
 from torchsig.transforms.transforms import Transform
 from torchsig.utils.types import SignalMetadata, RFMetadata, ModulatedRFMetadata
-from torchsig.utils.types import meta_bound_frequency, is_rf_modulated_metadata
+from torchsig.utils.types import (
+    meta_bound_frequency,
+    is_rf_modulated_metadata,
+    create_modulated_rf_metadata,
+)
 import numpy as np
 import torch
 
@@ -44,7 +48,7 @@ def generate_mask(
     height: int,
     width: int,
 ) -> np.ndarray:
-    if not isinstance(meta, ModulatedRFMetadata):
+    if not is_rf_modulated_metadata(meta):
         return masks
 
     begin_height = int((meta["lower_freq"] + 0.5) * height)
@@ -110,8 +114,6 @@ class DescToClassNameSNR(Transform):
 
         for meta in metadata:
             if not is_rf_modulated_metadata(meta):
-                print(meta)
-                print("NOT RF Metadata")
                 continue
 
             classes.append(meta["class_name"])  # type: ignore
@@ -396,7 +398,7 @@ class DescToMaskClass(Transform):
     def __call__(self, metadata: SignalMetadata) -> np.ndarray:
         masks: np.ndarray = np.zeros((self.num_classes, self.height, self.width))
         for meta in metadata:
-            if not isinstance(meta, ModulatedRFMetadata):
+            if not is_rf_modulated_metadata(meta):
                 continue
 
             meta = meta_bound_frequency(meta)
@@ -1351,15 +1353,12 @@ class DescToListTuple(Transform):
     ) -> List[Tuple[str, float, float, float, float, float]]:
         output: List[Tuple[str, float, float, float, float, float]] = []
         # Loop through SignalDescription's, converting values of interest to tuples
-        for meta_idx, meta in enumerate(metadata):
-            assert meta["start"] is not None
-            assert meta["stop"] is not None
-            assert meta["center_freq"] is not None
-            assert meta["bandwidth"] is not None
-            assert meta["snr"] is not None
-            assert meta["class_name"] is not None
+        for meta in metadata:
+            if not is_rf_modulated_metadata(meta):
+                continue
+
             curr_tuple: Tuple[str, float, float, float, float, float] = (
-                meta["class_name"][0],
+                meta["class_name"],
                 self.precision.type(meta["start"]),
                 self.precision.type(meta["stop"]),
                 self.precision.type(meta["center_freq"]),
@@ -1403,29 +1402,29 @@ class ListTupleToDesc(Transform):
         self,
         list_tuple: List[Tuple[str, float, float, float, float, float]],
     ) -> List[SignalMetadata]:
-        output: List[SignalMetadata] = []
+        metadata: List[SignalMetadata] = []
         # Loop through SignalDescription's, converting values of interest to tuples
         for curr_tuple in list_tuple:
             processed_curr_tuple: Tuple[Any, ...] = tuple(
                 [l.numpy() if isinstance(l, torch.Tensor) else l for l in curr_tuple]
             )
-            curr_signal_desc: SignalMetadata = SignalMetadata(
-                sample_rate=self.sample_rate,
-                num_iq_samples=self.num_iq_samples,
+            meta: SignalMetadata = create_modulated_rf_metadata(
+                sample_rate=0.0 if not self.sample_rate else self.sample_rate,
+                num_samples=self.num_iq_samples,
                 class_name=processed_curr_tuple[0],
                 class_index=self.class_list.index(processed_curr_tuple[0])
                 if self.class_list
                 else None,
                 start=processed_curr_tuple[1],
                 stop=processed_curr_tuple[2],
-                center_frequency=processed_curr_tuple[3],
+                center_freq=processed_curr_tuple[3],
                 bandwidth=processed_curr_tuple[4],
-                lower_frequency=processed_curr_tuple[3] - processed_curr_tuple[4] / 2,
-                upper_frequency=processed_curr_tuple[3] + processed_curr_tuple[4] / 2,
+                lower_freq=processed_curr_tuple[3] - processed_curr_tuple[4] / 2,
+                upper_freq=processed_curr_tuple[3] + processed_curr_tuple[4] / 2,
                 snr=processed_curr_tuple[5],
             )
-            output.append(curr_signal_desc)
-        return output
+            metadata.append(meta)
+        return metadata
 
 
 class LabelSmoothing(Transform):

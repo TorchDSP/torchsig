@@ -1,4 +1,9 @@
 from torchsig.utils.types import SignalData, SignalMetadata, Signal, ModulatedRFMetadata
+from torchsig.utils.types import (
+    create_signal_metadata,
+    create_rf_metadata,
+    create_modulated_rf_metadata,
+)
 from torchsig.utils.dsp import convolve, gaussian_taps, low_pass, rrc_taps
 from torchsig.transforms.functional import FloatParameter, IntParameter
 from torchsig.utils.dataset import SignalDataset
@@ -219,7 +224,7 @@ class SyntheticDataset(SignalDataset):
     def __getitem__(self, index: int) -> Tuple[Union[SignalData, np.ndarray], Any]:
         signal_meta = self.index[index][-1]
         signal_data = SignalData(samples=self._generate_samples(self.index[index]))
-        signal = Signal(data=signal_data, metadata=[signal_meta])
+        signal = Signal(data=signal_data, metadata=signal_meta)
 
         if self.transform:
             signal = self.transform(signal)
@@ -304,20 +309,10 @@ class ConstellationDataset(SyntheticDataset):
 
         for const_idx, const_name in enumerate(map(str.lower, self.constellations)):
             for idx in range(self.num_samples_per_class):
-                meta = ModulatedRFMetadata(
-                    sample_rate=0.0,
+                meta = create_modulated_rf_metadata(
                     num_samples=self.num_iq_samples,
-                    complex=True,
-                    lower_freq=-0.25,
-                    upper_freq=0.25,
-                    center_freq=0.0,
-                    bandwidth=0.5,
-                    start=0.0,
-                    stop=1.0,
-                    duration=1.0,
-                    snr=0.0,
                     bits_per_symbol=np.log2(len(self.const_map[const_name])),
-                    samples_per_symbol=float(iq_samples_per_symbol),
+                    samples_per_symbol=iq_samples_per_symbol,
                     class_name=const_name,
                     class_index=const_idx,
                     excess_bandwidth=alphas[
@@ -328,14 +323,14 @@ class ConstellationDataset(SyntheticDataset):
                     (
                         const_name,
                         const_idx * self.num_samples_per_class + idx,
-                        meta,
+                        [meta],
                     )
                 )
 
     def _generate_samples(self, item: Tuple) -> np.ndarray:
         class_name = item[0]
         index = item[1]
-        meta = item[2]
+        meta = item[2][0]
         orig_state = np.random.get_state()
         if not self.random_data:
             np.random.seed(index)
@@ -521,7 +516,7 @@ class OFDMDataset(SyntheticDataset):
                         sidelobe_suppression_method,
                         dc_subcarrier,
                         time_varying_realism,
-                        meta,
+                        [meta],
                     )
                 )
 
@@ -856,7 +851,7 @@ class FSKDataset(SyntheticDataset):
                         freq_name,
                         freq_idx * self.num_samples_per_class + idx,
                         bandwidth,
-                        meta,
+                        [meta],
                     )
                 )
 
@@ -864,7 +859,7 @@ class FSKDataset(SyntheticDataset):
         const_name = item[0]
         index = item[1]
         bandwidth = item[2]
-        metadata = item[3]
+        metadata = item[3][0]
 
         # calculate the modulation order, ex: the "4" in "4-FSK"
         const = freq_map[const_name]
@@ -983,7 +978,7 @@ class AMDataset(SyntheticDataset):
                     (
                         class_name,
                         class_idx * self.num_samples_per_class + idx,
-                        meta,
+                        [meta],
                     )
                 )
 
@@ -1062,7 +1057,7 @@ class FMDataset(SyntheticDataset):
                     (
                         class_name,
                         class_idx * self.num_samples_per_class + idx,
-                        meta,
+                        [meta],
                     )
                 )
 

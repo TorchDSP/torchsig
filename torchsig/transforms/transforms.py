@@ -2,6 +2,9 @@ from typing import Any, Callable, List, Literal, Optional, Tuple, Union
 from torchsig.utils.types import (
     meta_bound_frequency,
     meta_pad_height,
+    create_signal,
+    create_signal_data,
+    create_signal_metadata,
     is_rf_modulated_metadata,
     is_rf_metadata,
     is_signal,
@@ -10,7 +13,7 @@ from scipy import signal as sp
 from copy import deepcopy
 import numpy as np
 import warnings
-
+from torchsig.utils.dataset import SignalDataset
 from torchsig.transforms import functional as F
 from torchsig.transforms.functional import (
     FloatParameter,
@@ -20,7 +23,6 @@ from torchsig.transforms.functional import (
     uniform_continuous_distribution,
     uniform_discrete_distribution,
 )
-from torchsig.utils.dataset import SignalDataset
 from torchsig.utils.dsp import low_pass
 from torchsig.utils.types import (
     SignalData,
@@ -305,9 +307,9 @@ class SignalTransform(Transform):
         if is_signal(signal):
             return signal
 
-        return Signal(
-            data=SignalData(samples=signal),
-            description=[SignalMetadata(sample_rate=1, num_samples=signal.shape[0])],
+        return create_signal(
+            data=create_signal_data(samples=signal),
+            metadata=[create_signal_metadata(num_samples=signal.shape[0])],
         )
 
     def parameters(self) -> tuple:
@@ -821,7 +823,7 @@ class AddNoise(SignalTransform):
         )
 
     def parameters(self) -> tuple:
-        return (self.noise_power_db(), self.input_noise_floor_db())
+        return (self.noise_power_db(), self.input_noise_floor_db)
 
     def transform_data(self, signal: Signal, params: tuple) -> Signal:
         noise_power_db, _ = params
@@ -886,7 +888,7 @@ class TimeVaryingNoise(SignalTransform):
         self,
         noise_power_db_low: NumericParameter = (-80, -60),
         noise_power_db_high: NumericParameter = (-40, -20),
-        inflections: IntParameter = (int(0), int(10)),
+        inflections: IntParameter = [int(0), int(10)],
         random_regions: Union[List, bool] = True,
         **kwargs,
     ) -> None:
@@ -1471,13 +1473,13 @@ class RandomTimeShift(SignalTransform):
         for meta in signal["metadata"]:
             meta["start"] += shift / data_shape(signal["data"])[0]
             meta["stop"] += shift / data_shape(signal["data"])[0]
-            meta["start"] = np.clip(meta["start"], a_min=0.0)
-            meta["stop"] = np.clip(meta["stop"], a_max=1.0)
+            meta["start"] = np.clip(meta["start"], a_min=0.0, a_max=1.0)
+            meta["stop"] = np.clip(meta["stop"], a_min=0.0, a_max=1.0)
             meta["duration"] = meta["stop"] - meta["start"]
 
         # keep only signals that are in (0.0, 1.0)
         signal["metadata"][:] = [d for d in signal["metadata"] if d["start"] < 1.0]
-        signal["metadata"][:] = [d for d in signal["metadata"] if d["stop"] > 1.0]
+        signal["metadata"][:] = [d for d in signal["metadata"] if d["stop"] > 0.0]
         return signal
 
 
@@ -1569,13 +1571,17 @@ class TimeCrop(SignalTransform):
             original_stop_sample = meta["stop"] * data_shape(signal["data"])[0]
             new_start_sample = original_start_sample - start
             new_stop_sample = original_stop_sample - start
-            meta["start"] = np.clip(float(new_start_sample / crop_length), a_min=0.0)
-            meta["stop"] = np.clip(float(new_stop_sample / crop_length), a_max=1.0)
+            meta["start"] = np.clip(
+                float(new_start_sample / crop_length), a_min=0.0, a_max=1.0
+            )
+            meta["stop"] = np.clip(
+                float(new_stop_sample / crop_length), a_min=0.0, a_max=1.0
+            )
             meta["duration"] = meta["stop"] - meta["start"]
             meta["num_samples"] = crop_length
 
         signal["metadata"][:] = [d for d in signal["metadata"] if d["start"] < 1.0]
-        signal["metadata"][:] = [d for d in signal["metadata"] if d["stop"] > 1.0]
+        signal["metadata"][:] = [d for d in signal["metadata"] if d["stop"] > 0.0]
         return signal
 
 
@@ -1707,8 +1713,8 @@ class RandomFrequencyShift(SignalTransform):
         avoid_aliasing = False
         for meta in signal["metadata"]:
             # Check bounds for partial signals
-            meta["lower_freq"] = np.clip(meta["lower_freq"], a_min=-0.5)
-            meta["upper_freq"] = np.clip(meta["upper_freq"], a_max=0.5)
+            meta["lower_freq"] = np.clip(meta["lower_freq"], a_min=-0.5, a_max=0.5)
+            meta["upper_freq"] = np.clip(meta["upper_freq"], a_min=-0.5, a_max=0.5)
             meta["bandwidth"] = meta["upper_freq"] - meta["lower_freq"]
             meta["center_freq"] = meta["lower_freq"] + meta["bandwidth"] * 0.5
 
@@ -1724,10 +1730,10 @@ class RandomFrequencyShift(SignalTransform):
                 avoid_aliasing = True
 
         signal["metadata"][:] = [
-            d for d in signal["metadata"] if d["lower_freq"] >= 0.5
+            d for d in signal["metadata"] if d["lower_freq"] >= -0.5
         ]
         signal["metadata"][:] = [
-            d for d in signal["metadata"] if d["upper_freq"] <= -0.5
+            d for d in signal["metadata"] if d["upper_freq"] <= 0.5
         ]
 
         if avoid_aliasing:
@@ -1743,20 +1749,21 @@ class RandomFrequencyShift(SignalTransform):
 class RandomDelayedFrequencyShift(SignalTransform):
     """Apply a delayed frequency shift to the input data
 
-    Args:
-         start_shift (:py:class:`~Callable`, :obj:`int`, :obj:`float`, :obj:`list`, :obj:`tuple`):
-            start_shift sets the start time of the delayed shift
-            * If Callable, produces a sample by calling start_shift()
-            * If int, start_shift is fixed at the value provided
-            * If list, start_shift is any element in the list
-            * If tuple, start_shift is in range of (tuple[0], tuple[1])
+        Args:
+             start_shift (:py:class:`~Callable`, :obj:`int`, :obj:`float`, :obj:`list`, :obj:`tuple`):
+                start_shift sets the start time of the delayed shift
+                * If Callable, produces a sample by calling start_shift()
+                * If int, start_shift is fixed at the value provided
+                * If list, start_shift is any element in the list
+                * If tuple, start_shift is in range of (tuple[0], tuple[1])
 
-        freq_shift (:py:class:`~Callable`, :obj:`int`, :obj:`float`, :obj:`list`, :obj:`tuple`):
-            freq_shift sets the translation along the freq-axis
-            * If Callable, produces a sample by calling freq_shift()
-            * If int, freq_shift is fixed at the value provided
-            * If list, freq_shift is any element in the list
-            * If tuple, freq_shift is in range of (tuple[0], tuple[1])
+            freq_shift (:py:class:`~Callable`, :obj:`int`, :obj:`float`, :obj:`list`, :obj:`tuple`):
+                freq_shift sets the translation along the freq-axis
+                * If Callable, produces a sample by calling freq_shift()
+                * If int, freq_shift is fixed at the value provided
+                * If list, freq_shift is any element in the list
+                * If tuple, freq_shif@pytest.mark.parametrize(
+    t is in range of (tuple[0], tuple[1])
 
     """
 
@@ -1780,7 +1787,7 @@ class RandomDelayedFrequencyShift(SignalTransform):
         freq_shift = 0
         while freq_shift < 0.05 and freq_shift > -0.05:
             freq_shift = self.freq_shift()
-        return (self.start_shift(), freq_shift())
+        return (self.start_shift(), freq_shift)
 
     def transform_data(self, signal: Signal, params: tuple) -> Signal:
         start_shift, freq_shift = params
@@ -1810,7 +1817,9 @@ class RandomDelayedFrequencyShift(SignalTransform):
             # and the second half gets shifted
             if meta["start"] < start_shift:
                 meta_first = deepcopy(meta)
-                meta_first["stop"] = np.clip(meta_first["stop"], a_max=start_shift)
+                meta_first["stop"] = np.clip(
+                    meta_first["stop"], a_min=0.0, a_max=start_shift
+                )
                 meta_first["duration"] = meta_first["stop"] - meta_first["start"]
                 new_meta.append(meta_first)
 
@@ -1871,8 +1880,8 @@ class RandomDelayedFrequencyShift(SignalTransform):
         return meta
 
     def clip_frequency(self, meta: RFMetadata):
-        meta["lower_freq"] = np.clip(meta["lower_freq"], a_min=-0.5)
-        meta["upper_freq"] = np.clip(meta["upper_freq"], a_max=0.5)
+        meta["lower_freq"] = np.clip(meta["lower_freq"], a_min=-0.5, a_max=0.5)
+        meta["upper_freq"] = np.clip(meta["upper_freq"], a_min=-0.5, a_max=0.5)
         meta["bandwidth"] = meta["upper_freq"] - meta["lower_freq"]
         meta["center_freq"] = meta["lower_freq"] + meta["bandwidth"] * 0.5
         return meta
@@ -1943,6 +1952,7 @@ class LocalOscillatorDrift(SignalTransform):
 
         complex_phase = np.exp(2j * np.pi * np.cumsum(frequency))
         signal["data"]["samples"] = signal["data"]["samples"] * complex_phase
+        return signal
 
     def transform_meta(self, signal: Signal, params: tuple) -> Signal:
         if not is_rf_metadata(signal["metadata"][0]):
@@ -1998,10 +2008,14 @@ class GainDrift(SignalTransform):
         max_drift, min_drift, drift_rate = params
 
         # Apply drift as a random walk.
-        random_walk = self.random_generator.choice([-1, 1], size=iq_data.shape[0])
+        random_walk = self.random_generator.choice(
+            [-1, 1], size=data_shape(signal["data"])[0]
+        )
 
         # limit rate of change to at most 1/max_drift_rate times the length of the data sample
-        gain = np.cumsum(random_walk) * drift_rate / np.sqrt(iq_data.shape[0])
+        gain = (
+            np.cumsum(random_walk) * drift_rate / np.sqrt(data_shape(signal["data"])[0])
+        )
 
         # Every time gain hits max_drift, reset to zero
         while np.argmax(gain > max_drift):
@@ -2316,6 +2330,7 @@ class ChannelSwap(SignalTransform):
 
     def transform_data(self, signal: Signal, params: tuple) -> Signal:
         signal["data"]["samples"] = F.channel_swap(signal["data"]["samples"])
+        return signal
 
     def transform_meta(self, signal: Signal, params: tuple) -> Signal:
         if not is_rf_metadata(signal["metadata"][0]):
@@ -2530,7 +2545,7 @@ class Clip(SignalTransform):
         return (self.clip_percentage(),)
 
     def transform_data(self, signal: Signal, params: tuple) -> Signal:
-        clip_percentage = params
+        clip_percentage = params[0]
         signal["data"]["samples"] = F.clip(signal["data"]["samples"], clip_percentage)
         return signal
 
@@ -2667,7 +2682,7 @@ class DatasetBasebandMixUp(SignalTransform):
         idx = np.random.randint(self.dataset_num_samples)
         insert_data, insert_metadata = self.dataset[idx]
 
-        if insert_iq_data.shape[0] != data_shape(signal["data"])[0]:
+        if insert_data.shape[0] != data_shape(signal["data"])[0]:
             raise ValueError(
                 "Input dataset's `num_iq_samples` does not match main dataset.\n\t\
                 Found {}, but expected {} samples".format(
