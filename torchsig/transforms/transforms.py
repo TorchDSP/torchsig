@@ -1,14 +1,5 @@
 from typing import Any, Callable, List, Literal, Optional, Tuple, Union
-from torchsig.utils.types import (
-    meta_bound_frequency,
-    meta_pad_height,
-    create_signal,
-    create_signal_data,
-    create_signal_metadata,
-    is_rf_modulated_metadata,
-    is_rf_metadata,
-    is_signal,
-)
+from torchsig.utils.types import *
 from scipy import signal as sp
 from copy import deepcopy
 import numpy as np
@@ -418,7 +409,7 @@ class RandAugment(SignalTransform):
         )
 
     def transform_data(self, signal: Signal, params: tuple) -> Signal:
-        for t in self.transforms[params]:
+        for t in [self.transforms[idx] for idx in params]:
             signal = t(signal)
         return signal
 
@@ -597,7 +588,7 @@ class RandomResample(SignalTransform):
         return signal
 
     def transform_meta(self, signal: Signal, params: tuple) -> Signal:
-        if not is_rf_metadata(signal["metadata"][0]):
+        if not has_rf_metadata(signal["metadata"]):
             return signal
 
         new_rate = params[0]
@@ -689,9 +680,9 @@ class TargetSNR(SignalTransform):
     """Adds zero-mean complex additive white Gaussian noise to a provided
     tensor to achieve a target SNR. The provided signal is assumed to be
     entirely the signal of interest. Note that this transform relies on
-    information contained within the SignalData object's SignalDescription. The
+    information contained within the SignalData object's SignalMetadata. The
     transform also assumes that only one signal is present in the IQ data. If
-    multiple signals' SignalDescriptions are detected, the transform will raise a
+    multiple signals' SignalMetadatas are detected, the transform will raise a
     warning.
 
     Args:
@@ -742,7 +733,7 @@ class TargetSNR(SignalTransform):
         )
         noise_power_db = signal_power_db - target_snr_db
 
-        if not is_rf_modulated_metadata(signal["metadata"][0]):
+        if not has_modulated_rf_metadata(signal["metadata"]):
             signal["data"]["samples"] = F.awgn(
                 signal["data"]["samples"], noise_power_db
             )
@@ -764,7 +755,7 @@ class TargetSNR(SignalTransform):
 
     def transform_meta(self, signal: Signal, params: tuple) -> Signal:
         target_snr_db: float = params[0]
-        if not is_rf_modulated_metadata(signal["metadata"][0]):
+        if not has_modulated_rf_metadata(signal["metadata"]):
             return signal
 
         signal["metadata"][0]["snr"] = target_snr_db
@@ -831,7 +822,7 @@ class AddNoise(SignalTransform):
         return signal
 
     def transform_meta(self, signal: Signal, params: tuple) -> Signal:
-        if not is_rf_modulated_metadata(signal["metadata"][0]):
+        if not has_modulated_rf_metadata(signal["metadata"]):
             return signal
 
         noise_power_db, noise_floor_db = params
@@ -931,7 +922,7 @@ class TimeVaryingNoise(SignalTransform):
         return signal
 
     def transform_meta(self, signal: Signal, params: tuple) -> Signal:
-        if not is_rf_modulated_metadata(signal["metadata"][0]):
+        if not has_modulated_rf_metadata(signal["metadata"]):
             return signal
 
         noise_power_db_low, noise_power_db_high, _, _ = params
@@ -1466,7 +1457,7 @@ class RandomTimeShift(SignalTransform):
         return signal
 
     def transform_meta(self, signal: Signal, params: tuple) -> Signal:
-        if not is_rf_metadata(signal["metadata"][0]):
+        if not has_rf_metadata(signal["metadata"]):
             return signal
 
         shift = params[0]
@@ -1562,7 +1553,7 @@ class TimeCrop(SignalTransform):
         return signal
 
     def transform_meta(self, signal: Signal, params: tuple) -> Signal:
-        if not is_rf_metadata(signal["metadata"][0]):
+        if not has_rf_metadata(signal["metadata"]):
             return signal
 
         start, crop_length = params
@@ -1630,7 +1621,7 @@ class TimeReversal(SignalTransform):
         return signal
 
     def transform_meta(self, signal: Signal, params: tuple) -> Signal:
-        if not is_rf_metadata(signal["metadata"][0]):
+        if not has_rf_metadata(signal["metadata"]):
             return signal
 
         do_spectral_inversion = params[0]
@@ -1698,7 +1689,7 @@ class RandomFrequencyShift(SignalTransform):
 
     def transform_data(self, signal: Signal, params: tuple) -> Signal:
         freq_shift = params[0]
-        if not is_rf_metadata(signal["metadata"][0]):
+        if not has_rf_metadata(signal["metadata"]):
             signal["data"]["samples"] = F.freq_shift(
                 signal["data"]["samples"], freq_shift
             )
@@ -1706,7 +1697,7 @@ class RandomFrequencyShift(SignalTransform):
         return signal
 
     def transform_meta(self, signal: Signal, params: tuple) -> Signal:
-        if not is_rf_metadata(signal["metadata"][0]):
+        if not has_rf_metadata(signal["metadata"]):
             return signal
 
         freq_shift = params[0]
@@ -1791,7 +1782,7 @@ class RandomDelayedFrequencyShift(SignalTransform):
 
     def transform_data(self, signal: Signal, params: tuple) -> Signal:
         start_shift, freq_shift = params
-        if not is_rf_metadata(signal["metadata"][0]):
+        if not has_rf_metadata(signal["metadata"]):
             num_iq_samples = data_shape(signal["data"])[0]
             signal["data"]["samples"][
                 int(start_shift * num_iq_samples) :
@@ -1802,7 +1793,7 @@ class RandomDelayedFrequencyShift(SignalTransform):
         return signal
 
     def transform_meta(self, signal: Signal, params: tuple) -> Signal:
-        if not is_rf_metadata(signal["metadata"][0]):
+        if not has_rf_metadata(signal["metadata"]):
             return signal
 
         start_shift, freq_shift = params
@@ -1955,7 +1946,7 @@ class LocalOscillatorDrift(SignalTransform):
         return signal
 
     def transform_meta(self, signal: Signal, params: tuple) -> Signal:
-        if not is_rf_metadata(signal["metadata"][0]):
+        if not has_rf_metadata(signal["metadata"]):
             return signal
 
         max_drift, max_drift_size = params
@@ -2311,7 +2302,7 @@ class SpectralInversion(SignalTransform):
         return signal
 
     def transform_meta(self, signal: Signal, params: tuple) -> Signal:
-        if not is_rf_metadata(signal["metadata"][0]):
+        if not has_rf_metadata(signal["metadata"]):
             return signal
 
         for meta in signal["metadata"]:
@@ -2333,7 +2324,7 @@ class ChannelSwap(SignalTransform):
         return signal
 
     def transform_meta(self, signal: Signal, params: tuple) -> Signal:
-        if not is_rf_metadata(signal["metadata"][0]):
+        if not has_rf_metadata(signal["metadata"]):
             return signal
 
         for meta in signal["metadata"]:
@@ -2576,7 +2567,7 @@ class RandomConvolve(SignalTransform):
 
     def __init__(
         self,
-        num_taps: IntParameter = (2, 5),
+        num_taps: IntParameter = [2, 3, 4, 5],
         alpha: FloatParameter = (0.1, 0.5),
         **kwargs,
     ) -> None:
@@ -2592,7 +2583,7 @@ class RandomConvolve(SignalTransform):
         )
 
     def parameters(self) -> tuple:
-        return (self.num_taps(), self.alpha())
+        return (int(self.num_taps()), self.alpha())
 
     def transform_data(self, signal: Signal, params: tuple) -> Signal:
         num_taps, alpha = params
@@ -2635,7 +2626,7 @@ class DatasetBasebandMixUp(SignalTransform):
         >>> import torchsig.transforms as ST
         >>> from torchsig.datasets import ModulationsDataset
         >>> # Add signals from the `ModulationsDataset`
-        >>> target_transform = SignalDescriptionPassThroughTransform()
+        >>> target_transform = SignalMetadataPassThroughTransform()
         >>> dataset = ModulationsDataset(
                 use_class_idx=True,
                 level=0,
@@ -2672,7 +2663,7 @@ class DatasetBasebandMixUp(SignalTransform):
 
     def transform_meta(self, signal: Signal, params: tuple) -> Signal:
         alpha = params[0]
-        if not is_rf_modulated_metadata(signal["metadata"][0]):
+        if not has_modulated_rf_metadata(signal["metadata"]):
             return signal
 
         # Calculate target SNR of signal to be inserted
@@ -2731,7 +2722,7 @@ class DatasetBasebandCutMix(SignalTransform):
         >>> import torchsig.transforms as ST
         >>> from torchsig.datasets import ModulationsDataset
         >>> # Add signals from the `ModulationsDataset`
-        >>> target_transform = SignalDescriptionPassThroughTransform()
+        >>> target_transform = SignalMetadataPassThroughTransform()
         >>> dataset = ModulationsDataset(
                 use_class_idx=True,
                 level=0,
@@ -2768,7 +2759,7 @@ class DatasetBasebandCutMix(SignalTransform):
 
     def transform_meta(self, signal: Signal, params: tuple) -> Signal:
         alpha = params[0]
-        if not is_rf_modulated_metadata(signal["metadata"][0]):
+        if not has_modulated_rf_metadata(signal["metadata"]):
             return signal
 
         if len(signal["metadata"]) > 1:
@@ -2801,7 +2792,7 @@ class DatasetBasebandCutMix(SignalTransform):
             signal["data"]["samples"] + insert_signal_data["data"]["samples"]
         )
 
-        # Update SignalDescription
+        # Update SignalMetadata
         if insert_start == 0:
             signal["metadata"][0]["start"] = insert_stop / num_iq_samples
             signal["metadata"][0]["stop"] = 1.0
@@ -2890,7 +2881,7 @@ class CutOut(SignalTransform):
         return signal
 
     def transform_meta(self, signal: Signal, params: tuple) -> Signal:
-        if not is_rf_metadata(signal["metadata"][0]):
+        if not has_rf_metadata(signal["metadata"]):
             return signal
 
         duration, start, _ = params
@@ -3058,7 +3049,7 @@ class DatasetWidebandCutMix(SignalTransform):
         # Create new SignalData object for transformed data
         signal["data"]["samples"] += insert_data
 
-        # Update SignalDescription
+        # Update SignalMetadata
         new_meta = []
         for meta in signal["metadata"]:
             # Update labels
@@ -3091,10 +3082,10 @@ class DatasetWidebandCutMix(SignalTransform):
                 meta_split["start"] = insert_start + insert_dur
                 new_meta.append(meta_split)
 
-            # Append SignalDescription to list
+            # Append SignalMetadata to list
             new_meta.append(meta)
 
-        # Repeat for inserted example's SignalDescription(s)
+        # Repeat for inserted example's SignalMetadata(s)
         insert_meta = []
         for meta in insert_meta:
             # Update labels
@@ -3119,10 +3110,10 @@ class DatasetWidebandCutMix(SignalTransform):
                 meta["stop"] = insert_start
                 meta["stop"] = insert_start + insert_dur
 
-            # Append SignalDescription to list
+            # Append SignalMetadata to list
             insert_meta.append(meta)
 
-        # Set output data's SignalDescription to above list
+        # Set output data's SignalMetadata to above list
         signal["metadata"] = new_meta
 
         return signal
@@ -3195,7 +3186,7 @@ class DatasetWidebandMixUp(SignalTransform):
             signal["data"]["samples"] * (1 - alpha) + insert_data * alpha
         )
 
-        # Update SignalDescription
+        # Update SignalMetadata
         signal["metadata"].extend(insert_meta)
         return signal
 
@@ -3344,7 +3335,7 @@ class SpectrogramRandomResizeCrop(SignalTransform):
         ]
         signal["data"]["samples"] = spec_data
 
-        if not is_rf_metadata(signal["metadata"][0]):
+        if not has_rf_metadata(signal["metadata"]):
             return signal
 
         # Update SignalMetadata
@@ -3376,7 +3367,7 @@ class SpectrogramRandomResizeCrop(SignalTransform):
                     continue
                 self.meta_crop_width(curr_width, crop_width_start, meta)
 
-            # Append SignalDescription to list
+            # Append SignalMetadata to list
             new_meta.append(meta)
 
         signal["metadata"] = new_meta
@@ -3671,7 +3662,7 @@ class SpectrogramTranslation(SignalTransform):
         return signal
 
     def transform_meta(self, signal: Signal, params: tuple) -> Signal:
-        if not is_rf_metadata(signal["metadata"][0]):
+        if not has_rf_metadata(signal["metadata"]):
             return signal
 
         time_shift, freq_shift = params
@@ -3705,10 +3696,10 @@ class SpectrogramTranslation(SignalTransform):
 
             meta = meta_bound_frequency(meta)
 
-            # Append SignalDescription to list
+            # Append SignalMetadata to list
             new_meta.append(meta)
 
-        # Set output data's SignalDescription to above list
+        # Set output data's SignalMetadata to above list
         signal["metadata"] = new_meta
         return signal
 
@@ -3780,7 +3771,7 @@ class SpectrogramTranslation(SignalTransform):
 #         # After the data has been stitched into the large 2x2 gride, crop using x0, y0
 #         signal["data"]["samples"] = full_mosaic[:, y0 : y0 + height, x0 : x0 + width]
 
-#         if not is_rf_metadata(signal["metadata"][0]):
+#         if not has_rf_metadata(signal["metadata"]):
 #             return signal
 
 #         if x_idx == 0:
@@ -3858,7 +3849,7 @@ class SpectrogramTranslation(SignalTransform):
 #                     x_idx * width : (x_idx + 1) * width,
 #                 ] = curr_data
 
-#                 # Update inserted data's SignalDescription objects given the cell index
+#                 # Update inserted data's SignalMetadata objects given the cell index
 #                 for meta in signal["metadata"]:
 #                     # Update time fields
 #                     if x_idx == 0:
@@ -3984,7 +3975,7 @@ class SpectrogramMosaicDownsample(SignalTransform):
         return signal
 
     def transform_meta(self, signal: Signal, params: tuple) -> Signal:
-        if not is_rf_metadata(signal["metadata"][0]):
+        if not has_rf_metadata(signal["metadata"]):
             return signal
 
         # Read shapes
@@ -4004,7 +3995,7 @@ class SpectrogramMosaicDownsample(SignalTransform):
             x_idx * width : (x_idx + 1) * width,
         ] = signal["data"]["samples"].iq_data
 
-        # Update original data's SignalDescription objects given the cell index
+        # Update original data's SignalMetadata objects given the cell index
         for meta in signal["metadata"]:
             # Update time fields
             if x_idx == 0:
@@ -4049,7 +4040,7 @@ class SpectrogramMosaicDownsample(SignalTransform):
                 x_idx * width : (x_idx + 1) * width,
             ] = curr_data
 
-            # Update inserted data's SignalDescription objects given the cell index
+            # Update inserted data's SignalMetadata objects given the cell index
             for meta in signal["metadata"]:
                 # Update time fields
                 if x_idx == 0:

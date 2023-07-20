@@ -5,6 +5,9 @@ import numpy as np
 n_type = (float, int, Tensor, np.float16)
 
 
+# --------------------------------------------------------------------------------- #
+# SignalMetadata
+# --------------------------------------------------------------------------------- #
 class SignalMetadata(TypedDict):
     sample_rate: int
     num_samples: int
@@ -16,27 +19,16 @@ def create_signal_metadata(
     return SignalMetadata(sample_rate=sample_rate, num_samples=num_samples)
 
 
-class SignalData(TypedDict):
-    samples: np.ndarray
+def is_signal_metadata(d: dict) -> bool:
+    if "sample_rate" not in d.keys() or "num_samples" not in d.keys():
+        return False
+
+    return isinstance(d["sample_rate"], n_type) and isinstance(d["num_samples"], n_type)
 
 
-def create_signal_data(samples: np.ndarray = np.empty((1,))) -> SignalData:
-    return SignalData(samples=samples)
-
-
-class Signal(TypedDict):
-    data: SignalData
-    metadata: List[SignalMetadata]
-
-
-def create_signal(
-    data: SignalData = None, metadata: List[SignalMetadata] = None
-) -> Signal:
-    signal_data = data if data else create_signal_data()
-    signal_metadata = metadata if metadata else create_signal_metadata()
-    return Signal(data=signal_data, metadata=signal_metadata)
-
-
+# --------------------------------------------------------------------------------- #
+# RFMetadata
+# --------------------------------------------------------------------------------- #
 class RFMetadata(SignalMetadata):
     complex: bool
     lower_freq: float
@@ -74,6 +66,61 @@ def create_rf_metadata(
     )
 
 
+def is_rf_metadata(d: dict) -> bool:
+    keys = (
+        "complex",
+        "lower_freq",
+        "upper_freq",
+        "center_freq",
+        "bandwidth",
+        "start",
+        "stop",
+        "duration",
+    )
+    types = (bool, n_type, n_type, n_type, n_type, n_type, n_type, n_type)
+    if not all(k in d for k in keys):
+        return False
+
+    if not all(isinstance(d[k], t) for k, t in zip(keys, types)):
+        return False
+
+    return is_signal_metadata(d)
+
+
+def has_rf_metadata(metadata: List[RFMetadata]) -> bool:
+    if len(metadata) == 0:
+        return False
+
+    return any(is_rf_metadata(m) for m in metadata)
+
+
+def meta_bound_frequency(meta: RFMetadata) -> RFMetadata:
+    # Check bounds for partial signals
+    meta["lower_freq"] = np.clip(meta["lower_freq"], a_min=-0.5, a_max=0.5)
+    meta["upper_freq"] = np.clip(meta["upper_freq"], a_min=-0.5, a_max=0.5)
+    meta["bandwidth"] = meta["upper_freq"] - meta["lower_freq"]
+    meta["center_freq"] = (meta["lower_freq"] + meta["upper_freq"]) * 0.5
+    return meta
+
+
+def meta_pad_height(
+    meta: RFMetadata, height: float, pixel_height: float, pad_start: float
+):
+    meta["lower_freq"] = (
+        (meta["lower_freq"] + 0.5) * height + pad_start
+    ) / pixel_height - 0.5
+    meta["upper_freq"] = (
+        (meta["upper_freq"] + 0.5) * height + pad_start
+    ) / pixel_height - 0.5
+    meta["center_freq"] = (
+        (meta["center_freq"] + 0.5) * height + pad_start
+    ) / pixel_height - 0.5
+    meta["bandwidth"] = meta["upper_freq"] - meta["lower_freq"]
+
+
+# --------------------------------------------------------------------------------- #
+# ModulatedRFMetadata
+# --------------------------------------------------------------------------------- #
 class ModulatedRFMetadata(RFMetadata):
     snr: float
     bits_per_symbol: int
@@ -121,45 +168,6 @@ def create_modulated_rf_metadata(
     )
 
 
-def data_shape(data: SignalData) -> tuple:
-    return data["samples"].shape
-
-
-def is_signal_data(d: dict) -> bool:
-    if "samples" not in d.keys():
-        return False
-
-    return isinstance(d["samples"], np.ndarray)
-
-
-def is_signal_metadata(d: dict) -> bool:
-    if "sample_rate" not in d.keys() or "num_samples" not in d.keys():
-        return False
-
-    return isinstance(d["sample_rate"], n_type) and isinstance(d["num_samples"], n_type)
-
-
-def is_rf_metadata(d: dict) -> bool:
-    keys = (
-        "complex",
-        "lower_freq",
-        "upper_freq",
-        "center_freq",
-        "bandwidth",
-        "start",
-        "stop",
-        "duration",
-    )
-    types = (bool, n_type, n_type, n_type, n_type, n_type, n_type, n_type)
-    if not all(k in d for k in keys):
-        return False
-
-    if not all(isinstance(d[k], t) for k, t in zip(keys, types)):
-        return False
-
-    return is_signal_metadata(d)
-
-
 def is_rf_modulated_metadata(d: dict) -> bool:
     keys = (
         "snr",
@@ -174,6 +182,52 @@ def is_rf_modulated_metadata(d: dict) -> bool:
         return False
 
     return is_rf_metadata(d) and all(isinstance(d[k], t) for k, t in zip(keys, types))
+
+
+def has_modulated_rf_metadata(metadata: List[ModulatedRFMetadata]) -> bool:
+    if len(metadata) == 0:
+        return False
+
+    return any(is_rf_modulated_metadata(m) for m in metadata)
+
+
+# --------------------------------------------------------------------------------- #
+# SignalData
+# --------------------------------------------------------------------------------- #
+class SignalData(TypedDict):
+    samples: np.ndarray
+
+
+def create_signal_data(samples: np.ndarray = np.empty((1,))) -> SignalData:
+    return SignalData(samples=samples)
+
+
+def is_signal_data(d: dict) -> bool:
+    if "samples" not in d.keys():
+        return False
+
+    return isinstance(d["samples"], np.ndarray)
+
+
+def data_shape(data: SignalData) -> tuple:
+    return data["samples"].shape
+
+
+# --------------------------------------------------------------------------------- #
+# Signal
+#
+# --------------------------------------------------------------------------------- #
+class Signal(TypedDict):
+    data: SignalData
+    metadata: List[SignalMetadata]
+
+
+def create_signal(
+    data: SignalData = None, metadata: List[SignalMetadata] = None
+) -> Signal:
+    signal_data = data if data else create_signal_data()
+    signal_metadata = metadata if metadata else create_signal_metadata()
+    return Signal(data=signal_data, metadata=signal_metadata)
 
 
 def is_signal(d: dict) -> bool:
@@ -191,30 +245,6 @@ def is_signal(d: dict) -> bool:
     )
 
 
-def meta_bound_frequency(meta: RFMetadata) -> RFMetadata:
-    # Check bounds for partial signals
-    meta["lower_freq"] = np.clip(meta["lower_freq"], a_min=-0.5)
-    meta["upper_freq"] = np.clip(meta["upper_freq"], a_max=0.5)
-    meta["bandwidth"] = meta["upper_freq"] - meta["lower_freq"]
-    meta["center_freq"] = (meta["lower_freq"] + meta["upper_freq"]) * 0.5
-    return meta
-
-
-def meta_pad_height(
-    meta: RFMetadata, height: float, pixel_height: float, pad_start: float
-):
-    meta["lower_freq"] = (
-        (meta["lower_freq"] + 0.5) * height + pad_start
-    ) / pixel_height - 0.5
-    meta["upper_freq"] = (
-        (meta["upper_freq"] + 0.5) * height + pad_start
-    ) / pixel_height - 0.5
-    meta["center_freq"] = (
-        (meta["center_freq"] + 0.5) * height + pad_start
-    ) / pixel_height - 0.5
-    meta["bandwidth"] = meta["upper_freq"] - meta["lower_freq"]
-
-
 # TODO[GV] Very niche class, probably can refactor this out.
 class SignalCapture:
     def __init__(
@@ -224,7 +254,7 @@ class SignalCapture:
         item_type: np.dtype,
         is_complex: bool,
         byte_offset: int = 0,
-        signal_description: Optional[SignalMetadata] = None,
+        metadata: Optional[SignalMetadata] = None,
     ) -> None:
         self.absolute_path = absolute_path
         self.num_bytes = num_bytes
@@ -233,4 +263,4 @@ class SignalCapture:
         self.byte_offset = byte_offset
         self.num_samples = self.num_bytes // self.item_type.itemsize
         self.num_samples //= 2 if is_complex else 1
-        self.signal_description = signal_description
+        self.meta = metadata

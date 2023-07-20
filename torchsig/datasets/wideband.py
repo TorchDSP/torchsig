@@ -310,7 +310,7 @@ class ModulatedSignalBurst(SignalBurst):
             )
         elif "g" in self.meta["class_name"]:
             modulated_burst = FSKDataset(
-                modulations=self.meta["class_name"],
+                modulations=[self.meta["class_name"]],
                 num_iq_samples=num_iq_samples,
                 num_samples_per_class=1,
                 iq_samples_per_symbol=approx_samp_per_sym,
@@ -742,7 +742,7 @@ class SyntheticBurstSourceDataset(BurstSourceDataset):
 class WidebandDataset(SignalDataset):
     """WidebandDataset is an SignalDataset that contains several SignalSourceDataset
     objects. Each sample from this dataset includes bursts from each contained
-    SignalSourceDataset as well as a collection of SignalDescriptions which
+    SignalSourceDataset as well as a collection of SignalMetadatas which
     includes all meta-data about the bursts.
 
     Args:
@@ -831,7 +831,7 @@ class WidebandModulationsDataset(SignalDataset):
             A function/transform that takes in an IQ vector and returns a transformed version.
 
         target_transform (:class:`Callable`, optional):
-            A function/transform that takes in a list of SignalDescription objects and returns a transformed target.
+            A function/transform that takes in a list of SignalMetadata objects and returns a transformed target.
 
         seed (:obj: `int`, optional):
             A seed for reproducibility
@@ -1210,36 +1210,38 @@ class WidebandModulationsDataset(SignalDataset):
             minimum_freq_spacing = 0.05
             for source in signal_sources:
                 for signal in source.index[0][0]:
+                    meta = signal.meta
                     # Check time overlap
                     if (
-                        (start > signal.start and start < signal.stop)
-                        or (start + burst_duration > signal.stop and stop < signal.stop)
-                        or (signal.start > start and signal.start < stop)
-                        or (signal.stop > start and signal.stop < stop)
-                        or (start == 0.0 and signal.start == 0.0)
-                        or (stop == 1.0 and signal.stop == 1.0)
+                        (start > meta["start"] and start < meta["stop"])
+                        or (
+                            start + burst_duration > meta["stop"]
+                            and stop < meta["stop"]
+                        )
+                        or (meta["start"] > start and meta["start"] < stop)
+                        or (meta["stop"] > start and meta["stop"] < stop)
+                        or (start == 0.0 and meta["start"] == 0.0)
+                        or (stop == 1.0 and meta["stop"] == 1.0)
                     ):
                         # Check freq overlap
                         if (
                             (
-                                low_freq > signal.lower_frequency - minimum_freq_spacing
-                                and low_freq
-                                < signal.upper_frequency + minimum_freq_spacing
+                                low_freq > meta["lower_freq"] - minimum_freq_spacing
+                                and low_freq < meta["upper_freq"] + minimum_freq_spacing
                             )
                             or (
-                                high_freq
-                                > signal.lower_frequency - minimum_freq_spacing
+                                high_freq > meta["lower_freq"] - minimum_freq_spacing
                                 and high_freq
-                                < signal.upper_frequency + minimum_freq_spacing
+                                < meta["upper_freq"] + minimum_freq_spacing
                             )
                             or (
-                                signal.lower_frequency - minimum_freq_spacing > low_freq
-                                and signal.lower_frequency - minimum_freq_spacing
+                                meta["lower_freq"] - minimum_freq_spacing > low_freq
+                                and meta["lower_freq"] - minimum_freq_spacing
                                 < high_freq
                             )
                             or (
-                                signal.upper_frequency + minimum_freq_spacing > low_freq
-                                and signal.upper_frequency + minimum_freq_spacing
+                                meta["upper_freq"] + minimum_freq_spacing > low_freq
+                                and meta["upper_freq"] + minimum_freq_spacing
                                 < high_freq
                             )
                         ):
@@ -1298,7 +1300,10 @@ class WidebandModulationsDataset(SignalDataset):
 
         # Apply transforms
         signal = self.transform(signal) if self.transform else signal
-        target = self.target_transform(signal["metadata"])
+        target = signal["metadata"]
+        if self.target_transform:
+            target = self.target_transform(signal["metadata"])
+
         return signal["data"]["samples"], target
 
     def __len__(self) -> int:
@@ -1351,7 +1356,7 @@ class Interferers(SignalTransform):
 
 class RandomSignalInsertion(SignalTransform):
     """RandomSignalInsertion reads the input SignalData's occupied frequency
-    bands from the SignalDescription objects and then randomly generates and
+    bands from the SignalMetadata objects and then randomly generates and
     inserts a new continuous or bursty single carrier signal into a randomly
     selected unoccupied frequency band, such that no signal overlap occurs
 
@@ -1425,131 +1430,75 @@ class RandomSignalInsertion(SignalTransform):
             modulation_list if modulation_list else self.default_modulation_list
         )
 
-    def __call__(self, data: Any) -> Any:
-        if isinstance(data, SignalData):
-            assert data.iq_data is not None
-            assert data.signal_description is not None
-
-            # Create new SignalData object for transformed data
-            new_data = SignalData(
-                data=None,
-                item_type=np.dtype(np.float64),
-                data_type=np.dtype(np.complex128),
-                signal_description=[],
-            )
-            num_iq_samples = data.iq_data.shape[0]
-
-            # Read existing SignalDescription for unoccupied freq bands
-            new_signal_description = deepcopy(data.signal_description)
-            new_signal_description_list: List[SignalMetadata] = (
-                [new_signal_description]
-                if isinstance(new_signal_description, SignalMetadata)
-                else new_signal_description
-            )
-            occupied_bands = []
-            for new_signal_desc in new_signal_description_list:
-                assert new_signal_desc.lower_frequency is not None
-                assert new_signal_desc.upper_frequency is not None
-                occupied_bands.append(
-                    [
-                        int((new_signal_desc.lower_frequency + 0.5) * 100),
-                        int((new_signal_desc.upper_frequency + 0.5) * 100),
-                    ]
-                )
-            occupied_bands = sorted(occupied_bands)
-            flat = chain((0 - 1,), chain.from_iterable(occupied_bands), (100 + 1,))
-            unoccupied_bands = [
-                ((x + 1) / 100 - 0.5, (y - 1) / 100 - 0.5)
-                for x, y in zip(flat, flat)
-                if x + 6 < y
-            ]
-            if len(unoccupied_bands) > 0:
-                max_bandwidth = min([y - x for x, y in unoccupied_bands])
-                bandwidth = np.random.uniform(0.05, max_bandwidth)
-                center_freqs: List[Tuple[float, float]] = [
-                    (x + bandwidth / 2, y - bandwidth / 2) for x, y in unoccupied_bands
+    def transform_meta(self, signal: Signal, params: tuple) -> Signal:
+        occupied_bands = []
+        for meta in signal["metadata"]:
+            occupied_bands.append(
+                [
+                    int((meta["lower_freq"] + 0.5) * 100),
+                    int((meta["upper_freq"] + 0.5) * 100),
                 ]
-                rand_band_idx = np.random.randint(len(center_freqs))
-                center_freqs_dist = to_distribution(center_freqs[rand_band_idx])
-                center_freq = center_freqs_dist()
-                bursty = True if np.random.rand() < 0.5 else False
-                burst_duration = np.random.uniform(0.05, 1.0) if bursty else 1.0
-                silence_duration = burst_duration if bursty else 1.0
-                if bandwidth < 0.2:
-                    modulation_list = []
-                    for mod in self.modulation_list:
-                        if "ofdm" not in mod:
-                            modulation_list.append(mod)
-                else:
-                    modulation_list = self.modulation_list
-                num_samples = int(1 / burst_duration + 2) if bursty else 1
+            )
+        occupied_bands = sorted(occupied_bands)
+        flat = chain((0 - 1,), chain.from_iterable(occupied_bands), (100 + 1,))
+        unoccupied_bands = [
+            ((x + 1) / 100 - 0.5, (y - 1) / 100 - 0.5)
+            for x, y in zip(flat, flat)
+            if x + 6 < y
+        ]
+        if len(unoccupied_bands) == 0:
+            return signal
 
-                signal_sources = [
-                    SyntheticBurstSourceDataset(
-                        bandwidths=bandwidth,
-                        center_frequencies=center_freq,
-                        burst_durations=burst_duration,
-                        silence_durations=silence_duration,
-                        snrs_db=20,
-                        start=(-0.05, 0.95),
-                        burst_class=partial(  # type: ignore
-                            ModulatedSignalBurst,
-                            modulation=modulation_list,
-                            modulation_list=modulation_list,
-                        ),
-                        num_iq_samples=num_iq_samples,
-                        num_samples=num_samples,
-                        transform=None,
-                    ),
-                ]
-                signal_dataset = WidebandDataset(
-                    signal_sources=signal_sources,  # type: ignore
-                    num_iq_samples=num_iq_samples,
-                    num_samples=num_samples,
-                    transform=Normalize(norm=np.inf),
-                    target_transform=None,
-                )
-
-                new_signal_data, new_signal_signal_desc = signal_dataset[0]
-                new_data.iq_data = data.iq_data + new_signal_data
-
-                # Update the SignalDescription
-                new_signal_description.extend(new_signal_signal_desc)  # type: ignore
-                new_data.signal_description = new_signal_description
-
-            else:
-                new_data.iq_data = data.iq_data
-
-            return new_data
-
+        max_bandwidth = min([y - x for x, y in unoccupied_bands])
+        bandwidth = np.random.uniform(0.05, max_bandwidth)
+        center_freqs: List[Tuple[float, float]] = [
+            (x + bandwidth / 2, y - bandwidth / 2) for x, y in unoccupied_bands
+        ]
+        rand_band_idx = np.random.randint(len(center_freqs))
+        center_freqs_dist = to_distribution(center_freqs[rand_band_idx])
+        center_freq = center_freqs_dist()
+        bursty = True if np.random.rand() < 0.5 else False
+        burst_duration = np.random.uniform(0.05, 1.0) if bursty else 1.0
+        silence_duration = burst_duration if bursty else 1.0
+        if bandwidth < 0.2:
+            modulation_list = []
+            for mod in self.modulation_list:
+                if "ofdm" not in mod:
+                    modulation_list.append(mod)
         else:
-            num_iq_samples = data.shape[0]
-            num_samples = int(1 / 0.05 + 2)
-            signal_sources = [
-                SyntheticBurstSourceDataset(
-                    bandwidths=(0.05, 0.8),
-                    center_frequencies=(-0.4, 0.4),
-                    burst_durations=(0.05, 1.0),
-                    silence_durations=(0.05, 1.0),
-                    snrs_db=20,
-                    start=(-0.05, 0.95),
-                    burst_class=partial(  # type: ignore
-                        ModulatedSignalBurst,
-                        modulation=self.modulation_list,
-                        modulation_list=self.modulation_list,
-                    ),
-                    num_iq_samples=num_iq_samples,
-                    num_samples=num_samples,
-                    transform=None,
+            modulation_list = self.modulation_list
+        num_samples = int(1 / burst_duration + 2) if bursty else 1
+
+        num_iq_samples = signal["data"]["samples"].shape[0]
+        signal_sources = [
+            SyntheticBurstSourceDataset(
+                bandwidths=bandwidth,
+                center_frequencies=center_freq,
+                burst_durations=burst_duration,
+                silence_durations=silence_duration,
+                snrs_db=20,
+                start=(-0.05, 0.95),
+                burst_class=partial(  # type: ignore
+                    ModulatedSignalBurst,
+                    modulation=modulation_list,
+                    modulation_list=modulation_list,
                 ),
-            ]
-            signal_dataset = WidebandDataset(
-                signal_sources=signal_sources,  # type: ignore
                 num_iq_samples=num_iq_samples,
                 num_samples=num_samples,
-                transform=Normalize(norm=np.inf),
-                target_transform=None,
-            )
-            output = data + signal_dataset[0][0]
+                transform=None,
+            ),
+        ]
+        signal_dataset = WidebandDataset(
+            signal_sources=signal_sources,  # type: ignore
+            num_iq_samples=num_iq_samples,
+            num_samples=num_samples,
+            transform=Normalize(norm=np.inf),
+            target_transform=None,
+        )
 
-            return output
+        iq_data, metadata = signal_dataset[0]
+        signal["data"]["samples"] += iq_data
+
+        # Update the SignalMetadata
+        signal["metadata"].extend(metadata)  # type: ignore
+        return signal

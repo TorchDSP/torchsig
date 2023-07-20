@@ -73,7 +73,7 @@ def generate_mask(
 
 
 class DescToClassName(Transform):
-    """Transform to transform SignalDescription into either the single class name
+    """Transform to transform SignalMetadata into either the single class name
     or a list of the classes present if there are multiple classes
 
     """
@@ -97,7 +97,7 @@ class DescToClassName(Transform):
 
 
 class DescToClassNameSNR(Transform):
-    """Transform to transform SignalDescription into either the single class name
+    """Transform to transform SignalMetadata into either the single class name
     or a list of the classes present if there are multiple classes along with
     the SNRs for each
 
@@ -126,10 +126,10 @@ class DescToClassNameSNR(Transform):
 
 
 class DescToClassIndex(Transform):
-    """Transform to transform SignalDescription into either the single class index
+    """Transform to transform SignalMetadata into either the single class index
     or a list of the class indices present if there are multiple classes. Note:
-    if the SignalDescription contains classes not present in the provided
-    `class_list`, the SignalDescription is interpretted as having no classes
+    if the SignalMetadata contains classes not present in the provided
+    `class_list`, the SignalMetadata is interpretted as having no classes
     present
 
     Args:
@@ -158,10 +158,10 @@ class DescToClassIndex(Transform):
 
 
 class DescToClassIndexSNR(Transform):
-    """Transform to transform SignalDescription into either the single class index
+    """Transform to transform SignalMetadata into either the single class index
     or a list of the class indices present if there are multiple classes along
-    with the SNRs of each. Note: if the SignalDescription contains classes not
-    present in the provided `class_list`, the SignalDescription is interpretted as
+    with the SNRs of each. Note: if the SignalMetadata contains classes not
+    present in the provided `class_list`, the SignalMetadata is interpretted as
     having no classes present
 
     Args:
@@ -198,7 +198,7 @@ class DescToClassIndexSNR(Transform):
 
 
 class DescToMask(Transform):
-    """Transform to transform SignalDescriptions into spectrogram masks
+    """Transform to transform SignalMetadatas into spectrogram masks
 
     Args:
         max_bursts (:obj:`int`):
@@ -220,7 +220,7 @@ class DescToMask(Transform):
         masks: np.ndarray = np.zeros((self.max_bursts, self.height, self.width))
         idx = 0
         for meta in metadata:
-            if not isinstance(meta, ModulatedRFMetadata):
+            if not is_rf_modulated_metadata(meta):
                 continue
 
             meta = meta_bound_frequency(meta)
@@ -230,7 +230,7 @@ class DescToMask(Transform):
 
 
 class DescToMaskSignal(Transform):
-    """Transform to transform SignalDescriptions into spectrogram masks for binary
+    """Transform to transform SignalMetadatas into spectrogram masks for binary
     signal detection
 
     Args:
@@ -249,7 +249,7 @@ class DescToMaskSignal(Transform):
     def __call__(self, metadata: SignalMetadata) -> np.ndarray:
         masks: np.ndarray = np.zeros((self.height, self.width))
         for meta in metadata:
-            if not isinstance(meta, ModulatedRFMetadata):
+            if not is_rf_modulated_metadata(meta):
                 continue
 
             meta = meta_bound_frequency(meta)
@@ -260,7 +260,7 @@ class DescToMaskSignal(Transform):
 
 
 class DescToMaskFamily(Transform):
-    """Transform to transform SignalDescriptions into spectrogram masks with
+    """Transform to transform SignalMetadatas into spectrogram masks with
     different channels for each class'smetadata: SignalMetadata family. If no `class_family_dict`
     provided, the default mapping for the WBSig53 modulation families is used.
 
@@ -356,7 +356,7 @@ class DescToMaskFamily(Transform):
     def __call__(self, metadata: SignalMetadata) -> np.ndarray:
         masks: np.ndarray = np.zeros((len(self.family_list), self.height, self.width))
         for meta in metadata:
-            if not isinstance(meta, ModulatedRFMetadata):
+            if not is_rf_modulated_metadata(meta):
                 continue
 
             meta = meta_bound_frequency(meta)
@@ -376,7 +376,7 @@ class DescToMaskFamily(Transform):
 
 
 class DescToMaskClass(Transform):
-    """Transform to transform list of SignalDescriptions into spectrogram masks
+    """Transform to transform list of SignalMetadatas into spectrogram masks
     with classes
 
     Args:
@@ -403,14 +403,14 @@ class DescToMaskClass(Transform):
 
             meta = meta_bound_frequency(meta)
             masks = generate_mask(
-                masks, meta, meta["class_index"], 1.0, self.height, self.width
+                meta, masks, meta["class_index"], 1.0, self.height, self.width
             )
 
         return masks
 
 
 class DescToSemanticClass(Transform):
-    """Transform to transform SignalDescriptions into spectrogram semantic
+    """Transform to transform SignalMetadatas into spectrogram semantic
     segmentation mask with class information denoted as a value, rather than by
     a one/multi-hot vector in an additional channel like the
     DescToMaskClass does. Note that the class indicies are all
@@ -439,7 +439,7 @@ class DescToSemanticClass(Transform):
         masks: np.ndarray = np.zeros((self.height, self.width))
         curr_snrs: np.ndarray = np.ones((self.height, self.width)) * -np.inf
         for meta in metadata:
-            if not isinstance(meta, ModulatedRFMetadata):
+            if not is_rf_modulated_metadata(meta):
                 continue
 
             meta = meta_bound_frequency(meta)
@@ -462,7 +462,7 @@ class DescToSemanticClass(Transform):
 
 
 class DescToBBox(Transform):
-    """Transform to transform SignalDescriptions into spectrogram bounding boxes
+    """Transform to transform SignalMetadatas into spectrogram bounding boxes
     with dimensions: <grid_width, grid_height, 5>, where the last 5 represents:
         - 0: presence ~ 1 if center of burst in current cell, else 0
         - 1: center_time ~ normalized to cell
@@ -486,7 +486,7 @@ class DescToBBox(Transform):
     def __call__(self, metadata: SignalMetadata) -> np.ndarray:
         boxes: np.ndarray = np.zeros((self.grid_width, self.grid_height, 5))
         for meta in metadata:
-            if not isinstance(meta, ModulatedRFMetadata):
+            if not is_rf_modulated_metadata(meta):
                 continue
 
             # Time conversions
@@ -714,7 +714,7 @@ class DescToAnchorBoxes(Transform):
 
 
 class DescPassThrough(Transform):
-    """Transform to simply pass the SignalDescription through. Same as applying no
+    """Transform to simply pass the SignalMetadata through. Same as applying no
     transform in most cases.
 
     """
@@ -729,7 +729,7 @@ class DescPassThrough(Transform):
 
 
 class DescToBinary(Transform):
-    """Transform to transform SignalDescription into binary 0/1 label
+    """Transform to transform SignalMetadata into binary 0/1 label
 
     Args:
         label (:obj:`int`):
@@ -746,7 +746,7 @@ class DescToBinary(Transform):
 
 
 class DescToCustom(Transform):
-    """Transform to transform SignalDescription into any static value
+    """Transform to transform SignalMetadata into any static value
 
     Args:
         label (:obj:`Any`):
@@ -763,12 +763,12 @@ class DescToCustom(Transform):
 
 
 class DescToClassEncoding(Transform):
-    """Transform to transform SignalDescription into one- or multi-hot class
+    """Transform to transform SignalMetadata into one- or multi-hot class
     encodings. Note that either the number of classes or the full class list
     must be provided as input. If neither are provided, the transform will
     raise an error, and if both are provided, the transform will default to
     using the full class list. If only the number of classes are provided,
-    the SignalDescription objects must contain the class index field
+    the SignalMetadata objects must contain the class index field
 
     Args:
         class_list (:obj:`Optional[List[str]]`):
@@ -807,7 +807,7 @@ class DescToClassEncoding(Transform):
 
 
 class DescToWeightedMixUp(Transform):
-    """Transform to transform SignalDescription into weighted multi-hot class
+    """Transform to transform SignalMetadata into weighted multi-hot class
     encodings.
 
     Args:
@@ -837,7 +837,7 @@ class DescToWeightedMixUp(Transform):
 
 
 class DescToWeightedCutMix(Transform):
-    """Transform to transform SignalDescription into weighted multi-hot class
+    """Transform to transform SignalMetadata into weighted multi-hot class
     encodings.
 
     Args:
@@ -867,12 +867,12 @@ class DescToWeightedCutMix(Transform):
 
 
 class DescToBBoxDict(Transform):
-    """Transform to transform SignalDescriptions into the class bounding box format
+    """Transform to transform SignalMetadatas into the class bounding box format
     using dictionaries of labels and boxes, similar to the COCO image dataset
 
     Args:
         class_list (:obj:`list`):
-            List of class names. Used when converting SignalDescription class names
+            List of class names. Used when converting SignalMetadata class names
             to indices
 
     """
@@ -911,9 +911,9 @@ class DescToBBoxDict(Transform):
 
 
 class DescToBBoxSignalDict(Transform):
-    """Transform to transform SignalDescriptions into the class bounding box format
+    """Transform to transform SignalMetadatas into the class bounding box format
     using dictionaries of labels and boxes, similar to the COCO image dataset.
-    Differs from the `SignalDescriptionToBoundingBoxDictTransform` in the ommission
+    Differs from the `SignalMetadataToBoundingBoxDictTransform` in the ommission
     of signal-specific class labels, grouping all objects into the 'signal'
     class.
 
@@ -952,7 +952,7 @@ class DescToBBoxSignalDict(Transform):
 
 
 class DescToBBoxFamilyDict(Transform):
-    """Transform to transform SignalDescriptions into the class bounding box format
+    """Transform to transform SignalMetadatas into the class bounding box format
     using dictionaries of labels and boxes, similar to the COCO image dataset.
     Differs from the `DescToBBoxDict` transform in the grouping
     of fine-grain classes into their signal family as defined by an input
@@ -1068,12 +1068,12 @@ class DescToBBoxFamilyDict(Transform):
 
 
 class DescToInstMaskDict(Transform):
-    """Transform to transform SignalDescriptions into the class mask format
+    """Transform to transform SignalMetadatas into the class mask format
     using dictionaries of labels and masks, similar to the COCO image dataset
 
     Args:
         class_list (:obj:`list`):
-            List of class names. Used when converting SignalDescription class names
+            List of class names. Used when converting SignalMetadata class names
             to indices
         width (:obj:`int`):
             Width of masks
@@ -1098,11 +1098,9 @@ class DescToInstMaskDict(Transform):
         labels: List[int] = []
         masks: np.ndarray = np.zeros((num_objects, self.height, self.width))
         for meta_idx, meta in enumerate(metadata):
-            assert meta["start"] is not None
-            assert meta["stop"] is not None
-            assert meta["lower_freq"] is not None
-            assert meta["upper_freq"] is not None
-            assert meta["class_name"] is not None
+            if not is_rf_modulated_metadata(meta):
+                continue
+
             labels.append(self.class_list.index(meta["class_name"]))
             if meta["lower_freq"] < -0.5:
                 meta["lower_freq"] = -0.5
@@ -1136,7 +1134,7 @@ class DescToInstMaskDict(Transform):
 
 
 class DescToSignalInstMaskDict(Transform):
-    """Transform to transform SignalDescriptions into the class mask format
+    """Transform to transform SignalMetadatas into the class mask format
     using dictionaries of labels and masks, similar to the COCO image dataset
 
     Args:
@@ -1161,10 +1159,9 @@ class DescToSignalInstMaskDict(Transform):
         labels: List[int] = []
         masks: np.ndarray = np.zeros((num_objects, self.height, self.width))
         for meta_idx, meta in enumerate(metadata):
-            assert meta["start"] is not None
-            assert meta["stop"] is not None
-            assert meta["lower_freq"] is not None
-            assert meta["upper_freq"] is not None
+            if not is_rf_modulated_metadata(meta):
+                continue
+
             labels.append(0)
             if meta["lower_freq"] < -0.5:
                 meta["lower_freq"] = -0.5
@@ -1198,7 +1195,7 @@ class DescToSignalInstMaskDict(Transform):
 
 
 class DescToSignalFamilyInstMaskDict(Transform):
-    """Transform to transform SignalDescriptions into the class mask format
+    """Transform to transform SignalMetadatas into the class mask format
     using dictionaries of labels and masks, similar to the COCO image dataset.
     The labels with this target transform are set to be the class's family. If
     no `class_family_dict` is provided, the default mapping for the WBSig53
@@ -1293,11 +1290,8 @@ class DescToSignalFamilyInstMaskDict(Transform):
         labels: List[int] = []
         masks: np.ndarray = np.zeros((num_objects, self.height, self.width))
         for meta_idx, meta in enumerate(metadata):
-            assert meta["start"] is not None
-            assert meta["stop"] is not None
-            assert meta["lower_freq"] is not None
-            assert meta["upper_freq"] is not None
-            assert meta["class_name"] is not None
+            if not is_rf_modulated_metadata(meta):
+                continue
 
             family_name: str = self.class_family_dict[meta["class_name"]]
             family_idx: int = self.family_list.index(family_name)
@@ -1334,7 +1328,7 @@ class DescToSignalFamilyInstMaskDict(Transform):
 
 
 class DescToListTuple(Transform):
-    """Transform to transform SignalDescription into a list of tuples containing
+    """Transform to transform SignalMetadata into a list of tuples containing
     the modulation, start time, stop time, center frequency, bandwidth, and SNR
     for each signal present
 
@@ -1352,7 +1346,7 @@ class DescToListTuple(Transform):
         self, metadata: SignalMetadata
     ) -> List[Tuple[str, float, float, float, float, float]]:
         output: List[Tuple[str, float, float, float, float, float]] = []
-        # Loop through SignalDescription's, converting values of interest to tuples
+        # Loop through SignalMetadata's, converting values of interest to tuples
         for meta in metadata:
             if not is_rf_modulated_metadata(meta):
                 continue
@@ -1370,17 +1364,17 @@ class DescToListTuple(Transform):
 
 
 class ListTupleToDesc(Transform):
-    """Transform to transform a list of tuples to a list of SignalDescriptions
+    """Transform to transform a list of tuples to a list of SignalMetadatas
     Sample rate and number of IQ samples optional arguments are provided in
     order to fill in additional information if desired. If a class list is
     provided, the class names are used with the list to fill in class indices
 
     Args:
         sample_rate (:obj: `Optional[float]`):
-            Optionally provide the sample rate for the SignalDescriptions
+            Optionally provide the sample rate for the SignalMetadatas
 
         num_iq_samples (:obj: `Optional[int]`):
-            Optionally provide the number of IQ samples for the SignalDescriptions
+            Optionally provide the number of IQ samples for the SignalMetadatas
 
         class_list (:obj: `List`):
             Optionally provide the class list to fill in class indices
@@ -1403,7 +1397,7 @@ class ListTupleToDesc(Transform):
         list_tuple: List[Tuple[str, float, float, float, float, float]],
     ) -> List[SignalMetadata]:
         metadata: List[SignalMetadata] = []
-        # Loop through SignalDescription's, converting values of interest to tuples
+        # Loop through SignalMetadata's, converting values of interest to tuples
         for curr_tuple in list_tuple:
             processed_curr_tuple: Tuple[Any, ...] = tuple(
                 [l.numpy() if isinstance(l, torch.Tensor) else l for l in curr_tuple]
@@ -1443,7 +1437,7 @@ class LabelSmoothing(Transform):
 
     Note that the `LabelSmoothing` transform accepts a numpy encoding input,
     and as such, should be used in conjunction with a preceeding
-    DescTo... transform that maps the SignalDescription to the expected
+    DescTo... transform that maps the SignalMetadata to the expected
     numpy encoding format.
 
     Args:

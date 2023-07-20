@@ -6,7 +6,7 @@ from typing import Any, Dict, List, Tuple
 
 import numpy as np
 
-from torchsig.utils.types import SignalCapture, SignalMetadata
+from torchsig.utils.types import *
 
 SIGMF_DTYPE_MAP: Dict[str, np.dtype] = {
     "cf64_le": np.dtype("<f8"),
@@ -128,7 +128,7 @@ def _parse_sigmf_captures(absolute_file_path: str) -> List[SignalCapture]:
     total_num_samples = os.path.getsize(absolute_file_path) // sample_size
 
     # It's quite common for there to be only a single "capture" in sigMF
-    signal_description = SignalMetadata(
+    meta = create_signal_metadata(
         sample_rate=meta["global"]["core:sample_rate"],
     )
     if len(meta["captures"]) == 1:
@@ -139,12 +139,8 @@ def _parse_sigmf_captures(absolute_file_path: str) -> List[SignalCapture]:
         has_frequency_info = "core:freq_upper_edge" in meta["annotations"][0]
 
         if has_matching_note and has_frequency_info:
-            signal_description.upper_frequency = meta["annotations"][0][
-                "core:freq_upper_edge"
-            ]
-            signal_description.lower_frequency = meta["annotations"][0][
-                "core:freq_lower_edge"
-            ]
+            meta["upper_freq"] = meta["annotations"][0]["core:freq_upper_edge"]
+            meta["lower_freq"] = meta["annotations"][0]["core:freq_lower_edge"]
 
         return [
             SignalCapture(
@@ -153,7 +149,7 @@ def _parse_sigmf_captures(absolute_file_path: str) -> List[SignalCapture]:
                 byte_offset=sample_size * meta["captures"][0]["core:sample_start"],
                 item_type=item_type,
                 is_complex=True if "c" in meta["global"]["core:datatype"] else False,
-                signal_description=signal_description,
+                metadata=meta,
             )
         ]
 
@@ -166,10 +162,10 @@ def _parse_sigmf_captures(absolute_file_path: str) -> List[SignalCapture]:
         has_frequency_info = "core:freq_upper_edge" in meta["annotations"][capture_idx]
 
         if has_matching_note and has_frequency_info:
-            signal_description.upper_frequency = meta["annotations"][capture_idx][
+            meta["upper_freq"] = meta["annotations"][capture_idx][
                 "core:freq_upper_edge"
             ]
-            signal_description.lower_frequency = meta["annotations"][capture_idx][
+            meta["lower_freq"] = meta["annotations"][capture_idx][
                 "core:freq_lower_edge"
             ]
 
@@ -187,7 +183,7 @@ def _parse_sigmf_captures(absolute_file_path: str) -> List[SignalCapture]:
                 byte_offset=sample_size * capture_start_idx,
                 item_type=item_type,
                 is_complex=True if "c" in meta["global"]["core:datatype"] else False,
-                signal_description=deepcopy(signal_description),
+                metadata=deepcopy(meta),
             )
         )
     return signal_files

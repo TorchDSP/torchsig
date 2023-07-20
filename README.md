@@ -16,7 +16,7 @@ TorchSig is an open-source signal processing machine learning toolkit based on t
 ## Key Features
 ---
 TorchSig provides many useful tools to facilitate and accelerate research on signals processing machine learning technologies:
-- The `SignalData` class and its `SignalDescription` objects enable signals objects and meta data to be seamlessly handled and operated on throughout the TorchSig infrastructure.
+- The `SignalData` class and its `SignalMetadata` objects enable signals objects and meta data to be seamlessly handled and operated on throughout the TorchSig infrastructure.
 - The `Sig53` Dataset is a state-of-the-art static modulations-based RF dataset meant to serve as the next baseline for RFML classification development & evaluation.
 - The `ModulationsDataset` class synthetically creates, augments, and transforms the largest communications signals modulations dataset to date in a generic, flexible fashion.
 - The `WidebandSig53` Dataset is a state-of-the-art static wideband RF signals dataset meant to serve as the baseline for RFML signal detection and recognition development & evaluation.
