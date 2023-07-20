@@ -18,7 +18,7 @@ def reader_from_sigmf(signal_file: SignalCapture) -> SignalData:
             np.dtype(np.complex128) if signal_file.is_complex else np.dtype(np.float64)
         )
         return create_signal(
-            data=file_object.read(signal_file.num_bytes)
+            data=np.frombuffer(file_object.read(signal_file.num_bytes))
             .astype(item_type)
             .view(data_type),
             metadata=[signal_file.meta],

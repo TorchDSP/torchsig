@@ -97,7 +97,6 @@ class WidebandSig53:
         impaired: bool = True,
         transform: Optional[Callable] = None,
         target_transform: Optional[Callable] = None,
-        use_signal_data: bool = True,
     ):
         self.root = Path(root)
         if not os.path.exists(self.root):
@@ -117,7 +116,6 @@ class WidebandSig53:
         )
         cfg = getattr(conf, cfg)()
 
-        self.use_signal_data = use_signal_data
         self.signal_desc_transform = ListTupleToDesc(
             num_iq_samples=cfg.num_iq_samples,  # type: ignore
             class_list=self.modulation_list,

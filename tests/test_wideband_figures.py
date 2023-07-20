@@ -28,9 +28,7 @@ def generate_static_wideband_dataset(level: int):
         level=level, num_samples=16, target_transform=DescToListTuple(), seed=12345678
     )
 
-    dataset_loader = DatasetLoader(
-        wideband_ds, batch_size=1, num_workers=1, seed=12345678, collate_fn=collate_fn
-    )
+    dataset_loader = DatasetLoader(wideband_ds, seed=12345678, collate_fn=collate_fn)
     creator = DatasetCreator(
         wideband_ds,
         seed=12345678,
@@ -72,7 +70,7 @@ def test_generate_wideband_modulation_figures(level: int):
         use_signal_data=True,
     )
 
-    data_loader = DataLoader(dataset=dataset, batch_size=1, num_workers=1, shuffle=True)
+    data_loader = DataLoader(dataset=dataset, shuffle=True)
     visualizer = MaskClassVisualizer(
         data_loader=data_loader,
         visualize_transform=complex_spectrogram_to_magnitude,

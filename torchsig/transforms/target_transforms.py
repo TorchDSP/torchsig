@@ -927,10 +927,9 @@ class DescToBBoxSignalDict(Transform):
         labels: List[int] = []
         boxes: np.ndarray = np.empty((len(metadata), 4))
         for meta_idx, meta in enumerate(metadata):
-            assert meta["start"] is not None
-            assert meta["stop"] is not None
-            assert meta["lower_freq"] is not None
-            assert meta["upper_freq"] is not None
+            if not is_rf_modulated_metadata(meta):
+                continue
+
             # xcycwh
             duration: float = meta["stop"] - meta["start"]
             bandwidth: float = meta["upper_freq"] - meta["lower_freq"]
@@ -945,8 +944,8 @@ class DescToBBoxSignalDict(Transform):
             labels.append(self.class_list.index(self.class_list[0]))
 
         targets: Dict[str, torch.Tensor] = {
-            "labels": torch.Tensor(labels).long(),
-            "boxes": torch.Tensor(boxes),
+            "labels": torch.LongTensor(labels),
+            "boxes": torch.FloatTensor(boxes),
         }
         return targets
 
@@ -1399,23 +1398,22 @@ class ListTupleToDesc(Transform):
         metadata: List[SignalMetadata] = []
         # Loop through SignalMetadata's, converting values of interest to tuples
         for curr_tuple in list_tuple:
-            processed_curr_tuple: Tuple[Any, ...] = tuple(
+            tup: Tuple[Any, ...] = tuple(
                 [l.numpy() if isinstance(l, torch.Tensor) else l for l in curr_tuple]
             )
+            name, start, stop, cf, bw, snr = tup
             meta: SignalMetadata = create_modulated_rf_metadata(
                 sample_rate=0.0 if not self.sample_rate else self.sample_rate,
                 num_samples=self.num_iq_samples,
-                class_name=processed_curr_tuple[0],
-                class_index=self.class_list.index(processed_curr_tuple[0])
-                if self.class_list
-                else None,
-                start=processed_curr_tuple[1],
-                stop=processed_curr_tuple[2],
-                center_freq=processed_curr_tuple[3],
-                bandwidth=processed_curr_tuple[4],
-                lower_freq=processed_curr_tuple[3] - processed_curr_tuple[4] / 2,
-                upper_freq=processed_curr_tuple[3] + processed_curr_tuple[4] / 2,
-                snr=processed_curr_tuple[5],
+                class_name=name,
+                class_index=self.class_list.index(name) if self.class_list else None,
+                start=start,
+                stop=stop,
+                center_freq=cf,
+                bandwidth=bw,
+                lower_freq=cf - bw / 2,
+                upper_freq=cf + bw / 2,
+                snr=snr,
             )
             metadata.append(meta)
         return metadata

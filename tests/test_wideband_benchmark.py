@@ -13,5 +13,4 @@ def test_generate_wideband_modulation_benchmark(benchmark):
         level=2,
         num_samples=10,
     )
-    iterate_one_epoch(dataset)
-    # benchmark(iterate_one_epoch, dataset)
+    benchmark(iterate_one_epoch, dataset)

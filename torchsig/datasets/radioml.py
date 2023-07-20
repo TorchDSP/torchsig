@@ -97,7 +97,7 @@ class RadioML2016(SignalDataset):
             snr=self.data_table["snr"].iloc[item],
         )
         data = create_signal_data(samples=self.data_table["data"].iloc[item])
-        signal = create_signal(data=data, metadata=metadata)
+        signal = create_signal(data=data, metadata=[metadata])
 
         if self.transform:
             signal = self.transform(signal)
@@ -205,7 +205,7 @@ class RadioML2018(SignalDataset):
         data = create_signal_data(
             samples=self.data[item][:, 0] + 1j * self.data[item][:, 1]
         )
-        signal = create_signal(data=data, metadata=metadata)
+        signal = create_signal(data=data, metadata=[metadata])
 
         if self.transform:
             signal = self.transform(signal)
