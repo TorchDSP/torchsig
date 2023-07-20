@@ -635,7 +635,7 @@ class BurstSourceDataset(SignalDataset):
         self.num_samples = num_samples
         self.index: List[Tuple[Any, ...]] = []
 
-    def __getitem__(self, item: int) -> Tuple[np.ndarray, Any]:
+    def __getitem__(self, item: int):
         burst_collection: List[SignalBurst] = self.index[item][0]
         iq_samples = np.zeros((self.num_iq_samples,), dtype=np.complex128)
         for burst in burst_collection:
@@ -799,7 +799,10 @@ class WidebandDataset(SignalDataset):
 
         # Apply transforms
         signal = self.transform(signal) if self.transform else signal
-        target = self.target_transform(signal["metadata"])
+
+        target = signal["metadata"]
+        if self.target_transform:
+            target = self.target_transform(signal["metadata"])
 
         return signal["data"]["samples"], target
 

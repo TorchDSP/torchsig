@@ -33,7 +33,7 @@ class SignalDataset(torch.utils.data.Dataset):
     def __getitem__(
         self,
         index: int,
-    ) -> Tuple[Union[SignalData, np.ndarray], Any]:
+    ):
         raise NotImplementedError
 
     def __len__(self) -> int:

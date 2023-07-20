@@ -5,6 +5,8 @@ from torchsig.utils.types import (
     meta_bound_frequency,
     is_rf_modulated_metadata,
     create_modulated_rf_metadata,
+    has_modulated_rf_metadata,
+    has_rf_metadata,
 )
 import numpy as np
 import torch
@@ -41,7 +43,7 @@ __all__ = [
 
 
 def generate_mask(
-    meta: RFMetadata,
+    meta: SignalMetadata,
     masks: np.ndarray,
     mask_idx: int,
     mask_value: float,
@@ -78,14 +80,13 @@ class DescToClassName(Transform):
 
     """
 
-    def __call__(self, metadata: SignalMetadata) -> Union[List[str], str]:
+    def __call__(self, metadata: List[SignalMetadata]) -> Union[List[str], str]:
         classes: List[str] = []
         for meta in metadata:
-            classes = (
+            if isinstance(meta["class_name"], list):
                 classes.extend(meta)
-                if isinstance(list, meta["class_name"])
-                else classes.append(meta["class_name"])
-            )
+            else:
+                classes.append(meta["class_name"])
 
         if len(classes) > 1:
             return classes
@@ -107,7 +108,7 @@ class DescToClassNameSNR(Transform):
         super(DescToClassNameSNR, self).__init__()
 
     def __call__(
-        self, metadata: SignalMetadata
+        self, metadata: List[SignalMetadata]
     ) -> Union[Tuple[List[str], List[float]], Tuple[str, float]]:
         classes: List[str] = []
         snrs: List[float] = []
@@ -142,7 +143,7 @@ class DescToClassIndex(Transform):
         super(DescToClassIndex, self).__init__()
         self.class_list = class_list
 
-    def __call__(self, metadata: SignalMetadata) -> Union[List[int], int]:
+    def __call__(self, metadata: List[SignalMetadata]) -> Union[List[int], int]:
         classes: List[int] = []
         for meta in metadata:
             if not is_rf_modulated_metadata(meta):
@@ -175,7 +176,7 @@ class DescToClassIndexSNR(Transform):
         self.class_list = class_list
 
     def __call__(
-        self, metadata: SignalMetadata
+        self, metadata: List[SignalMetadata]
     ) -> Union[Tuple[List[int], List[Optional[float]]], Tuple[int, Optional[float]]]:
         classes = []
         snrs = []
@@ -216,7 +217,7 @@ class DescToMask(Transform):
         self.width = width
         self.height = height
 
-    def __call__(self, metadata: SignalMetadata) -> np.ndarray:
+    def __call__(self, metadata: List[SignalMetadata]) -> np.ndarray:
         masks: np.ndarray = np.zeros((self.max_bursts, self.height, self.width))
         idx = 0
         for meta in metadata:
@@ -246,7 +247,7 @@ class DescToMaskSignal(Transform):
         self.width = width
         self.height = height
 
-    def __call__(self, metadata: SignalMetadata) -> np.ndarray:
+    def __call__(self, metadata: List[SignalMetadata]) -> np.ndarray:
         masks: np.ndarray = np.zeros((self.height, self.width))
         for meta in metadata:
             if not is_rf_modulated_metadata(meta):
@@ -353,7 +354,7 @@ class DescToMaskFamily(Transform):
         self.height = height
         self.label_encode = label_encode
 
-    def __call__(self, metadata: SignalMetadata) -> np.ndarray:
+    def __call__(self, metadata: List[SignalMetadata]) -> np.ndarray:
         masks: np.ndarray = np.zeros((len(self.family_list), self.height, self.width))
         for meta in metadata:
             if not is_rf_modulated_metadata(meta):
@@ -366,7 +367,7 @@ class DescToMaskFamily(Transform):
 
             family_name = self.class_family_dict[meta["class_name"]]
             family_idx = self.family_list.index(family_name)
-            masks = generate_mask(masks, meta, family_idx, 1.0, self.height, self.width)
+            masks = generate_mask(meta, masks, family_idx, 1.0, self.height, self.width)
 
         if self.label_encode:
             background_mask: np.ndarray = np.zeros((1, self.height, self.height))
@@ -395,7 +396,7 @@ class DescToMaskClass(Transform):
         self.width = width
         self.height = height
 
-    def __call__(self, metadata: SignalMetadata) -> np.ndarray:
+    def __call__(self, metadata: List[SignalMetadata]) -> np.ndarray:
         masks: np.ndarray = np.zeros((self.num_classes, self.height, self.width))
         for meta in metadata:
             if not is_rf_modulated_metadata(meta):
@@ -435,7 +436,7 @@ class DescToSemanticClass(Transform):
         self.width = width
         self.height = height
 
-    def __call__(self, metadata: SignalMetadata) -> np.ndarray:
+    def __call__(self, metadata: List[SignalMetadata]) -> np.ndarray:
         masks: np.ndarray = np.zeros((self.height, self.width))
         curr_snrs: np.ndarray = np.ones((self.height, self.width)) * -np.inf
         for meta in metadata:
@@ -448,12 +449,14 @@ class DescToSemanticClass(Transform):
                 meta,
                 np.expand_dims(masks, 0),
                 meta["class_index"] + 1,
+                1.0,
                 self.height,
                 self.width,
             )
             curr_snrs = generate_mask(
-                curr_snrs,
+                meta,
                 np.expand_dims(curr_snrs, 0),
+                0,
                 meta["snr"],
                 self.height,
                 self.width,
@@ -483,57 +486,57 @@ class DescToBBox(Transform):
         self.grid_width = grid_width
         self.grid_height = grid_height
 
-    def __call__(self, metadata: SignalMetadata) -> np.ndarray:
+    def __call__(self, metadata: List[SignalMetadata]) -> np.ndarray:
         boxes: np.ndarray = np.zeros((self.grid_width, self.grid_height, 5))
         for meta in metadata:
             if not is_rf_modulated_metadata(meta):
                 continue
 
             # Time conversions
-            if meta.start >= 1.0:
+            if meta["start"] >= 1.0:
                 # Burst starts outside of window of capture
                 continue
-            elif meta.start + meta.duration * 0.5 >= 1.0:
+            elif meta["start"] + meta["duration"] * 0.5 >= 1.0:
                 # Center is outside grid cell; re-center to truncated burst
-                meta.duration = 1 - meta.start
-            x: float = (meta.start + meta.duration * 0.5) * self.grid_width
+                meta["duration"] = 1 - meta["start"]
+            x: float = (meta["start"] + meta["duration"] * 0.5) * self.grid_width
             time_cell: int = int(np.floor(x))
             center_time: float = x - time_cell
 
             # Freq conversions
-            if meta.lower_frequency > 0.5 or meta.upper_frequency < -0.5:
+            if meta["lower_freq"] > 0.5 or meta["upper_freq"] < -0.5:
                 # Burst is fully outside of capture bandwidth
                 continue
-            if meta.lower_frequency < -0.5:
-                meta.lower_frequency = -0.5
-            if meta.upper_frequency > 0.5:
-                meta.upper_frequency = 0.5
-            meta.bandwidth = meta.upper_frequency - meta.lower_frequency
-            meta.center_frequency = meta.lower_frequency + meta.bandwidth / 2
-            y: float = (meta.center_frequency + 0.5) * self.grid_height
+            if meta["lower_freq"] < -0.5:
+                meta["lower_freq"] = -0.5
+            if meta["upper_freq"] > 0.5:
+                meta["upper_freq"] = 0.5
+            meta["bandwidth"] = meta["upper_freq"] - meta["lower_freq"]
+            meta["center_freq"] = meta["lower_freq"] + meta["bandwidth"] / 2
+            y: float = (meta["center_freq"] + 0.5) * self.grid_height
             freq_cell: int = int(np.floor(y))
             center_freq: float = y - freq_cell
 
             if time_cell >= self.grid_width:
                 print("Error: time_cell idx is greater than grid_width")
                 print("time_cell: {}".format(time_cell))
-                print("burst.start: {}".format(meta.start))
-                print("burst.duration: {}".format(meta.duration))
+                print("burst.start: {}".format(meta["start"]))
+                print("burst.duration: {}".format(meta["duration"]))
                 print("x: {}".format(x))
             if freq_cell >= self.grid_height:
                 print("Error: freq_cell idx is greater than grid_height")
                 print("freq_cell: {}".format(freq_cell))
-                print("burst.lower_frequency: {}".format(meta.lower_frequency))
-                print("burst.upper_frequency: {}".format(meta.upper_frequency))
-                print("burst.center_frequency: {}".format(meta.center_frequency))
+                print("burst.lower_frequency: {}".format(meta["lower_freq"]))
+                print("burst.upper_frequency: {}".format(meta["upper_freq"]))
+                print("burst.center_frequency: {}".format(meta["center_freq"]))
                 print("y: {}".format(y))
 
             # Assign to label
             boxes[time_cell, freq_cell, 0] = 1
             boxes[time_cell, freq_cell, 1] = center_time
-            boxes[time_cell, freq_cell, 2] = meta.duration
+            boxes[time_cell, freq_cell, 2] = meta["duration"]
             boxes[time_cell, freq_cell, 3] = center_freq
-            boxes[time_cell, freq_cell, 4] = meta.bandwidth
+            boxes[time_cell, freq_cell, 4] = meta["bandwidth"]
         return boxes
 
 
@@ -616,16 +619,14 @@ class DescToAnchorBoxes(Transform):
         iou: float = inter_area / float(area_a + area_b - inter_area)
         return iou
 
-    def __call__(self, metadata: SignalMetadata) -> np.ndarray:
+    def __call__(self, metadata: List[SignalMetadata]) -> np.ndarray:
         boxes: np.ndarray = np.zeros(
             (self.grid_width, self.grid_height, 5 * self.num_anchor_boxes)
         )
         for meta in metadata:
-            assert meta["start"] is not None
-            assert meta["duration"] is not None
-            assert meta["center_freq"] is not None
-            assert meta["bandwidth"] is not None
-            assert meta["duration"] is not None
+            if not is_rf_modulated_metadata(meta):
+                continue
+
             # Time conversions
             if meta["start"] > 1.0:
                 # Error handling (TODO: should fix within dataset)
@@ -723,7 +724,7 @@ class DescPassThrough(Transform):
         super(DescPassThrough, self).__init__()
 
     def __call__(
-        self, metadata: SignalMetadata
+        self, metadata: List[SignalMetadata]
     ) -> Union[List[SignalMetadata], SignalMetadata]:
         return metadata
 
@@ -741,7 +742,7 @@ class DescToBinary(Transform):
         super(DescToBinary, self).__init__()
         self.label = label
 
-    def __call__(self, metadata: SignalMetadata) -> int:
+    def __call__(self, metadata: List[SignalMetadata]) -> int:
         return self.label
 
 
@@ -758,7 +759,7 @@ class DescToCustom(Transform):
         super(DescToCustom, self).__init__()
         self.label = label
 
-    def __call__(self, metadata: SignalMetadata) -> Any:
+    def __call__(self, metadata: List[SignalMetadata]) -> Any:
         return self.label
 
 
@@ -794,7 +795,7 @@ class DescToClassEncoding(Transform):
         else:
             raise ValueError("class_list or num_classes must be provided")
 
-    def __call__(self, metadata: SignalMetadata) -> np.ndarray:
+    def __call__(self, metadata: List[SignalMetadata]) -> np.ndarray:
         encoding: np.ndarray = np.zeros((self.num_classes,))
         for meta in metadata:
             if self.class_list:
@@ -824,7 +825,7 @@ class DescToWeightedMixUp(Transform):
         self.class_list = class_list
         self.num_classes = len(class_list)
 
-    def __call__(self, metadata: SignalMetadata) -> np.ndarray:
+    def __call__(self, metadata: List[SignalMetadata]) -> np.ndarray:
         encoding: np.ndarray = np.zeros((self.num_classes,))
         # Instead of a binary value for the encoding, set it to the SNR
         for meta in metadata:
@@ -854,7 +855,7 @@ class DescToWeightedCutMix(Transform):
         self.class_list = class_list
         self.num_classes = len(class_list)
 
-    def __call__(self, metadata: SignalMetadata) -> np.ndarray:
+    def __call__(self, metadata: List[SignalMetadata]) -> np.ndarray:
         encoding: np.ndarray = np.zeros((self.num_classes,))
         # Instead of a binary value for the encoding, set it to the cumulative duration
         for meta in metadata:
@@ -881,15 +882,13 @@ class DescToBBoxDict(Transform):
         super(DescToBBoxDict, self).__init__()
         self.class_list = class_list
 
-    def __call__(self, metadata: SignalMetadata) -> Dict[str, torch.Tensor]:
+    def __call__(self, metadata: List[SignalMetadata]) -> Dict[str, torch.Tensor]:
         labels: List[int] = []
         boxes: np.ndarray = np.empty((len(metadata), 4))
         for meta_idx, meta in enumerate(metadata):
-            assert meta["start"] is not None
-            assert meta["stop"] is not None
-            assert meta["lower_freq"] is not None
-            assert meta["upper_freq"] is not None
-            assert meta["class_name"] is not None
+            if not is_rf_modulated_metadata(meta):
+                continue
+
             # xcycwh
             duration: float = meta["stop"] - meta["start"]
             bandwidth: float = meta["upper_freq"] - meta["lower_freq"]
@@ -923,7 +922,7 @@ class DescToBBoxSignalDict(Transform):
         super(DescToBBoxSignalDict, self).__init__()
         self.class_list: List[str] = ["signal"]
 
-    def __call__(self, metadata: SignalMetadata) -> Dict[str, torch.Tensor]:
+    def __call__(self, metadata: List[SignalMetadata]) -> Dict[str, torch.Tensor]:
         labels: List[int] = []
         boxes: np.ndarray = np.empty((len(metadata), 4))
         for meta_idx, meta in enumerate(metadata):
@@ -1034,15 +1033,13 @@ class DescToBBoxFamilyDict(Transform):
             else sorted(list(set(self.class_family_dict.values())))
         )
 
-    def __call__(self, metadata: SignalMetadata) -> Dict[str, torch.Tensor]:
+    def __call__(self, metadata: List[SignalMetadata]) -> Dict[str, torch.Tensor]:
         labels: List[int] = []
         boxes: np.ndarray = np.empty((len(metadata), 4))
         for meta_idx, meta in enumerate(metadata):
-            assert meta["start"] is not None
-            assert meta["stop"] is not None
-            assert meta["lower_freq"] is not None
-            assert meta["upper_freq"] is not None
-            assert meta["class_name"] is not None
+            if not is_rf_modulated_metadata(meta):
+                continue
+
             # xcycwh
             duration: float = meta["stop"] - meta["start"]
             bandwidth: float = meta["upper_freq"] - meta["lower_freq"]
@@ -1092,7 +1089,7 @@ class DescToInstMaskDict(Transform):
         self.width = width
         self.height = height
 
-    def __call__(self, metadata: SignalMetadata) -> Dict[str, torch.Tensor]:
+    def __call__(self, metadata: List[SignalMetadata]) -> Dict[str, torch.Tensor]:
         num_objects: int = len(metadata)
         labels: List[int] = []
         masks: np.ndarray = np.zeros((num_objects, self.height, self.width))
@@ -1153,7 +1150,7 @@ class DescToSignalInstMaskDict(Transform):
         self.width = width
         self.height = height
 
-    def __call__(self, metadata: SignalMetadata) -> Dict[str, torch.Tensor]:
+    def __call__(self, metadata: List[SignalMetadata]) -> Dict[str, torch.Tensor]:
         num_objects: int = len(metadata)
         labels: List[int] = []
         masks: np.ndarray = np.zeros((num_objects, self.height, self.width))
@@ -1284,7 +1281,7 @@ class DescToSignalFamilyInstMaskDict(Transform):
         self.width = width
         self.height = height
 
-    def __call__(self, metadata: SignalMetadata) -> Dict[str, torch.Tensor]:
+    def __call__(self, metadata: List[SignalMetadata]) -> Dict[str, torch.Tensor]:
         num_objects: int = len(metadata)
         labels: List[int] = []
         masks: np.ndarray = np.zeros((num_objects, self.height, self.width))
@@ -1342,7 +1339,7 @@ class DescToListTuple(Transform):
         self.precision = precision
 
     def __call__(
-        self, metadata: SignalMetadata
+        self, metadata: List[SignalMetadata]
     ) -> List[Tuple[str, float, float, float, float, float]]:
         output: List[Tuple[str, float, float, float, float, float]] = []
         # Loop through SignalMetadata's, converting values of interest to tuples
@@ -1403,10 +1400,10 @@ class ListTupleToDesc(Transform):
             )
             name, start, stop, cf, bw, snr = tup
             meta: SignalMetadata = create_modulated_rf_metadata(
-                sample_rate=0.0 if not self.sample_rate else self.sample_rate,
-                num_samples=self.num_iq_samples,
+                sample_rate=0 if not self.sample_rate else self.sample_rate,
+                num_samples=self.num_iq_samples if self.num_iq_samples else 0,
                 class_name=name,
-                class_index=self.class_list.index(name) if self.class_list else None,
+                class_index=self.class_list.index(name) if self.class_list else 0,
                 start=start,
                 stop=stop,
                 center_freq=cf,

@@ -36,10 +36,8 @@ class WidebandFileSignalBurst(SignalBurst):
         **kwargs,
     ):
         super(WidebandFileSignalBurst, self).__init__(**kwargs)
-        assert self.center_frequency is not None
-        assert self.bandwidth is not None
-        self.lower_frequency = self.center_frequency - self.bandwidth / 2
-        self.upper_frequency = self.center_frequency + self.bandwidth / 2
+        self.meta["lower_freq"] = self.meta["center_freq"] - self.meta["bandwidth"] / 2
+        self.meta["upper_freq"] = self.meta["center_freq"] + self.meta["bandwidth"] / 2
         self.data_file = data_file
         self.start_sample = start_sample
         self.is_complex = is_complex

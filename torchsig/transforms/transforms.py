@@ -307,7 +307,7 @@ class SignalTransform(Transform):
         return tuple()
 
     def transform_data(self, signal: Signal, params: tuple) -> Signal:
-        raise signal
+        return signal
 
     def transform_meta(self, signal: Signal, params: tuple) -> Signal:
         return signal
@@ -456,9 +456,11 @@ class RandChoice(SignalTransform):
 
     def parameters(self) -> tuple:
         return tuple(
-            self.random_generator.choice(
-                len(self.transforms),
-                p=self.probabilities,
+            (
+                self.random_generator.choice(
+                    len(self.transforms),
+                    p=self.probabilities,
+                ),
             )
         )
 
@@ -1817,7 +1819,7 @@ class RandomDelayedFrequencyShift(SignalTransform):
                 meta_second = deepcopy(meta)
                 meta_second["start"] = start_shift
 
-                meta_second = self.shift_frequency(meta_second, start_shift)
+                meta_second = self.shift_frequency(meta_second, freq_shift)
                 avoid_aliasing = self.will_alias(meta_second)
                 meta_second = self.clip_frequency(meta_second)
                 new_meta.append(meta_second)
@@ -1825,11 +1827,13 @@ class RandomDelayedFrequencyShift(SignalTransform):
 
             # signal starts after start_shift
             meta_first = deepcopy(meta)
-            meta_first["stop"] = np.clip(meta_first["stop"], a_max=start_shift)
+            meta_first["stop"] = np.clip(
+                meta_first["stop"], a_min=0.0, a_max=start_shift
+            )
             meta_first["duration"] = meta_first["stop"] - meta_first["start"]
 
             # Update freqs for next segment
-            meta_first = self.shift_frequency(meta_first)
+            meta_first = self.shift_frequency(meta_first, freq_shift)
             avoid_aliasing = self.will_alias(meta_first)
             meta_first = self.clip_frequency(meta_first)
             new_meta.append(meta_first)
@@ -1864,20 +1868,20 @@ class RandomDelayedFrequencyShift(SignalTransform):
 
         return signal
 
-    def shift_frequency(self, meta: RFMetadata, shift: float):
+    def shift_frequency(self, meta: SignalMetadata, shift: float):
         meta["lower_freq"] += float(shift)
         meta["upper_freq"] += float(shift)
         meta["center_freq"] += float(shift)
         return meta
 
-    def clip_frequency(self, meta: RFMetadata):
+    def clip_frequency(self, meta: SignalMetadata):
         meta["lower_freq"] = np.clip(meta["lower_freq"], a_min=-0.5, a_max=0.5)
         meta["upper_freq"] = np.clip(meta["upper_freq"], a_min=-0.5, a_max=0.5)
         meta["bandwidth"] = meta["upper_freq"] - meta["lower_freq"]
         meta["center_freq"] = meta["lower_freq"] + meta["bandwidth"] * 0.5
         return meta
 
-    def will_alias(self, meta: RFMetadata):
+    def will_alias(self, meta: SignalMetadata):
         if (
             meta["lower_freq"] >= 0.5
             or meta["upper_freq"] <= -0.5
@@ -2683,7 +2687,7 @@ class DatasetBasebandMixUp(SignalTransform):
 
         # Set insert data's SNR
         target_snr_transform = TargetSNR(target_snr_db)
-        insert_signal_data = target_snr_transform(insert_signal_data)
+        insert_data = target_snr_transform(insert_data)
 
         signal["data"]["samples"] = signal["data"]["samples"] + insert_data
         signal["metadata"].extend(insert_metadata)
@@ -2777,7 +2781,10 @@ class DatasetBasebandCutMix(SignalTransform):
 
         # Set insert data's SNR
         target_snr_transform = TargetSNR(signal["metadata"][0]["snr"])
-        insert_signal_data = target_snr_transform(insert_signal_data)
+        insert_signal = target_snr_transform(
+            create_signal(data=insert_data, metadata=insert_metadata)
+        )
+        insert_data = insert_signal["data"]["samples"]
 
         # Mask both data examples based on alpha and a random start value
         insert_num_iq_samples = int(alpha * num_iq_samples)
@@ -2786,11 +2793,9 @@ class DatasetBasebandCutMix(SignalTransform):
 
         # Combine two pieces of data
         signal["data"]["samples"][insert_start:insert_stop] = 0
-        insert_data["data"]["samples"][:insert_start] = 0
-        insert_data["data"]["samples"][insert_stop:] = 0
-        signal["data"]["samples"] = (
-            signal["data"]["samples"] + insert_signal_data["data"]["samples"]
-        )
+        insert_data[:insert_start] = 0
+        insert_data[insert_stop:] = 0
+        signal["data"]["samples"] = signal["data"]["samples"] + insert_data
 
         # Update SignalMetadata
         if insert_start == 0:
@@ -3411,8 +3416,8 @@ class SpectrogramRandomResizeCrop(SignalTransform):
         return meta
 
     def meta_pad_width(
-        self, curr_width, pad_width_start, meta: RFMetadata
-    ) -> RFMetadata:
+        self, curr_width, pad_width_start, meta: SignalMetadata
+    ) -> SignalMetadata:
         meta["start"] = (meta["start"] * curr_width + pad_width_start) / self.width
         meta["stop"] = (meta["stop"] * curr_width + pad_width_start) / self.width
         meta["duration"] = meta["stop"] - meta["start"]
@@ -3993,7 +3998,7 @@ class SpectrogramMosaicDownsample(SignalTransform):
             :,
             y_idx * height : (y_idx + 1) * height,
             x_idx * width : (x_idx + 1) * width,
-        ] = signal["data"]["samples"].iq_data
+        ] = signal["data"]["samples"]
 
         # Update original data's SignalMetadata objects given the cell index
         for meta in signal["metadata"]:

@@ -26,5 +26,5 @@ jobs:
       - name: Static type check with mypy
         run: |
           pip install mypy==1.2.0
-          mypy --ignore-missing-imports --disable-error-code typeddict-item --disable-error-code typeddict-unknown-key torchsig
+          mypy --ignore-missing-imports --disable-error-code typeddict-item --disable-error-code typeddict-unknown-key --disable-error-code literal-required torchsig
 

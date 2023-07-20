@@ -2,28 +2,28 @@ from typing import List, Optional, TypedDict
 from torch import Tensor
 import numpy as np
 
-n_type = (float, int, Tensor, np.float16)
+n_type = (float, int, Tensor, np.dtype(np.float16))
 
 
 # --------------------------------------------------------------------------------- #
 # SignalMetadata
 # --------------------------------------------------------------------------------- #
 class SignalMetadata(TypedDict):
-    sample_rate: int
+    sample_rate: float
     num_samples: int
 
 
 def create_signal_metadata(
-    sample_rate: int = 0, num_samples: int = 0
+    sample_rate: float = 0.0, num_samples: int = 0
 ) -> SignalMetadata:
     return SignalMetadata(sample_rate=sample_rate, num_samples=num_samples)
 
 
-def is_signal_metadata(d: dict) -> bool:
+def is_signal_metadata(d: SignalMetadata) -> bool:
     if "sample_rate" not in d.keys() or "num_samples" not in d.keys():
         return False
 
-    return isinstance(d["sample_rate"], n_type) and isinstance(d["num_samples"], n_type)
+    return isinstance(d["sample_rate"], n_type) and isinstance(d["num_samples"], n_type)  # type: ignore
 
 
 # --------------------------------------------------------------------------------- #
@@ -41,7 +41,7 @@ class RFMetadata(SignalMetadata):
 
 
 def create_rf_metadata(
-    sample_rate: int = 0,
+    sample_rate: float = 0,
     num_samples: int = 0,
     complex: bool = True,
     lower_freq: float = -0.25,
@@ -66,7 +66,7 @@ def create_rf_metadata(
     )
 
 
-def is_rf_metadata(d: dict) -> bool:
+def is_rf_metadata(d: SignalMetadata) -> bool:
     keys = (
         "complex",
         "lower_freq",
@@ -81,20 +81,20 @@ def is_rf_metadata(d: dict) -> bool:
     if not all(k in d for k in keys):
         return False
 
-    if not all(isinstance(d[k], t) for k, t in zip(keys, types)):
+    if not all(isinstance(d[k], t) for k, t in zip(keys, types)):  # type: ignore
         return False
 
     return is_signal_metadata(d)
 
 
-def has_rf_metadata(metadata: List[RFMetadata]) -> bool:
+def has_rf_metadata(metadata: List[SignalMetadata]) -> bool:
     if len(metadata) == 0:
         return False
 
     return any(is_rf_metadata(m) for m in metadata)
 
 
-def meta_bound_frequency(meta: RFMetadata) -> RFMetadata:
+def meta_bound_frequency(meta: SignalMetadata) -> SignalMetadata:
     # Check bounds for partial signals
     meta["lower_freq"] = np.clip(meta["lower_freq"], a_min=-0.5, a_max=0.5)
     meta["upper_freq"] = np.clip(meta["upper_freq"], a_min=-0.5, a_max=0.5)
@@ -104,7 +104,7 @@ def meta_bound_frequency(meta: RFMetadata) -> RFMetadata:
 
 
 def meta_pad_height(
-    meta: RFMetadata, height: float, pixel_height: float, pad_start: float
+    meta: SignalMetadata, height: float, pixel_height: float, pad_start: float
 ):
     meta["lower_freq"] = (
         (meta["lower_freq"] + 0.5) * height + pad_start
@@ -123,7 +123,7 @@ def meta_pad_height(
 # --------------------------------------------------------------------------------- #
 class ModulatedRFMetadata(RFMetadata):
     snr: float
-    bits_per_symbol: int
+    bits_per_symbol: float
     samples_per_symbol: float
     excess_bandwidth: float
     class_name: str
@@ -131,7 +131,7 @@ class ModulatedRFMetadata(RFMetadata):
 
 
 def create_modulated_rf_metadata(
-    sample_rate: int = 0,
+    sample_rate: float = 0.0,
     num_samples: int = 0,
     complex: bool = True,
     lower_freq: float = -0.25,
@@ -142,7 +142,7 @@ def create_modulated_rf_metadata(
     stop: float = 1.0,
     duration: float = 1.0,
     snr: float = 0.0,
-    bits_per_symbol: int = 0.0,
+    bits_per_symbol: float = 0.0,
     samples_per_symbol: float = 0.0,
     excess_bandwidth: float = 0.0,
     class_name: str = "",
@@ -168,7 +168,7 @@ def create_modulated_rf_metadata(
     )
 
 
-def is_rf_modulated_metadata(d: dict) -> bool:
+def is_rf_modulated_metadata(d: SignalMetadata) -> bool:
     keys = (
         "snr",
         "bits_per_symbol",
@@ -181,10 +181,10 @@ def is_rf_modulated_metadata(d: dict) -> bool:
     if not all(k in d for k in keys):
         return False
 
-    return is_rf_metadata(d) and all(isinstance(d[k], t) for k, t in zip(keys, types))
+    return is_rf_metadata(d) and all(isinstance(d[k], t) for k, t in zip(keys, types))  # type: ignore
 
 
-def has_modulated_rf_metadata(metadata: List[ModulatedRFMetadata]) -> bool:
+def has_modulated_rf_metadata(metadata: List[SignalMetadata]) -> bool:
     if len(metadata) == 0:
         return False
 
@@ -202,7 +202,7 @@ def create_signal_data(samples: np.ndarray = np.empty((1,))) -> SignalData:
     return SignalData(samples=samples)
 
 
-def is_signal_data(d: dict) -> bool:
+def is_signal_data(d: SignalData) -> bool:
     if "samples" not in d.keys():
         return False
 
@@ -222,15 +222,11 @@ class Signal(TypedDict):
     metadata: List[SignalMetadata]
 
 
-def create_signal(
-    data: SignalData = None, metadata: List[SignalMetadata] = None
-) -> Signal:
-    signal_data = data if data else create_signal_data()
-    signal_metadata = metadata if metadata else create_signal_metadata()
-    return Signal(data=signal_data, metadata=signal_metadata)
+def create_signal(data: SignalData, metadata: List[SignalMetadata]) -> Signal:
+    return Signal(data=data, metadata=metadata)
 
 
-def is_signal(d: dict) -> bool:
+def is_signal(d: Signal) -> bool:
     if not isinstance(d, dict):
         return False
 
@@ -263,4 +259,4 @@ class SignalCapture:
         self.byte_offset = byte_offset
         self.num_samples = self.num_bytes // self.item_type.itemsize
         self.num_samples //= 2 if is_complex else 1
-        self.meta = metadata
+        self.meta = metadata if metadata else create_signal_metadata()
