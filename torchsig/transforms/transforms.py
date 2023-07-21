@@ -241,7 +241,7 @@ class RandomApply(Transform):
     def __call__(self, data: Any) -> Any:
         return (
             self.transform(data)
-            if self.random_generator.rand() < self.probability
+            if self.random_generator.random() < self.probability
             else data
         )
 

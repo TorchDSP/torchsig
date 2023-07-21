@@ -2,7 +2,7 @@ from typing import List, Optional, TypedDict
 from torch import Tensor
 import numpy as np
 
-n_type = (float, int, Tensor, np.dtype(np.float16))
+n_type = (float, int, Tensor, np.float16)
 
 
 # --------------------------------------------------------------------------------- #
@@ -67,7 +67,7 @@ def create_rf_metadata(
 
 
 def is_rf_metadata(d: SignalMetadata) -> bool:
-    keys = (
+    rf_keys = (
         "complex",
         "lower_freq",
         "upper_freq",
@@ -77,20 +77,17 @@ def is_rf_metadata(d: SignalMetadata) -> bool:
         "stop",
         "duration",
     )
-    types = (bool, n_type, n_type, n_type, n_type, n_type, n_type, n_type)
-    if not all(k in d for k in keys):
+    rf_types = (bool, n_type, n_type, n_type, n_type, n_type, n_type, n_type)
+    if not all(k in d for k in rf_keys):
         return False
 
-    if not all(isinstance(d[k], t) for k, t in zip(keys, types)):  # type: ignore
+    if not is_signal_metadata(d):
         return False
 
-    return is_signal_metadata(d)
+    return all(isinstance(d[k], t) for k, t in zip(rf_keys, rf_types))
 
 
 def has_rf_metadata(metadata: List[SignalMetadata]) -> bool:
-    if len(metadata) == 0:
-        return False
-
     return any(is_rf_metadata(m) for m in metadata)
 
 
@@ -169,7 +166,7 @@ def create_modulated_rf_metadata(
 
 
 def is_rf_modulated_metadata(d: SignalMetadata) -> bool:
-    keys = (
+    mod_keys = (
         "snr",
         "bits_per_symbol",
         "samples_per_symbol",
@@ -177,18 +174,18 @@ def is_rf_modulated_metadata(d: SignalMetadata) -> bool:
         "class_name",
         "class_index",
     )
-    types = (n_type, n_type, n_type, n_type, str, int)
-    if not all(k in d for k in keys):
+    mod_types = (n_type, n_type, n_type, n_type, str, int)
+    if not all(k in d for k in mod_keys):
         return False
 
-    return is_rf_metadata(d) and all(isinstance(d[k], t) for k, t in zip(keys, types))  # type: ignore
+    if not is_rf_metadata(d):
+        return False
+
+    return all(isinstance(d[k], t) for k, t in zip(mod_keys, mod_types))  # type: ignore
 
 
 def has_modulated_rf_metadata(metadata: List[SignalMetadata]) -> bool:
-    if len(metadata) == 0:
-        return False
-
-    return any(is_rf_modulated_metadata(m) for m in metadata)
+    return any([is_rf_modulated_metadata(m) for m in metadata])
 
 
 # --------------------------------------------------------------------------------- #

@@ -1057,7 +1057,9 @@ class WidebandModulationsDataset(SignalDataset):
         num_signals = int(self.num_signals())
 
         # Randomly decide if OFDM signals are in capture
-        ofdm_present = True if self.random_generator.rand() < self.ofdm_ratio else False
+        ofdm_present = (
+            True if self.random_generator.random() < self.ofdm_ratio else False
+        )
 
         # Loop through signals to add
         sig_counter = 0
@@ -1100,8 +1102,8 @@ class WidebandModulationsDataset(SignalDataset):
             center_freq = self.random_generator.uniform(-0.4, 0.4)
 
             # Determine if continuous or bursty
-            burst_random_var = self.random_generator.rand()
-            hop_random_var = self.random_generator.rand()
+            burst_random_var = self.random_generator.random()
+            hop_random_var = self.random_generator.random()
             if (
                 burst_random_var < self.metadata.iloc[meta_idx].bursty_prob
                 or hop_random_var < self.metadata.iloc[meta_idx].freq_hopping_prob
@@ -1165,21 +1167,21 @@ class WidebandModulationsDataset(SignalDataset):
                 high_freq = center_freq + bandwidth / 2
 
                 # Randomly determine if the signal should stop in the frame
-                if self.random_generator.rand() < 0.2:
+                if self.random_generator.random() < 0.2:
                     stops_in_frame = True
                     burst_duration = self.random_generator.uniform(0.05, 0.95)
                 else:
                     stops_in_frame = False
 
             # Randomly determine if the signal should start in the frame
-            if self.random_generator.rand() < 0.2 and not stops_in_frame:
+            if self.random_generator.random() < 0.2 and not stops_in_frame:
                 start = self.random_generator.uniform(0, 0.95)
                 stop = 1.0
             else:
                 start = 0.0
                 stop = burst_duration
             if bursty:
-                start = start + self.random_generator.rand() * burst_duration
+                start = start + self.random_generator.random() * burst_duration
                 stop = 1.0
 
             # Handle overlaps

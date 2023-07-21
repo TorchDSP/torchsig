@@ -67,7 +67,6 @@ def test_generate_wideband_modulation_figures(level: int):
         impaired=True,
         transform=transform,
         target_transform=target_transform,
-        use_signal_data=True,
     )
 
     data_loader = DataLoader(dataset=dataset, shuffle=True)
