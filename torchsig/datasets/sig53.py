@@ -3,7 +3,6 @@ from torchsig.datasets.modulations import ModulationsDataset
 from typing import Any, Callable, Optional, Tuple
 from torchsig.transforms import Identity
 from torchsig.datasets import conf
-from copy import deepcopy
 from pathlib import Path
 import numpy as np
 import pickle

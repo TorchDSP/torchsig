@@ -1,12 +1,11 @@
+from torchsig.utils.types import *
+from typing import Any, Dict, List, Tuple
+from copy import deepcopy
+import numpy as np
+import pickle
 import json
 import os
-import pickle
-from copy import deepcopy
-from typing import Any, Dict, List, Tuple
 
-import numpy as np
-
-from torchsig.utils.types import *
 
 SIGMF_DTYPE_MAP: Dict[str, np.dtype] = {
     "cf64_le": np.dtype("<f8"),

@@ -1,10 +1,8 @@
-from copy import deepcopy
 from typing import Any, Callable, List, Optional, Tuple, Union
-
+from torchsig.utils.types import SignalCapture, SignalData
+from copy import deepcopy
 import numpy as np
 import torch
-
-from torchsig.utils.types import SignalCapture, SignalData
 
 
 class SignalDataset(torch.utils.data.Dataset):

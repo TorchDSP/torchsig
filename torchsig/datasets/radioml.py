@@ -1,17 +1,15 @@
 from typing import Any, Callable, List, Optional, Tuple
-
-import h5py
-import numpy as np
-import pandas as pd
-
+from torchsig.utils.dataset import SignalDataset
+from torchsig.utils.types import *
 from torchsig.transforms.target_transforms import (
     DescToClassIndex,
     DescToClassIndexSNR,
     DescToClassName,
     DescToClassNameSNR,
 )
-from torchsig.utils.dataset import SignalDataset
-from torchsig.utils.types import *
+import pandas as pd
+import numpy as np
+import h5py
 
 
 class RadioML2016(SignalDataset):

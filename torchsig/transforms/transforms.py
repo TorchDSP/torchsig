@@ -1,10 +1,4 @@
 from typing import Any, Callable, List, Literal, Optional, Tuple, Union
-from torchsig.utils.types import *
-from scipy import signal as sp
-from copy import deepcopy
-import numpy as np
-import warnings
-from torchsig.utils.dataset import SignalDataset
 from torchsig.transforms import functional as F
 from torchsig.transforms.functional import (
     FloatParameter,
@@ -12,17 +6,15 @@ from torchsig.transforms.functional import (
     NumericParameter,
     to_distribution,
     uniform_continuous_distribution,
-    uniform_discrete_distribution,
 )
+from torchsig.utils.dataset import SignalDataset
+from torchsig.utils.types import *
 from torchsig.utils.dsp import low_pass
-from torchsig.utils.types import (
-    SignalData,
-    SignalMetadata,
-    Signal,
-    RFMetadata,
-    ModulatedRFMetadata,
-)
-from torchsig.utils.types import data_shape
+from scipy import signal as sp
+from copy import deepcopy
+import numpy as np
+import warnings
+
 
 __all__ = [
     "Transform",
@@ -101,7 +93,7 @@ class Transform:
                 "Seeding transforms is deprecated and does nothing", DeprecationWarning
             )
         self.string = self.__class__.__name__ + "()"
-        self.random_generator = np.random.RandomState()
+        self.random_generator = np.random.default_rng()
 
     def __call__(self, data: Any) -> Any:
         raise NotImplementedError
@@ -1539,6 +1531,9 @@ class TimeCrop(SignalTransform):
         return start, self.crop_length
 
     def transform_data(self, signal: Signal, params: tuple) -> Signal:
+        if len(signal["metadata"]) == 0:
+            return signal
+
         if signal["metadata"][0]["num_samples"] == self.crop_length:
             return signal
 
@@ -2004,7 +1999,7 @@ class GainDrift(SignalTransform):
 
         # Apply drift as a random walk.
         random_walk = self.random_generator.choice(
-            [-1, 1], size=data_shape(signal["data"])[0]
+            (-1, 1), size=data_shape(signal["data"])[0]
         )
 
         # limit rate of change to at most 1/max_drift_rate times the length of the data sample

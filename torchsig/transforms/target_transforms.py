@@ -1,5 +1,3 @@
-from typing import Any, Dict, List, Optional, Tuple, Union
-from torchsig.transforms.transforms import Transform
 from torchsig.utils.types import SignalMetadata, RFMetadata, ModulatedRFMetadata
 from torchsig.utils.types import (
     meta_bound_frequency,
@@ -8,6 +6,8 @@ from torchsig.utils.types import (
     has_modulated_rf_metadata,
     has_rf_metadata,
 )
+from torchsig.transforms.transforms import Transform
+from typing import Any, Dict, List, Optional, Tuple, Union
 import numpy as np
 import torch
 
@@ -191,9 +191,6 @@ class DescToClassIndexSNR(Transform):
 
         if len(classes) > 1:
             return classes, snrs
-
-        if len(classes) == 0:
-            print("What?")
 
         return classes[0], snrs[0]
 

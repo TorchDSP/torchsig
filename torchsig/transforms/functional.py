@@ -1,13 +1,13 @@
-from functools import partial
 from typing import Callable, List, Literal, Optional, Tuple, Union
-
-import numpy as np
-import pywt
+from torchsig.utils.dsp import low_pass
 from numba import complex64, float64, int64, njit
 from scipy import interpolate
 from scipy import signal as sp
+from functools import partial
+import numpy as np
+import torch
+import pywt
 
-from torchsig.utils.dsp import low_pass
 
 __all__ = [
     "FloatParameter",
@@ -163,7 +163,6 @@ def normalize(
     return np.multiply(tensor, 1.0 / norm)
 
 
-
 def resample(
     tensor: np.ndarray,
     up_rate: int,
@@ -241,6 +240,13 @@ def awgn(tensor: np.ndarray, noise_power_db: float) -> np.ndarray:
         transformed (:class:`numpy.ndarray`):
             Tensor with added noise.
     """
+    # real_noise = torch.randn(*tensor.shape)
+    # imag_noise = torch.randn(*tensor.shape)
+    # noise_added = torch.from_numpy(tensor) + (10.0 ** (noise_power_db / 20.0)) * (
+    #     real_noise + 1j * imag_noise
+    # ) / np.sqrt(2)
+    # return noise_added.numpy()
+
     real_noise = np.random.randn(*tensor.shape)
     imag_noise = np.random.randn(*tensor.shape)
     return tensor + (10.0 ** (noise_power_db / 20.0)) * (
@@ -911,7 +917,7 @@ def roll_off(
     tensor: np.ndarray,
     lowercutfreq: float,
     uppercutfreq: float,
-    fltorder: int,
+    num_taps: int,
 ) -> np.ndarray:
     """Applies front-end filter to tensor. Rolls off lower/upper edges of bandwidth
 
@@ -925,7 +931,7 @@ def roll_off(
         uppercutfreq (:obj:`float`):
             upper bandwidth cut-off to begin linear roll-off
 
-        fltorder (:obj:`int`):
+        num_taps (:obj:`int`):
             order of each FIR filter to be applied
 
     Returns:
@@ -937,15 +943,17 @@ def roll_off(
         return tensor
 
     elif uppercutfreq == 1:
-        if fltorder % 2 == 0:
-            fltorder += 1
+        if num_taps % 2 == 0:
+            num_taps += 1
     bandwidth = uppercutfreq - lowercutfreq
     center_freq = lowercutfreq - 0.5 + bandwidth / 2
-    taps = low_pass(
-        cutoff=bandwidth / 2, transition_bandwidth=(0.5 - bandwidth / 2) / 4
-    )
-    sinusoid = np.exp(
-        2j * np.pi * center_freq * np.linspace(0, len(taps) - 1, len(taps))
+    sinusoid = np.exp(2j * np.pi * center_freq * np.linspace(0, num_taps - 1, num_taps))
+    taps = sp.firwin(
+        num_taps,
+        bandwidth,
+        width=bandwidth * 0.02,
+        window=sp.get_window("blackman", num_taps),
+        scale=True,
     )
     taps = taps * sinusoid
     return sp.convolve(tensor, taps, mode="same")
@@ -1023,18 +1031,19 @@ def drop_samples(
     """
     for idx, drop_start in enumerate(drop_starts):
         if fill == "ffill":
-            drop_region = (
-                np.ones(drop_sizes[idx], dtype=np.complex64) * tensor[drop_start - 1]
+            drop_region = np.full(
+                drop_sizes[idx], tensor[drop_start - 1], dtype=np.complex128
             )
         elif fill == "bfill":
-            drop_region = (
-                np.ones(drop_sizes[idx], dtype=np.complex64)
-                * tensor[drop_start + drop_sizes[idx]]
+            drop_region = np.full(
+                drop_sizes[idx],
+                tensor[drop_start + drop_sizes[idx]],
+                dtype=np.complex128,
             )
         elif fill == "mean":
-            drop_region = np.ones(drop_sizes[idx], dtype=np.complex64) * np.mean(tensor)
+            drop_region = np.full(drop_sizes[idx], np.mean(tensor), dtype=np.complex128)
         elif fill == "zero":
-            drop_region = np.zeros(drop_sizes[idx], dtype=np.complex64)
+            drop_region = np.zeros(drop_sizes[idx], dtype=np.complex128)
         else:
             raise ValueError(
                 "fill expects ffill, bfill, mean, or zero. Found {}".format(fill)

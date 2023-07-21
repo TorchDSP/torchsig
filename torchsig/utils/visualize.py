@@ -1,14 +1,13 @@
-from copy import deepcopy
 from typing import Any, Callable, Iterable, List, Optional, Tuple, Union
-
+from matplotlib.figure import Figure
+from matplotlib import pyplot as plt
+from matplotlib import patches
+from scipy import ndimage
+from scipy import signal as sp
+from copy import deepcopy
 import numpy as np
 import pywt
 import torch
-from matplotlib import patches
-from matplotlib import pyplot as plt
-from matplotlib.figure import Figure
-from scipy import ndimage
-from scipy import signal as sp
 
 
 class Visualizer:
