@@ -32,7 +32,7 @@ class SignalBurst:
 
     """
 
-    def __init__(self, meta: SignalMetadata, random_generator: np.random.RandomState):
+    def __init__(self, meta: SignalMetadata, random_generator: np.random.Generator):
         super(SignalBurst, self).__init__()
         self.meta = meta
         self.random_generator = random_generator
@@ -652,7 +652,7 @@ class SyntheticBurstSourceDataset(BurstSourceDataset):
         **kwargs,
     ):
         super(SyntheticBurstSourceDataset, self).__init__(**kwargs)
-        self.random_generator = np.random.RandomState(seed)
+        self.random_generator = np.random.default_rng(seed)
         self.num_iq_samples = num_iq_samples
         self.num_samples = num_samples
         self.burst_class = burst_class
@@ -885,7 +885,7 @@ class WidebandModulationsDataset(SignalDataset):
         **kwargs,
     ):
         super(WidebandModulationsDataset, self).__init__(**kwargs)
-        self.random_generator = np.random.RandomState(seed)
+        self.random_generator = np.random.default_rng(seed)
         self.seed = seed
         self.modulation_list = (
             self.default_modulations if modulation_list is None else modulation_list
@@ -1068,17 +1068,17 @@ class WidebandModulationsDataset(SignalDataset):
             if ofdm_present:
                 if sig_counter == 0:
                     # Randomly sample from OFDM options (assumes OFDM at end)
-                    meta_idx = self.random_generator.randint(
+                    meta_idx = self.random_generator.integers(
                         self.num_modulations - self.num_ofdm, self.num_modulations
                     )
                     modulation = self.metadata.iloc[meta_idx].modulation
                 else:
                     # Randomly select signal from full metadata list
-                    meta_idx = self.random_generator.randint(self.num_modulations)
+                    meta_idx = self.random_generator.integers(self.num_modulations)
                     modulation = self.metadata.iloc[meta_idx].modulation
             else:
                 # Randomly sample from all but OFDM (assumes OFDM at end)
-                meta_idx = self.random_generator.randint(
+                meta_idx = self.random_generator.integers(
                     self.num_modulations - self.num_ofdm
                 )
                 modulation = self.metadata.iloc[meta_idx].modulation

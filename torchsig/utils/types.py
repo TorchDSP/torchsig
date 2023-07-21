@@ -84,7 +84,7 @@ def is_rf_metadata(d: SignalMetadata) -> bool:
     if not is_signal_metadata(d):
         return False
 
-    return all(isinstance(d[k], t) for k, t in zip(rf_keys, rf_types))
+    return all(isinstance(d[k], t) for k, t in zip(rf_keys, rf_types))  # type: ignore
 
 
 def has_rf_metadata(metadata: List[SignalMetadata]) -> bool:

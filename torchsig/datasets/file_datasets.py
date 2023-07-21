@@ -188,7 +188,7 @@ class TargetInterpreter:
                         bandwidth=bandwidth,
                         class_name=label.class_name,
                         class_index=label.class_index,
-                        random_generator=np.random.RandomState,
+                        random_generator=np.random.Generator,
                     )
                 )
 
@@ -204,7 +204,7 @@ class TargetInterpreter:
                         bandwidth=bandwidth,
                         class_name=label.class_name,
                         class_index=label.class_index,
-                        random_generator=np.random.RandomState,
+                        random_generator=np.random.Generator,
                     )
                 )
 
@@ -220,7 +220,7 @@ class TargetInterpreter:
                         bandwidth=bandwidth,
                         class_name=label.class_name,
                         class_index=label.class_index,
-                        random_generator=np.random.RandomState,
+                        random_generator=np.random.Generator,
                     )
                 )
 
@@ -236,7 +236,7 @@ class TargetInterpreter:
                         bandwidth=bandwidth,
                         class_name=label.class_name,
                         class_index=label.class_index,
-                        random_generator=np.random.RandomState,
+                        random_generator=np.random.Generator,
                     )
                 )
         return signal_bursts
@@ -659,7 +659,7 @@ class FileBurstSourceDataset(BurstSourceDataset):
                             start_sample=data_index,
                             is_complex=self.is_complex,
                             capture_type=self.capture_type,
-                            random_generator=np.random.RandomState,
+                            random_generator=np.random.Generator,
                         )
                     )
 
@@ -771,7 +771,7 @@ class FileBurstSourceDataset(BurstSourceDataset):
                         start_sample=data_index,
                         is_complex=self.is_complex,
                         capture_type=self.capture_type,
-                        random_generator=np.random.RandomState,
+                        random_generator=np.random.Generator,
                     )
                 )
 

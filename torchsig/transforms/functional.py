@@ -66,18 +66,18 @@ NumericParameter = Union[FloatParameter, IntParameter]
 
 
 def uniform_discrete_distribution(
-    choices: List, random_generator: Optional[np.random.RandomState] = None
+    choices: List, random_generator: Optional[np.random.Generator] = None
 ):
-    random_generator = random_generator if random_generator else np.random.RandomState()
+    random_generator = random_generator if random_generator else np.random.default_rng()
     return partial(random_generator.choice, choices)
 
 
 def uniform_continuous_distribution(
     lower: Union[int, float],
     upper: Union[int, float],
-    random_generator: Optional[np.random.RandomState] = None,
+    random_generator: Optional[np.random.Generator] = None,
 ):
-    random_generator = random_generator if random_generator else np.random.RandomState()
+    random_generator = random_generator if random_generator else np.random.default_rng()
     return partial(random_generator.uniform, lower, upper)
 
 
@@ -93,9 +93,9 @@ def to_distribution(
         Tuple[int, int],
         Tuple[float, float],
     ],
-    random_generator: Optional[np.random.RandomState] = None,
+    random_generator: Optional[np.random.Generator] = None,
 ):
-    random_generator = random_generator if random_generator else np.random.RandomState()
+    random_generator = random_generator if random_generator else np.random.default_rng()
     if isinstance(param, Callable):  # type: ignore
         return param
 

@@ -4,14 +4,14 @@ import pytest
 
 
 def test_random_time_shift_right():
-    rng = np.random.RandomState(0)
+    rng = np.random.default_rng(0)
     data = (
-        rng.rand(
+        rng.random(
             16,
         )
         - 0.5
     ) + 1j * (
-        rng.rand(
+        rng.random(
             16,
         )
         - 0.5
@@ -26,14 +26,14 @@ def test_random_time_shift_right():
 
 
 def test_random_time_shift_left():
-    rng = np.random.RandomState(0)
+    rng = np.random.default_rng(0)
     data = (
-        rng.rand(
+        rng.random(
             16,
         )
         - 0.5
     ) + 1j * (
-        rng.rand(
+        rng.random(
             16,
         )
         - 0.5
@@ -48,15 +48,15 @@ def test_random_time_shift_left():
 
 
 def test_time_crop_start():
-    rng = np.random.RandomState(0)
+    rng = np.random.default_rng(0)
     num_iq_samples = 16
     data = (
-        rng.rand(
+        rng.random(
             num_iq_samples,
         )
         - 0.5
     ) + 1j * (
-        rng.rand(
+        rng.random(
             num_iq_samples,
         )
         - 0.5
@@ -72,15 +72,15 @@ def test_time_crop_start():
 
 
 def test_time_crop_center():
-    rng = np.random.RandomState(0)
+    rng = np.random.default_rng(0)
     num_iq_samples = 16
     data = (
-        rng.rand(
+        rng.random(
             num_iq_samples,
         )
         - 0.5
     ) + 1j * (
-        rng.rand(
+        rng.random(
             num_iq_samples,
         )
         - 0.5
@@ -95,15 +95,15 @@ def test_time_crop_center():
 
 
 def test_time_crop_end():
-    rng = np.random.RandomState(0)
+    rng = np.random.default_rng(0)
     num_iq_samples = 16
     data = (
-        rng.rand(
+        rng.random(
             num_iq_samples,
         )
         - 0.5
     ) + 1j * (
-        rng.rand(
+        rng.random(
             num_iq_samples,
         )
         - 0.5
