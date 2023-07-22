@@ -1,4 +1,4 @@
-<a align="center" href="http://torchsig.com">
+<a align="center" href="https://torchsig.com">
     <picture>
         <source media="(prefers-color-scheme: dark)" srcset="docs/torchsig_logo_white_dodgerblue.png">
         <img src="docs/logo.png" width="500">
