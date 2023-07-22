@@ -18,7 +18,9 @@ def remove_corners(const):
     spacing = 2.0 / (np.sqrt(len(const)) - 1)
     cutoff = spacing * (np.sqrt(len(const)) / 6 - 0.5)
     return [
-        p for p in const if np.abs(np.real(p)) < 1.0 - cutoff or np.abs(np.imag(p)) < 1.0 - cutoff
+        p
+        for p in const
+        if np.abs(np.real(p)) < 1.0 - cutoff or np.abs(np.imag(p)) < 1.0 - cutoff
     ]
 
 
@@ -29,19 +31,25 @@ default_const_map = OrderedDict(
         "4pam": np.add(*map(np.ravel, np.meshgrid(np.linspace(0, 1, 4), 0j))),
         "4ask": np.add(*map(np.ravel, np.meshgrid(np.linspace(-1, 1, 4), 0j))),
         "qpsk": np.add(
-            *map(np.ravel, np.meshgrid(np.linspace(-1, 1, 2), 1j * np.linspace(-1, 1, 2)))
+            *map(
+                np.ravel, np.meshgrid(np.linspace(-1, 1, 2), 1j * np.linspace(-1, 1, 2))
+            )
         ),
         "8pam": np.add(*map(np.ravel, np.meshgrid(np.linspace(0, 1, 8), 0j))),
         "8ask": np.add(*map(np.ravel, np.meshgrid(np.linspace(-1, 1, 8), 0j))),
         "8psk": np.exp(2j * np.pi * np.linspace(0, 7, 8) / 8.0),
         "16qam": np.add(
-            *map(np.ravel, np.meshgrid(np.linspace(-1, 1, 4), 1j * np.linspace(-1, 1, 4)))
+            *map(
+                np.ravel, np.meshgrid(np.linspace(-1, 1, 4), 1j * np.linspace(-1, 1, 4))
+            )
         ),
         "16pam": np.add(*map(np.ravel, np.meshgrid(np.linspace(0, 1, 16), 0j))),
         "16ask": np.add(*map(np.ravel, np.meshgrid(np.linspace(-1, 1, 16), 0j))),
         "16psk": np.exp(2j * np.pi * np.linspace(0, 15, 16) / 16.0),
         "32qam": np.add(
-            *map(np.ravel, np.meshgrid(np.linspace(-1, 1, 4), 1j * np.linspace(-1, 1, 8)))
+            *map(
+                np.ravel, np.meshgrid(np.linspace(-1, 1, 4), 1j * np.linspace(-1, 1, 8))
+            )
         ),
         "32qam_cross": remove_corners(
             np.add(
@@ -55,7 +63,9 @@ default_const_map = OrderedDict(
         "32ask": np.add(*map(np.ravel, np.meshgrid(np.linspace(-1, 1, 32), 0j))),
         "32psk": np.exp(2j * np.pi * np.linspace(0, 31, 32) / 32.0),
         "64qam": np.add(
-            *map(np.ravel, np.meshgrid(np.linspace(-1, 1, 8), 1j * np.linspace(-1, 1, 8)))
+            *map(
+                np.ravel, np.meshgrid(np.linspace(-1, 1, 8), 1j * np.linspace(-1, 1, 8))
+            )
         ),
         "64pam": np.add(*map(np.ravel, np.meshgrid(np.linspace(0, 1, 64), 0j))),
         "64ask": np.add(*map(np.ravel, np.meshgrid(np.linspace(-1, 1, 64), 0j))),
@@ -154,15 +164,21 @@ class DigitalModulationDataset(ConcatDataset):
     ) -> None:
         const_map = user_const_map if user_const_map else default_const_map
         modulations = (
-            list(const_map.keys()) + list(freq_map.keys()) if modulations is None else modulations
+            list(const_map.keys()) + list(freq_map.keys())
+            if modulations is None
+            else modulations
         )
-        constellations = [m for m in map(str.lower, modulations) if m in const_map.keys()]
+        constellations = [
+            m for m in map(str.lower, modulations) if m in const_map.keys()
+        ]
         freqs = [m for m in map(str.lower, modulations) if m in freq_map.keys()]
         const_dataset = ConstellationDataset(
             constellations=constellations,
             num_iq_samples=num_iq_samples,
             num_samples_per_class=num_samples_per_class,
-            iq_samples_per_symbol=2 if iq_samples_per_symbol is None else iq_samples_per_symbol,
+            iq_samples_per_symbol=2
+            if iq_samples_per_symbol is None
+            else iq_samples_per_symbol,
             random_data=random_data,
             random_pulse_shaping=random_pulse_shaping,
             **kwargs,
@@ -194,7 +210,9 @@ class DigitalModulationDataset(ConcatDataset):
             random_pulse_shaping=random_pulse_shaping,
             **kwargs,
         )
-        super(DigitalModulationDataset, self).__init__([const_dataset, fsk_dataset, gfsks_dataset])
+        super(DigitalModulationDataset, self).__init__(
+            [const_dataset, fsk_dataset, gfsks_dataset]
+        )
 
 
 class SyntheticDataset(SignalDataset):
@@ -301,7 +319,9 @@ class ConstellationDataset(SyntheticDataset):
                     bits_per_symbol=np.log2(len(self.const_map[const_name])),
                     samples_per_symbol=iq_samples_per_symbol,
                     class_name=const_name,
-                    excess_bandwidth=alphas[int(const_idx * self.num_samples_per_class + idx)],
+                    excess_bandwidth=alphas[
+                        int(const_idx * self.num_samples_per_class + idx)
+                    ],
                 )
                 self.index.append(
                     (
@@ -324,7 +344,9 @@ class ConstellationDataset(SyntheticDataset):
             0, len(const), int(self.num_iq_samples / self.iq_samples_per_symbol)
         )
         symbols = const[symbol_nums]
-        zero_padded = np.zeros((self.iq_samples_per_symbol * len(symbols),), dtype=np.complex64)
+        zero_padded = np.zeros(
+            (self.iq_samples_per_symbol * len(symbols),), dtype=np.complex64
+        )
         zero_padded[:: self.iq_samples_per_symbol] = symbols
         # excess bandwidth is defined in porportion to signal bandwidth, not sampling rate,
         # thus needs to be scaled by the samples per symbol
@@ -436,7 +458,9 @@ class OFDMDataset(SyntheticDataset):
         # Precompute all possible random symbols for speed at sample generation
         self.random_symbols = []
         for const_name in self.constellations:
-            const = default_const_map[const_name] / np.mean(np.abs(default_const_map[const_name]))
+            const = default_const_map[const_name] / np.mean(
+                np.abs(default_const_map[const_name])
+            )
             self.random_symbols.append(const)
 
         subcarrier_modulation_types = ("fixed", "random")
@@ -503,7 +527,9 @@ class OFDMDataset(SyntheticDataset):
 
         if mod_type == "random":
             symbols_idxs = np.random.randint(0, 1024, size=self.num_iq_samples)
-            const_idxes = np.random.choice(range(len(self.random_symbols)), size=num_subcarriers)
+            const_idxes = np.random.choice(
+                range(len(self.random_symbols)), size=num_subcarriers
+            )
             symbols = np.zeros(self.num_iq_samples, dtype=np.complex128)
             for subcarrier_idx, const_idx in enumerate(const_idxes):
                 begin_idx = (self.num_iq_samples) * subcarrier_idx
@@ -517,7 +543,9 @@ class OFDMDataset(SyntheticDataset):
         else:
             # Fixed modulation across all subcarriers
             const_name = np.random.choice(self.constellations)
-            const = default_const_map[const_name] / np.mean(np.abs(default_const_map[const_name]))
+            const = default_const_map[const_name] / np.mean(
+                np.abs(default_const_map[const_name])
+            )
             symbol_nums = np.random.randint(0, len(const), int(self.num_iq_samples))
             symbols = const[symbol_nums]
         divisible_index = -(len(symbols) % num_subcarriers)
@@ -541,19 +569,26 @@ class OFDMDataset(SyntheticDataset):
         # Add time-varying realism with randomized bursts, pilots, and resource blocks
         burst_dur = 1
         original_on = False
-        if time_varying_realism == "full_bursty" or time_varying_realism == "partial_bursty":
+        if (
+            time_varying_realism == "full_bursty"
+            or time_varying_realism == "partial_bursty"
+        ):
             # Bursty
             if time_varying_realism == "full_bursty":
                 burst_region_start = 0.0
                 burst_region_stop = zero_pad.shape[1]
             else:
                 burst_region_start = np.random.uniform(0.0, 0.9)
-                burst_region_dur = min(1.0 - burst_region_start, np.random.uniform(0.25, 1.0))
+                burst_region_dur = min(
+                    1.0 - burst_region_start, np.random.uniform(0.25, 1.0)
+                )
                 burst_region_start = int(burst_region_start * zero_pad.shape[1] // 4)
                 burst_region_dur = int(burst_region_dur * zero_pad.shape[1] // 4)
                 burst_region_stop = burst_region_start + burst_region_dur
             # bursty = deepcopy(zero_pad)
-            bursty = pickle.loads(pickle.dumps(zero_pad, -1))  # no random hangs like deepcopy
+            bursty = pickle.loads(
+                pickle.dumps(zero_pad, -1)
+            )  # no random hangs like deepcopy
 
             burst_dur = np.random.choice([1, 2, 4])
             original_on = True if np.random.rand() <= 0.5 else False
@@ -571,7 +606,9 @@ class OFDMDataset(SyntheticDataset):
             min_num_pilots = 4
             max_num_pilots = int(num_subcarriers // 8)
             num_pilots = np.random.randint(min_num_pilots, max_num_pilots)
-            pilot_indices = np.random.choice(range(num_subcarriers), num_pilots, replace=False)
+            pilot_indices = np.random.choice(
+                range(num_subcarriers), num_pilots, replace=False
+            )
             bursty[pilot_indices + num_subcarriers // 2, :] = zero_pad[
                 pilot_indices + num_subcarriers // 2, :
             ]
@@ -589,7 +626,9 @@ class OFDMDataset(SyntheticDataset):
 
                 block_low_carrier = np.random.randint(0, num_subcarriers - 4)
                 block_num_carriers = np.random.randint(1, num_subcarriers // 8)
-                block_high_carrier = min(block_low_carrier + block_num_carriers, num_subcarriers)
+                block_high_carrier = min(
+                    block_low_carrier + block_num_carriers, num_subcarriers
+                )
 
                 bursty[
                     block_low_carrier
@@ -606,7 +645,9 @@ class OFDMDataset(SyntheticDataset):
 
         ofdm_symbols = np.fft.ifft(np.fft.ifftshift(zero_pad, axes=0), axis=0)
         symbol_dur = ofdm_symbols.shape[0]
-        cyclic_prefixed = np.pad(ofdm_symbols, ((int(cyclic_prefix_len), 0), (0, 0)), "wrap")
+        cyclic_prefixed = np.pad(
+            ofdm_symbols, ((int(cyclic_prefix_len), 0), (0, 0)), "wrap"
+        )
 
         if sidelobe_suppression_method == "none":
             output = cyclic_prefixed.T.flatten()
@@ -668,10 +709,18 @@ class OFDMDataset(SyntheticDataset):
                 )
 
             # window the tails
-            front_window = np.blackman(int(window_len * 2))[: int(window_len)].reshape(-1, 1)
-            tail_window = np.blackman(int(window_len * 2))[-int(window_len) :].reshape(-1, 1)
-            windowed[: int(window_len), :] = front_window * windowed[: int(window_len), :]
-            windowed[-int(window_len) :, :] = tail_window * windowed[-int(window_len) :, :]
+            front_window = np.blackman(int(window_len * 2))[: int(window_len)].reshape(
+                -1, 1
+            )
+            tail_window = np.blackman(int(window_len * 2))[-int(window_len) :].reshape(
+                -1, 1
+            )
+            windowed[: int(window_len), :] = (
+                front_window * windowed[: int(window_len), :]
+            )
+            windowed[-int(window_len) :, :] = (
+                tail_window * windowed[-int(window_len) :, :]
+            )
 
             combined = np.zeros((windowed.shape[0] * windowed.shape[1],), dtype=complex)
             start_idx: int = 0
