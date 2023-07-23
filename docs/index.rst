@@ -18,6 +18,7 @@ TorchSig
     transforms
     models
     utils
+    TutorialNotebookExample
    
 .. automodule:: torchsig
     :members:
