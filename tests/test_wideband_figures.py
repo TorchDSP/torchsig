@@ -44,7 +44,7 @@ def setup_module(module):
 
 
 @pytest.mark.serial
-@pytest.mark.parametrize("level", (0, 1, 2))
+@pytest.mark.parametrize("level", (0, 1, 2), ids=("level_0", "level_1", "level_2"))
 def test_generate_wideband_modulation_figures(level: int):
     generate_static_wideband_dataset(level)
     transform = Compose(
@@ -67,10 +67,9 @@ def test_generate_wideband_modulation_figures(level: int):
         impaired=True,
         transform=transform,
         target_transform=target_transform,
-        use_signal_data=True,
     )
 
-    data_loader = DataLoader(dataset=dataset, batch_size=16, shuffle=True)
+    data_loader = DataLoader(dataset=dataset, shuffle=True)
     visualizer = MaskClassVisualizer(
         data_loader=data_loader,
         visualize_transform=complex_spectrogram_to_magnitude,

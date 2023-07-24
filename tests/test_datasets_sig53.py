@@ -26,7 +26,7 @@ def teardown_module(module):
         conf.Sig53ImpairedValQAConfig,
     ),
 )
-def test_can_generate_sig53_clean_train(config: conf.Sig53Config):
+def test_can_generate_sig53(config: conf.Sig53Config):
     ds = ModulationsDataset(
         level=config.level,
         num_samples=53 * 10,

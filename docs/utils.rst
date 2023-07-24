@@ -28,7 +28,7 @@ Signal Types
 
 .. currentmodule:: torchsig.utils.types
 
-.. autoclass:: SignalDescription
+.. autoclass:: SignalMetadata
 
 .. autoclass:: SignalData
 
