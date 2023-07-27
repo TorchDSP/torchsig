@@ -265,7 +265,6 @@ class ConstellationDataset(SyntheticDataset):
         pulse_shape_filter: Optional[Union[bool, np.ndarray]] = None,
         random_pulse_shaping: bool = False,
         random_data: bool = False,
-        use_gpu: bool = False,
         user_const_map: Optional[Dict[str, np.ndarray]] = None,
         **kwargs,
     ):
@@ -280,7 +279,6 @@ class ConstellationDataset(SyntheticDataset):
         self.iq_samples_per_symbol = iq_samples_per_symbol
         self.num_samples_per_class = num_samples_per_class
         self.random_pulse_shaping = random_pulse_shaping
-        self.use_gpu = use_gpu
 
         num_constellations = len(self.constellations)
         total_num_samples = int(num_constellations * self.num_samples_per_class)
@@ -422,7 +420,6 @@ class OFDMDataset(SyntheticDataset):
         ),
         dc_subcarrier: tuple = ("on", "off"),
         time_varying_realism: tuple = ("off",),
-        use_gpu: bool = False,
         **kwargs,
     ):
         super(OFDMDataset, self).__init__(**kwargs)
@@ -431,7 +428,6 @@ class OFDMDataset(SyntheticDataset):
         self.num_samples_per_class = num_samples_per_class
         self.random_data = random_data
         self.sidelobe_suppression_methods = sidelobe_suppression_methods
-        self.use_gpu = use_gpu
         self.index = []
         if "lpf" in sidelobe_suppression_methods:
             cutoff = 0.3
@@ -584,7 +580,7 @@ class OFDMDataset(SyntheticDataset):
             min_num_blocks = 2
             max_num_blocks = 16
             num_blocks = np.random.randint(min_num_blocks, max_num_blocks)
-            for block_idx in range(num_blocks):
+            for _ in range(num_blocks):
                 block_start = np.random.uniform(0.0, 0.9)
                 block_dur = np.random.uniform(0.05, 1.0 - block_start)
                 block_start = int(block_start * zero_pad.shape[1])
@@ -680,24 +676,41 @@ class OFDMDataset(SyntheticDataset):
             combined = np.zeros((windowed.shape[0] * windowed.shape[1],), dtype=complex)
             start_idx: int = 0
             for symbol_idx in range(windowed.shape[1]):
-                combined[start_idx : start_idx + windowed.shape[0]] += windowed[:, symbol_idx]
+                combined[start_idx : start_idx + windowed.shape[0]] += windowed[
+                    :, symbol_idx
+                ]
                 start_idx += int(symbol_dur) + int(window_len)
-            output = combined[: int(cyclic_prefixed.shape[0] * cyclic_prefixed.shape[1])]
+            output = combined[
+                : int(cyclic_prefixed.shape[0] * cyclic_prefixed.shape[1])
+            ]
 
         # Randomize the start index (while bypassing the initial windowing if present)
         if num_subcarriers * 4 * burst_dur < self.num_iq_samples:
             start_idx = np.random.randint(0, output.shape[0] - self.num_iq_samples)
         else:
-            if original_on:
-                lower: int = int(max(0, int(symbol_dur * burst_dur) - self.num_iq_samples * 0.7))
-                upper: int = int(
-                    min(int(symbol_dur * burst_dur), output.shape[0] - self.num_iq_samples)
+            if "win" in sidelobe_suppression_method:
+                start_idx = np.random.randint(
+                    window_len, int(symbol_dur * burst_dur) + window_len
                 )
-                start_idx = np.random.randint(lower, upper)
-            elif "win" in sidelobe_suppression_method:
-                start_idx = np.random.randint(window_len, int(symbol_dur * burst_dur) + window_len)
             else:
                 start_idx = np.random.randint(0, int(symbol_dur * burst_dur))
+            # if original_on:
+            #     lower: int = int(
+            #         max(0, int(symbol_dur * burst_dur) - self.num_iq_samples * 0.7)
+            #     )
+            #     upper: int = int(
+            #         min(
+            #             int(symbol_dur * burst_dur),
+            #             output.shape[0] - self.num_iq_samples,
+            #         )
+            #     )
+            #     start_idx = np.random.randint(lower, upper)
+            # elif "win" in sidelobe_suppression_method:
+            #     start_idx = np.random.randint(
+            #         window_len, int(symbol_dur * burst_dur) + window_len
+            #     )
+            # else:
+            #     start_idx = np.random.randint(0, int(symbol_dur * burst_dur))
 
         if not self.random_data:
             np.random.set_state(orig_state)  # return numpy back to its previous state
@@ -737,7 +750,6 @@ class FSKDataset(SyntheticDataset):
         iq_samples_per_symbol: int = 2,
         random_data: bool = False,
         random_pulse_shaping: bool = False,
-        use_gpu: bool = False,
         **kwargs,
     ):
         super(FSKDataset, self).__init__(**kwargs)
@@ -747,7 +759,6 @@ class FSKDataset(SyntheticDataset):
         self.iq_samples_per_symbol = iq_samples_per_symbol
         self.random_data = random_data
         self.random_pulse_shaping = random_pulse_shaping
-        self.use_gpu = use_gpu
         self.index = []
 
         for freq_idx, freq_name in enumerate(map(str.lower, self.modulations)):
@@ -833,7 +844,9 @@ class FSKDataset(SyntheticDataset):
         modulated = np.exp(phase)
 
         if self.random_pulse_shaping:
-            taps = low_pass(cutoff=bandwidth / 2, transition_bandwidth=(0.5 - bandwidth / 2) / 4)
+            taps = low_pass(
+                cutoff=bandwidth / 2, transition_bandwidth=(0.5 - bandwidth / 2) / 4
+            )
             # apply the filter
             modulated = convolve(modulated, taps)
 

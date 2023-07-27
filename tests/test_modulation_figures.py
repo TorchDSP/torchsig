@@ -20,7 +20,6 @@ def test_can_generate_constellation_figures(modulation_name):
         pulse_shape_filter=None,
         random_pulse_shaping=False,
         random_data=False,
-        use_gpu=False,
     )
     item = dataset[0]
     iq_data: np.ndarray = item[0]
@@ -56,7 +55,6 @@ def test_can_generate_fsk_figures(modulation_name):
         iq_samples_per_symbol=2,
         random_pulse_shaping=False,
         random_data=False,
-        use_gpu=False,
     )
     item = dataset[0]
     iq_data: np.ndarray = item[0]
@@ -92,7 +90,6 @@ def test_can_generate_ofdm_figures(num_subcarriers):
         num_iq_samples=4096,
         num_samples_per_class=1,
         sidelobe_suppression_methods=sidelobe_suppression_methods,
-        use_gpu=False,
     )
     item = dataset[0]
     iq_data: np.ndarray = item[0]
