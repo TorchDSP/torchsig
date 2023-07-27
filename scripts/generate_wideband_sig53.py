@@ -41,11 +41,14 @@ def generate(root: str, configs: List[conf.WidebandSig53Config]):
     "--all", default=True, help="Generate all versions of wideband_sig53 dataset."
 )
 @click.option(
+    "--qa", default=True, help="Generate only QA versions of wideband_sig53 dataset."
+)
+@click.option(
     "--impaired",
     default=False,
     help="Generate impaired dataset. Ignored if --all=True (default)",
 )
-def main(root: str, all: bool, impaired: bool):
+def main(root: str, all: bool, qa: bool, impaired: bool):
     if not os.path.isdir(root):
         os.mkdir(root)
 
@@ -54,13 +57,21 @@ def main(root: str, all: bool, impaired: bool):
         conf.WidebandSig53CleanValConfig,
         conf.WidebandSig53ImpairedTrainConfig,
         conf.WidebandSig53ImpairedValConfig,
+        conf.WidebandSig53CleanTrainQAConfig,
+        conf.WidebandSig53CleanValQAConfig,
+        conf.WidebandSig53ImpairedTrainQAConfig,
+        conf.WidebandSig53ImpairedValQAConfig,
     ]
+    if qa:
+        generate(root, configs[4:])
+        return
+
     if all:
-        generate(root, configs)
+        generate(root, configs[:4])
         return
 
     if impaired:
-        generate(root, configs[2:])
+        generate(root, configs[2:4])
         return
 
     generate(root, configs[:2])

@@ -42,7 +42,7 @@ class Sig53:
 
         use_signal_data (bool, optional):
             If True, data will be converted to SignalData objects as read in.
-            Default: False.
+            Default: False. Sig53
 
     """
 
