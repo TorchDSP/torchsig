@@ -22,7 +22,11 @@ def generate(root: str, configs: List[conf.WidebandSig53Config]):
         )
 
         dataset_loader = DatasetLoader(
-            wideband_ds, seed=12345678, collate_fn=collate_fn
+            wideband_ds,         
+            num_workers=8,
+            batch_size=8,
+            seed=12345678, 
+            collate_fn=collate_fn
         )
         creator = DatasetCreator(
             wideband_ds,
