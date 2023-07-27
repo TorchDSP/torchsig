@@ -34,13 +34,14 @@ def generate(path: str, configs: List[conf.Sig53Config]):
 @click.command()
 @click.option("--root", default="sig53", help="Path to generate sig53 datasets")
 @click.option("--all", default=True, help="Generate all versions of sig53 dataset.")
+@click.option("--qa", default=False, help="Generate only QA versions of sig53 dataset.")
 @click.option(
     "--impaired",
     default=False,
     help="Generate impaired dataset. Ignored if --all=True (default)",
 )
-def main(root: str, all: bool, impaired: bool):
-    if not os.root.isdir(root):
+def main(root: str, all: bool, qa: bool, impaired: bool):
+    if not os.path.isdir(root):
         os.mkdir(root)
 
     configs = [
@@ -48,13 +49,21 @@ def main(root: str, all: bool, impaired: bool):
         conf.Sig53CleanValConfig,
         conf.Sig53ImpairedTrainConfig,
         conf.Sig53ImpairedValConfig,
+        conf.Sig53CleanTrainQAConfig,
+        conf.Sig53CleanValQAConfig,
+        conf.Sig53ImpairedTrainQAConfig,
+        conf.Sig53ImpairedValQAConfig,
     ]
+    if qa:
+        generate(root, configs[4:])
+        return
+
     if all:
-        generate(root, configs)
+        generate(root, configs[:4])
         return
 
     if impaired:
-        generate(root, configs[2:])
+        generate(root, configs[2:4])
         return
 
     generate(root, configs[:2])

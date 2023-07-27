@@ -100,7 +100,6 @@ class WidebandSig53Config:
     level: int
     seed: int
     num_iq_samples: int = int(512 * 512)
-    use_gpu: bool = True
 
 
 @dataclass
@@ -125,7 +124,7 @@ class WidebandSig53CleanValConfig(WidebandSig53CleanTrainConfig):
 
 @dataclass
 class WidebandSig53CleanValQAConfig(WidebandSig53CleanValConfig):
-    num_samples: int = 25
+    num_samples: int = 250
 
 
 @dataclass
@@ -138,7 +137,7 @@ class WidebandSig53ImpairedTrainConfig(WidebandSig53Config):
 
 @dataclass
 class WidebandSig53ImpairedTrainQAConfig(WidebandSig53ImpairedTrainConfig):
-    num_samples: int = 2_50
+    num_samples: int = 250
 
 
 @dataclass
@@ -150,4 +149,4 @@ class WidebandSig53ImpairedValConfig(WidebandSig53ImpairedTrainConfig):
 
 @dataclass
 class WidebandSig53ImpairedValQAConfig(WidebandSig53ImpairedValConfig):
-    num_samples: int = 25
+    num_samples: int = 250
