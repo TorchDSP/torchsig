@@ -13,6 +13,39 @@ TorchSig
 :mod:`TorchSig` is an open-source signal processing machine learning toolkit.
 
 .. toctree::
+    :caption: Dataset Tutorials
+    :name: datasettutorialtoc
+    :maxdepth: 2
+    
+    00_dataset_tutorials/00_Sig53DatasetTutorial
+    00_dataset_tutorials/01_WidebandSig53DatasetTutorial
+    00_dataset_tutorials/02_RadioMLDatasetTutorial
+
+.. toctree::
+    :caption: Transform Tutorials
+    :name: transformtutorialtoc
+    :maxdepth: 2
+
+    01_transform_tutorials/00_DataTransformTutorial
+    01_transform_tutorials/01_TargetTransformTutorial
+    01_transform_tutorials/02_DataAugmentationTutorial
+    
+.. toctree::
+    :caption: ML Tutorials
+    :name: mltutorialtoc
+    :maxdepth: 2
+
+    02_ml_tutorials/00_SignalClassificationTrainingTutorial
+    02_ml_tutorials/01_SignalClassificationInferenceTutorial
+    02_ml_tutorials/02_SignalClassificationFinetuningTutorial
+    02_ml_tutorials/03_SignalDetectionTrainingTutorial
+    02_ml_tutorials/04_SignalDetectionInferenceTutorial
+    02_ml_tutorials/05_SignalDetectionFinetuningTutorial
+    02_ml_tutorials/06_SignalRecognitionTrainingTutorial
+    02_ml_tutorials/07_SignalRecognitionInferenceTutorial
+    02_ml_tutorials/08_SignalRecognitionFinetuningTutorial
+   
+.. toctree::
     :caption: Code API
     :name: mastertoc
     :maxdepth: 2
@@ -22,27 +55,6 @@ TorchSig
     models
     utils
 
-.. toctree::
-    :caption: Tutorials
-    :name: tutorialtoc
-    :maxdepth: 2
-    
-    00_Sig53DatasetTutorial
-    01_WidebandSig53DatasetTutorial
-    02_RadioMLDatasetTutorial
-    03_DataTransformTutorial
-    04_TargetTransformTutorial
-    05_DataAugmentationTutorial
-    06_SignalClassificationTrainingTutorial
-    07_SignalClassificationInferenceTutorial
-    08_SignalClassificationFinetuningTutorial
-    09_SignalDetectionTrainingTutorial
-    10_SignalDetectionInferenceTutorial
-    11_SignalDetectionFinetuningTutorial
-    12_SignalRecognitionTrainingTutorial
-    13_SignalRecognitionInferenceTutorial
-    14_SignalRecognitionFinetuningTutorial
-   
 .. automodule:: torchsig
      :members:
 
