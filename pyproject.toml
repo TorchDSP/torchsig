@@ -37,6 +37,8 @@ dependencies = [
     "sympy",
     "numba",
     "click",
+    "nbsphinx",
+    "pypandoc",
 ]
 dynamic = ["version"]
 

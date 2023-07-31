@@ -18,6 +18,7 @@ TorchSig
     transforms
     models
     utils
+    notebooks/00_sig53_dataset.ipynb
    
 .. automodule:: torchsig
     :members:
