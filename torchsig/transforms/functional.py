@@ -8,6 +8,8 @@ from scipy import interpolate
 from scipy import signal as sp
 
 from torchsig.utils.dsp import low_pass
+import cv2
+
 
 __all__ = [
     "FloatParameter",
@@ -1500,3 +1502,62 @@ def spec_translate(
         new_tensor[:, :valid_bw, :valid_dur] = tensor[:, -freq_shift:, -time_shift:]
 
     return new_tensor
+
+def spectrogram_image(
+        tensor: np.ndarray,
+        nperseg=512,
+        noverlap=0,
+        nfft=None,
+        mode='psd',
+        colormap='viridis',
+) -> np.ndarray:
+    """Computes spectrogram of complex IQ vector
+
+    Args:
+        tensor (:class:`numpy.ndarray`):
+            (batch_size, vector_length, ...)-sized tensor.
+
+        nperseg (:obj:`int`):
+            Length of each segment. 
+            Default 512
+
+        noverlap (:obj:`int`):
+            Number of points to overlap between segments.
+            Default 0
+
+        nfft (:obj:`int`):
+            Length of the FFT used, if a zero padded FFT is desired.
+            Default same as nperseg
+        
+        mode (:obj:`str`):
+            Mode of the spectrogram to be computed.
+            Default psd
+            
+        colormap (:obj:'str'):
+            Define OpenCV colormap to use for spectrogram image
+            Default twilight
+            
+    Returns:
+        transformed (:class:`numpy.ndarray`):
+            Spectrogram of tensor along time dimension
+    """
+    if nfft is None:
+        nfft = nperseg
+
+    spectrogram_np = spectrogram(
+        tensor,
+        nperseg=nperseg,
+        noverlap=noverlap,
+        nfft=nfft,
+        window_fcn=np.blackman,
+        mode=mode
+    )
+    spec_data = spectrogram_np
+    spec_data = spec_data * (1 / np.linalg.norm(spec_data.flatten(), ord=float('inf'), keepdim=True))
+    spec = 20*np.log10(spec_data.numpy())
+    img = np.zeros((spec.shape[0], spec.shape[1], 3), dtype=np.float32)
+    img = cv2.normalize(spec, img, 0, 255, cv2.NORM_MINMAX)
+    colormap = colormap.upper()
+    img_new = cv2.applyColorMap(img.astype(np.uint8), cv2.COLORMAP_+colormap)
+
+    return img_new

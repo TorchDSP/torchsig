@@ -5154,3 +5154,34 @@ class SpectrogramMosaicDownsample(SignalTransform):
             # After the data has been stitched into the large 2x2 gride, downsample by 2
             output: np.ndarray = full_mosaic[:, ::2, ::2]
             return output
+
+class SpectrogramImage(SignalTransform):
+    """Transforms SignalData to spectrogram image PNGs (numpy arrays) 
+
+    Args:
+        size
+        colormap
+
+    """
+    def __init__(self, size=512, colormap='viridis') -> np.ndarray:
+        super(SpectrogramImage, self).__init__()
+        self.size = size
+        self.colormap = colormap
+        self.nperseg = self.size
+        self.noverlap = 0
+        self.nfft = self.size
+        self.mode = 'psd'
+
+    def __call__(self, data: SignalData) -> SignalData:
+        img_new = F.spectrogram_image(
+            data.iq_data,
+            nperseg=self.nperseg,
+            noverlap=self.noverlap,
+            nfft=self.nfft,
+            mode=self.mode,
+            colormap=self.colormap
+        )
+        
+        data.iq_data = img_new
+        
+        return data   
