@@ -39,6 +39,7 @@ dependencies = [
     "click",
     "nbsphinx",
     "pypandoc",
+    "opencv-contrib-python-headless",
 ]
 dynamic = ["version"]
 
