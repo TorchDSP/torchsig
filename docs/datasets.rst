@@ -19,7 +19,7 @@ All the datasets have almost similar API. They all have a common argument:
 ``transform`` to transform the input data.
 
 
-.. currentmodule:: torchsig.datasets
+.. currentmodule:: torchsig.datasets.sig53
 
 
 Sig53
@@ -28,11 +28,15 @@ Sig53
 .. autoclass:: Sig53
 
 
+.. currentmodule:: torchsig.datasets.wideband_sig53
+
 WidebandSig53
 ~~~~~~~~~~~~~~
 
 .. autoclass:: WidebandSig53
 
+
+.. currentmodule:: torchsig.datasets.modulations
 
 ModulationsDataset
 ~~~~~~~~~~~~~~~~~~~~
@@ -40,11 +44,15 @@ ModulationsDataset
 .. autoclass:: ModulationsDataset
 
 
+.. currentmodule:: torchsig.datasets.wideband
+
 WidebandModulationsDataset
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. autoclass:: WidebandModulationsDataset
 
+
+.. currentmodule:: torchsig.datasets.synthetic
 
 DigitalModulationDataset
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -82,6 +90,8 @@ FMDataset
 .. autoclass:: FMDataset
 
 
+.. currentmodule:: torchsig.datasets.wideband
+
 WidebandDataset
 ~~~~~~~~~~~~~~~~~~
 
@@ -94,11 +104,16 @@ SyntheticBurstSourceDataset
 .. autoclass:: SyntheticBurstSourceDataset
 
 
+.. currentmodule:: torchsig.datasets.file_datasets
+
+
 FileBurstSourceDataset
 ~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. autoclass:: FileBurstSourceDataset
 
+
+.. currentmodule:: torchsig.datasets.radioml
 
 RadioML2016
 ~~~~~~~~~~~~~~
