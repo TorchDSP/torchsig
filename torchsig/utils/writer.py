@@ -53,10 +53,9 @@ class DatasetLoader:
             multiprocessing_context=torch.multiprocessing.get_context("fork"),
             collate_fn=collate_fn,
         )
-        self.length = int(len(dataset) / batch_size)
 
     def __len__(self):
-        return self.length
+        return len(self.loader)
 
     def __next__(self):
         data, label = next(self.loader)
@@ -98,8 +97,10 @@ class LMDBDatasetWriter(DatasetWriter):
 
     def write(self, batch):
         data, labels = batch
-        with self.env.begin(write=True) as txn:
+        with self.env.begin() as txn:
             last_idx = txn.stat(db=self.data_db)["entries"]
+
+        with self.env.begin(write=True) as txn:
             if isinstance(labels, tuple):
                 for label_idx, label in enumerate(labels):
                     txn.put(
@@ -115,6 +116,13 @@ class LMDBDatasetWriter(DatasetWriter):
                         db=self.label_db,
                     )
             for element_idx in range(len(data)):
+                if not isinstance(data[element_idx], np.ndarray):
+                    txn.put(
+                        pickle.dumps(last_idx + element_idx),
+                        pickle.dumps(data[element_idx].numpy()),
+                        db=self.data_db,
+                    )
+                    continue
                 txn.put(
                     pickle.dumps(last_idx + element_idx),
                     pickle.dumps(data[element_idx]),

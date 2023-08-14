@@ -23,8 +23,8 @@ def generate(root: str, configs: List[conf.WidebandSig53Config]):
 
         dataset_loader = DatasetLoader(
             wideband_ds,
-            num_workers=8,
-            batch_size=8,
+            num_workers=os.cpu_count() // 2,
+            batch_size=os.cpu_count() // 2,
             seed=12345678,
             collate_fn=collate_fn,
         )
@@ -45,7 +45,7 @@ def generate(root: str, configs: List[conf.WidebandSig53Config]):
     "--all", default=True, help="Generate all versions of wideband_sig53 dataset."
 )
 @click.option(
-    "--qa", default=True, help="Generate only QA versions of wideband_sig53 dataset."
+    "--qa", default=False, help="Generate only QA versions of wideband_sig53 dataset."
 )
 @click.option(
     "--impaired",
