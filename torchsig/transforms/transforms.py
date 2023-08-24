@@ -1438,6 +1438,16 @@ class Spectrogram(SignalTransform):
             Length of the FFT used, if a zero padded FFT is desired.
             If None, the FFT length is nperseg.
 
+        detrend : str or function or False, optional
+            Specifies how to detrend each segment. If detrend is a string, it is passed as the type 
+            argument to the detrend function. If it is a function, it takes a segment and returns a 
+            detrended segment. If detrend is False, no detrending is done. Defaults to ‘constant’.
+
+        scaling : { ‘density’, ‘spectrum’ }, optional
+            Selects between computing the power spectral density (‘density’) where Sxx has units of 
+            V**2/Hz and computing the power spectrum (‘spectrum’) where Sxx has units of V**2, if 
+            x is measured in V and fs is measured in Hz. Defaults to ‘density’.              
+
         window_fcn (:obj:`str`):
             Window to be used in spectrogram operation.
             Default value is 'np.blackman'.
@@ -1458,6 +1468,8 @@ class Spectrogram(SignalTransform):
         >>> transform = ST.Spectrogram(nperseg=128, noverlap=64, nfft=256)
         >>> # Spectrogram with seg_size=128, overlap=64, nfft=128, window=rectangular
         >>> transform = ST.Spectrogram(nperseg=128, noverlap=64, nfft=256, window_fcn=np.ones)
+        >>> # Spectrogram with seg_size=128, overlap=64, nfft=128, window=rectangular, detrend=constant, scaling=density
+        >>> transform = ST.Spectrogram(nperseg=128, noverlap=64, nfft=256, window_fcn=np.ones, detrend='constant', scaling='density')
 
     """
 
@@ -1466,6 +1478,8 @@ class Spectrogram(SignalTransform):
         nperseg: int = 256,
         noverlap: Optional[int] = None,
         nfft: Optional[int] = None,
+        detrend: Optional[str] = "constant",
+        scaling: Optional[str] = "density",
         window_fcn: Callable[[int], np.ndarray] = np.blackman,
         mode: str = "psd",
     ) -> None:
@@ -1473,6 +1487,8 @@ class Spectrogram(SignalTransform):
         self.nperseg: int = nperseg
         self.noverlap: int = nperseg // 4 if noverlap is None else noverlap
         self.nfft: int = nperseg if nfft is None else nfft
+        self.detrend: str = None if detrend is None else detrend
+        self.scaling: str = None if scaling is None else scaling
         self.window_fcn = window_fcn
         self.mode = mode
         self.string = (
@@ -1481,6 +1497,8 @@ class Spectrogram(SignalTransform):
             + "nperseg={}, ".format(nperseg)
             + "noverlap={}, ".format(self.noverlap)
             + "nfft={}, ".format(self.nfft)
+            + "detrend={}".format(self.detrend)
+            + "scaling={}".format(self.scaling)
             + "window_fcn={}, ".format(window_fcn)
             + "mode={}".format(mode)
             + ")"
@@ -1497,6 +1515,8 @@ class Spectrogram(SignalTransform):
                 self.nperseg,
                 self.noverlap,
                 self.nfft,
+                self.detrend,
+                self.scaling,
                 self.window_fcn,
                 self.mode,
             )
@@ -1509,7 +1529,7 @@ class Spectrogram(SignalTransform):
                 data.iq_data = new_tensor
         else:
             data = F.spectrogram(
-                data, self.nperseg, self.noverlap, self.nfft, self.window_fcn, self.mode
+                data, self.nperseg, self.noverlap, self.nfft, self.detrend, self.scaling, self.window_fcn, self.mode
             )
             if self.mode == "complex":
                 new_tensor = np.zeros(
