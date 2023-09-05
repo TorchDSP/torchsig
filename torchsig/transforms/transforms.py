@@ -2969,7 +2969,7 @@ class Quantize(SignalTransform):
     def __init__(
         self,
         num_levels: IntParameter = UniformDiscreteRD(
-            np.asarray([16, 24, 32, 40, 48, 56, 64])
+            np.asarray([16, 24, 32, 40, 48, 56, 64], dtype=int)
         ),
         round_type: List[str] = (["floor", "middle", "ceiling"]),
     ) -> None:

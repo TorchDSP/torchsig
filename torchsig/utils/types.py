@@ -16,6 +16,9 @@ class RandomDistribution:
         if isinstance(dist, tuple):
             return UniformContinuousRD(dist[0], dist[1])
 
+        if isinstance(dist, list):
+            return UniformDiscreteRD(dist)
+
     def __call__(self, num: int = 1):
         raise NotImplementedError
 
@@ -26,6 +29,9 @@ class ConstantRD(RandomDistribution):
         self.constant = constant
 
     def __call__(self, num: int = 1):
+        if num == 1:
+            return self.constant
+
         return np.repeat(self.constant, repeats=num)
 
 
