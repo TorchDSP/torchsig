@@ -1,6 +1,51 @@
 from typing import List, Optional, Union
-
 import numpy as np
+
+
+class RandomDistribution:
+    rng = np.random.default_rng()
+
+    @staticmethod
+    def to_distribution(dist):
+        if isinstance(dist, RandomDistribution):
+            return dist
+
+        if isinstance(dist, (int, float)):
+            return ConstantDistribution(dist)
+
+        if isinstance(dist, tuple):
+            return UniformContinuousDistribution(dist[0], dist[1])
+
+    def __call__(self, num: int = 1):
+        raise NotImplementedError
+
+
+class ConstantDistribution(RandomDistribution):
+    def __init__(self, constant: float) -> None:
+        super(ConstantDistribution, self).__init__()
+        self.constant = constant
+
+    def __call__(self, num: int = 1):
+        return np.repeat(self.constant, repeats=num)
+
+
+class UniformContinuousDistribution(RandomDistribution):
+    def __init__(self, low: float, high: float) -> None:
+        super(UniformContinuousDistribution, self).__init__()
+        self.low = low
+        self.high = high
+
+    def __call__(self, num: int = 1) -> np.ndarray:
+        return RandomDistribution.rng.uniform(low=self.low, high=self.high, size=num)
+
+
+class UniformDiscreteDistribution(RandomDistribution):
+    def __init__(self, choices: np.ndarray) -> None:
+        super(UniformDiscreteDistribution, self).__init__()
+        self.choices = choices
+
+    def __call__(self, num: int = 1) -> np.ndarray:
+        return RandomDistribution.rng.choice(self.choices, size=num)
 
 
 class SignalDescription:
@@ -75,7 +120,9 @@ class SignalDescription:
                 bandwidth if bandwidth else upper_frequency - lower_frequency
             )
             self.center_frequency: Optional[float] = (
-                center_frequency if center_frequency else lower_frequency + self.bandwidth / 2
+                center_frequency
+                if center_frequency
+                else lower_frequency + self.bandwidth / 2
             )
         else:
             self.bandwidth = bandwidth
@@ -113,7 +160,9 @@ class SignalData:
         data: Optional[bytes],
         item_type: np.dtype,
         data_type: np.dtype,
-        signal_description: Optional[Union[List[SignalDescription], SignalDescription]] = None,
+        signal_description: Optional[
+            Union[List[SignalDescription], SignalDescription]
+        ] = None,
     ) -> None:
         self.iq_data: Optional[np.ndarray] = None
         self.signal_description: Optional[
@@ -121,7 +170,9 @@ class SignalData:
         ] = signal_description
         if data is not None:
             # No matter the underlying item type, we convert to double-precision
-            self.iq_data = np.frombuffer(data, dtype=item_type).astype(np.float64).view(data_type)
+            self.iq_data = (
+                np.frombuffer(data, dtype=item_type).astype(np.float64).view(data_type)
+            )
 
         self.signal_description = (
             [signal_description]

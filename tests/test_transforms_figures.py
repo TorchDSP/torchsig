@@ -101,7 +101,12 @@ modulations = ["bpsk", "4fsk"]
 
 
 @pytest.mark.parametrize(
-    "transform, modulation_name", itertools.product(transforms_list, modulations)
+    "transform, modulation_name",
+    itertools.product(transforms_list, modulations),
+    ids=[
+        "{}-{}".format(x[0], y)
+        for x, y in itertools.product(transforms_list, modulations)
+    ],
 )
 def test_transform_figures(transform, modulation_name):
     short_data, long_data = generate_data(modulation_name)

@@ -15,7 +15,12 @@ from torchsig.transforms.functional import (
     uniform_discrete_distribution,
 )
 from torchsig.utils.dataset import SignalDataset
-from torchsig.utils.types import SignalData, SignalDescription
+from torchsig.utils.types import (
+    SignalData,
+    SignalDescription,
+    RandomDistribution,
+    UniformContinuousDistribution,
+)
 
 __all__ = [
     "Transform",
@@ -2127,30 +2132,21 @@ class RandomDelayedFrequencyShift(SignalTransform):
     """Apply a delayed frequency shift to the input data
 
     Args:
-         start_shift (:py:class:`~Callable`, :obj:`int`, :obj:`float`, :obj:`list`, :obj:`tuple`):
-            start_shift sets the start time of the delayed shift
-            * If Callable, produces a sample by calling start_shift()
-            * If int, start_shift is fixed at the value provided
-            * If list, start_shift is any element in the list
-            * If tuple, start_shift is in range of (tuple[0], tuple[1])
-
-        freq_shift (:py:class:`~Callable`, :obj:`int`, :obj:`float`, :obj:`list`, :obj:`tuple`):
-            freq_shift sets the translation along the freq-axis
-            * If Callable, produces a sample by calling freq_shift()
-            * If int, freq_shift is fixed at the value provided
-            * If list, freq_shift is any element in the list
-            * If tuple, freq_shift is in range of (tuple[0], tuple[1])
-
+        start_shift (:py:class:`~RandomDistribution`):
+        freq_shift (:py:class:`~RandomDistribution`):
     """
+
+    start_shift = UniformContinuousDistribution(0.1, 0.9)
+    freq_shift = UniformContinuousDistribution(-0.2, 0.2)
 
     def __init__(
         self,
-        start_shift: FloatParameter = (0.1, 0.9),
-        freq_shift: FloatParameter = (-0.2, 0.2),
+        start_shift: FloatParameter = UniformContinuousDistribution(0.1, 0.9),
+        freq_shift: FloatParameter = UniformContinuousDistribution(-0.2, 0.2),
     ) -> None:
         super(RandomDelayedFrequencyShift, self).__init__()
-        self.start_shift = to_distribution(start_shift, self.random_generator)
-        self.freq_shift = to_distribution(freq_shift, self.random_generator)
+        # self.start_shift = RandomDistribution.to_distribution(start_shift)
+        # self.freq_shift = RandomDistribution.to_distribution(freq_shift)
         self.string = (
             self.__class__.__name__
             + "("
@@ -2163,11 +2159,13 @@ class RandomDelayedFrequencyShift(SignalTransform):
         return self.string
 
     def __call__(self, data: Any) -> Any:
-        start_shift = self.start_shift()
+        # start_shift = self.start_shift()
+        start_shift = RandomDelayedFrequencyShift.start_shift()
         # Randomly generate a freq shift that is not near the original fc
         freq_shift = 0
         while freq_shift < 0.05 and freq_shift > -0.05:
-            freq_shift = self.freq_shift()
+            # freq_shift = self.freq_shift()
+            freq_shift = RandomDelayedFrequencyShift.freq_shift()
 
         if isinstance(data, SignalData):
             assert data.iq_data is not None
@@ -2673,21 +2671,18 @@ class IQImbalance(SignalTransform):
 
     def __init__(
         self,
-        iq_amplitude_imbalance_db: NumericParameter = (0, 3),
-        iq_phase_imbalance: NumericParameter = (
-            -np.pi * 1.0 / 180.0,
-            np.pi * 1.0 / 180.0,
+        iq_amplitude_imbalance_db=UniformContinuousDistribution(0, 3),
+        iq_phase_imbalance=UniformContinuousDistribution(
+            -np.pi * 1.0 / 180.0, np.pi * 1.0 / 180.0
         ),
-        iq_dc_offset_db: NumericParameter = (-0.1, 0.1),
+        iq_dc_offset_db=UniformContinuousDistribution(-0.1, 0.1),
     ) -> None:
         super(IQImbalance, self).__init__()
-        self.amp_imbalance = to_distribution(
-            iq_amplitude_imbalance_db, self.random_generator
+        self.amp_imbalance = RandomDistribution.to_distribution(
+            iq_amplitude_imbalance_db
         )
-        self.phase_imbalance = to_distribution(
-            iq_phase_imbalance, self.random_generator
-        )
-        self.dc_offset = to_distribution(iq_dc_offset_db, self.random_generator)
+        self.phase_imbalance = RandomDistribution.to_distribution(iq_phase_imbalance)
+        self.dc_offset = RandomDistribution.to_distribution(iq_dc_offset_db)
         self.string = (
             self.__class__.__name__
             + "("

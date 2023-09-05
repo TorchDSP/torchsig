@@ -1,5 +1,5 @@
-import numpy as np
 from scipy import signal as sp
+import numpy as np
 
 
 def convolve(signal: np.ndarray, taps: np.ndarray) -> np.ndarray:
@@ -33,7 +33,9 @@ def estimate_filter_length(
     # N ~= (sampling rate/transition bandwidth)*(sidelobe attenuation in dB / 22)
     # fred harris, Multirate Signal Processing for Communication Systems,
     # Second Edition, p.59
-    filter_length = int(np.round((sample_rate / transition_bandwidth) * (attenuation_db / 22)))
+    filter_length = int(
+        np.round((sample_rate / transition_bandwidth) * (attenuation_db / 22))
+    )
 
     # odd-length filters are desirable because they do not introduce a half-sample delay
     if np.mod(filter_length, 2) == 0:
@@ -42,7 +44,9 @@ def estimate_filter_length(
     return filter_length
 
 
-def rrc_taps(iq_samples_per_symbol: int, size_in_symbols: int, alpha: float = 0.35) -> np.ndarray:
+def rrc_taps(
+    iq_samples_per_symbol: int, size_in_symbols: int, alpha: float = 0.35
+) -> np.ndarray:
     # this could be made into a transform
     M = size_in_symbols
     Ns = float(iq_samples_per_symbol)
@@ -73,6 +77,8 @@ def gaussian_taps(samples_per_symbol: int, BT: float = 0.35) -> np.ndarray:
     # pre-modulation Bb*T product which sets the bandwidth of the Gaussian lowpass filter
     M = 4  # duration in symbols
     n = np.arange(-M * samples_per_symbol, M * samples_per_symbol + 1)
-    p = np.exp(-2 * np.pi**2 * BT**2 / np.log(2) * (n / float(samples_per_symbol)) ** 2)
+    p = np.exp(
+        -2 * np.pi**2 * BT**2 / np.log(2) * (n / float(samples_per_symbol)) ** 2
+    )
     p = p / np.sum(p)
     return p
