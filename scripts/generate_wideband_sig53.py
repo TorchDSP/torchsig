@@ -45,7 +45,11 @@ def generate(root: str, configs: List[conf.WidebandSig53Config]):
     "--all", default=True, help="Generate all versions of wideband_sig53 dataset."
 )
 @click.option(
+<<<<<<< HEAD
     "--qa", default=False, help="Generate only QA versions of wideband_sig53 dataset."
+=======
+    "--qa", default=True, help="Generate only QA versions of wideband_sig53 dataset."
+>>>>>>> 53cb06343cb89ff1e764c6813fe1d71d981cae0f
 )
 @click.option(
     "--impaired",

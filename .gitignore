@@ -13,4 +13,7 @@ lightning_logs/
 *.benchmarks/
 dist/
 examples/*.ipynb_checkpoints/
+<<<<<<< HEAD
 docs/bin
+=======
+>>>>>>> 53cb06343cb89ff1e764c6813fe1d71d981cae0f

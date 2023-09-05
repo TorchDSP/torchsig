@@ -11,9 +11,9 @@ This is useful if you have to build a more complex transformation pipeline
 .. contents:: Transforms
     :local:
 
-General Transforms
-------------------
-.. currentmodule:: torchsig.transforms
+Transforms
+----------
+.. currentmodule:: torchsig.transforms.transforms
 
 Transform
 ^^^^^^^^^
@@ -23,9 +23,9 @@ Compose
 ^^^^^^^^^
 .. autoclass:: Compose
 
-NoTransform
-^^^^^^^^^^^^^
-.. autoclass:: NoTransform
+Identity
+^^^^^^^^^
+.. autoclass:: Identity
 
 Lambda
 ^^^^^^^^^
@@ -50,48 +50,6 @@ Concatenate
 TargetConcatenate
 ^^^^^^^^^^^^^^^^^^^^^
 .. autoclass:: TargetConcatenate
-
-RandAugment
-^^^^^^^^^^^^^
-.. autoclass:: RandAugment
-
-
-Deep Learning Techniques
-------------------------
-.. currentmodule:: torchsig.transforms.deep_learning_techniques.dlt
-
-DatasetBasebandMixUp
-^^^^^^^^^^^^^^^^^^^^^
-.. autoclass:: DatasetBasebandMixUp
-
-DatasetBasebandCutMix
-^^^^^^^^^^^^^^^^^^^^^^^^^
-.. autoclass:: DatasetBasebandCutMix
-
-CutOut
-^^^^^^^^^
-.. autoclass:: CutOut
-
-PatchShuffle
-^^^^^^^^^^^^^
-.. autoclass:: PatchShuffle
-
-DatasetWidebandMixUp
-^^^^^^^^^^^^^^^^^^^^^
-.. autoclass:: DatasetWidebandMixUp
-
-DatasetWidebandCutMix
-^^^^^^^^^^^^^^^^^^^^^^^^^
-.. autoclass:: DatasetWidebandCutMix
-
-SpectrogramRandomResizeCrop
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-.. autoclass:: SpectrogramRandomResizeCrop
-
-
-Expert Feature Transforms
--------------------------
-.. currentmodule:: torchsig.transforms.expert_feature.eft
 
 InterleaveComplex
 ^^^^^^^^^^^^^^^^^
@@ -137,23 +95,50 @@ ReshapeTransform
 ^^^^^^^^^^^^^^^^^
 .. autoclass:: ReshapeTransform
 
-
-Signal Processing Transforms
-----------------------------
-.. currentmodule:: torchsig.transforms.signal_processing.sp
+RandAugment
+^^^^^^^^^^^^^
+.. autoclass:: RandAugment
 
 Normalize
 ^^^^^^^^^
 .. autoclass:: Normalize
 
+
+Augmentations
+-------------
+.. currentmodule:: torchsig.transforms.transforms
+
+DatasetBasebandMixUp
+^^^^^^^^^^^^^^^^^^^^^
+.. autoclass:: DatasetBasebandMixUp
+
+DatasetBasebandCutMix
+^^^^^^^^^^^^^^^^^^^^^^^^^
+.. autoclass:: DatasetBasebandCutMix
+
+CutOut
+^^^^^^^^^
+.. autoclass:: CutOut
+
+PatchShuffle
+^^^^^^^^^^^^^
+.. autoclass:: PatchShuffle
+
+DatasetWidebandMixUp
+^^^^^^^^^^^^^^^^^^^^^
+.. autoclass:: DatasetWidebandMixUp
+
+DatasetWidebandCutMix
+^^^^^^^^^^^^^^^^^^^^^^^^^
+.. autoclass:: DatasetWidebandCutMix
+
+SpectrogramRandomResizeCrop
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.. autoclass:: SpectrogramRandomResizeCrop
+
 RandomResample
 ^^^^^^^^^^^^^^^^^
 .. autoclass:: RandomResample
-
-
-System Impairment Transforms
------------------------------
-.. currentmodule:: torchsig.transforms.system_impairment.si
 
 RandomTimeShift
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -231,11 +216,6 @@ RandomConvolve
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 .. autoclass:: RandomConvolve 
 
-
-Wireless Channel Transforms
-----------------------------
-.. currentmodule:: torchsig.transforms.wireless_channel.wce
-
 TargetSNR
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 .. autoclass:: TargetSNR
@@ -260,15 +240,6 @@ RandomPhaseShift
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 .. autoclass:: RandomPhaseShift
 
-
-Spectrogram Transforms
-----------------------------
-.. currentmodule:: torchsig.transforms.spectrogram_transforms.spec
-
-SpectrogramResize
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-.. autoclass:: SpectrogramResize
-
 SpectrogramDropSamples
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 .. autoclass:: SpectrogramDropSamples
@@ -288,3 +259,113 @@ SpectrogramMosaicCrop
 SpectrogramMosaicDownsample
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 .. autoclass:: SpectrogramMosaicDownsample
+
+
+Target Transforms
+-----------------
+.. currentmodule:: torchsig.transforms.target_transforms
+
+DescToClassName
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.. autoclass:: DescToClassName
+
+DescToClassNameSNR
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.. autoclass:: DescToClassNameSNR
+
+DescToClassIndex
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.. autoclass:: DescToClassIndex
+
+DescToClassIndexSNR
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.. autoclass:: DescToClassIndexSNR
+
+DescToMask
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.. autoclass:: DescToMask
+
+DescToMaskSignal
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.. autoclass:: DescToMaskSignal
+
+DescToMaskFamily
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.. autoclass:: DescToMaskFamily
+
+DescToMaskClass
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.. autoclass:: DescToMaskClass
+
+DescToSemanticClass
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.. autoclass:: DescToSemanticClass
+
+DescToBBox
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.. autoclass:: DescToBBox
+
+DescToAnchorBoxes
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.. autoclass:: DescToAnchorBoxes
+
+DescPassThrough
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.. autoclass:: DescPassThrough
+
+DescToBinary
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.. autoclass:: DescToBinary
+
+DescToCustom
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.. autoclass:: DescToCustom
+
+DescToClassEncoding
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.. autoclass:: DescToClassEncoding
+
+DescToWeightedMixUp
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.. autoclass:: DescToWeightedMixUp
+
+DescToWeightedCutMix
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.. autoclass:: DescToWeightedCutMix
+
+DescToBBoxDict
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.. autoclass:: DescToBBoxDict
+
+DescToBBoxSignalDict
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.. autoclass:: DescToBBoxSignalDict
+
+DescToBBoxFamilyDict
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.. autoclass:: DescToBBoxFamilyDict
+
+DescToInstMaskDict
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.. autoclass:: DescToInstMaskDict
+
+DescToSignalInstMaskDict
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.. autoclass:: DescToSignalInstMaskDict
+
+DescToSignalFamilyInstMaskDict
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.. autoclass:: DescToSignalFamilyInstMaskDict
+
+DescToListTuple
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.. autoclass:: DescToListTuple
+
+ListTupleToDesc
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.. autoclass:: ListTupleToDesc
+
+LabelSmoothing
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.. autoclass:: LabelSmoothing
+
