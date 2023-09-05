@@ -74,8 +74,8 @@ transforms_list = [
     ("magnitude_rescale", RandomMagRescale(0.5, 3), RandomMagRescale(0.5, 3)),
     (
         "drop_samples",
-        RandomDropSamples(0.3, 50, ["zero"]),
-        RandomDropSamples(0.3, 50, ["zero"]),
+        RandomDropSamples(0.01, 50, ["zero"]),
+        RandomDropSamples(0.01, 50, ["zero"]),
     ),
     ("quantize", Quantize(32, ["floor"]), Quantize(32, ["floor"])),
     ("clip", Clip(0.85), Clip(0.85)),
