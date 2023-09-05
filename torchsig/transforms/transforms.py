@@ -1,10 +1,4 @@
-import warnings
-from copy import deepcopy
 from typing import Any, Callable, List, Literal, Optional, Tuple, Union
-
-import numpy as np
-from scipy import signal
-
 from torchsig.transforms import functional as F
 from torchsig.transforms.functional import (
     FloatParameter,
@@ -19,6 +13,10 @@ from torchsig.utils.types import (
     UniformContinuousRD,
     UniformDiscreteRD,
 )
+from copy import deepcopy
+from scipy import signal
+import numpy as np
+
 
 __all__ = [
     "Transform",
@@ -2435,10 +2433,6 @@ class AutomaticGainControl(SignalTransform):
     Args:
         rand_scale (:py:class:`~torchsig.types.RandomDistribution`):
             Random scaling of alpha values
-            * If Callable, produces a sample by calling rand_scale()
-            * If int or float, rand_scale is fixed at the value provided
-            * If list, rand_scale is any element in the list
-            * If tuple, rand_scale is in range of (tuple[0], tuple[1])
 
         initial_gain_db (:obj:`float`):
             Initial gain value in linear units
