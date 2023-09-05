@@ -467,8 +467,8 @@ def spectrogram(
     nperseg: int,
     noverlap: int,
     nfft: int,
-    detrend: str,
-    scaling: str,
+    detrend: Optional[str],
+    scaling: Optional[str],
     window_fcn: Callable[[int], np.ndarray],
     mode: str,
 ) -> np.ndarray:
@@ -491,14 +491,14 @@ def spectrogram(
             If None, the FFT length is nperseg.
 
         detrend : str or function or False, optional
-            Specifies how to detrend each segment. If detrend is a string, it is passed as the type 
-            argument to the detrend function. If it is a function, it takes a segment and returns a 
+            Specifies how to detrend each segment. If detrend is a string, it is passed as the type
+            argument to the detrend function. If it is a function, it takes a segment and returns a
             detrended segment. If detrend is False, no detrending is done. Defaults to ‘constant’.
 
         scaling : { ‘density’, ‘spectrum’ }, optional
-            Selects between computing the power spectral density (‘density’) where Sxx has units of 
-            V**2/Hz and computing the power spectrum (‘spectrum’) where Sxx has units of V**2, if 
-            x is measured in V and fs is measured in Hz. Defaults to ‘density’.    
+            Selects between computing the power spectral density (‘density’) where Sxx has units of
+            V**2/Hz and computing the power spectrum (‘spectrum’) where Sxx has units of V**2, if
+            x is measured in V and fs is measured in Hz. Defaults to ‘density’.
 
         window_fcn (:obj:`Callable`):
             Function generating the window for each FFT
@@ -1558,6 +1558,8 @@ def spectrogram_image(
         noverlap=noverlap,
         nfft=nfft,
         window_fcn=np.blackman,
+        scaling="density",
+        detrend="constant",
         mode=mode,
     )
     flattened = spec_data.flatten()
