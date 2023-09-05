@@ -1,13 +1,13 @@
-from functools import partial
 from typing import Callable, List, Literal, Optional, Tuple, Union
-
-import numpy as np
-import pywt
 from numba import complex64, float64, int64, njit
+from torchsig.utils.types import RandomDistribution
+from torchsig.utils.dsp import low_pass
 from scipy import interpolate
 from scipy import signal as sp
+import numpy as np
+import pywt
 
-from torchsig.utils.dsp import low_pass
+
 import cv2
 
 
@@ -15,9 +15,6 @@ __all__ = [
     "FloatParameter",
     "IntParameter",
     "NumericParameter",
-    "uniform_discrete_distribution",
-    "uniform_continuous_distribution",
-    "to_distribution",
     "normalize",
     "resample",
     "make_sinc_filter",
@@ -62,74 +59,9 @@ __all__ = [
 ]
 
 
-FloatParameter = Union[Callable[[int], float], float, Tuple[float, float], List]
-IntParameter = Union[Callable[[int], int], int, Tuple[int, int], List]
+FloatParameter = Union[RandomDistribution, float, Tuple[float, float], List]
+IntParameter = Union[RandomDistribution, int, Tuple[int, int], List]
 NumericParameter = Union[FloatParameter, IntParameter]
-
-
-def uniform_discrete_distribution(
-    choices: List, random_generator: Optional[np.random.RandomState] = None
-):
-    random_generator = random_generator if random_generator else np.random.RandomState()
-    return partial(random_generator.choice, choices)
-
-
-def uniform_continuous_distribution(
-    lower: Union[int, float],
-    upper: Union[int, float],
-    random_generator: Optional[np.random.RandomState] = None,
-):
-    random_generator = random_generator if random_generator else np.random.RandomState()
-    return partial(random_generator.uniform, lower, upper)
-
-
-def to_distribution(
-    param: Union[
-        int,
-        float,
-        str,
-        Callable,
-        List[int],
-        List[float],
-        List[str],
-        Tuple[int, int],
-        Tuple[float, float],
-    ],
-    random_generator: Optional[np.random.RandomState] = None,
-):
-    random_generator = random_generator if random_generator else np.random.RandomState()
-    if isinstance(param, Callable):  # type: ignore
-        return param
-
-    if isinstance(param, list):
-        #######################################################################
-        # [BUG ALERT]: Nested tuples within lists does not function as desired.
-        # Below will instantiate a random distribution from the list; however,
-        # each call will only come from the previously randomized selection,
-        # but the desired behavior would be for this to randomly select each
-        # region at call time. Commenting out for now, but should revisit in
-        # the future to add back the functionality.
-        #######################################################################
-        # if isinstance(param[0], tuple):
-        #     tuple_from_list = param[random_generator.randint(len(param))]
-        #     return uniform_continuous_distribution(
-        #         tuple_from_list[0],
-        #         tuple_from_list[1],
-        #         random_generator,
-        #     )
-        return uniform_discrete_distribution(param, random_generator)
-
-    if isinstance(param, tuple):
-        return uniform_continuous_distribution(
-            param[0],
-            param[1],
-            random_generator,
-        )
-
-    if isinstance(param, int) or isinstance(param, float):
-        return uniform_discrete_distribution([param], random_generator)
-
-    return param
 
 
 def normalize(
@@ -1606,7 +1538,7 @@ def spectrogram_image(
     if nfft is None:
         nfft = nperseg
 
-    spectrogram_np = spectrogram(
+    spec_data = spectrogram(
         tensor,
         nperseg=nperseg,
         noverlap=noverlap,
@@ -1614,14 +1546,10 @@ def spectrogram_image(
         window_fcn=np.blackman,
         mode=mode,
     )
-    spec_data = spectrogram_np
-    spec_data = spec_data * (
-        1 / np.linalg.norm(spec_data.flatten(), ord=float("inf"), keepdim=True)
-    )
-    spec = 20 * np.log10(spec_data.numpy())
+    flattened = spec_data.flatten()
+    spec_data = spec_data / np.linalg.norm(flattened, ord=np.inf, keepdims=True)
+    spec = 20 * np.log10(spec_data)
     img = np.zeros((spec.shape[0], spec.shape[1], 3), dtype=np.float32)
     img = cv2.normalize(spec, img, 0, 255, cv2.NORM_MINMAX)
     colormap = colormap.upper()
-    img_new = cv2.applyColorMap(img.astype(np.uint8), cv2.COLORMAP_ + colormap)
-
-    return img_new
+    return cv2.applyColorMap(img.astype(np.uint8), cv2.COLORMAP_VIRIDIS + colormap)

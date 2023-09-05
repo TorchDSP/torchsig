@@ -11,27 +11,27 @@ class RandomDistribution:
             return dist
 
         if isinstance(dist, (int, float)):
-            return ConstantDistribution(dist)
+            return ConstantRD(dist)
 
         if isinstance(dist, tuple):
-            return UniformContinuousDistribution(dist[0], dist[1])
+            return UniformContinuousRD(dist[0], dist[1])
 
     def __call__(self, num: int = 1):
         raise NotImplementedError
 
 
-class ConstantDistribution(RandomDistribution):
+class ConstantRD(RandomDistribution):
     def __init__(self, constant: float) -> None:
-        super(ConstantDistribution, self).__init__()
+        super(ConstantRD, self).__init__()
         self.constant = constant
 
     def __call__(self, num: int = 1):
         return np.repeat(self.constant, repeats=num)
 
 
-class UniformContinuousDistribution(RandomDistribution):
+class UniformContinuousRD(RandomDistribution):
     def __init__(self, low: float, high: float) -> None:
-        super(UniformContinuousDistribution, self).__init__()
+        super(UniformContinuousRD, self).__init__()
         self.low = low
         self.high = high
 
@@ -39,9 +39,9 @@ class UniformContinuousDistribution(RandomDistribution):
         return RandomDistribution.rng.uniform(low=self.low, high=self.high, size=num)
 
 
-class UniformDiscreteDistribution(RandomDistribution):
+class UniformDiscreteRD(RandomDistribution):
     def __init__(self, choices: np.ndarray) -> None:
-        super(UniformDiscreteDistribution, self).__init__()
+        super(UniformDiscreteRD, self).__init__()
         self.choices = choices
 
     def __call__(self, num: int = 1) -> np.ndarray:
