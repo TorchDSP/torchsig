@@ -48,26 +48,26 @@ If you'd like to generate the named datasets without messing with your current P
 
 ```
 docker build -t torchsig -f Dockerfile .
-docker run -u $(id -u ${USER}):$(id -g ${USER}) -v `pwd`:/workspace/code/torchsig torchsig python3 torchsig/scripts/generate_sig53.py --root=/workspace/code/torchsig/examples/sig53 --all=True
+docker run -u $(id -u ${USER}):$(id -g ${USER}) -v `pwd`:/workspace/code/torchsig torchsig python3 torchsig/scripts/generate_sig53.py --root=/workspace/code/torchsig/examples/sig53
 ```
 
 For the wideband dataset, you can do:
 
 ```
 docker build -t torchsig -f Dockerfile .
-docker run -u $(id -u ${USER}):$(id -g ${USER}) -v `pwd`:/workspace/code/torchsig torchsig python3 torchsig/scripts/generate_wideband_sig53.py --root=/workspace/code/torchsig/examples/wideband_sig53 --all=True
+docker run -u $(id -u ${USER}):$(id -g ${USER}) -v `pwd`:/workspace/code/torchsig torchsig python3 torchsig/scripts/generate_wideband_sig53.py --root=/workspace/code/torchsig/examples/wideband_sig53
 ```
 
 If you do not need to use Docker, you can also just generate using the regular command-line interface
 
 ```
-python3 torchsig/scripts/generate_sig53.py --root=torchsig/examples --all=True
+python3 torchsig/scripts/generate_sig53.py --root=torchsig/examples
 ```
 
 or for the wideband dataset:
 
 ```
-python3 torchsig/scripts/generate_wideband_sig53.py --root=torchsig/examples --all=True
+python3 torchsig/scripts/generate_wideband_sig53.py --root=torchsig/examples
 ```
 
 Then, be sure to point scripts looking for ```root``` to ```torchsig/examples```.
