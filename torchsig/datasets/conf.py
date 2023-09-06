@@ -24,7 +24,7 @@ class Sig53CleanTrainConfig(Sig53Config):
 
 @dataclass
 class Sig53CleanTrainMediumConfig(Sig53Config):
-    name: str = "sig53_clean_train_medium"
+    name: str = "sig53_clean_train"
     seed: int = 1234567890
     eb_no: bool = False
     num_samples: int = 106000
@@ -33,7 +33,7 @@ class Sig53CleanTrainMediumConfig(Sig53Config):
 
 @dataclass
 class Sig53CleanTrainSmallConfig(Sig53Config):
-    name: str = "sig53_clean_train_small"
+    name: str = "sig53_clean_train"
     seed: int = 1234567890
     eb_no: bool = False
     num_samples: int = 10600
@@ -55,7 +55,7 @@ class Sig53CleanValConfig(Sig53CleanTrainConfig):
 
 @dataclass
 class Sig53CleanValMediumConfig(Sig53CleanTrainConfig):
-    name: str = "sig53_clean_val_medium"
+    name: str = "sig53_clean_val"
     seed: int = 1234567891
     eb_no: bool = False
     num_samples: int = 10600
@@ -63,7 +63,7 @@ class Sig53CleanValMediumConfig(Sig53CleanTrainConfig):
 
 @dataclass
 class Sig53CleanValSmallConfig(Sig53CleanTrainConfig):
-    name: str = "sig53_clean_val_small"
+    name: str = "sig53_clean_val"
     seed: int = 1234567891
     eb_no: bool = False
     num_samples: int = 1060
@@ -85,7 +85,7 @@ class Sig53ImpairedTrainConfig(Sig53Config):
 
 @dataclass
 class Sig53ImpairedTrainMediumConfig(Sig53Config):
-    name: str = "sig53_impaired_train_medium"
+    name: str = "sig53_impaired_train"
     seed: int = 1234567892
     eb_no: bool = False
     num_samples: int = 530000
@@ -94,7 +94,7 @@ class Sig53ImpairedTrainMediumConfig(Sig53Config):
 
 @dataclass
 class Sig53ImpairedTrainSmallConfig(Sig53Config):
-    name: str = "sig53_impaired_train_small"
+    name: str = "sig53_impaired_train"
     seed: int = 1234567892
     eb_no: bool = False
     num_samples: int = 53000
@@ -115,14 +115,14 @@ class Sig53ImpairedValConfig(Sig53ImpairedTrainConfig):
 
 @dataclass
 class Sig53ImpairedValMediumConfig(Sig53ImpairedTrainConfig):
-    name: str = "sig53_impaired_val_medium"
+    name: str = "sig53_impaired_val"
     seed: int = 1234567893
     num_samples: int = 10600
 
 
 @dataclass
 class Sig53ImpairedValSmallConfig(Sig53ImpairedTrainConfig):
-    name: str = "sig53_impaired_val_small"
+    name: str = "sig53_impaired_val"
     seed: int = 1234567893
     num_samples: int = 1060
 
