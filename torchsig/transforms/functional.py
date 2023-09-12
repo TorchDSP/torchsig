@@ -1026,7 +1026,7 @@ def quantize(
 
     """
     # Setup quantization resolution/bins
-    max_value = max(np.abs(tensor)) + 1e-9
+    max_value = max(np.abs(np.real(np.copy(tensor)),np.imag(np.copy(tensor)))) + 1e-9
     bins = np.linspace(-max_value, max_value, num_levels + 1)
 
     # Digitize to bins
