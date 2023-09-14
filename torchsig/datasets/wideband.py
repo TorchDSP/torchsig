@@ -969,11 +969,8 @@ class WidebandModulationsDataset(SignalDataset):
                                 RandomMagRescale(start=(0, 0.9), scale=(-4, 4)), 0.5
                             ),
                             RollOff(
-                                low_freq=(0.00, 0.05),
-                                upper_freq=(0.95, 1.00),
-                                low_cut_apply=0.5,
-                                upper_cut_apply=0.5,
-                                order=(6, 20),
+                                cutoff=(0.25, 0.5),
+                                cfo=(-0.1, 0.1),
                             ),
                             RandomConvolve(num_taps=(2, 5), alpha=(0.1, 0.4)),
                             RayleighFadingChannel((0.001, 0.01)),
