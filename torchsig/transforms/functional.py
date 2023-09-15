@@ -664,96 +664,26 @@ def freq_shift_avoid_aliasing(
     # Match output size to input
     num_iq_samples = tensor.shape[0]
 
-    import matplotlib.pyplot as plt
-    import scipy.signal as sp
-    FFTSize = 2**20
-    f = np.linspace(-0.5,0.5-(1/FFTSize),FFTSize)
-
-    fig = plt.figure(figsize=(12,8))
-    ax = fig.add_subplot(1,1,1)
-    win = sp.blackmanharris(len(tensor))
-    FFTdB = 20*np.log10(np.fft.fftshift(np.fft.fft(tensor*win,FFTSize)))
-    FFTdB = FFTdB - np.max(FFTdB)
-    ax.plot(f,FFTdB)
-    ax.grid()
-    ax.set_xlim([f[0], f[-1]])
-    ax.set_ylim([-80, 10])
-    ax.set_title('Input Signal',fontsize=20)
-    ax.set_xlabel('Frequency $f/f_s$',fontsize=16)
-    ax.set_ylabel('Magnitude (dB)',fontsize=16)
-
     # Interpolate up to avoid frequency wrap around during shift
     up = 2
     down = 1
     tensor = sp.resample_poly(tensor, up, down)
 
-    fig = plt.figure(figsize=(12,8))
-    ax = fig.add_subplot(1,1,1)
-    win = sp.blackmanharris(len(tensor))
-    FFTdB = 20*np.log10(np.fft.fftshift(np.fft.fft(tensor*win,FFTSize)))
-    FFTdB = FFTdB - np.max(FFTdB)
-    ax.plot(f,FFTdB)
-    ax.grid()
-    ax.set_xlim([f[0], f[-1]])
-    ax.set_ylim([-80, 10])
-    ax.set_title('Interpolate by 2',fontsize=20)
-    ax.set_xlabel('Frequency $f/f_s$',fontsize=16)
-    ax.set_ylabel('Magnitude (dB)',fontsize=16)
-
     # Freq shift to desired center freq
     time_vector = np.arange(tensor.shape[0], dtype=np.float64)
     tensor = tensor * np.exp(2j * np.pi * f_shift / up * time_vector)
 
-    resampleLPF = low_pass(cutoff=1/(up*2),transition_bandwidth=1/(up*4))
+    # design anti-alaising LPF. the frequency shift can cause the signal's energy
+    # to overlap with the aliasing boundary +fs/2 and -fs/2 due to downsampling.
+    # optimally an ideal LPF (infinite length in time, zero width transtion) band
+    # would be used but it is impractical. instead, the cutoff frequency must be
+    # reduced in order to create space in the frequency domain for a transition
+    # band. the trade-off is the decimating LPF causes some distortion across the
+    # passband of the signal at the benefit of reducing aliasing artifacts.
     decimLPF = low_pass(cutoff=0.75/(up*2),transition_bandwidth=1/(up*4))
 
-    fig = plt.figure(figsize=(12,8))
-    ax = fig.add_subplot(1,1,1)
-    win = sp.blackmanharris(len(tensor))
-    FFTdB = 20*np.log10(np.fft.fftshift(np.fft.fft(tensor*win,FFTSize)))
-    FFTdB = FFTdB - np.max(FFTdB)
-    ax.plot(f,FFTdB,label='signal')
-    FFTdB = 20*np.log10(np.fft.fftshift(np.fft.fft(resampleLPF,FFTSize)))
-    FFTdB = FFTdB - np.max(FFTdB)
-    ax.plot(f,FFTdB,'black',label='Estim. resample_poly() LPF')
-    FFTdB = 20*np.log10(np.fft.fftshift(np.fft.fft(decimLPF,FFTSize)))
-    FFTdB = FFTdB - np.max(FFTdB)
-    ax.plot(f,FFTdB,'red',label='Proposed LPF')
-    ax.grid()
-    ax.set_xlim([f[0], f[-1]])
-    ax.set_ylim([-80, 10])
-    ax.set_title('Signal after Frequency Shift',fontsize=20)
-    ax.set_xlabel('Frequency $f/f_s$',fontsize=16)
-    ax.set_ylabel('Magnitude (dB)',fontsize=16)
-    ax.legend(fontsize=16,loc='lower left')
-
-    # design anti-alaising LPF
-    print('resample poly filter length = ' + str(len(resampleLPF)))
-    print('decim filter length = ' + str(len(decimLPF)))
-
     # Decimate back down to correct sample rate
-    tensor2 = sp.upfirdn(x=tensor,h=decimLPF,up=down,down=up)
-    tensor = sp.resample_poly(tensor,up=down,down=up)
-
-    fig = plt.figure(figsize=(12,8))
-    ax = fig.add_subplot(1,1,1)
-    win = sp.blackmanharris(len(tensor))
-    FFTdB = 20*np.log10(np.fft.fftshift(np.fft.fft(tensor*win,FFTSize)))
-    FFTdB = FFTdB - np.max(FFTdB)
-    ax.plot(f,FFTdB,'black',label='resample_poly()')
-    win = sp.blackmanharris(len(tensor2))
-    FFTdB = 20*np.log10(np.fft.fftshift(np.fft.fft(tensor2*win,FFTSize)))
-    FFTdB = FFTdB - np.max(FFTdB)
-    ax.plot(f,FFTdB,'red',label='Proposed LPF')
-    ax.grid()
-    ax.set_xlim([f[0], f[-1]])
-    ax.set_ylim([-80, 10])
-    ax.set_title('Signal after decimate by 2',fontsize=20)
-    ax.set_xlabel('Frequency $f/f_s$',fontsize=16)
-    ax.set_ylabel('Magnitude (dB)',fontsize=16)
-    ax.legend(fontsize=16)
-
-    plt.show()
+    tensor = sp.upfirdn(x=tensor,h=decimLPF,up=down,down=up)
 
     return tensor[:num_iq_samples]
 
