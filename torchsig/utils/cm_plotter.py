@@ -61,7 +61,7 @@ def plot_confusion_matrix(
                     color="white" if cm[i, j] > thresh else "black",
                 )
     if len(classes) == 2:
-        plt.axis([-0.5, 1.5, 1.5, -0.5])
+        plt.axis((-0.5, 1.5, 1.5, -0.5))
         fig.tight_layout()
 
     return ax
