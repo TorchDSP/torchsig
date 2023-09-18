@@ -1,28 +1,32 @@
 from scipy import signal as sp
 import numpy as np
 
-def roll_off_filter ( cutoff: float, cfo: float ):
+
+def roll_off_filter(cutoff: float, cfo: float):
     """Designs a filter to apply a randomized roll-off factor for the roll_off() impairment. When the parameters
        are within the specified ranges, the roll-off filter will provide a slight LPF effect with the attenuation
        at -fs/2 and +fs/2 within 0 dB to -12 dB gain.
-       
+
     Args:
         cutoff (float): filter cutoff-frequency, from 0.25 to 0.5 (fs/4 to fs/2)
         cfo (float): center frequency offset, from -0.1 to 0.1 (-fs/10 to fs/10)
 
     """
     # design the time indexing
-    halfLen = 2
-    n = np.arange(-halfLen,halfLen+1)
+    half_len = 2
+    filt_order = np.arange(-half_len, half_len + 1)
+
     # compute the sinc LPF
-    sincLPF = np.sinc(2*n*cutoff)
+    sinc_lpf = np.sinc(2 * filt_order * cutoff)
+
     # calculate the Bartlett taper which removes the nulls in the LPF
-    bartlett = sp.bartlett(len(n))
+    window = sp.windows.bartlett(filt_order.shape[0])
+
     # compute the frequency shifter
-    frequencyShift = np.exp(2j*np.pi*cfo*n)
-    # design the filter
-    rollOffFilter = sincLPF*bartlett*frequencyShift
-    return rollOffFilter
+    freq_shift = np.exp(2j * np.pi * cfo * filt_order)
+
+    taps = sinc_lpf * window * freq_shift
+    return taps
 
 
 def convolve(signal: np.ndarray, taps: np.ndarray) -> np.ndarray:
