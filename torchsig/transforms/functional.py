@@ -1026,32 +1026,30 @@ def quantize(
 
     """
     # Setup quantization resolution/bins
-    max_value = (
-        max(np.abs(np.real(np.copy(tensor)), np.imag(np.copy(tensor))))
-        + np.finfo(np.dtype(np.float64)).eps
-    )
+    real_max = np.max(np.abs(tensor.real))
+    imag_max = np.max(np.abs(tensor.imag))
+
+    max_value = max(real_max, imag_max)
     bins = np.linspace(-max_value, max_value, num_levels + 1)
 
     # Digitize to bins
-    quantized_real = np.digitize(tensor.real, bins)
-    quantized_imag = np.digitize(tensor.imag, bins)
+    bins_real = np.digitize(tensor.real, bins)
+    bins_imag = np.digitize(tensor.imag, bins)
 
     if round_type == "floor":
         quantized_real -= 1
         quantized_imag -= 1
 
     # Revert to values
-    quantized_real = bins[quantized_real]
-    quantized_imag = bins[quantized_imag]
+    quantized_real = bins[bins_real]
+    quantized_imag = bins[bins_imag]
 
     if round_type == "nearest":
         bin_size = np.diff(bins)[0]
         quantized_real -= bin_size / 2
         quantized_imag -= bin_size / 2
 
-    quantized_tensor = quantized_real + 1j * quantized_imag
-
-    return quantized_tensor
+    return quantized_real + 1j * quantized_imag
 
 
 def clip(tensor: np.ndarray, clip_percentage: float) -> np.ndarray:
