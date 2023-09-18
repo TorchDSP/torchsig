@@ -41,7 +41,6 @@ def low_pass(cutoff: float, transition_bandwidth: float) -> np.ndarray:
         transition_bandwidth (float): width of the transition region
 
     """
-    transition_bandwidth = (0.5 - cutoff) / 4
     num_taps = estimate_filter_length(transition_bandwidth)
     return sp.firwin(
         num_taps,
