@@ -667,25 +667,23 @@ def freq_shift_avoid_aliasing(
 
     # Interpolate up to avoid frequency wrap around during shift
     up = 2
-    down = 1
-    tensor = sp.resample_poly(tensor, up, down)
-
-    taps = low_pass(cutoff=1 / 4, transition_bandwidth=(0.5 - 1 / 4) / 4)
-    tensor = sp.convolve(tensor, taps, mode="same")
+    tensor = sp.resample_poly(tensor, up=up, down=1)
 
     # Freq shift to desired center freq
     time_vector = np.arange(tensor.shape[0], dtype=np.float64)
-    tensor = tensor * np.exp(2j * np.pi * f_shift / up * time_vector)
+    tensor = tensor * np.exp(2j * np.pi * f_shift * time_vector / up)
 
-    # Filter to remove out-of-band regions
-    taps = low_pass(cutoff=1 / 4, transition_bandwidth=(0.5 - 1 / 4) / 4)
-    tensor = sp.convolve(tensor, taps, mode="same")
-    tensor = tensor[
-        : int(num_iq_samples * up)
-    ]  # prune to be correct size out of filter
+    # design anti-alaising LPF. the frequency shift can cause the signal's energy
+    # to overlap with the aliasing boundary +fs/2 and -fs/2 due to downsampling.
+    # optimally an ideal LPF (infinite length in time, zero width transtion) band
+    # would be used but it is impractical. instead, the cutoff frequency must be
+    # reduced in order to create space in the frequency domain for a transition
+    # band. the trade-off is the decimating LPF causes some distortion across the
+    # passband of the signal at the benefit of reducing aliasing artifacts.
+    taps = low_pass(cutoff=0.75 / up / 2, transition_bandwidth=1 / up / 4)
 
-    # Decimate back down to correct sample rate
-    tensor = sp.resample_poly(tensor, down, up)
+    # Downsample by 2 down to correct sample rate
+    tensor = sp.upfirdn(x=tensor, h=taps, up=1, down=up)
 
     return tensor[:num_iq_samples]
 
@@ -889,7 +887,7 @@ def roll_off(
     """
 
     # design the roll-off filter
-    taps = roll_off_filter ( cutoff, cfo )
+    taps = roll_off_filter(cutoff, cfo)
 
     return sp.convolve(tensor, taps, mode="same")
 
