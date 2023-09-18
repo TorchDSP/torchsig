@@ -1,5 +1,6 @@
 from sklearn.metrics import confusion_matrix
 from matplotlib import pyplot as plt
+from matplotlib.colors import Colormap
 from typing import Optional
 import numpy as np
 
@@ -13,7 +14,7 @@ def plot_confusion_matrix(
     text: bool = True,
     rotate_x_text: int = 90,
     figsize: tuple = (16, 9),
-    cmap: plt.cm = plt.cm.Blues,
+    cmap: str = "Blues",
 ):
     """Function to help plot confusion matrices
 
