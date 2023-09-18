@@ -1037,8 +1037,8 @@ def quantize(
     bins_imag = np.digitize(tensor.imag, bins)
 
     if round_type == "floor":
-        quantized_real -= 1
-        quantized_imag -= 1
+        bins_real -= 1
+        bins_imag -= 1
 
     # Revert to values
     quantized_real = bins[bins_real]
