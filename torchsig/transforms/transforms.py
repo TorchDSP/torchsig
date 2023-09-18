@@ -576,7 +576,6 @@ class RandomResample(SignalTransform):
                 if isinstance(data.signal_description, SignalDescription)
                 else data.signal_description
             )
-            anti_alias_lpf: bool = False
             for signal_desc_idx, signal_desc in enumerate(signal_description_list):
                 new_signal_desc: SignalDescription = deepcopy(signal_desc)
                 assert new_signal_desc.num_iq_samples is not None
@@ -657,15 +656,6 @@ class RandomResample(SignalTransform):
                 new_signal_desc.center_frequency /= new_rate
                 new_signal_desc.bandwidth /= new_rate
 
-                if (
-                    new_signal_desc.lower_frequency < -0.45
-                    or new_signal_desc.lower_frequency > 0.45
-                    or new_signal_desc.upper_frequency < -0.45
-                    or new_signal_desc.upper_frequency > 0.45
-                ) and new_rate < 1.0:
-                    # If downsampling and new signals are near band edge, apply a LPF to handle aliasing
-                    anti_alias_lpf = True
-
                 # Check new freqs for inclusion
                 if (
                     new_signal_desc.lower_frequency > 0.5
@@ -689,7 +679,6 @@ class RandomResample(SignalTransform):
                 100,
                 self.num_iq_samples,
                 self.keep_samples,
-                anti_alias_lpf,
             )
 
             # Update the new data's SignalDescription

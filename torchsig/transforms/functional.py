@@ -103,7 +103,6 @@ def resample(
     down_rate: int,
     num_iq_samples: int,
     keep_samples: bool,
-    anti_alias_lpf: bool = False,
 ) -> np.ndarray:
     """Resample a tensor by rational value
 
@@ -123,22 +122,10 @@ def resample(
         keep_samples (:class:`bool`):
             boolean to specify if the resampled data should be returned as is
 
-        anti_alias_lpf (:class:`bool`)):
-            boolean to specify if an additional anti aliasing filter should be
-            applied
-
     Returns:
         Tensor:
             Resampled tensor
     """
-    if anti_alias_lpf:
-        new_rate = up_rate / down_rate
-        taps = low_pass(
-            cutoff=new_rate * 0.98 / 2,
-            transition_bandwidth=(0.5 - (new_rate * 0.98) / 2) / 4,
-        )
-        tensor = sp.convolve(tensor, taps, mode="same")
-
     # Resample
     resampled = sp.resample_poly(tensor, up_rate, down_rate)
 
