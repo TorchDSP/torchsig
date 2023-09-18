@@ -42,43 +42,61 @@ def generate(root: str, configs: List[conf.WidebandSig53Config]):
     "--root", default="wideband_sig53", help="Path to generate wideband_sig53 datasets"
 )
 @click.option(
-    "--all", default=True, help="Generate all versions of wideband_sig53 dataset."
+    "--size",
+    default="large",
+    help="small, medium, or large (default)",
 )
 @click.option(
-    "--qa", default=True, help="Generate only QA versions of wideband_sig53 dataset."
+    "--type",
+    default="all",
+    help="clean, impaired, all, or qa",
 )
-@click.option(
-    "--impaired",
-    default=False,
-    help="Generate impaired dataset. Ignored if --all=True (default)",
-)
-def main(root: str, all: bool, qa: bool, impaired: bool):
+def main(root: str, size: str, type: str):
     if not os.path.isdir(root):
         os.mkdir(root)
 
     configs = [
         conf.WidebandSig53CleanTrainConfig,
-        conf.WidebandSig53CleanValConfig,
-        conf.WidebandSig53ImpairedTrainConfig,
-        conf.WidebandSig53ImpairedValConfig,
+        conf.WidebandSig53CleanTrainMediumConfig,
+        conf.WidebandSig53CleanTrainSmallConfig,
         conf.WidebandSig53CleanTrainQAConfig,
+        conf.WidebandSig53CleanValConfig,
+        conf.WidebandSig53CleanValMediumConfig,
+        conf.WidebandSig53CleanValSmallConfig,
         conf.WidebandSig53CleanValQAConfig,
+        conf.WidebandSig53ImpairedTrainConfig,
+        conf.WidebandSig53ImpairedTrainMediumConfig,
+        conf.WidebandSig53ImpairedTrainSmallConfig,
         conf.WidebandSig53ImpairedTrainQAConfig,
+        conf.WidebandSig53ImpairedValConfig,
+        conf.WidebandSig53ImpairedValMediumConfig,
+        conf.WidebandSig53ImpairedValSmallConfig,
         conf.WidebandSig53ImpairedValQAConfig,
     ]
-    if qa:
-        generate(root, configs[4:])
+    if type == "qa":
+        generate(root, configs[3::4])
         return
 
-    if all:
-        generate(root, configs[:4])
+    if size == "small":
+        if type == "clean" or type == "all":
+            generate(root, configs[2:7:4])
+        if type == "impaired" or type == "all":
+            generate(root, configs[10::4])
         return
 
-    if impaired:
-        generate(root, configs[2:4])
+    if size == "medium":
+        if type == "clean" or type == "all":
+            generate(root, configs[1:6:4])
+        if type == "impaired" or type == "all":
+            generate(root, configs[9::4])
+
         return
 
-    generate(root, configs[:2])
+    if type == "clean" or type == "all":
+        generate(root, configs[0:5:4])
+
+    if type == "impaired" or type == "all":
+        generate(root, configs[8::4])
 
 
 if __name__ == "__main__":
