@@ -2,6 +2,7 @@ from typing import Callable, List, Literal, Optional, Tuple, Union
 from numba import complex64, float64, int64, njit
 from torchsig.utils.types import RandomDistribution
 from torchsig.utils.dsp import low_pass
+from torchsig.utils.dsp import roll_off_filter
 from scipy import interpolate
 from scipy import signal as sp
 import numpy as np
@@ -653,25 +654,23 @@ def freq_shift_avoid_aliasing(
 
     # Interpolate up to avoid frequency wrap around during shift
     up = 2
-    down = 1
-    tensor = sp.resample_poly(tensor, up, down)
-
-    taps = low_pass(cutoff=1 / 4, transition_bandwidth=(0.5 - 1 / 4) / 4)
-    tensor = sp.convolve(tensor, taps, mode="same")
+    tensor = sp.resample_poly(tensor, up=up, down=1)
 
     # Freq shift to desired center freq
     time_vector = np.arange(tensor.shape[0], dtype=np.float64)
-    tensor = tensor * np.exp(2j * np.pi * f_shift / up * time_vector)
+    tensor = tensor * np.exp(2j * np.pi * f_shift * time_vector / up)
 
-    # Filter to remove out-of-band regions
-    taps = low_pass(cutoff=1 / 4, transition_bandwidth=(0.5 - 1 / 4) / 4)
-    tensor = sp.convolve(tensor, taps, mode="same")
-    tensor = tensor[
-        : int(num_iq_samples * up)
-    ]  # prune to be correct size out of filter
+    # design anti-alaising LPF. the frequency shift can cause the signal's energy
+    # to overlap with the aliasing boundary +fs/2 and -fs/2 due to downsampling.
+    # optimally an ideal LPF (infinite length in time, zero width transtion) band
+    # would be used but it is impractical. instead, the cutoff frequency must be
+    # reduced in order to create space in the frequency domain for a transition
+    # band. the trade-off is the decimating LPF causes some distortion across the
+    # passband of the signal at the benefit of reducing aliasing artifacts.
+    taps = low_pass(cutoff=0.75 / up / 2, transition_bandwidth=1 / up / 4)
 
-    # Decimate back down to correct sample rate
-    tensor = sp.resample_poly(tensor, down, up)
+    # Downsample by 2 down to correct sample rate
+    tensor = sp.upfirdn(x=tensor, h=taps, up=1, down=up)
 
     return tensor[:num_iq_samples]
 
@@ -853,9 +852,8 @@ def amplitude_reversal(tensor: np.ndarray) -> np.ndarray:
 
 def roll_off(
     tensor: np.ndarray,
-    lowercutfreq: float,
-    uppercutfreq: float,
-    fltorder: int,
+    cutoff: float,
+    cfo: float,
 ) -> np.ndarray:
     """Applies front-end filter to tensor. Rolls off lower/upper edges of bandwidth
 
@@ -863,35 +861,21 @@ def roll_off(
         tensor: (:class:`numpy.ndarray`):
             (batch_size, vector_length, ...)-sized tensor.
 
-        lowercutfreq (:obj:`float`):
-            lower bandwidth cut-off to begin linear roll-off
+        cutoff (:obj:`float`):
+            cutoff frequency for the roll-off filter, within 0.25 to 0.5 (representing fs/4 to fs/2)
 
-        uppercutfreq (:obj:`float`):
-            upper bandwidth cut-off to begin linear roll-off
-
-        fltorder (:obj:`int`):
-            order of each FIR filter to be applied
+        cfo (:obj:`float`):
+            center frequency offset (CFO) for the filter, within -0.1 to 0.1 (representing -fs/10 to fs/10)
 
     Returns:
         transformed (:class:`numpy.ndarray`):
             Tensor that has undergone front-end filtering.
 
     """
-    if (lowercutfreq == 0) & (uppercutfreq == 1):
-        return tensor
 
-    elif uppercutfreq == 1:
-        if fltorder % 2 == 0:
-            fltorder += 1
-    bandwidth = uppercutfreq - lowercutfreq
-    center_freq = lowercutfreq - 0.5 + bandwidth / 2
-    taps = low_pass(
-        cutoff=bandwidth / 2, transition_bandwidth=(0.5 - bandwidth / 2) / 4
-    )
-    sinusoid = np.exp(
-        2j * np.pi * center_freq * np.linspace(0, len(taps) - 1, len(taps))
-    )
-    taps = taps * sinusoid
+    # design the roll-off filter
+    taps = roll_off_filter(cutoff, cfo)
+
     return sp.convolve(tensor, taps, mode="same")
 
 
@@ -1013,29 +997,30 @@ def quantize(
 
     """
     # Setup quantization resolution/bins
-    max_value = max(np.abs(tensor)) + 1e-9
+    real_max = np.max(np.abs(tensor.real))
+    imag_max = np.max(np.abs(tensor.imag))
+
+    max_value = max(real_max, imag_max)
     bins = np.linspace(-max_value, max_value, num_levels + 1)
 
     # Digitize to bins
-    quantized_real = np.digitize(tensor.real, bins)
-    quantized_imag = np.digitize(tensor.imag, bins)
+    bins_real = np.digitize(tensor.real, bins)
+    bins_imag = np.digitize(tensor.imag, bins)
 
     if round_type == "floor":
-        quantized_real -= 1
-        quantized_imag -= 1
+        bins_real -= 1
+        bins_imag -= 1
 
     # Revert to values
-    quantized_real = bins[quantized_real]
-    quantized_imag = bins[quantized_imag]
+    quantized_real = bins[bins_real]
+    quantized_imag = bins[bins_imag]
 
     if round_type == "nearest":
         bin_size = np.diff(bins)[0]
         quantized_real -= bin_size / 2
         quantized_imag -= bin_size / 2
 
-    quantized_tensor = quantized_real + 1j * quantized_imag
-
-    return quantized_tensor
+    return quantized_real + 1j * quantized_imag
 
 
 def clip(tensor: np.ndarray, clip_percentage: float) -> np.ndarray:

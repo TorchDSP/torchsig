@@ -176,7 +176,7 @@ class WaveletVisualizer(Visualizer):
             ts = np.arange(len(cwt_matrix[0])) / self.sample_rate
             plt.imshow(
                 np.abs(cwt_matrix),
-                extent=[ts[0], ts[-1], freqs[-1], freqs[0]],
+                extent=[ts[0], ts[-1], freqs[-1], freqs[0]],  # type: ignore
                 vmin=0,
                 vmax=np.abs(cwt_matrix).max(),
                 aspect="auto",
@@ -458,7 +458,7 @@ class MaskClassVisualizer(Visualizer):
                 title = "Data"
             plt.xticks([])
             plt.yticks([])
-            plt.title(title)
+            plt.title(str(title))
 
         return figure
 
@@ -521,7 +521,7 @@ class SemanticMaskClassVisualizer(Visualizer):
                 title = "Data"
             plt.xticks([])
             plt.yticks([])
-            plt.title(title)
+            plt.title(str(title))
 
         return figure
 

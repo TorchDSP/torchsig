@@ -14,9 +14,21 @@ class RandomDistribution:
             return ConstantRD(dist)
 
         if isinstance(dist, tuple):
+            if len(dist) == 1:
+                return ConstantRD(dist[0])
+
             return UniformContinuousRD(dist[0], dist[1])
 
         if isinstance(dist, list):
+            if len(dist) == 1:
+                return ConstantRD(dist[0])
+
+            return UniformDiscreteRD(dist)
+
+        if isinstance(dist, np.ndarray):
+            if dist.shape[0] == 1:
+                return ConstantRD(dist[0])
+
             return UniformDiscreteRD(dist)
 
     def __call__(self, num: int = 1):

@@ -2641,41 +2641,25 @@ class RollOff(SignalTransform):
     """Applies a band-edge RF roll-off effect simulating front end filtering
 
     Args:
-        low_freq (:py:class:`~torchsig.types.RandomDistribution`):
+        cutoff (:py:class:`~torchsig.types.RandomDistribution`):
 
-        upper_freq (:py:class:`~torchsig.types.RandomDistribution`):
-
-        low_cut_apply (:obj:`float`):
-            Probability that the low frequency provided above is applied
-
-        upper_cut_apply (:obj:`float`):
-            Probability that the upper frequency provided above is applied
-
-        order (:py:class:`~torchsig.types.RandomDistribution`):
+        cfo (:py:class:`~torchsig.types.RandomDistribution`):
 
     """
 
     def __init__(
         self,
-        low_freq: FloatParameter = UniformContinuousRD(0.00, 0.05),
-        upper_freq: FloatParameter = UniformContinuousRD(0.95, 1.00),
-        low_cut_apply: float = 0.5,
-        upper_cut_apply: float = 0.5,
-        order: FloatParameter = UniformContinuousRD(6, 20),
+        cutoff: FloatParameter = UniformContinuousRD(0.25, 0.5),
+        cfo: FloatParameter = UniformContinuousRD(-0.1, 0.1),
     ) -> None:
         super(RollOff, self).__init__()
-        self.low_freq = RandomDistribution.to_distribution(low_freq)
-        self.upper_freq = RandomDistribution.to_distribution(upper_freq)
-        self.low_cut_apply = low_cut_apply
-        self.upper_cut_apply = upper_cut_apply
-        self.order = RandomDistribution.to_distribution(order)
+        self.cutoff = RandomDistribution.to_distribution(cutoff)
+        self.cfo = RandomDistribution.to_distribution(cfo)
         self.string = (
             self.__class__.__name__
             + "("
-            + "low_freq={}, ".format(low_freq)
-            + "upper_freq={}, ".format(upper_freq)
-            + "upper_cut_apply={}, ".format(upper_cut_apply)
-            + "order={}".format(order)
+            + "cutoff={}, ".format(cutoff)
+            + "cfo={}, ".format(cfo)
             + ")"
         )
 
@@ -2683,16 +2667,11 @@ class RollOff(SignalTransform):
         return self.string
 
     def __call__(self, data: Any) -> Any:
-        low_freq = self.low_freq() if np.random.rand() < self.low_cut_apply else 0.0
-        upper_freq = (
-            self.upper_freq() if np.random.rand() < self.upper_cut_apply else 1.0
-        )
-        order = self.order()
         if isinstance(data, SignalData):
             assert data.iq_data is not None
-            data.iq_data = F.roll_off(data.iq_data, low_freq, upper_freq, int(order))
+            data.iq_data = F.roll_off(data.iq_data, self.cutoff(), self.cfo())
         else:
-            data = F.roll_off(data, low_freq, upper_freq, int(order))
+            data = F.roll_off(data, self.cutoff(), self.cfo())
         return data
 
 
