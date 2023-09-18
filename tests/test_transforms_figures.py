@@ -83,7 +83,7 @@ transforms_list = [
         IQImbalance(3, np.pi / 180, 0.05),
         IQImbalance(3, np.pi / 180, 0.05),
     ),
-    ("roll_off", RollOff(0.05, 0.98), RollOff(0.05, 0.98)),
+    ("roll_off", RollOff(0.25, 0.1), RollOff(0.25, 0.1)),
     ("add_slope", AddSlope(), AddSlope()),
     ("spectral_inversion", SpectralInversion(), SpectralInversion()),
     ("channel_swap", ChannelSwap(), ChannelSwap()),
