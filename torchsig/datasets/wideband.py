@@ -6,11 +6,9 @@ from typing import Any, Callable, List, Optional, Tuple, Union
 
 import numpy as np
 import pandas as pd
-import torch
 from scipy import signal as sp
 from tqdm import tqdm
 
-from torchsig.datasets import estimate_filter_length
 from torchsig.datasets.synthetic import ConstellationDataset, FSKDataset, OFDMDataset
 from torchsig.transforms import (
     AddNoise,
@@ -34,13 +32,15 @@ from torchsig.transforms import (
 from torchsig.transforms.functional import (
     FloatParameter,
     NumericParameter,
-    to_distribution,
-    uniform_continuous_distribution,
-    uniform_discrete_distribution,
 )
 from torchsig.utils.dataset import SignalDataset
 from torchsig.utils.dsp import low_pass
-from torchsig.utils.types import SignalData, SignalDescription
+from torchsig.utils.types import (
+    SignalData,
+    SignalDescription,
+    RandomDistribution,
+    UniformContinuousRD,
+)
 
 
 class SignalBurst(SignalDescription):
@@ -52,9 +52,8 @@ class SignalBurst(SignalDescription):
 
     """
 
-    def __init__(self, random_generator, **kwargs):
+    def __init__(self, **kwargs):
         super(SignalBurst, self).__init__(**kwargs)
-        self.random_generator = random_generator
 
     def generate_iq(self):
         # meant to be implemented by sub-class
@@ -76,10 +75,10 @@ class ShapedNoiseSignalBurst(SignalBurst):
         self.upper_frequency = self.center_frequency + self.bandwidth / 2
 
     def generate_iq(self):
-        real_noise = self.random_generator.randn(
+        real_noise = RandomDistribution.rng.randn(
             int(self.num_iq_samples * self.duration)
         )
-        imag_noise = self.random_generator.randn(
+        imag_noise = RandomDistribution.rng.randn(
             int(self.num_iq_samples * self.duration)
         )
         iq_samples = real_noise + 1j * imag_noise
@@ -226,9 +225,8 @@ class ModulatedSignalBurst(SignalBurst):
             modulation = self.class_list
         else:
             modulation = [modulation] if isinstance(modulation, str) else modulation
-        self.classes = to_distribution(
+        self.classes = RandomDistribution.to_distribution(
             modulation,
-            random_generator=self.random_generator,
         )
 
         # Update freq values
@@ -526,9 +524,8 @@ class FileSignalBurst(SignalBurst):
         **kwargs,
     ):
         super(FileSignalBurst, self).__init__(**kwargs)
-        self.file_path = to_distribution(
+        self.file_path = RandomDistribution.to_distribution(
             file_path,
-            random_generator=self.random_generator,
         )
         self.file_reader = file_reader
         self.class_list = class_list
@@ -658,36 +655,27 @@ class SyntheticBurstSourceDataset(BurstSourceDataset):
     def __init__(
         self,
         burst_class: SignalBurst,
-        bandwidths: FloatParameter = (0.01, 0.1),
-        center_frequencies: FloatParameter = (-0.25, 0.25),
-        burst_durations: FloatParameter = (0.2, 0.2),
-        silence_durations: FloatParameter = (0.01, 0.3),
-        snrs_db: NumericParameter = (-5, 15),
-        start: FloatParameter = (0.0, 0.9),
+        bandwidths: FloatParameter = UniformContinuousRD(0.01, 0.1),
+        center_frequencies: FloatParameter = UniformContinuousRD(-0.25, 0.25),
+        burst_durations: FloatParameter = UniformContinuousRD(0.2, 0.2),
+        silence_durations: FloatParameter = UniformContinuousRD(0.01, 0.3),
+        snrs_db: FloatParameter = UniformContinuousRD(-5, 15),
+        start: FloatParameter = UniformContinuousRD(0.0, 0.9),
         num_iq_samples: int = 512 * 512,
         num_samples: int = 20,
         seed: Optional[int] = None,
         **kwargs,
     ):
         super(SyntheticBurstSourceDataset, self).__init__(**kwargs)
-        self.random_generator = np.random.RandomState(seed)
         self.num_iq_samples = num_iq_samples
         self.num_samples = num_samples
         self.burst_class = burst_class
-        self.bandwidths = to_distribution(
-            bandwidths, random_generator=self.random_generator
-        )
-        self.center_frequencies = to_distribution(
-            center_frequencies, random_generator=self.random_generator
-        )
-        self.burst_durations = to_distribution(
-            burst_durations, random_generator=self.random_generator
-        )
-        self.silence_durations = to_distribution(
-            silence_durations, random_generator=self.random_generator
-        )
-        self.snrs_db = to_distribution(snrs_db, random_generator=self.random_generator)
-        self.start = to_distribution(start, random_generator=self.random_generator)
+        self.bandwidths = RandomDistribution.to_distribution(bandwidths)
+        self.center_frequencies = RandomDistribution.to_distribution(center_frequencies)
+        self.burst_durations = RandomDistribution.to_distribution(burst_durations)
+        self.silence_durations = RandomDistribution.to_distribution(silence_durations)
+        self.snrs_db = RandomDistribution.to_distribution(snrs_db)
+        self.start = RandomDistribution.to_distribution(start)
 
         # Generate the index by creating a set of bursts.
         self.index = [
@@ -720,7 +708,6 @@ class SyntheticBurstSourceDataset(BurstSourceDataset):
                         center_frequency=center_frequency,
                         bandwidth=bandwidth,
                         snr=snr,
-                        random_generator=self.random_generator,
                     )
                 )
                 start = start + burst_duration + silence_duration
@@ -912,7 +899,6 @@ class WidebandModulationsDataset(SignalDataset):
         **kwargs,
     ):
         super(WidebandModulationsDataset, self).__init__(**kwargs)
-        self.random_generator = np.random.RandomState(seed)
         self.seed = seed
         self.modulation_list = (
             self.default_modulations if modulation_list is None else modulation_list
@@ -983,11 +969,8 @@ class WidebandModulationsDataset(SignalDataset):
                                 RandomMagRescale(start=(0, 0.9), scale=(-4, 4)), 0.5
                             ),
                             RollOff(
-                                low_freq=(0.00, 0.05),
-                                upper_freq=(0.95, 1.00),
-                                low_cut_apply=0.5,
-                                upper_cut_apply=0.5,
-                                order=(6, 20),
+                                cutoff=(0.25, 0.5),
+                                cfo=(-0.1, 0.1),
                             ),
                             RandomConvolve(num_taps=(2, 5), alpha=(0.1, 0.4)),
                             RayleighFadingChannel((0.001, 0.01)),
@@ -1024,10 +1007,8 @@ class WidebandModulationsDataset(SignalDataset):
             )
         self.target_transform = target_transform
 
-        self.num_signals = to_distribution(
-            num_signals, random_generator=self.random_generator
-        )
-        self.snrs = to_distribution(snrs, random_generator=self.random_generator)
+        self.num_signals = RandomDistribution.to_distribution(num_signals)
+        self.snrs = RandomDistribution.to_distribution(snrs)
 
     def __gen_metadata__(self, modulation_list: List) -> pd.DataFrame:
         """This method defines the parameters of the modulations to be inserted
@@ -1084,7 +1065,9 @@ class WidebandModulationsDataset(SignalDataset):
         num_signals = int(self.num_signals())
 
         # Randomly decide if OFDM signals are in capture
-        ofdm_present = True if self.random_generator.rand() < self.ofdm_ratio else False
+        ofdm_present = (
+            True if RandomDistribution.rng.random() < self.ofdm_ratio else False
+        )
 
         # Loop through signals to add
         sig_counter = 0
@@ -1093,17 +1076,17 @@ class WidebandModulationsDataset(SignalDataset):
             if ofdm_present:
                 if sig_counter == 0:
                     # Randomly sample from OFDM options (assumes OFDM at end)
-                    meta_idx = self.random_generator.randint(
+                    meta_idx = RandomDistribution.rng.integers(
                         self.num_modulations - self.num_ofdm, self.num_modulations
                     )
                     modulation = self.metadata.iloc[meta_idx].modulation
                 else:
                     # Randomly select signal from full metadata list
-                    meta_idx = self.random_generator.randint(self.num_modulations)
+                    meta_idx = RandomDistribution.rng.integers(self.num_modulations)
                     modulation = self.metadata.iloc[meta_idx].modulation
             else:
                 # Randomly sample from all but OFDM (assumes OFDM at end)
-                meta_idx = self.random_generator.randint(
+                meta_idx = RandomDistribution.rng.integers(
                     self.num_modulations - self.num_ofdm
                 )
                 modulation = self.metadata.iloc[meta_idx].modulation
@@ -1112,51 +1095,48 @@ class WidebandModulationsDataset(SignalDataset):
             if ofdm_present:
                 if "ofdm" in modulation:
                     if num_signals == 1:
-                        bandwidth = self.random_generator.uniform(0.2, 0.7)
+                        bandwidth = RandomDistribution.rng.uniform(0.2, 0.7)
                     else:
-                        bandwidth = self.random_generator.uniform(0.3, 0.5)
+                        bandwidth = RandomDistribution.rng.uniform(0.3, 0.5)
                 else:
-                    bandwidth = self.random_generator.uniform(0.025, 0.1)
+                    bandwidth = RandomDistribution.rng.uniform(0.025, 0.1)
             else:
                 if num_signals == 1:
-                    bandwidth = self.random_generator.uniform(0.05, 0.4)
+                    bandwidth = RandomDistribution.rng.uniform(0.05, 0.4)
                 else:
-                    bandwidth = self.random_generator.uniform(0.05, 0.15)
+                    bandwidth = RandomDistribution.rng.uniform(0.05, 0.15)
 
             # Random center frequency
-            center_freq = self.random_generator.uniform(-0.4, 0.4)
+            center_freq = RandomDistribution.rng.uniform(-0.4, 0.4)
 
             # Determine if continuous or bursty
-            burst_random_var = self.random_generator.rand()
-            hop_random_var = self.random_generator.rand()
+            burst_random_var = RandomDistribution.rng.random()
+            hop_random_var = RandomDistribution.rng.random()
             if (
                 burst_random_var < self.metadata.iloc[meta_idx].bursty_prob
                 or hop_random_var < self.metadata.iloc[meta_idx].freq_hopping_prob
             ):
                 # Signal is bursty
                 bursty = True
-                burst_duration = to_distribution(
+                burst_duration = RandomDistribution.to_distribution(
                     literal_eval(self.metadata.iloc[meta_idx].burst_duration),
-                    random_generator=self.random_generator,
                 )()
-                silence_multiple = to_distribution(
+                silence_multiple = RandomDistribution.to_distribution(
                     literal_eval(self.metadata.iloc[meta_idx].silence_multiple),
-                    random_generator=self.random_generator,
                 )()
                 stops_in_frame = False
                 if hop_random_var < self.metadata.iloc[meta_idx].freq_hopping_prob:
                     # override bandwidth with smaller options for freq hoppers
                     if ofdm_present:
-                        bandwidth = self.random_generator.uniform(0.0125, 0.025)
+                        bandwidth = RandomDistribution.rng.uniform(0.0125, 0.025)
                     else:
-                        bandwidth = self.random_generator.uniform(0.025, 0.05)
+                        bandwidth = RandomDistribution.rng.uniform(0.025, 0.05)
 
                     silence_duration = burst_duration * (silence_multiple - 1)
-                    freq_channels = to_distribution(
+                    freq_channels = RandomDistribution.to_distribution(
                         literal_eval(
                             self.metadata.iloc[meta_idx].freq_hopping_channels
                         ),
-                        random_generator=self.random_generator,
                     )()
 
                     # Convert channel count to list of center frequencies
@@ -1192,21 +1172,21 @@ class WidebandModulationsDataset(SignalDataset):
                 high_freq = center_freq + bandwidth / 2
 
                 # Randomly determine if the signal should stop in the frame
-                if self.random_generator.rand() < 0.2:
+                if RandomDistribution.rng.random() < 0.2:
                     stops_in_frame = True
-                    burst_duration = self.random_generator.uniform(0.05, 0.95)
+                    burst_duration = RandomDistribution.rng.uniform(0.05, 0.95)
                 else:
                     stops_in_frame = False
 
             # Randomly determine if the signal should start in the frame
-            if self.random_generator.rand() < 0.2 and not stops_in_frame:
-                start = self.random_generator.uniform(0, 0.95)
+            if RandomDistribution.rng.random() < 0.2 and not stops_in_frame:
+                start = RandomDistribution.rng.uniform(0, 0.95)
                 stop = 1.0
             else:
                 start = 0.0
                 stop = burst_duration
             if bursty:
-                start = start + self.random_generator.rand() * burst_duration
+                start = start + RandomDistribution.rng.random() * burst_duration
                 stop = 1.0
 
             # Handle overlaps
@@ -1486,7 +1466,9 @@ class RandomSignalInsertion(SignalTransform):
                     (x + bandwidth / 2, y - bandwidth / 2) for x, y in unoccupied_bands
                 ]
                 rand_band_idx = np.random.randint(len(center_freqs))
-                center_freqs_dist = to_distribution(center_freqs[rand_band_idx])
+                center_freqs_dist = RandomDistribution.to_distribution(
+                    center_freqs[rand_band_idx]
+                )
                 center_freq = center_freqs_dist()
                 bursty = True if np.random.rand() < 0.5 else False
                 burst_duration = np.random.uniform(0.05, 1.0) if bursty else 1.0

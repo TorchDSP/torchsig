@@ -1,5 +1,32 @@
-import numpy as np
 from scipy import signal as sp
+import numpy as np
+
+
+def roll_off_filter(cutoff: float, cfo: float):
+    """Designs a filter to apply a randomized roll-off factor for the roll_off() impairment. When the parameters
+       are within the specified ranges, the roll-off filter will provide a slight LPF effect with the attenuation
+       at -fs/2 and +fs/2 within 0 dB to -12 dB gain.
+
+    Args:
+        cutoff (float): filter cutoff-frequency, from 0.25 to 0.5 (fs/4 to fs/2)
+        cfo (float): center frequency offset, from -0.1 to 0.1 (-fs/10 to fs/10)
+
+    """
+    # design the time indexing
+    half_len = 2
+    filt_order = np.arange(-half_len, half_len + 1)
+
+    # compute the sinc LPF
+    sinc_lpf = np.sinc(2 * filt_order * cutoff)
+
+    # calculate the Bartlett taper which removes the nulls in the LPF
+    window = sp.windows.bartlett(filt_order.shape[0])
+
+    # compute the frequency shifter
+    freq_shift = np.exp(2j * np.pi * cfo * filt_order)
+
+    taps = sinc_lpf * window * freq_shift
+    return taps
 
 
 def convolve(signal: np.ndarray, taps: np.ndarray) -> np.ndarray:
@@ -14,7 +41,6 @@ def low_pass(cutoff: float, transition_bandwidth: float) -> np.ndarray:
         transition_bandwidth (float): width of the transition region
 
     """
-    transition_bandwidth = (0.5 - cutoff) / 4
     num_taps = estimate_filter_length(transition_bandwidth)
     return sp.firwin(
         num_taps,
@@ -33,7 +59,9 @@ def estimate_filter_length(
     # N ~= (sampling rate/transition bandwidth)*(sidelobe attenuation in dB / 22)
     # fred harris, Multirate Signal Processing for Communication Systems,
     # Second Edition, p.59
-    filter_length = int(np.round((sample_rate / transition_bandwidth) * (attenuation_db / 22)))
+    filter_length = int(
+        np.round((sample_rate / transition_bandwidth) * (attenuation_db / 22))
+    )
 
     # odd-length filters are desirable because they do not introduce a half-sample delay
     if np.mod(filter_length, 2) == 0:
@@ -42,7 +70,9 @@ def estimate_filter_length(
     return filter_length
 
 
-def rrc_taps(iq_samples_per_symbol: int, size_in_symbols: int, alpha: float = 0.35) -> np.ndarray:
+def rrc_taps(
+    iq_samples_per_symbol: int, size_in_symbols: int, alpha: float = 0.35
+) -> np.ndarray:
     # this could be made into a transform
     M = size_in_symbols
     Ns = float(iq_samples_per_symbol)
@@ -73,6 +103,8 @@ def gaussian_taps(samples_per_symbol: int, BT: float = 0.35) -> np.ndarray:
     # pre-modulation Bb*T product which sets the bandwidth of the Gaussian lowpass filter
     M = 4  # duration in symbols
     n = np.arange(-M * samples_per_symbol, M * samples_per_symbol + 1)
-    p = np.exp(-2 * np.pi**2 * BT**2 / np.log(2) * (n / float(samples_per_symbol)) ** 2)
+    p = np.exp(
+        -2 * np.pi**2 * BT**2 / np.log(2) * (n / float(samples_per_symbol)) ** 2
+    )
     p = p / np.sum(p)
     return p

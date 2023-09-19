@@ -1,21 +1,22 @@
-import warnings
-from copy import deepcopy
 from typing import Any, Callable, List, Literal, Optional, Tuple, Union
-
-import numpy as np
-from scipy import signal
-
 from torchsig.transforms import functional as F
 from torchsig.transforms.functional import (
     FloatParameter,
     IntParameter,
     NumericParameter,
-    to_distribution,
-    uniform_continuous_distribution,
-    uniform_discrete_distribution,
 )
 from torchsig.utils.dataset import SignalDataset
-from torchsig.utils.types import SignalData, SignalDescription
+from torchsig.utils.types import (
+    SignalData,
+    SignalDescription,
+    RandomDistribution,
+    UniformContinuousRD,
+    UniformDiscreteRD,
+)
+from copy import deepcopy
+from scipy import signal
+import numpy as np
+
 
 __all__ = [
     "Transform",
@@ -79,6 +80,7 @@ __all__ = [
     "SpectrogramTranslation",
     "SpectrogramMosaicCrop",
     "SpectrogramMosaicDownsample",
+    "SpectrogramImage",
 ]
 
 
@@ -87,12 +89,6 @@ class Transform:
     targets or data
 
     """
-
-    def __init__(self, seed: Optional[int] = None) -> None:
-        if seed is not None:
-            warnings.warn("Seeding transforms is deprecated and does nothing", DeprecationWarning)
-
-        self.random_generator = np.random.RandomState()
 
     def __call__(self, data: Any) -> Any:
         raise NotImplementedError
@@ -184,7 +180,7 @@ class FixedRandom(Transform):
     def __init__(self, transform: Transform, num_seeds: int, **kwargs) -> None:
         super(FixedRandom, self).__init__(**kwargs)
         self.transform = transform
-        self.num_seeds = num_seeds
+        self.seeds = UniformDiscreteRD(np.asarray(range(num_seeds)))
         self.string: str = (
             self.__class__.__name__
             + "("
@@ -197,7 +193,7 @@ class FixedRandom(Transform):
         return self.string
 
     def __call__(self, data: Any) -> Any:
-        seed = self.random_generator.choice(self.num_seeds)
+        seed = self.seeds()
         orig_state = (
             np.random.get_state()
         )  # we do not want to somehow fix other random number generation processes.
@@ -244,7 +240,11 @@ class RandomApply(Transform):
         return self.string
 
     def __call__(self, data: Any) -> Any:
-        return self.transform(data) if self.random_generator.rand() < self.probability else data
+        return (
+            self.transform(data)
+            if RandomDistribution.rng.random() < self.probability
+            else data
+        )
 
 
 class SignalTransform(Transform):
@@ -259,7 +259,9 @@ class SignalTransform(Transform):
     def __init__(self, time_dim: int = 0, **kwargs) -> None:
         super(SignalTransform, self).__init__(**kwargs)
         self.time_dim = time_dim
-        self.string: str = self.__class__.__name__ + "(" + "time_dim={}".format(time_dim) + ")"
+        self.string: str = (
+            self.__class__.__name__ + "(" + "time_dim={}".format(time_dim) + ")"
+        )
 
     def __repr__(self) -> str:
         return self.string
@@ -338,7 +340,10 @@ class TargetConcatenate(SignalTransform):
         self.transforms = transforms
         transform_strings: str = ",".join([str(t) for t in transforms])
         self.string: str = (
-            self.__class__.__name__ + "(" + "transforms=[{}], ".format(transform_strings) + ")"
+            self.__class__.__name__
+            + "("
+            + "transforms=[{}], ".format(transform_strings)
+            + ")"
         )
 
     def __repr__(self) -> str:
@@ -391,7 +396,7 @@ class RandAugment(SignalTransform):
         return self.string
 
     def __call__(self, data: Any) -> Any:
-        transforms = self.random_generator.choice(
+        transforms = RandomDistribution.rng.choice(
             self.transforms,  # type: ignore
             size=self.num_transforms,
             replace=self.allow_multiple_same,
@@ -425,7 +430,9 @@ class RandChoice(SignalTransform):
         super(RandChoice, self).__init__(**kwargs)
         self.transforms = transforms
         self.probabilities: np.ndarray = (
-            probabilities if probabilities else np.ones(len(self.transforms)) / len(self.transforms)
+            probabilities
+            if probabilities
+            else np.ones(len(self.transforms)) / len(self.transforms)
         )
         if np.sum(self.probabilities) != 1.0:
             self.probabilities /= np.sum(self.probabilities)
@@ -442,7 +449,7 @@ class RandChoice(SignalTransform):
         return self.string
 
     def __call__(self, data: Any) -> Any:
-        t: SignalTransform = self.random_generator.choice(
+        t: SignalTransform = RandomDistribution.rng.choice(
             self.transforms,  # type: ignore
             p=self.probabilities,
         )
@@ -487,7 +494,9 @@ class Normalize(SignalTransform):
     def __repr__(self) -> str:
         return self.string
 
-    def __call__(self, data: Union[SignalData, np.ndarray]) -> Union[SignalData, np.ndarray]:
+    def __call__(
+        self, data: Union[SignalData, np.ndarray]
+    ) -> Union[SignalData, np.ndarray]:
         if isinstance(data, SignalData):
             assert data.iq_data is not None
             data.iq_data = F.normalize(data.iq_data, self.norm, self.flatten)
@@ -500,13 +509,8 @@ class RandomResample(SignalTransform):
     """Resample using poly-phase rational resampling technique.
 
     Args:
-        rate_ratio (:py:class:`~Callable`, :obj:`int`, :obj:`float`, :obj:`list`, :obj:`tuple`):
+        rate_ratio (:py:class:`~torchsig.types.RandomDistribution`):
             new_rate = rate_ratio*old_rate
-
-            * If Callable, resamples to new_rate by calling rate_ratio()
-            * If int or float, rate_ratio is fixed by value provided
-            * If list, rate_ratio is any element in the list
-            * If tuple, rate_ratio is in range of (tuple[0], tuple[1])
 
         num_iq_samples (:obj:`int`):
             Since resampling changes the number of points in a tensor, it is necessary to designate how
@@ -537,12 +541,12 @@ class RandomResample(SignalTransform):
 
     def __init__(
         self,
-        rate_ratio: NumericParameter = (1.5, 3.0),
+        rate_ratio: FloatParameter = UniformContinuousRD(1.5, 3.0),
         num_iq_samples: int = 4096,
         keep_samples: bool = False,
     ) -> None:
         super(RandomResample, self).__init__()
-        self.rate_ratio: Callable = to_distribution(rate_ratio, self.random_generator)
+        self.rate_ratio: Callable = RandomDistribution.to_distribution(rate_ratio)
         self.num_iq_samples = num_iq_samples
         self.keep_samples = keep_samples
         self.string: str = (
@@ -629,7 +633,8 @@ class RandomResample(SignalTransform):
                 ):
                     new_signal_desc.lower_frequency = -0.5
                     new_signal_desc.bandwidth = (
-                        new_signal_desc.upper_frequency - new_signal_desc.lower_frequency
+                        new_signal_desc.upper_frequency
+                        - new_signal_desc.lower_frequency
                     )
                     new_signal_desc.center_frequency = (
                         new_signal_desc.lower_frequency + new_signal_desc.bandwidth / 2
@@ -641,7 +646,8 @@ class RandomResample(SignalTransform):
                 ):
                     new_signal_desc.upper_frequency = 0.5
                     new_signal_desc.bandwidth = (
-                        new_signal_desc.upper_frequency - new_signal_desc.lower_frequency
+                        new_signal_desc.upper_frequency
+                        - new_signal_desc.lower_frequency
                     )
                     new_signal_desc.center_frequency = (
                         new_signal_desc.lower_frequency + new_signal_desc.bandwidth / 2
@@ -661,7 +667,10 @@ class RandomResample(SignalTransform):
                     anti_alias_lpf = True
 
                 # Check new freqs for inclusion
-                if new_signal_desc.lower_frequency > 0.5 or new_signal_desc.upper_frequency < -0.5:
+                if (
+                    new_signal_desc.lower_frequency > 0.5
+                    or new_signal_desc.upper_frequency < -0.5
+                ):
                     continue
 
                 # Append updates to the new description
@@ -708,14 +717,9 @@ class TargetSNR(SignalTransform):
     warning.
 
     Args:
-        target_snr (:py:class:`~Callable`, :obj:`int`, :obj:`float`, :obj:`list`, :obj:`tuple`):
+        target_snr (:py:class:`~torchsig.types.RandomDistribution`):
             Defined as 10*log10(np.mean(np.abs(x)**2)/np.mean(np.abs(n)**2)) if in dB,
             np.mean(np.abs(x)**2)/np.mean(np.abs(n)**2) if linear.
-
-            * If Callable, produces a sample by calling target_snr()
-            * If int or float, target_snr is fixed at the value provided
-            * If list, target_snr is any element in the list
-            * If tuple, target_snr is in range of (tuple[0], tuple[1])
 
         eb_no (:obj:`bool`):
             Defines SNR as 10*log10(np.mean(np.abs(x)**2)/np.mean(np.abs(n)**2))*samples_per_symbol/bits_per_symbol.
@@ -731,13 +735,13 @@ class TargetSNR(SignalTransform):
 
     def __init__(
         self,
-        target_snr: NumericParameter = uniform_continuous_distribution(-10, 10),
+        target_snr: FloatParameter = UniformContinuousRD(-10, 10),
         eb_no: bool = False,
         linear: bool = False,
         **kwargs,
     ) -> None:
         super(TargetSNR, self).__init__(**kwargs)
-        self.target_snr = to_distribution(target_snr, self.random_generator)
+        self.target_snr = RandomDistribution.to_distribution(target_snr)
         self.eb_no = eb_no
         self.linear = linear
         self.string = (
@@ -779,7 +783,9 @@ class TargetSNR(SignalTransform):
             class_name = signal_description_list[0].class_name
             if "ofdm" not in class_name:
                 # EbNo not available for OFDM
-                target_snr_linear *= signal_description_list[0].bits_per_symbol if self.eb_no else 1
+                target_snr_linear *= (
+                    signal_description_list[0].bits_per_symbol if self.eb_no else 1
+                )
             occupied_bw = 1 / signal_description_list[0].samples_per_symbol
             noise_power_linear = signal_power / (target_snr_linear * occupied_bw)
             noise_power_db = 10 * np.log10(noise_power_linear)
@@ -808,14 +814,9 @@ class AddNoise(SignalTransform):
         level of noise to either a narrowband or wideband input.
 
     Args:
-        noise_power_db (:py:class:`~Callable`, :obj:`int`, :obj:`float`, :obj:`list`, :obj:`tuple`):
+        noise_power_db (:py:class:`~torchsig.types.RandomDistribution`):
             Defined as 10*log10(np.mean(np.abs(x)**2)/np.mean(np.abs(n)**2)) if in dB,
             np.mean(np.abs(x)**2)/np.mean(np.abs(n)**2) if linear.
-
-            * If Callable, produces a sample by calling target_snr()
-            * If int or float, target_snr is fixed at the value provided
-            * If list, target_snr is any element in the list
-            * If tuple, target_snr is in range of (tuple[0], tuple[1])
 
         input_noise_floor_db (:obj:`float`):
             The noise floor of the input data in dB
@@ -832,13 +833,13 @@ class AddNoise(SignalTransform):
 
     def __init__(
         self,
-        noise_power_db: NumericParameter = uniform_continuous_distribution(-80, -60),
+        noise_power_db: FloatParameter = UniformContinuousRD(-80, -60),
         input_noise_floor_db: float = 0.0,
         linear: bool = False,
         **kwargs,
     ) -> None:
         super(AddNoise, self).__init__(**kwargs)
-        self.noise_power_db = to_distribution(noise_power_db, self.random_generator)
+        self.noise_power_db = RandomDistribution.to_distribution(noise_power_db)
         self.input_noise_floor_db = input_noise_floor_db
         self.linear = linear
         self.string = (
@@ -868,7 +869,9 @@ class AddNoise(SignalTransform):
 
             # Retrieve random noise power value
             noise_power_db = self.noise_power_db()
-            noise_power_db = 10 * np.log10(noise_power_db) if self.linear else noise_power_db
+            noise_power_db = (
+                10 * np.log10(noise_power_db) if self.linear else noise_power_db
+            )
 
             if self.input_noise_floor_db:
                 noise_floor = self.input_noise_floor_db
@@ -900,7 +903,9 @@ class AddNoise(SignalTransform):
 
         else:
             noise_power_db = self.noise_power_db(size=data.shape[0])
-            noise_power_db = 10 * np.log10(noise_power_db) if self.linear else noise_power_db
+            noise_power_db = (
+                10 * np.log10(noise_power_db) if self.linear else noise_power_db
+            )
             output: np.ndarray = F.awgn(data, noise_power_db)
             return output
 
@@ -909,36 +914,21 @@ class TimeVaryingNoise(SignalTransform):
     """Add time-varying random AWGN at specified input parameters
 
     Args:
-        noise_power_db_low (:py:class:`~Callable`, :obj:`int`, :obj:`float`, :obj:`list`, :obj:`tuple`):
+        noise_power_db_low (:py:class:`~torchsig.types.RandomDistribution`):
             Defined as 10*log10(np.mean(np.abs(x)**2)/np.mean(np.abs(n)**2)) if in dB,
             np.mean(np.abs(x)**2)/np.mean(np.abs(n)**2) if linear.
-            * If Callable, produces a sample by calling noise_power_db_low()
-            * If int or float, noise_power_db_low is fixed at the value provided
-            * If list, noise_power_db_low is any element in the list
-            * If tuple, noise_power_db_low is in range of (tuple[0], tuple[1])
 
-        noise_power_db_high (:py:class:`~Callable`, :obj:`int`, :obj:`float`, :obj:`list`, :obj:`tuple`):
+        noise_power_db_high (:py:class:`~torchsig.types.RandomDistribution`):
             Defined as 10*log10(np.mean(np.abs(x)**2)/np.mean(np.abs(n)**2)) if in dB,
             np.mean(np.abs(x)**2)/np.mean(np.abs(n)**2) if linear.
-            * If Callable, produces a sample by calling noise_power_db_low()
-            * If int or float, noise_power_db_low is fixed at the value provided
-            * If list, noise_power_db_low is any element in the list
-            * If tuple, noise_power_db_low is in range of (tuple[0], tuple[1])
 
-        inflections (:py:class:`~Callable`, :obj:`int`, :obj:`float`, :obj:`list`, :obj:`tuple`):
+        inflections (:py:class:`~torchsig.types.RandomDistribution`):
             Number of inflection points in time-varying noise
-            * If Callable, produces a sample by calling inflections()
-            * If int or float, inflections is fixed at the value provided
-            * If list, inflections is any element in the list
-            * If tuple, inflections is in range of (tuple[0], tuple[1])
 
-        random_regions (:py:class:`~Callable`, :obj:`bool`, :obj:`list`, :obj:`tuple`):
+        random_regions (:py:class:`~torchsig.types.RandomDistribution`):
             If inflections > 0, random_regions specifies whether each
             inflection point should be randomly selected or evenly divided
             among input data
-            * If Callable, produces a sample by calling random_regions()
-            * If bool, random_regions is fixed at the value provided
-            * If list, random_regions is any element in the list
 
         linear (:obj:`bool`):
             If True, powers input are on linear scale not dB.
@@ -947,18 +937,20 @@ class TimeVaryingNoise(SignalTransform):
 
     def __init__(
         self,
-        noise_power_db_low: NumericParameter = uniform_continuous_distribution(-80, -60),
-        noise_power_db_high: NumericParameter = uniform_continuous_distribution(-40, -20),
-        inflections: IntParameter = uniform_continuous_distribution(0, 10),
+        noise_power_db_low: FloatParameter = UniformContinuousRD(-80, -60),
+        noise_power_db_high: FloatParameter = UniformContinuousRD(-40, -20),
+        inflections: IntParameter = UniformDiscreteRD(np.arange(0, 10, dtype=int)),
         random_regions: Union[List, bool] = True,
         linear: bool = False,
         **kwargs,
     ) -> None:
         super(TimeVaryingNoise, self).__init__(**kwargs)
-        self.noise_power_db_low = to_distribution(noise_power_db_low)
-        self.noise_power_db_high = to_distribution(noise_power_db_high)
-        self.inflections = to_distribution(inflections)
-        self.random_regions = to_distribution(random_regions)
+        self.noise_power_db_low = RandomDistribution.to_distribution(noise_power_db_low)
+        self.noise_power_db_high = RandomDistribution.to_distribution(
+            noise_power_db_high
+        )
+        self.inflections = RandomDistribution.to_distribution(inflections)
+        self.random_regions = RandomDistribution.to_distribution(random_regions)
         self.linear = linear
         self.string = (
             self.__class__.__name__
@@ -1047,11 +1039,7 @@ class RayleighFadingChannel(SignalTransform):
         inversely proportional to the maximum Doppler spread. This time variance is not included in this model.
 
     Args:
-        coherence_bandwidth (:py:class:`~Callable`, :obj:`int`, :obj:`float`, :obj:`list`, :obj:`tuple`):
-            * If Callable, produces a sample by calling coherence_bandwidth()
-            * If int or float, coherence_bandwidth is fixed at the value provided
-            * If list, coherence_bandwidth is any element in the list
-            * If tuple, coherence_bandwidth is in range of (tuple[0], tuple[1])
+        coherence_bandwidth (:py:class:`~torchsig.types.RandomDistribution`):
 
         power_delay_profile (:obj:`list`, :obj:`tuple`):
             A list of positive values assigning power to taps of the channel model. When the number of taps
@@ -1076,12 +1064,14 @@ class RayleighFadingChannel(SignalTransform):
 
     def __init__(
         self,
-        coherence_bandwidth: FloatParameter = uniform_continuous_distribution(0.01, 0.1),
+        coherence_bandwidth: FloatParameter = UniformContinuousRD(0.01, 0.1),
         power_delay_profile: Union[Tuple, List, np.ndarray] = (1, 1),
         **kwargs,
     ) -> None:
         super(RayleighFadingChannel, self).__init__(**kwargs)
-        self.coherence_bandwidth = to_distribution(coherence_bandwidth, self.random_generator)
+        self.coherence_bandwidth = RandomDistribution.to_distribution(
+            coherence_bandwidth
+        )
         self.power_delay_profile = np.asarray(power_delay_profile)
         self.string = (
             self.__class__.__name__
@@ -1102,7 +1092,9 @@ class RayleighFadingChannel(SignalTransform):
                 data.iq_data, coherence_bandwidth, self.power_delay_profile
             )
         else:
-            data = F.rayleigh_fading(data, coherence_bandwidth, self.power_delay_profile)
+            data = F.rayleigh_fading(
+                data, coherence_bandwidth, self.power_delay_profile
+            )
         return data
 
 
@@ -1110,29 +1102,21 @@ class ImpulseInterferer(SignalTransform):
     """Applies an impulse interferer
 
     Args:
-        amp (:py:class:`~Callable`, :obj:`int`, :obj:`float`, :obj:`list`, :obj:`tuple`):
-            * If Callable, produces a sample by calling amp()
-            * If int or float, amp is fixed at the value provided
-            * If list, amp is any element in the list
-            * If tuple, amp is in range of (tuple[0], tuple[1])
+        amp (:py:class:`~torchsig.types.RandomDistribution`):
 
-        pulse_offset (:py:class:`~Callable`, :obj:`int`, :obj:`float`, :obj:`list`, :obj:`tuple`):
-            * If Callable, produces a sample by calling phase_offset()
-            * If int or float, pulse_offset is fixed at the value provided
-            * If list, phase_offset is any element in the list
-            * If tuple, phase_offset is in range of (tuple[0], tuple[1])
+        pulse_offset (:py:class:`~torchsig.types.RandomDistribution`):
 
     """
 
     def __init__(
         self,
-        amp: FloatParameter = uniform_continuous_distribution(0.1, 100.0),
-        pulse_offset: FloatParameter = uniform_continuous_distribution(0.0, 1),
+        amp: FloatParameter = UniformContinuousRD(0.1, 100.0),
+        pulse_offset: FloatParameter = UniformContinuousRD(0.0, 1),
         **kwargs,
     ) -> None:
         super(ImpulseInterferer, self).__init__(**kwargs)
-        self.amp = to_distribution(amp, self.random_generator)
-        self.pulse_offset = to_distribution(pulse_offset, self.random_generator)
+        self.amp = RandomDistribution.to_distribution(amp)
+        self.pulse_offset = RandomDistribution.to_distribution(pulse_offset)
         self.string = (
             self.__class__.__name__
             + "("
@@ -1150,7 +1134,9 @@ class ImpulseInterferer(SignalTransform):
         pulse_offset = 1.0 if pulse_offset > 1.0 else np.max((0.0, pulse_offset))
         if isinstance(data, SignalData):
             assert data.iq_data is not None
-            data.iq_data = F.impulsive_interference(data.iq_data, amp, self.pulse_offset)
+            data.iq_data = F.impulsive_interference(
+                data.iq_data, amp, self.pulse_offset
+            )
         else:
             data = F.impulsive_interference(data, amp, self.pulse_offset)
         return data
@@ -1160,16 +1146,12 @@ class RandomPhaseShift(SignalTransform):
     """Applies a random phase offset to tensor
 
     Args:
-        phase_offset (:py:class:`~Callable`, :obj:`int`, :obj:`float`, :obj:`list`, :obj:`tuple`):
-            * If Callable, produces a sample by calling phase_offset()
-            * If int or float, phase_offset is fixed at the value provided
-            * If list, phase_offset is any element in the list
-            * If tuple, phase_offset is in range of (tuple[0], tuple[1])
+        phase_offset (:py:class:`~torchsig.types.RandomDistribution`):
 
     Example:
         >>> import torchsig.transforms as ST
         >>> # Phase Offset in range [-pi, pi]
-        >>> transform = ST.RandomPhaseShift(uniform_continuous_distribution(-1, 1))
+        >>> transform = ST.RandomPhaseShift(UniformContinuousRD(-1, 1))
         >>> # Phase Offset from [-pi/2, 0, and pi/2]
         >>> transform = ST.RandomPhaseShift(uniform_discrete_distribution([-.5, 0, .5]))
         >>> # Phase Offset in range [-pi, pi]
@@ -1182,12 +1164,14 @@ class RandomPhaseShift(SignalTransform):
 
     def __init__(
         self,
-        phase_offset: FloatParameter = uniform_continuous_distribution(-1, 1),
+        phase_offset: FloatParameter = UniformContinuousRD(-1, 1),
         **kwargs,
     ) -> None:
         super(RandomPhaseShift, self).__init__(**kwargs)
-        self.phase_offset = to_distribution(phase_offset, self.random_generator)
-        self.string = self.__class__.__name__ + "(" + "phase_offset={}".format(phase_offset) + ")"
+        self.phase_offset = RandomDistribution.to_distribution(phase_offset)
+        self.string = (
+            self.__class__.__name__ + "(" + "phase_offset={}".format(phase_offset) + ")"
+        )
 
     def __repr__(self) -> str:
         return self.string
@@ -1397,6 +1381,16 @@ class Spectrogram(SignalTransform):
             Length of the FFT used, if a zero padded FFT is desired.
             If None, the FFT length is nperseg.
 
+        detrend : str or function or False, optional
+            Specifies how to detrend each segment. If detrend is a string, it is passed as the type
+            argument to the detrend function. If it is a function, it takes a segment and returns a
+            detrended segment. If detrend is False, no detrending is done. Defaults to ‘constant’.
+
+        scaling : { ‘density’, ‘spectrum’ }, optional
+            Selects between computing the power spectral density (‘density’) where Sxx has units of
+            V**2/Hz and computing the power spectrum (‘spectrum’) where Sxx has units of V**2, if
+            x is measured in V and fs is measured in Hz. Defaults to ‘density’.
+
         window_fcn (:obj:`str`):
             Window to be used in spectrogram operation.
             Default value is 'np.blackman'.
@@ -1417,6 +1411,8 @@ class Spectrogram(SignalTransform):
         >>> transform = ST.Spectrogram(nperseg=128, noverlap=64, nfft=256)
         >>> # Spectrogram with seg_size=128, overlap=64, nfft=128, window=rectangular
         >>> transform = ST.Spectrogram(nperseg=128, noverlap=64, nfft=256, window_fcn=np.ones)
+        >>> # Spectrogram with seg_size=128, overlap=64, nfft=128, window=rectangular, detrend=constant, scaling=density
+        >>> transform = ST.Spectrogram(nperseg=128, noverlap=64, nfft=256, window_fcn=np.ones, detrend='constant', scaling='density')
 
     """
 
@@ -1425,6 +1421,8 @@ class Spectrogram(SignalTransform):
         nperseg: int = 256,
         noverlap: Optional[int] = None,
         nfft: Optional[int] = None,
+        detrend: Optional[str] = "constant",
+        scaling: Optional[str] = "density",
         window_fcn: Callable[[int], np.ndarray] = np.blackman,
         mode: str = "psd",
     ) -> None:
@@ -1432,6 +1430,8 @@ class Spectrogram(SignalTransform):
         self.nperseg: int = nperseg
         self.noverlap: int = nperseg // 4 if noverlap is None else noverlap
         self.nfft: int = nperseg if nfft is None else nfft
+        self.detrend: Optional[str] = None if detrend is None else detrend
+        self.scaling: Optional[str] = None if scaling is None else scaling
         self.window_fcn = window_fcn
         self.mode = mode
         self.string = (
@@ -1440,6 +1440,8 @@ class Spectrogram(SignalTransform):
             + "nperseg={}, ".format(nperseg)
             + "noverlap={}, ".format(self.noverlap)
             + "nfft={}, ".format(self.nfft)
+            + "detrend={}".format(self.detrend)
+            + "scaling={}".format(self.scaling)
             + "window_fcn={}, ".format(window_fcn)
             + "mode={}".format(mode)
             + ")"
@@ -1456,6 +1458,8 @@ class Spectrogram(SignalTransform):
                 self.nperseg,
                 self.noverlap,
                 self.nfft,
+                self.detrend,
+                self.scaling,
                 self.window_fcn,
                 self.mode,
             )
@@ -1468,10 +1472,19 @@ class Spectrogram(SignalTransform):
                 data.iq_data = new_tensor
         else:
             data = F.spectrogram(
-                data, self.nperseg, self.noverlap, self.nfft, self.window_fcn, self.mode
+                data,
+                self.nperseg,
+                self.noverlap,
+                self.nfft,
+                self.detrend,
+                self.scaling,
+                self.window_fcn,
+                self.mode,
             )
             if self.mode == "complex":
-                new_tensor = np.zeros((2, data.shape[0], data.shape[1]), dtype=np.float32)
+                new_tensor = np.zeros(
+                    (2, data.shape[0], data.shape[1]), dtype=np.float32
+                )
                 new_tensor[0, :, :] = np.real(data).astype(np.float32)
                 new_tensor[1, :, :] = np.imag(data).astype(np.float32)
                 data = new_tensor
@@ -1505,7 +1518,9 @@ class ContinuousWavelet(SignalTransform):
 
     """
 
-    def __init__(self, wavelet: str = "mexh", nscales: int = 33, sample_rate: float = 1.0) -> None:
+    def __init__(
+        self, wavelet: str = "mexh", nscales: int = 33, sample_rate: float = 1.0
+    ) -> None:
         super(ContinuousWavelet, self).__init__()
         self.wavelet = wavelet
         self.nscales = nscales
@@ -1553,7 +1568,9 @@ class ReshapeTransform(SignalTransform):
     def __init__(self, new_shape: Tuple, **kwargs) -> None:
         super(ReshapeTransform, self).__init__(**kwargs)
         self.new_shape = new_shape
-        self.string = self.__class__.__name__ + "(" + "new_shape={}".format(new_shape) + ")"
+        self.string = (
+            self.__class__.__name__ + "(" + "new_shape={}".format(new_shape) + ")"
+        )
 
     def __repr__(self) -> str:
         return self.string
@@ -1571,11 +1588,7 @@ class RandomTimeShift(SignalTransform):
     """Shifts tensor in the time dimension by shift samples. Zero-padding is applied to maintain input size.
 
     Args:
-        shift (:py:class:`~Callable`, :obj:`int`, :obj:`float`, :obj:`list`, :obj:`tuple`):
-            * If Callable, produces a sample by calling shift()
-            * If int or float, shift is fixed at the value provided
-            * If list, shift is any element in the list
-            * If tuple, shift is in range of (tuple[0], tuple[1])
+        shift (:py:class:`~torchsig.types.RandomDistribution`):
 
         interp_rate (:obj:`int`):
             Interpolation rate used by internal interpolation filter
@@ -1602,16 +1615,18 @@ class RandomTimeShift(SignalTransform):
 
     def __init__(
         self,
-        shift: NumericParameter = (-10, 10),
+        shift: FloatParameter = UniformContinuousRD(-10, 10),
         interp_rate: int = 100,
         taps_per_arm: int = 24,
     ) -> None:
         super(RandomTimeShift, self).__init__()
-        self.shift = to_distribution(shift, self.random_generator)
+        self.shift = RandomDistribution.to_distribution(shift)
         self.interp_rate = interp_rate
         num_taps = int(taps_per_arm * interp_rate)
         self.taps = (
-            signal.firwin(num_taps, 1.0 / interp_rate, 1.0 / interp_rate / 4.0, scale=True)
+            signal.firwin(
+                num_taps, 1.0 / interp_rate, 1.0 / interp_rate / 4.0, scale=True
+            )
             * interp_rate
         )
         self.string = (
@@ -1673,7 +1688,9 @@ class RandomTimeShift(SignalTransform):
                 new_signal_desc.start = (
                     0.0 if new_signal_desc.start < 0.0 else new_signal_desc.start
                 )
-                new_signal_desc.stop = 1.0 if new_signal_desc.stop > 1.0 else new_signal_desc.stop
+                new_signal_desc.stop = (
+                    1.0 if new_signal_desc.stop > 1.0 else new_signal_desc.stop
+                )
                 new_signal_desc.duration = new_signal_desc.stop - new_signal_desc.start
                 if new_signal_desc.start > 1.0 or new_signal_desc.stop < 0.0:
                     continue
@@ -1797,7 +1814,9 @@ class TimeCrop(SignalTransform):
                 new_signal_desc.start = (
                     0.0 if new_signal_desc.start < 0.0 else new_signal_desc.start
                 )
-                new_signal_desc.stop = 1.0 if new_signal_desc.stop > 1.0 else new_signal_desc.stop
+                new_signal_desc.stop = (
+                    1.0 if new_signal_desc.stop > 1.0 else new_signal_desc.stop
+                )
                 new_signal_desc.duration = new_signal_desc.stop - new_signal_desc.start
                 new_signal_desc.num_iq_samples = self.length
                 if new_signal_desc.start > 1.0 or new_signal_desc.stop < 0.0:
@@ -1832,7 +1851,9 @@ class TimeReversal(SignalTransform):
     ) -> None:
         super(TimeReversal, self).__init__()
         if isinstance(undo_spectral_inversion, bool):
-            self.undo_spectral_inversion: float = 1.0 if undo_spectral_inversion else 0.0
+            self.undo_spectral_inversion: float = (
+                1.0 if undo_spectral_inversion else 0.0
+            )
         else:
             self.undo_spectral_inversion = undo_spectral_inversion
         self.string = (
@@ -1940,11 +1961,7 @@ class RandomFrequencyShift(SignalTransform):
     """Shifts each tensor in freq by freq_shift along the time dimension.
 
     Args:
-        freq_shift (:py:class:`~Callable`, :obj:`int`, :obj:`float`, :obj:`list`, :obj:`tuple`):
-            * If Callable, produces a sample by calling freq_shift()
-            * If int or float, freq_shift is fixed at the value provided
-            * If list, freq_shift is any element in the list
-            * If tuple, freq_shift is in range of (tuple[0], tuple[1])
+        freq_shift (:py:class:`~torchsig.types.RandomDistribution`):
 
     Example:
         >>> import torchsig.transforms as ST
@@ -1959,10 +1976,14 @@ class RandomFrequencyShift(SignalTransform):
 
     """
 
-    def __init__(self, freq_shift: NumericParameter = (-0.5, 0.5)) -> None:
+    def __init__(
+        self, freq_shift: FloatParameter = UniformContinuousRD(-0.5, 0.5)
+    ) -> None:
         super(RandomFrequencyShift, self).__init__()
-        self.freq_shift = to_distribution(freq_shift, self.random_generator)
-        self.string = self.__class__.__name__ + "(" + "freq_shift={}".format(freq_shift) + ")"
+        self.freq_shift = RandomDistribution.to_distribution(freq_shift)
+        self.string = (
+            self.__class__.__name__ + "(" + "freq_shift={}".format(freq_shift) + ")"
+        )
 
     def __repr__(self) -> str:
         return self.string
@@ -2070,30 +2091,18 @@ class RandomDelayedFrequencyShift(SignalTransform):
     """Apply a delayed frequency shift to the input data
 
     Args:
-         start_shift (:py:class:`~Callable`, :obj:`int`, :obj:`float`, :obj:`list`, :obj:`tuple`):
-            start_shift sets the start time of the delayed shift
-            * If Callable, produces a sample by calling start_shift()
-            * If int, start_shift is fixed at the value provided
-            * If list, start_shift is any element in the list
-            * If tuple, start_shift is in range of (tuple[0], tuple[1])
-
-        freq_shift (:py:class:`~Callable`, :obj:`int`, :obj:`float`, :obj:`list`, :obj:`tuple`):
-            freq_shift sets the translation along the freq-axis
-            * If Callable, produces a sample by calling freq_shift()
-            * If int, freq_shift is fixed at the value provided
-            * If list, freq_shift is any element in the list
-            * If tuple, freq_shift is in range of (tuple[0], tuple[1])
-
+        start_shift (:py:class:`~RandomDistribution`):
+        freq_shift (:py:class:`~RandomDistribution`):
     """
 
     def __init__(
         self,
-        start_shift: FloatParameter = (0.1, 0.9),
-        freq_shift: FloatParameter = (-0.2, 0.2),
+        start_shift: FloatParameter = UniformContinuousRD(0.1, 0.9),
+        freq_shift: FloatParameter = UniformContinuousRD(-0.2, 0.2),
     ) -> None:
         super(RandomDelayedFrequencyShift, self).__init__()
-        self.start_shift = to_distribution(start_shift, self.random_generator)
-        self.freq_shift = to_distribution(freq_shift, self.random_generator)
+        self.start_shift = RandomDistribution.to_distribution(start_shift)
+        self.freq_shift = RandomDistribution.to_distribution(freq_shift)
         self.string = (
             self.__class__.__name__
             + "("
@@ -2106,9 +2115,9 @@ class RandomDelayedFrequencyShift(SignalTransform):
         return self.string
 
     def __call__(self, data: Any) -> Any:
-        start_shift = self.start_shift()
+        start_shift: float = self.start_shift()
         # Randomly generate a freq shift that is not near the original fc
-        freq_shift = 0
+        freq_shift: float = 0.0
         while freq_shift < 0.05 and freq_shift > -0.05:
             freq_shift = self.freq_shift()
 
@@ -2258,7 +2267,9 @@ class RandomDelayedFrequencyShift(SignalTransform):
             # Perform augmentation
             if avoid_aliasing:
                 # If any potential aliasing detected, perform shifting at higher sample rate
-                new_data.iq_data[int(start_shift * num_iq_samples) :] = F.freq_shift_avoid_aliasing(
+                new_data.iq_data[
+                    int(start_shift * num_iq_samples) :
+                ] = F.freq_shift_avoid_aliasing(
                     data.iq_data[int(start_shift * num_iq_samples) :], freq_shift
                 )
             else:
@@ -2276,21 +2287,21 @@ class LocalOscillatorDrift(SignalTransform):
 
     Args:
         max_drift (FloatParameter, optional):
-            [description]. Defaults to uniform_continuous_distribution(0.005,0.015).
+            [description]. Defaults to UniformContinuousRD(0.005,0.015).
         max_drift_rate (FloatParameter, optional):
-            [description]. Defaults to uniform_continuous_distribution(0.001,0.01).
+            [description]. Defaults to UniformContinuousRD(0.001,0.01).
 
     """
 
     def __init__(
         self,
-        max_drift: FloatParameter = uniform_continuous_distribution(0.005, 0.015),
-        max_drift_rate: FloatParameter = uniform_continuous_distribution(0.001, 0.01),
+        max_drift: FloatParameter = UniformContinuousRD(0.005, 0.015),
+        max_drift_rate: FloatParameter = UniformContinuousRD(0.001, 0.01),
         **kwargs,
     ) -> None:
         super(LocalOscillatorDrift, self).__init__(**kwargs)
-        self.max_drift = to_distribution(max_drift, self.random_generator)
-        self.max_drift_rate = to_distribution(max_drift_rate, self.random_generator)
+        self.max_drift = RandomDistribution.to_distribution(max_drift)
+        self.max_drift_rate = RandomDistribution.to_distribution(max_drift_rate)
         self.string = (
             self.__class__.__name__
             + "("
@@ -2310,7 +2321,7 @@ class LocalOscillatorDrift(SignalTransform):
         assert iq_data is not None
 
         # Apply drift as a random walk.
-        random_walk = self.random_generator.choice([-1, 1], size=iq_data.shape[0])
+        random_walk = RandomDistribution.rng.choice([-1, 1], size=iq_data.shape[0])
 
         # limit rate of change to at most 1/max_drift_rate times the length of the data sample
         frequency = np.cumsum(random_walk) * max_drift_rate / np.sqrt(iq_data.shape[0])
@@ -2371,25 +2382,25 @@ class GainDrift(SignalTransform):
 
     Args:
         max_drift (FloatParameter, optional):
-            [description]. Defaults to uniform_continuous_distribution(0.005,0.015).
+            [description]. Defaults to UniformContinuousRD(0.005,0.015).
         min_drift (FloatParameter, optional):
-            [description]. Defaults to uniform_continuous_distribution(0.005,0.015).
+            [description]. Defaults to UniformContinuousRD(0.005,0.015).
         drift_rate (FloatParameter, optional):
-            [description]. Defaults to uniform_continuous_distribution(0.001,0.01).
+            [description]. Defaults to UniformContinuousRD(0.001,0.01).
 
     """
 
     def __init__(
         self,
-        max_drift: FloatParameter = uniform_continuous_distribution(0.005, 0.015),
-        min_drift: FloatParameter = uniform_continuous_distribution(0.005, 0.015),
-        drift_rate: FloatParameter = uniform_continuous_distribution(0.001, 0.01),
+        max_drift: FloatParameter = UniformContinuousRD(0.005, 0.015),
+        min_drift: FloatParameter = UniformContinuousRD(0.005, 0.015),
+        drift_rate: FloatParameter = UniformContinuousRD(0.001, 0.01),
         **kwargs,
     ) -> None:
         super(GainDrift, self).__init__(**kwargs)
-        self.max_drift = to_distribution(max_drift, self.random_generator)
-        self.min_drift = to_distribution(min_drift, self.random_generator)
-        self.drift_rate = to_distribution(drift_rate, self.random_generator)
+        self.max_drift = RandomDistribution.to_distribution(max_drift)
+        self.min_drift = RandomDistribution.to_distribution(min_drift)
+        self.drift_rate = RandomDistribution.to_distribution(drift_rate)
         self.string = (
             self.__class__.__name__
             + "("
@@ -2411,7 +2422,7 @@ class GainDrift(SignalTransform):
         assert iq_data is not None
 
         # Apply drift as a random walk.
-        random_walk = self.random_generator.choice([-1, 1], size=iq_data.shape[0])
+        random_walk = RandomDistribution.rng.choice([-1, 1], size=iq_data.shape[0])
 
         # limit rate of change to at most 1/max_drift_rate times the length of the data sample
         gain = np.cumsum(random_walk) * drift_rate / np.sqrt(iq_data.shape[0])
@@ -2447,12 +2458,8 @@ class AutomaticGainControl(SignalTransform):
     """Automatic gain control (AGC) implementation
 
     Args:
-        rand_scale (:py:class:`~Callable`, :obj:`int`, :obj:`float`, :obj:`list`, :obj:`tuple`):
+        rand_scale (:py:class:`~torchsig.types.RandomDistribution`):
             Random scaling of alpha values
-            * If Callable, produces a sample by calling rand_scale()
-            * If int or float, rand_scale is fixed at the value provided
-            * If list, rand_scale is any element in the list
-            * If tuple, rand_scale is in range of (tuple[0], tuple[1])
 
         initial_gain_db (:obj:`float`):
             Initial gain value in linear units
@@ -2501,7 +2508,7 @@ class AutomaticGainControl(SignalTransform):
         high_level_db: float = 6.0,
     ) -> None:
         super(AutomaticGainControl, self).__init__()
-        self.rand_scale = to_distribution(rand_scale, self.random_generator)
+        self.rand_scale = RandomDistribution.to_distribution(rand_scale)
         self.initial_gain_db = initial_gain_db
         self.alpha_smooth = alpha_smooth
         self.alpha_overflow = alpha_overflow
@@ -2547,7 +2554,9 @@ class AutomaticGainControl(SignalTransform):
             self.alpha_smooth / rand_scale, self.alpha_smooth * rand_scale, 1
         )
 
-        ref_level_db = np.random.uniform(-0.5 + self.ref_level_db, 0.5 + self.ref_level_db, 1)
+        ref_level_db = np.random.uniform(
+            -0.5 + self.ref_level_db, 0.5 + self.ref_level_db, 1
+        )
 
         iq_data = F.agc(
             np.ascontiguousarray(iq_data, dtype=np.complex64),
@@ -2581,23 +2590,11 @@ class IQImbalance(SignalTransform):
     """Applies various types of IQ imbalance to a tensor
 
     Args:
-        iq_amplitude_imbalance_db (:py:class:`~Callable`, :obj:`int`, :obj:`float`, :obj:`list`, :obj:`tuple`):
-            * If Callable, produces a sample by calling iq_amplitude_imbalance()
-            * If int or float, iq_amplitude_imbalance is fixed at the value provided
-            * If list, iq_amplitude_imbalance is any element in the list
-            * If tuple, iq_amplitude_imbalance is in range of (tuple[0], tuple[1])
+        iq_amplitude_imbalance_db (:py:class:`~torchsig.types.RandomDistribution`):
 
-        iq_phase_imbalance (:py:class:`~Callable`, :obj:`int`, :obj:`float`, :obj:`list`, :obj:`tuple`):
-            * If Callable, produces a sample by calling iq_phase_imbalance()
-            * If int or float, iq_phase_imbalance is fixed at the value provided
-            * If list, iq_phase_imbalance is any element in the list
-            * If tuple, iq_phase_imbalance is in range of (tuple[0], tuple[1])
+        iq_phase_imbalance (:py:class:`~torchsig.types.RandomDistribution`):
 
-        iq_dc_offset_db (:py:class:`~Callable`, :obj:`int`, :obj:`float`, :obj:`list`, :obj:`tuple`):
-            * If Callable, produces a sample by calling iq_dc_offset()
-            * If int or float, iq_dc_offset_db is fixed at the value provided
-            * If list, iq_dc_offset is any element in the list
-            * If tuple, iq_dc_offset is in range of (tuple[0], tuple[1])
+        iq_dc_offset_db (:py:class:`~torchsig.types.RandomDistribution`):
 
     Note:
         For more information about IQ imbalance in RF systems, check out
@@ -2612,17 +2609,18 @@ class IQImbalance(SignalTransform):
 
     def __init__(
         self,
-        iq_amplitude_imbalance_db: NumericParameter = (0, 3),
-        iq_phase_imbalance: NumericParameter = (
-            -np.pi * 1.0 / 180.0,
-            np.pi * 1.0 / 180.0,
+        iq_amplitude_imbalance_db=UniformContinuousRD(0, 3),
+        iq_phase_imbalance=UniformContinuousRD(
+            -np.pi * 1.0 / 180.0, np.pi * 1.0 / 180.0
         ),
-        iq_dc_offset_db: NumericParameter = (-0.1, 0.1),
+        iq_dc_offset_db=UniformContinuousRD(-0.1, 0.1),
     ) -> None:
         super(IQImbalance, self).__init__()
-        self.amp_imbalance = to_distribution(iq_amplitude_imbalance_db, self.random_generator)
-        self.phase_imbalance = to_distribution(iq_phase_imbalance, self.random_generator)
-        self.dc_offset = to_distribution(iq_dc_offset_db, self.random_generator)
+        self.amp_imbalance = RandomDistribution.to_distribution(
+            iq_amplitude_imbalance_db
+        )
+        self.phase_imbalance = RandomDistribution.to_distribution(iq_phase_imbalance)
+        self.dc_offset = RandomDistribution.to_distribution(iq_dc_offset_db)
         self.string = (
             self.__class__.__name__
             + "("
@@ -2642,7 +2640,9 @@ class IQImbalance(SignalTransform):
 
         if isinstance(data, SignalData):
             assert data.iq_data is not None
-            data.iq_data = F.iq_imbalance(data.iq_data, amp_imbalance, phase_imbalance, dc_offset)
+            data.iq_data = F.iq_imbalance(
+                data.iq_data, amp_imbalance, phase_imbalance, dc_offset
+            )
         else:
             data = F.iq_imbalance(data, amp_imbalance, phase_imbalance, dc_offset)
         return data
@@ -2652,53 +2652,25 @@ class RollOff(SignalTransform):
     """Applies a band-edge RF roll-off effect simulating front end filtering
 
     Args:
-        low_freq (:py:class:`~Callable`, :obj:`int`, :obj:`float`, :obj:`list`, :obj:`tuple`):
-            * If Callable, produces a sample by calling low_freq()
-            * If int or float, low_freq is fixed at the value provided
-            * If list, low_freq is any element in the list
-            * If tuple, low_freq is in range of (tuple[0], tuple[1])
+        cutoff (:py:class:`~torchsig.types.RandomDistribution`):
 
-        upper_freq (:py:class:`~Callable`, :obj:`int`, :obj:`float`, :obj:`list`, :obj:`tuple`):
-            * If Callable, produces a sample by calling upper_freq()
-            * If int or float, upper_freq is fixed at the value provided
-            * If list, upper_freq is any element in the list
-            * If tuple, upper_freq is in range of (tuple[0], tuple[1])
-
-        low_cut_apply (:obj:`float`):
-            Probability that the low frequency provided above is applied
-
-        upper_cut_apply (:obj:`float`):
-            Probability that the upper frequency provided above is applied
-
-        order (:py:class:`~Callable`, :obj:`int`, :obj:`float`, :obj:`list`, :obj:`tuple`):
-            * If Callable, produces a sample by calling order()
-            * If int or float, order is fixed at the value provided
-            * If list, order is any element in the list
-            * If tuple, order is in range of (tuple[0], tuple[1])
+        cfo (:py:class:`~torchsig.types.RandomDistribution`):
 
     """
 
     def __init__(
         self,
-        low_freq: NumericParameter = (0.00, 0.05),
-        upper_freq: NumericParameter = (0.95, 1.00),
-        low_cut_apply: float = 0.5,
-        upper_cut_apply: float = 0.5,
-        order: NumericParameter = (6, 20),
+        cutoff: FloatParameter = UniformContinuousRD(0.25, 0.5),
+        cfo: FloatParameter = UniformContinuousRD(-0.1, 0.1),
     ) -> None:
         super(RollOff, self).__init__()
-        self.low_freq = to_distribution(low_freq, self.random_generator)
-        self.upper_freq = to_distribution(upper_freq, self.random_generator)
-        self.low_cut_apply = low_cut_apply
-        self.upper_cut_apply = upper_cut_apply
-        self.order = to_distribution(order, self.random_generator)
+        self.cutoff = RandomDistribution.to_distribution(cutoff)
+        self.cfo = RandomDistribution.to_distribution(cfo)
         self.string = (
             self.__class__.__name__
             + "("
-            + "low_freq={}, ".format(low_freq)
-            + "upper_freq={}, ".format(upper_freq)
-            + "upper_cut_apply={}, ".format(upper_cut_apply)
-            + "order={}".format(order)
+            + "cutoff={}, ".format(cutoff)
+            + "cfo={}, ".format(cfo)
             + ")"
         )
 
@@ -2706,14 +2678,11 @@ class RollOff(SignalTransform):
         return self.string
 
     def __call__(self, data: Any) -> Any:
-        low_freq = self.low_freq() if np.random.rand() < self.low_cut_apply else 0.0
-        upper_freq = self.upper_freq() if np.random.rand() < self.upper_cut_apply else 1.0
-        order = self.order()
         if isinstance(data, SignalData):
             assert data.iq_data is not None
-            data.iq_data = F.roll_off(data.iq_data, low_freq, upper_freq, int(order))
+            data.iq_data = F.roll_off(data.iq_data, self.cutoff(), self.cfo())
         else:
-            data = F.roll_off(data, low_freq, upper_freq, int(order))
+            data = F.roll_off(data, self.cutoff(), self.cfo())
         return data
 
 
@@ -2853,30 +2822,22 @@ class RandomMagRescale(SignalTransform):
     gain control
 
     Args:
-         start (:py:class:`~Callable`, :obj:`int`, :obj:`float`, :obj:`list`, :obj:`tuple`):
+        start (:py:class:`~torchsig.types.RandomDistribution`):
             start sets the time when the rescaling kicks in
-            * If Callable, produces a sample by calling start()
-            * If int or float, start is fixed at the value provided
-            * If list, start is any element in the list
-            * If tuple, start is in range of (tuple[0], tuple[1])
 
-        scale (:py:class:`~Callable`, :obj:`int`, :obj:`float`, :obj:`list`, :obj:`tuple`):
+        scale (:py:class:`~torchsig.types.RandomDistribution`):
             scale sets the magnitude of the rescale
-            * If Callable, produces a sample by calling scale()
-            * If int or float, scale is fixed at the value provided
-            * If list, scale is any element in the list
-            * If tuple, scale is in range of (tuple[0], tuple[1])
 
     """
 
     def __init__(
         self,
-        start: NumericParameter = (0.0, 0.9),
-        scale: NumericParameter = (-4.0, 4.0),
+        start: FloatParameter = UniformContinuousRD(0.0, 0.9),
+        scale: FloatParameter = UniformContinuousRD(-4.0, 4.0),
     ) -> None:
         super(RandomMagRescale, self).__init__()
-        self.start = to_distribution(start, self.random_generator)
-        self.scale = to_distribution(scale, self.random_generator)
+        self.start = RandomDistribution.to_distribution(start)
+        self.scale = RandomDistribution.to_distribution(scale)
         self.string = (
             self.__class__.__name__
             + "("
@@ -2922,38 +2883,27 @@ class RandomDropSamples(SignalTransform):
     `TSAug Dropout Transform <https://github.com/arundo/tsaug/blob/master/src/tsaug/_augmenter/dropout.py>`_.
 
     Args:
-         drop_rate (:py:class:`~Callable`, :obj:`int`, :obj:`float`, :obj:`list`, :obj:`tuple`):
+         drop_rate (:py:class:`~torchsig.types.RandomDistribution`):
             drop_rate sets the rate at which to drop samples
-            * If Callable, produces a sample by calling drop_rate()
-            * If int or float, drop_rate is fixed at the value provided
-            * If list, drop_rate is any element in the list
-            * If tuple, drop_rate is in range of (tuple[0], tuple[1])
 
-        size (:py:class:`~Callable`, :obj:`int`, :obj:`float`, :obj:`list`, :obj:`tuple`):
+        size (:py:class:`~torchsig.types.RandomDistribution`):
             size sets the size of each instance of dropped samples
-            * If Callable, produces a sample by calling size()
-            * If int or float, size is fixed at the value provided
-            * If list, size is any element in the list
-            * If tuple, size is in range of (tuple[0], tuple[1])
 
         fill (:py:class:`~Callable`, :obj:`list`, :obj:`str`):
             fill sets the method of how the dropped samples should be filled
-            * If Callable, produces a sample by calling fill()
-            * If list, fill is any element in the list
-            * If str, fill is fixed at the method provided
 
     """
 
     def __init__(
         self,
-        drop_rate: NumericParameter = (0.01, 0.05),
-        size: NumericParameter = (1, 10),
+        drop_rate: FloatParameter = UniformContinuousRD(0.01, 0.05),
+        size: IntParameter = UniformDiscreteRD(np.arange(1, 10, dtype=int)),
         fill: List[str] = (["ffill", "bfill", "mean", "zero"]),
     ) -> None:
         super(RandomDropSamples, self).__init__()
-        self.drop_rate = to_distribution(drop_rate, self.random_generator)
-        self.size = to_distribution(size, self.random_generator)
-        self.fill = to_distribution(fill, self.random_generator)
+        self.drop_rate = RandomDistribution.to_distribution(drop_rate)
+        self.size = RandomDistribution.to_distribution(size)
+        self.fill = RandomDistribution.to_distribution(fill)
         self.string = (
             self.__class__.__name__
             + "("
@@ -2987,7 +2937,9 @@ class RandomDropSamples(SignalTransform):
                 1, data.iq_data.shape[0] - max(drop_sizes) - 1, drop_instances
             ).astype(int)
 
-            new_data.iq_data = F.drop_samples(data.iq_data, drop_starts, drop_sizes, fill)
+            new_data.iq_data = F.drop_samples(
+                data.iq_data, drop_starts, drop_sizes, fill
+            )
             return new_data
 
         else:
@@ -3005,29 +2957,25 @@ class Quantize(SignalTransform):
     """Quantize the input to the number of levels specified
 
     Args:
-         num_levels (:py:class:`~Callable`, :obj:`int`, :obj:`float`, :obj:`list`, :obj:`tuple`):
+         num_levels (:py:class:`~torchsig.types.RandomDistribution`):
             num_levels sets the number of quantization levels
-            * If Callable, produces a sample by calling num_levels()
-            * If int or float, num_levels is fixed at the value provided
-            * If list, num_levels is any element in the list
-            * If tuple, num_levels is in range of (tuple[0], tuple[1])
 
         round_type (:py:class:`~Callable`, :obj:`str`, :obj:`list`):
             round_type sets the rounding direction of the quantization. Options
             include: 'floor', 'middle', & 'ceiling'
-            * If Callable, produces a sample by calling round_type()
-            * If str, round_type is fixed at the value provided
-            * If list, round_type is any element in the list
+
     """
 
     def __init__(
         self,
-        num_levels: NumericParameter = ([16, 24, 32, 40, 48, 56, 64]),
+        num_levels: IntParameter = UniformDiscreteRD(
+            np.asarray([16, 24, 32, 40, 48, 56, 64], dtype=int)
+        ),
         round_type: List[str] = (["floor", "middle", "ceiling"]),
     ) -> None:
         super(Quantize, self).__init__()
-        self.num_levels = to_distribution(num_levels, self.random_generator)
-        self.round_type = to_distribution(round_type, self.random_generator)
+        self.num_levels = RandomDistribution.to_distribution(num_levels)
+        self.round_type = RandomDistribution.to_distribution(round_type)
         self.string = (
             self.__class__.__name__
             + "("
@@ -3065,24 +3013,24 @@ class Clip(SignalTransform):
     """Clips the input values to a percentage of the max/min values
 
     Args:
-        clip_percentage (:py:class:`~Callable`, :obj:`int`, :obj:`float`, :obj:`list`, :obj:`tuple`):
+        clip_percentage (:py:class:`~torchsig.types.RandomDistribution`):
             Specifies the percentage of the max/min values to clip
-            * If Callable, produces a sample by calling clip_percentage()
-            * If int or float, clip_percentage is fixed at the value provided
-            * If list, clip_percentage is any element in the list
-            * If tuple, clip_percentage is in range of (tuple[0], tuple[1])
+
 
     """
 
     def __init__(
         self,
-        clip_percentage: NumericParameter = (0.75, 0.95),
+        clip_percentage: FloatParameter = UniformContinuousRD(0.75, 0.95),
         **kwargs,
     ) -> None:
         super(Clip, self).__init__(**kwargs)
-        self.clip_percentage = to_distribution(clip_percentage)
+        self.clip_percentage = RandomDistribution.to_distribution(clip_percentage)
         self.string = (
-            self.__class__.__name__ + "(" + "clip_percentage={}".format(clip_percentage) + ")"
+            self.__class__.__name__
+            + "("
+            + "clip_percentage={}".format(clip_percentage)
+            + ")"
         )
 
     def __repr__(self) -> str:
@@ -3114,35 +3062,28 @@ class RandomConvolve(SignalTransform):
     """Convolve a random complex filter with the input data
 
     Args:
-        num_taps (:py:class:`~Callable`, :obj:`int`, :obj:`float`, :obj:`list`, :obj:`tuple`):
+        num_taps (:py:class:`~torchsig.types.RandomDistribution`):
             Number of taps for the random filter
-            * If Callable, produces a sample by calling num_taps()
-            * If int or float, num_taps is fixed at the value provided
-            * If list, num_taps is any element in the list
-            * If tuple, num_taps is in range of (tuple[0], tuple[1])
 
-        alpha (:py:class:`~Callable`, :obj:`int`, :obj:`float`, :obj:`list`, :obj:`tuple`):
+
+        alpha (:py:class:`~torchsig.types.RandomDistribution`):
             The effect of the filtered data is dampened using an alpha factor
             that determines the weightings for the summing of the filtered data
             and the original data. `alpha` should be in range `[0,1]` where a
             value of 0 applies all of the weight to the original data, and a
             value of 1 applies all of the weight to the filtered data
-            * If Callable, produces a sample by calling alpha()
-            * If int or float, alpha is fixed at the value provided
-            * If list, alpha is any element in the list
-            * If tuple, alpha is in range of (tuple[0], tuple[1])
 
     """
 
     def __init__(
         self,
-        num_taps: IntParameter = (2, 5),
-        alpha: FloatParameter = (0.1, 0.5),
+        num_taps: IntParameter = UniformDiscreteRD(np.arange(2, 5, dtype=int)),
+        alpha: FloatParameter = UniformContinuousRD(0.1, 0.5),
         **kwargs,
     ) -> None:
         super(RandomConvolve, self).__init__(**kwargs)
-        self.num_taps = to_distribution(num_taps, self.random_generator)
-        self.alpha = to_distribution(alpha, self.random_generator)
+        self.num_taps = RandomDistribution.to_distribution(num_taps)
+        self.alpha = RandomDistribution.to_distribution(alpha)
         self.string = (
             self.__class__.__name__
             + "("
@@ -3197,13 +3138,10 @@ class DatasetBasebandMixUp(SignalTransform):
             A SignalDataset of complex-valued examples to be used as a source for
             the synthetic insertion/mixup
 
-        alpha (:py:class:`~Callable`, :obj:`int`, :obj:`float`, :obj:`list`, :obj:`tuple`):
+        alpha (:py:class:`~torchsig.types.RandomDistribution`):
             alpha sets the difference in power level between the main dataset
             example and the inserted example
-            * If Callable, produces a sample by calling target_snr()
-            * If int or float, target_snr is fixed at the value provided
-            * If list, target_snr is any element in the list
-            * If tuple, target_snr is in range of (tuple[0], tuple[1])
+
 
     Example:
         >>> import torchsig.transforms as ST
@@ -3224,10 +3162,10 @@ class DatasetBasebandMixUp(SignalTransform):
     def __init__(
         self,
         dataset: SignalDataset,
-        alpha: NumericParameter = (-5, -3),
+        alpha: FloatParameter = UniformContinuousRD(-5, -3),
     ) -> None:
         super(DatasetBasebandMixUp, self).__init__()
-        self.alpha = to_distribution(alpha, self.random_generator)
+        self.alpha = RandomDistribution.to_distribution(alpha)
         self.dataset = dataset
         self.dataset_num_samples = len(dataset)
         self.string = (
@@ -3343,13 +3281,10 @@ class DatasetBasebandCutMix(SignalTransform):
             An SignalDataset of complex-valued examples to be used as a source for
             the synthetic insertion/mixup
 
-        alpha (:py:class:`~Callable`, :obj:`int`, :obj:`float`, :obj:`list`, :obj:`tuple`):
+        alpha (:py:class:`~torchsig.types.RandomDistribution`):
             alpha sets the difference in power level between the main dataset
             example and the inserted example
-            * If Callable, produces a sample by calling target_snr()
-            * If int or float, target_snr is fixed at the value provided
-            * If list, target_snr is any element in the list
-            * If tuple, target_snr is in range of (tuple[0], tuple[1])
+
 
     Example:
         >>> import torchsig.transforms as ST
@@ -3370,10 +3305,10 @@ class DatasetBasebandCutMix(SignalTransform):
     def __init__(
         self,
         dataset: SignalDataset,
-        alpha: NumericParameter = (0.2, 0.5),
+        alpha: FloatParameter = UniformContinuousRD(0.2, 0.5),
     ) -> None:
         super(DatasetBasebandCutMix, self).__init__()
-        self.alpha = to_distribution(alpha, self.random_generator)
+        self.alpha = RandomDistribution.to_distribution(alpha)
         self.dataset = dataset
         self.dataset_num_samples = len(dataset)
         self.string = (
@@ -3526,31 +3461,25 @@ class CutOut(SignalTransform):
     `"Improved Regularization of Convolutional Neural Networks with Cutout" <https://arxiv.org/pdf/1708.04552v2.pdf>`_.
 
     Args:
-         cut_dur (:py:class:`~Callable`, :obj:`int`, :obj:`float`, :obj:`list`, :obj:`tuple`):
+         cut_dur (:py:class:`~torchsig.types.RandomDistribution`):
             cut_dur sets the duration of the region to cut out
-            * If Callable, produces a sample by calling cut_dur()
-            * If int or float, cut_dur is fixed at the value provided
-            * If list, cut_dur is any element in the list
-            * If tuple, cut_dur is in range of (tuple[0], tuple[1])
 
         cut_type (:py:class:`~Callable`, :obj:`list`, :obj:`str`):
             cut_type sets the type of data to fill in the cut region with from
             the options: `zeros`, `ones`, `low_noise`, `avg_noise`, and
             `high_noise`
-            * If Callable, produces a sample by calling cut_type()
-            * If list, cut_type is any element in the list
-            * If str, cut_type is fixed at the method provided
-
     """
 
     def __init__(
         self,
-        cut_dur: NumericParameter = (0.01, 0.2),
-        cut_type: List[str] = (["zeros", "ones", "low_noise", "avg_noise", "high_noise"]),
+        cut_dur: FloatParameter = UniformContinuousRD(0.01, 0.2),
+        cut_type: List[str] = (
+            ["zeros", "ones", "low_noise", "avg_noise", "high_noise"]
+        ),
     ) -> None:
         super(CutOut, self).__init__()
-        self.cut_dur = to_distribution(cut_dur, self.random_generator)
-        self.cut_type = to_distribution(cut_type, self.random_generator)
+        self.cut_dur = RandomDistribution.to_distribution(cut_dur)
+        self.cut_type = RandomDistribution.to_distribution(cut_type)
         self.string = (
             self.__class__.__name__
             + "("
@@ -3607,12 +3536,14 @@ class CutOut(SignalTransform):
                         # Push label start to end of cut region
                         new_signal_desc.start = cut_start + cut_dur
                 elif (
-                    new_signal_desc.stop > cut_start and new_signal_desc.stop < cut_start + cut_dur
+                    new_signal_desc.stop > cut_start
+                    and new_signal_desc.stop < cut_start + cut_dur
                 ):
                     # Label stops within cut region but does not start in region --> Push stop to begining of cut region
                     new_signal_desc.stop = cut_start
                 elif (
-                    new_signal_desc.start < cut_start and new_signal_desc.stop > cut_start + cut_dur
+                    new_signal_desc.start < cut_start
+                    and new_signal_desc.stop > cut_start + cut_dur
                 ):
                     # Label traverse cut region --> Split into two labels
                     new_signal_desc_split = deepcopy(signal_desc)
@@ -3641,30 +3572,23 @@ class PatchShuffle(SignalTransform):
     `"PatchShuffle Regularization" <https://arxiv.org/pdf/1707.07103.pdf>`_.
 
     Args:
-         patch_size (:py:class:`~Callable`, :obj:`int`, :obj:`float`, :obj:`list`, :obj:`tuple`):
+         patch_size (:py:class:`~torchsig.types.RandomDistribution`):
             patch_size sets the size of each patch to shuffle
-            * If Callable, produces a sample by calling patch_size()
-            * If int or float, patch_size is fixed at the value provided
-            * If list, patch_size is any element in the list
-            * If tuple, patch_size is in range of (tuple[0], tuple[1])
 
-        shuffle_ratio (:py:class:`~Callable`, :obj:`int`, :obj:`float`, :obj:`list`, :obj:`tuple`):
+        shuffle_ratio (:py:class:`~torchsig.types.RandomDistribution`):
             shuffle_ratio sets the ratio of the patches to shuffle
-            * If Callable, produces a sample by calling shuffle_ratio()
-            * If int or float, shuffle_ratio is fixed at the value provided
-            * If list, shuffle_ratio is any element in the list
-            * If tuple, shuffle_ratio is in range of (tuple[0], tuple[1])
+
 
     """
 
     def __init__(
         self,
-        patch_size: NumericParameter = (3, 10),
-        shuffle_ratio: FloatParameter = (0.01, 0.05),
+        patch_size: IntParameter = UniformDiscreteRD(np.arange(3, 10, dtype=int)),
+        shuffle_ratio: FloatParameter = UniformContinuousRD(0.01, 0.05),
     ) -> None:
         super(PatchShuffle, self).__init__()
-        self.patch_size = to_distribution(patch_size, self.random_generator)
-        self.shuffle_ratio = to_distribution(shuffle_ratio, self.random_generator)
+        self.patch_size = RandomDistribution.to_distribution(patch_size)
+        self.shuffle_ratio = RandomDistribution.to_distribution(shuffle_ratio)
         self.string = (
             self.__class__.__name__
             + "("
@@ -3714,13 +3638,9 @@ class DatasetWidebandCutMix(SignalTransform):
             An SignalDataset of complex-valued examples to be used as a source for
             the synthetic insertion/mixup
 
-        alpha (:py:class:`~Callable`, :obj:`int`, :obj:`float`, :obj:`list`, :obj:`tuple`):
+        alpha (:py:class:`~torchsig.types.RandomDistribution`):
             alpha sets the difference in durations between the main dataset
             example and the inserted example
-            * If Callable, produces a sample by calling alpha()
-            * If int or float, alpha is fixed at the value provided
-            * If list, alpha is any element in the list
-            * If tuple, alpha is in range of (tuple[0], tuple[1])
 
     Example:
         >>> import torchsig.transforms as ST
@@ -3734,10 +3654,10 @@ class DatasetWidebandCutMix(SignalTransform):
     def __init__(
         self,
         dataset: SignalDataset,
-        alpha: NumericParameter = (0.2, 0.7),
+        alpha: FloatParameter = UniformContinuousRD(0.2, 0.7),
     ) -> None:
         super(DatasetWidebandCutMix, self).__init__()
-        self.alpha = to_distribution(alpha, self.random_generator)
+        self.alpha = RandomDistribution.to_distribution(alpha)
         self.dataset = dataset
         self.dataset_num_samples = len(dataset)
         self.string = (
@@ -3776,7 +3696,9 @@ class DatasetWidebandCutMix(SignalTransform):
 
             # Mask both data examples based on alpha and a random start value
             insert_num_iq_samples = int(alpha * num_iq_samples)
-            insert_start: int = np.random.randint(num_iq_samples - insert_num_iq_samples)
+            insert_start: int = np.random.randint(
+                num_iq_samples - insert_num_iq_samples
+            )
             insert_stop = insert_start + insert_num_iq_samples
             data.iq_data[insert_start:insert_stop] = 0
             insert_iq_data[:insert_start] = 0.0
@@ -3902,13 +3824,9 @@ class DatasetWidebandMixUp(SignalTransform):
             An SignalDataset of complex-valued examples to be used as a source for
             the synthetic insertion/mixup
 
-        alpha (:py:class:`~Callable`, :obj:`int`, :obj:`float`, :obj:`list`, :obj:`tuple`):
+        alpha (:py:class:`~torchsig.types.RandomDistribution`):
             alpha sets the difference in power level between the main dataset
             example and the inserted example
-            * If Callable, produces a sample by calling alpha()
-            * If int or float, alpha is fixed at the value provided
-            * If list, alpha is any element in the list
-            * If tuple, alpha is in range of (tuple[0], tuple[1])
 
     Example:
         >>> import torchsig.transforms as ST
@@ -3922,10 +3840,10 @@ class DatasetWidebandMixUp(SignalTransform):
     def __init__(
         self,
         dataset: SignalDataset,
-        alpha: NumericParameter = (0.4, 0.6),
+        alpha: FloatParameter = UniformContinuousRD(0.4, 0.6),
     ) -> None:
         super(DatasetWidebandMixUp, self).__init__()
-        self.alpha = to_distribution(alpha, self.random_generator)
+        self.alpha = RandomDistribution.to_distribution(alpha)
         self.dataset = dataset
         self.dataset_num_samples = len(dataset)
         self.string = (
@@ -4004,18 +3922,12 @@ class SpectrogramRandomResizeCrop(SignalTransform):
     Args:
         nfft (:py:class:`~Callable`, :obj:`int`, :obj:`list`, :obj:`tuple`):
             The number of FFT bins for the random spectrogram.
-            * If Callable, nfft is set by calling nfft()
-            * If int, nfft is fixed by value provided
-            * If list, nfft is any element in the list
-            * If tuple, nfft is in range of (tuple[0], tuple[1])
+
         overlap_ratio (:py:class:`~Callable`, :obj:`int`, :obj:`list`, :obj:`tuple`):
             The ratio of the (nfft-1) value to use as the overlap parameter for
             the spectrogram operation. Setting as ratio ensures the overlap is
             a lower value than the bin size.
-            * If Callable, nfft is set by calling overlap_ratio()
-            * If float, overlap_ratio is fixed by value provided
-            * If list, overlap_ratio is any element in the list
-            * If tuple, overlap_ratio is in range of (tuple[0], tuple[1])
+
         window_fcn (:obj:`str`):
             Window to be used in spectrogram operation.
             Default value is 'np.blackman'.
@@ -4036,16 +3948,16 @@ class SpectrogramRandomResizeCrop(SignalTransform):
 
     def __init__(
         self,
-        nfft: IntParameter = (256, 1024),
-        overlap_ratio: FloatParameter = (0.0, 0.2),
+        nfft: IntParameter = UniformDiscreteRD(np.arange(256, 1024, dtype=int)),
+        overlap_ratio: FloatParameter = UniformContinuousRD(0.0, 0.2),
         window_fcn: Callable[[int], np.ndarray] = np.blackman,
         mode: str = "complex",
         width: int = 512,
         height: int = 512,
     ) -> None:
         super(SpectrogramRandomResizeCrop, self).__init__()
-        self.nfft = to_distribution(nfft, self.random_generator)
-        self.overlap_ratio = to_distribution(overlap_ratio, self.random_generator)
+        self.nfft = RandomDistribution.to_distribution(nfft)
+        self.overlap_ratio = RandomDistribution.to_distribution(overlap_ratio)
         self.window_fcn = window_fcn
         self.mode = mode
         self.width = width
@@ -4075,9 +3987,20 @@ class SpectrogramRandomResizeCrop(SignalTransform):
         assert iq_data is not None
 
         # First, perform the random spectrogram operation
-        spec_data = F.spectrogram(iq_data, nperseg, noverlap, nfft, self.window_fcn, self.mode)
+        spec_data = F.spectrogram(
+            iq_data,
+            nperseg,
+            noverlap,
+            nfft,
+            scaling="density",
+            detrend="constant",
+            window_fcn=self.window_fcn,
+            mode=self.mode,
+        )
         if self.mode == "complex":
-            new_tensor = np.zeros((2, spec_data.shape[0], spec_data.shape[1]), dtype=np.float32)
+            new_tensor = np.zeros(
+                (2, spec_data.shape[0], spec_data.shape[1]), dtype=np.float32
+            )
             new_tensor[0, :, :] = np.real(spec_data).astype(np.float32)
             new_tensor[1, :, :] = np.imag(spec_data).astype(np.float32)
             spec_data = new_tensor
@@ -4207,16 +4130,20 @@ class SpectrogramRandomResizeCrop(SignalTransform):
                 # Update labels based on padding/cropping
                 if pad_height:
                     new_signal_desc.lower_frequency = (
-                        (new_signal_desc.lower_frequency + 0.5) * curr_height + pad_height_start
+                        (new_signal_desc.lower_frequency + 0.5) * curr_height
+                        + pad_height_start
                     ) / self.height - 0.5
                     new_signal_desc.upper_frequency = (
-                        (new_signal_desc.upper_frequency + 0.5) * curr_height + pad_height_start
+                        (new_signal_desc.upper_frequency + 0.5) * curr_height
+                        + pad_height_start
                     ) / self.height - 0.5
                     new_signal_desc.center_frequency = (
-                        (new_signal_desc.center_frequency + 0.5) * curr_height + pad_height_start
+                        (new_signal_desc.center_frequency + 0.5) * curr_height
+                        + pad_height_start
                     ) / self.height - 0.5
                     new_signal_desc.bandwidth = (
-                        new_signal_desc.upper_frequency - new_signal_desc.lower_frequency
+                        new_signal_desc.upper_frequency
+                        - new_signal_desc.lower_frequency
                     )
 
                 if crop_height:
@@ -4226,7 +4153,9 @@ class SpectrogramRandomResizeCrop(SignalTransform):
                         new_signal_desc.upper_frequency + 0.5
                     ) * curr_height <= crop_height_start:
                         continue
-                    if (new_signal_desc.lower_frequency + 0.5) * curr_height <= crop_height_start:
+                    if (
+                        new_signal_desc.lower_frequency + 0.5
+                    ) * curr_height <= crop_height_start:
                         new_signal_desc.lower_frequency = -0.5
                     else:
                         new_signal_desc.lower_frequency = (
@@ -4236,14 +4165,17 @@ class SpectrogramRandomResizeCrop(SignalTransform):
                     if (
                         new_signal_desc.upper_frequency + 0.5
                     ) * curr_height >= crop_height_start + self.height:
-                        new_signal_desc.upper_frequency = crop_height_start + self.height
+                        new_signal_desc.upper_frequency = (
+                            crop_height_start + self.height
+                        )
                     else:
                         new_signal_desc.upper_frequency = (
                             (new_signal_desc.upper_frequency + 0.5) * curr_height
                             - crop_height_start
                         ) / self.height - 0.5
                     new_signal_desc.bandwidth = (
-                        new_signal_desc.upper_frequency - new_signal_desc.lower_frequency
+                        new_signal_desc.upper_frequency
+                        - new_signal_desc.lower_frequency
                     )
                     new_signal_desc.center_frequency = (
                         new_signal_desc.lower_frequency + new_signal_desc.bandwidth / 2
@@ -4256,18 +4188,26 @@ class SpectrogramRandomResizeCrop(SignalTransform):
                     new_signal_desc.stop = (
                         new_signal_desc.stop * curr_width + pad_width_start
                     ) / self.width
-                    new_signal_desc.duration = new_signal_desc.stop - new_signal_desc.start
+                    new_signal_desc.duration = (
+                        new_signal_desc.stop - new_signal_desc.start
+                    )
 
                 if crop_width:
                     if new_signal_desc.start * curr_width <= crop_width_start:
                         new_signal_desc.start = 0.0
-                    elif new_signal_desc.start * curr_width >= crop_width_start + self.width:
+                    elif (
+                        new_signal_desc.start * curr_width
+                        >= crop_width_start + self.width
+                    ):
                         continue
                     else:
                         new_signal_desc.start = (
                             new_signal_desc.start * curr_width - crop_width_start
                         ) / self.width
-                    if new_signal_desc.stop * curr_width >= crop_width_start + self.width:
+                    if (
+                        new_signal_desc.stop * curr_width
+                        >= crop_width_start + self.width
+                    ):
                         new_signal_desc.stop = 1.0
                     elif new_signal_desc.stop * curr_width <= crop_width_start:
                         continue
@@ -4275,7 +4215,9 @@ class SpectrogramRandomResizeCrop(SignalTransform):
                         new_signal_desc.stop = (
                             new_signal_desc.stop * curr_width - crop_width_start
                         ) / self.width
-                    new_signal_desc.duration = new_signal_desc.stop - new_signal_desc.start
+                    new_signal_desc.duration = (
+                        new_signal_desc.stop - new_signal_desc.start
+                    )
 
                 # Append SignalDescription to list
                 new_signal_description.append(new_signal_desc)
@@ -4304,38 +4246,29 @@ class SpectrogramDropSamples(SignalTransform):
     `TSAug Dropout Transform <https://github.com/arundo/tsaug/blob/master/src/tsaug/_augmenter/dropout.py>`_.
 
     Args:
-         drop_rate (:py:class:`~Callable`, :obj:`int`, :obj:`float`, :obj:`list`, :obj:`tuple`):
+         drop_rate (:py:class:`~torchsig.types.RandomDistribution`):
             drop_rate sets the rate at which to drop samples
-            * If Callable, produces a sample by calling drop_rate()
-            * If int or float, drop_rate is fixed at the value provided
-            * If list, drop_rate is any element in the list
-            * If tuple, drop_rate is in range of (tuple[0], tuple[1])
 
-        size (:py:class:`~Callable`, :obj:`int`, :obj:`float`, :obj:`list`, :obj:`tuple`):
+        size (:py:class:`~torchsig.types.RandomDistribution`):
             size sets the size of each instance of dropped samples
-            * If Callable, produces a sample by calling size()
-            * If int or float, size is fixed at the value provided
-            * If list, size is any element in the list
-            * If tuple, size is in range of (tuple[0], tuple[1])
 
         fill (:py:class:`~Callable`, :obj:`list`, :obj:`str`):
             fill sets the method of how the dropped samples should be filled
-            * If Callable, produces a sample by calling fill()
-            * If list, fill is any element in the list
-            * If str, fill is fixed at the method provided
 
     """
 
     def __init__(
         self,
-        drop_rate: NumericParameter = (0.001, 0.005),
-        size: NumericParameter = (1, 10),
-        fill: List[str] = (["ffill", "bfill", "mean", "zero", "low", "min", "max", "ones"]),
+        drop_rate: FloatParameter = UniformContinuousRD(0.001, 0.005),
+        size: IntParameter = UniformDiscreteRD(np.arange(1, 10, dtype=int)),
+        fill: List[str] = (
+            ["ffill", "bfill", "mean", "zero", "low", "min", "max", "ones"]
+        ),
     ) -> None:
         super(SpectrogramDropSamples, self).__init__()
-        self.drop_rate = to_distribution(drop_rate, self.random_generator)
-        self.size = to_distribution(size, self.random_generator)
-        self.fill = to_distribution(fill, self.random_generator)
+        self.drop_rate = RandomDistribution.to_distribution(drop_rate)
+        self.size = RandomDistribution.to_distribution(size)
+        self.fill = RandomDistribution.to_distribution(fill)
         self.string = (
             self.__class__.__name__
             + "("
@@ -4371,7 +4304,9 @@ class SpectrogramDropSamples(SignalTransform):
                 1, spec_size - max(drop_sizes) - 1, drop_instances
             ).astype(int)
 
-            new_data.iq_data = F.drop_spec_samples(data.iq_data, drop_starts, drop_sizes, fill)
+            new_data.iq_data = F.drop_spec_samples(
+                data.iq_data, drop_starts, drop_sizes, fill
+            )
             return new_data
 
         else:
@@ -4397,30 +4332,22 @@ class SpectrogramPatchShuffle(SignalTransform):
     `PatchShuffle Regularization <https://arxiv.org/pdf/1707.07103.pdf>`_.
 
     Args:
-         patch_size (:py:class:`~Callable`, :obj:`int`, :obj:`float`, :obj:`list`, :obj:`tuple`):
+         patch_size (:py:class:`~torchsig.types.RandomDistribution`):
             patch_size sets the size of each patch to shuffle
-            * If Callable, produces a sample by calling patch_size()
-            * If int or float, patch_size is fixed at the value provided
-            * If list, patch_size is any element in the list
-            * If tuple, patch_size is in range of (tuple[0], tuple[1])
 
-        shuffle_ratio (:py:class:`~Callable`, :obj:`int`, :obj:`float`, :obj:`list`, :obj:`tuple`):
+        shuffle_ratio (:py:class:`~torchsig.types.RandomDistribution`):
             shuffle_ratio sets the ratio of the patches to shuffle
-            * If Callable, produces a sample by calling shuffle_ratio()
-            * If int or float, shuffle_ratio is fixed at the value provided
-            * If list, shuffle_ratio is any element in the list
-            * If tuple, shuffle_ratio is in range of (tuple[0], tuple[1])
 
     """
 
     def __init__(
         self,
-        patch_size: NumericParameter = (2, 16),
-        shuffle_ratio: FloatParameter = (0.01, 0.10),
+        patch_size: IntParameter = UniformDiscreteRD(np.arange(2, 16, dtype=int)),
+        shuffle_ratio: FloatParameter = UniformContinuousRD(0.01, 0.10),
     ) -> None:
         super(SpectrogramPatchShuffle, self).__init__()
-        self.patch_size = to_distribution(patch_size, self.random_generator)
-        self.shuffle_ratio = to_distribution(shuffle_ratio, self.random_generator)
+        self.patch_size = RandomDistribution.to_distribution(patch_size)
+        self.shuffle_ratio = RandomDistribution.to_distribution(shuffle_ratio)
         self.string = (
             self.__class__.__name__
             + "("
@@ -4447,7 +4374,9 @@ class SpectrogramPatchShuffle(SignalTransform):
             )
 
             # Perform data augmentation
-            new_data.iq_data = F.spec_patch_shuffle(data.iq_data, patch_size, shuffle_ratio)
+            new_data.iq_data = F.spec_patch_shuffle(
+                data.iq_data, patch_size, shuffle_ratio
+            )
             return new_data
         else:
             output: np.ndarray = F.spec_patch_shuffle(
@@ -4463,30 +4392,22 @@ class SpectrogramTranslation(SignalTransform):
     translation
 
     Args:
-         time_shift (:py:class:`~Callable`, :obj:`int`, :obj:`float`, :obj:`list`, :obj:`tuple`):
+         time_shift (:py:class:`~torchsig.types.RandomDistribution`):
             time_shift sets the translation along the time-axis
-            * If Callable, produces a sample by calling time_shift()
-            * If int, time_shift is fixed at the value provided
-            * If list, time_shift is any element in the list
-            * If tuple, time_shift is in range of (tuple[0], tuple[1])
 
-        freq_shift (:py:class:`~Callable`, :obj:`int`, :obj:`float`, :obj:`list`, :obj:`tuple`):
+        freq_shift (:py:class:`~torchsig.types.RandomDistribution`):
             freq_shift sets the translation along the freq-axis
-            * If Callable, produces a sample by calling freq_shift()
-            * If int, freq_shift is fixed at the value provided
-            * If list, freq_shift is any element in the list
-            * If tuple, freq_shift is in range of (tuple[0], tuple[1])
 
     """
 
     def __init__(
         self,
-        time_shift: IntParameter = (-128, 128),
-        freq_shift: IntParameter = (-128, 128),
+        time_shift: IntParameter = UniformDiscreteRD(np.arange(-128, 128, dtype=int)),
+        freq_shift: IntParameter = UniformDiscreteRD(np.arange(-128, 128, dtype=int)),
     ) -> None:
         super(SpectrogramTranslation, self).__init__()
-        self.time_shift = to_distribution(time_shift, self.random_generator)
-        self.freq_shift = to_distribution(freq_shift, self.random_generator)
+        self.time_shift = RandomDistribution.to_distribution(time_shift)
+        self.freq_shift = RandomDistribution.to_distribution(freq_shift)
         self.string = (
             self.__class__.__name__
             + "("
@@ -4534,13 +4455,17 @@ class SpectrogramTranslation(SignalTransform):
                 new_signal_desc.start = (
                     new_signal_desc.start + time_shift / new_data.iq_data.shape[1]
                 )
-                new_signal_desc.stop = new_signal_desc.stop + time_shift / new_data.iq_data.shape[1]
+                new_signal_desc.stop = (
+                    new_signal_desc.stop + time_shift / new_data.iq_data.shape[1]
+                )
                 if new_signal_desc.start >= 1.0 or new_signal_desc.stop <= 0.0:
                     continue
                 new_signal_desc.start = (
                     0.0 if new_signal_desc.start < 0.0 else new_signal_desc.start
                 )
-                new_signal_desc.stop = 1.0 if new_signal_desc.stop > 1.0 else new_signal_desc.stop
+                new_signal_desc.stop = (
+                    1.0 if new_signal_desc.stop > 1.0 else new_signal_desc.stop
+                )
                 new_signal_desc.duration = new_signal_desc.stop - new_signal_desc.start
 
                 # Trim any out-of-capture freq values
@@ -4557,10 +4482,12 @@ class SpectrogramTranslation(SignalTransform):
 
                 # Update freq fields
                 new_signal_desc.lower_frequency = (
-                    new_signal_desc.lower_frequency + freq_shift / new_data.iq_data.shape[2]
+                    new_signal_desc.lower_frequency
+                    + freq_shift / new_data.iq_data.shape[2]
                 )
                 new_signal_desc.upper_frequency = (
-                    new_signal_desc.upper_frequency + freq_shift / new_data.iq_data.shape[2]
+                    new_signal_desc.upper_frequency
+                    + freq_shift / new_data.iq_data.shape[2]
                 )
                 if (
                     new_signal_desc.lower_frequency >= 0.5
@@ -4684,7 +4611,9 @@ class SpectrogramMosaicCrop(SignalTransform):
                         if new_signal_desc.stop < 1.0
                         else 1.0 - (x0 / width)
                     )
-                    new_signal_desc.duration = new_signal_desc.stop - new_signal_desc.start
+                    new_signal_desc.duration = (
+                        new_signal_desc.stop - new_signal_desc.start
+                    )
 
                 else:
                     if new_signal_desc.start * width > x0:
@@ -4694,7 +4623,9 @@ class SpectrogramMosaicCrop(SignalTransform):
                     new_signal_desc.stop = (
                         1.0 if new_signal_desc.stop > 1.0 else new_signal_desc.stop
                     )
-                    new_signal_desc.duration = new_signal_desc.stop - new_signal_desc.start
+                    new_signal_desc.duration = (
+                        new_signal_desc.stop - new_signal_desc.start
+                    )
 
                 # Update frequency fields
                 new_signal_desc.lower_frequency = (
@@ -4721,10 +4652,12 @@ class SpectrogramMosaicCrop(SignalTransform):
                         else 0.5 - (y0 / height)
                     )
                     new_signal_desc.bandwidth = (
-                        new_signal_desc.upper_frequency - new_signal_desc.lower_frequency
+                        new_signal_desc.upper_frequency
+                        - new_signal_desc.lower_frequency
                     )
                     new_signal_desc.center_frequency = (
-                        new_signal_desc.lower_frequency + new_signal_desc.bandwidth * 0.5
+                        new_signal_desc.lower_frequency
+                        + new_signal_desc.bandwidth * 0.5
                     )
 
                 else:
@@ -4742,10 +4675,12 @@ class SpectrogramMosaicCrop(SignalTransform):
                         else new_signal_desc.upper_frequency
                     )
                     new_signal_desc.bandwidth = (
-                        new_signal_desc.upper_frequency - new_signal_desc.lower_frequency
+                        new_signal_desc.upper_frequency
+                        - new_signal_desc.lower_frequency
                     )
                     new_signal_desc.center_frequency = (
-                        new_signal_desc.lower_frequency + new_signal_desc.bandwidth * 0.5
+                        new_signal_desc.lower_frequency
+                        + new_signal_desc.bandwidth * 0.5
                     )
 
                 # Append SignalDescription to list
@@ -4793,17 +4728,25 @@ class SpectrogramMosaicCrop(SignalTransform):
                             if new_signal_desc.stop < 1.0
                             else 1.0 - (x0 / width)
                         )
-                        new_signal_desc.duration = new_signal_desc.stop - new_signal_desc.start
+                        new_signal_desc.duration = (
+                            new_signal_desc.stop - new_signal_desc.start
+                        )
 
                     else:
                         if new_signal_desc.start * width > x0:
                             continue
-                        new_signal_desc.start = (width - x0) / width + new_signal_desc.start
-                        new_signal_desc.stop = (width - x0) / width + new_signal_desc.stop
+                        new_signal_desc.start = (
+                            width - x0
+                        ) / width + new_signal_desc.start
+                        new_signal_desc.stop = (
+                            width - x0
+                        ) / width + new_signal_desc.stop
                         new_signal_desc.stop = (
                             1.0 if new_signal_desc.stop > 1.0 else new_signal_desc.stop
                         )
-                        new_signal_desc.duration = new_signal_desc.stop - new_signal_desc.start
+                        new_signal_desc.duration = (
+                            new_signal_desc.stop - new_signal_desc.start
+                        )
 
                     # Update frequency fields
                     new_signal_desc.lower_frequency = (
@@ -4830,10 +4773,12 @@ class SpectrogramMosaicCrop(SignalTransform):
                             else 0.5 - (y0 / height)
                         )
                         new_signal_desc.bandwidth = (
-                            new_signal_desc.upper_frequency - new_signal_desc.lower_frequency
+                            new_signal_desc.upper_frequency
+                            - new_signal_desc.lower_frequency
                         )
                         new_signal_desc.center_frequency = (
-                            new_signal_desc.lower_frequency + new_signal_desc.bandwidth * 0.5
+                            new_signal_desc.lower_frequency
+                            + new_signal_desc.bandwidth * 0.5
                         )
 
                     else:
@@ -4851,10 +4796,12 @@ class SpectrogramMosaicCrop(SignalTransform):
                             else new_signal_desc.upper_frequency
                         )
                         new_signal_desc.bandwidth = (
-                            new_signal_desc.upper_frequency - new_signal_desc.lower_frequency
+                            new_signal_desc.upper_frequency
+                            - new_signal_desc.lower_frequency
                         )
                         new_signal_desc.center_frequency = (
-                            new_signal_desc.lower_frequency + new_signal_desc.bandwidth * 0.5
+                            new_signal_desc.lower_frequency
+                            + new_signal_desc.bandwidth * 0.5
                         )
 
                     # Append SignalDescription to list
@@ -4982,12 +4929,16 @@ class SpectrogramMosaicDownsample(SignalTransform):
                 if x_idx == 0:
                     new_signal_desc.start /= 2
                     new_signal_desc.stop /= 2
-                    new_signal_desc.duration = new_signal_desc.stop - new_signal_desc.start
+                    new_signal_desc.duration = (
+                        new_signal_desc.stop - new_signal_desc.start
+                    )
 
                 else:
                     new_signal_desc.start = new_signal_desc.start / 2 + 0.5
                     new_signal_desc.stop = new_signal_desc.stop / 2 + 0.5
-                    new_signal_desc.duration = new_signal_desc.stop - new_signal_desc.start
+                    new_signal_desc.duration = (
+                        new_signal_desc.stop - new_signal_desc.start
+                    )
 
                 # Update frequency fields
                 new_signal_desc.lower_frequency = (
@@ -5008,20 +4959,28 @@ class SpectrogramMosaicDownsample(SignalTransform):
                         new_signal_desc.upper_frequency + 0.5
                     ) / 2 - 0.5
                     new_signal_desc.bandwidth = (
-                        new_signal_desc.upper_frequency - new_signal_desc.lower_frequency
+                        new_signal_desc.upper_frequency
+                        - new_signal_desc.lower_frequency
                     )
                     new_signal_desc.center_frequency = (
-                        new_signal_desc.lower_frequency + new_signal_desc.bandwidth * 0.5
+                        new_signal_desc.lower_frequency
+                        + new_signal_desc.bandwidth * 0.5
                     )
 
                 else:
-                    new_signal_desc.lower_frequency = (new_signal_desc.lower_frequency + 0.5) / 2
-                    new_signal_desc.upper_frequency = (new_signal_desc.upper_frequency + 0.5) / 2
+                    new_signal_desc.lower_frequency = (
+                        new_signal_desc.lower_frequency + 0.5
+                    ) / 2
+                    new_signal_desc.upper_frequency = (
+                        new_signal_desc.upper_frequency + 0.5
+                    ) / 2
                     new_signal_desc.bandwidth = (
-                        new_signal_desc.upper_frequency - new_signal_desc.lower_frequency
+                        new_signal_desc.upper_frequency
+                        - new_signal_desc.lower_frequency
                     )
                     new_signal_desc.center_frequency = (
-                        new_signal_desc.lower_frequency + new_signal_desc.bandwidth * 0.5
+                        new_signal_desc.lower_frequency
+                        + new_signal_desc.bandwidth * 0.5
                     )
 
                 # Append SignalDescription to list
@@ -5059,12 +5018,16 @@ class SpectrogramMosaicDownsample(SignalTransform):
                     if x_idx == 0:
                         new_signal_desc.start /= 2
                         new_signal_desc.stop /= 2
-                        new_signal_desc.duration = new_signal_desc.stop - new_signal_desc.start
+                        new_signal_desc.duration = (
+                            new_signal_desc.stop - new_signal_desc.start
+                        )
 
                     else:
                         new_signal_desc.start = new_signal_desc.start / 2 + 0.5
                         new_signal_desc.stop = new_signal_desc.stop / 2 + 0.5
-                        new_signal_desc.duration = new_signal_desc.stop - new_signal_desc.start
+                        new_signal_desc.duration = (
+                            new_signal_desc.stop - new_signal_desc.start
+                        )
 
                     # Update frequency fields
                     new_signal_desc.lower_frequency = (
@@ -5085,10 +5048,12 @@ class SpectrogramMosaicDownsample(SignalTransform):
                             new_signal_desc.upper_frequency + 0.5
                         ) / 2 - 0.5
                         new_signal_desc.bandwidth = (
-                            new_signal_desc.upper_frequency - new_signal_desc.lower_frequency
+                            new_signal_desc.upper_frequency
+                            - new_signal_desc.lower_frequency
                         )
                         new_signal_desc.center_frequency = (
-                            new_signal_desc.lower_frequency + new_signal_desc.bandwidth * 0.5
+                            new_signal_desc.lower_frequency
+                            + new_signal_desc.bandwidth * 0.5
                         )
 
                     else:
@@ -5099,10 +5064,12 @@ class SpectrogramMosaicDownsample(SignalTransform):
                             new_signal_desc.upper_frequency + 0.5
                         ) / 2
                         new_signal_desc.bandwidth = (
-                            new_signal_desc.upper_frequency - new_signal_desc.lower_frequency
+                            new_signal_desc.upper_frequency
+                            - new_signal_desc.lower_frequency
                         )
                         new_signal_desc.center_frequency = (
-                            new_signal_desc.lower_frequency + new_signal_desc.bandwidth * 0.5
+                            new_signal_desc.lower_frequency
+                            + new_signal_desc.bandwidth * 0.5
                         )
 
                     # Append SignalDescription to list
@@ -5154,3 +5121,44 @@ class SpectrogramMosaicDownsample(SignalTransform):
             # After the data has been stitched into the large 2x2 gride, downsample by 2
             output: np.ndarray = full_mosaic[:, ::2, ::2]
             return output
+
+
+class SpectrogramImage(SignalTransform):
+    """Transforms SignalData to spectrogram image PNGs (numpy arrays)
+
+    Args:
+        size
+        colormap
+
+    """
+
+    def __init__(self, size=512, colormap="viridis"):
+        super(SpectrogramImage, self).__init__()
+        self.size = size
+        self.colormap = colormap
+        self.nperseg = self.size
+        self.noverlap = 0
+        self.nfft = self.size
+        self.mode = "psd"
+
+    def __call__(self, data) -> SignalData:
+        if isinstance(data, SignalData):
+            data.iq_data = F.spectrogram_image(
+                data.iq_data,  # type: ignore
+                nperseg=self.nperseg,
+                noverlap=self.noverlap,
+                nfft=self.nfft,
+                mode=self.mode,
+                colormap=self.colormap,
+            )
+        else:
+            data = F.spectrogram_image(
+                data,
+                nperseg=self.nperseg,
+                noverlap=self.noverlap,
+                nfft=self.nfft,
+                mode=self.mode,
+                colormap=self.colormap,
+            )
+
+        return data

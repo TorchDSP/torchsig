@@ -13,3 +13,4 @@ lightning_logs/
 *.benchmarks/
 dist/
 examples/*.ipynb_checkpoints/
+docs/bin

@@ -83,7 +83,7 @@ transforms_list = [
         IQImbalance(3, np.pi / 180, 0.05),
         IQImbalance(3, np.pi / 180, 0.05),
     ),
-    ("roll_off", RollOff(0.05, 0.98), RollOff(0.05, 0.98)),
+    ("roll_off", RollOff(0.25, 0.1), RollOff(0.25, 0.1)),
     ("add_slope", AddSlope(), AddSlope()),
     ("spectral_inversion", SpectralInversion(), SpectralInversion()),
     ("channel_swap", ChannelSwap(), ChannelSwap()),
@@ -101,7 +101,12 @@ modulations = ["bpsk", "4fsk"]
 
 
 @pytest.mark.parametrize(
-    "transform, modulation_name", itertools.product(transforms_list, modulations)
+    "transform, modulation_name",
+    itertools.product(transforms_list, modulations),
+    ids=[
+        "{}-{}".format(x[0], y)
+        for x, y in itertools.product(transforms_list, modulations)
+    ],
 )
 def test_transform_figures(transform, modulation_name):
     short_data, long_data = generate_data(modulation_name)

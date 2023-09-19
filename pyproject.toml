@@ -37,6 +37,9 @@ dependencies = [
     "sympy",
     "numba",
     "click",
+    "nbsphinx",
+    "pypandoc",
+    "opencv-contrib-python-headless",
 ]
 dynamic = ["version"]
 

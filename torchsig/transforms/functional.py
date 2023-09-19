@@ -1,21 +1,21 @@
-from functools import partial
 from typing import Callable, List, Literal, Optional, Tuple, Union
-
-import numpy as np
-import pywt
 from numba import complex64, float64, int64, njit
+from torchsig.utils.types import RandomDistribution
+from torchsig.utils.dsp import low_pass
+from torchsig.utils.dsp import roll_off_filter
 from scipy import interpolate
 from scipy import signal as sp
+import numpy as np
+import pywt
 
-from torchsig.utils.dsp import low_pass
+
+import cv2
+
 
 __all__ = [
     "FloatParameter",
     "IntParameter",
     "NumericParameter",
-    "uniform_discrete_distribution",
-    "uniform_continuous_distribution",
-    "to_distribution",
     "normalize",
     "resample",
     "make_sinc_filter",
@@ -60,74 +60,9 @@ __all__ = [
 ]
 
 
-FloatParameter = Union[Callable[[int], float], float, Tuple[float, float], List]
-IntParameter = Union[Callable[[int], int], int, Tuple[int, int], List]
+FloatParameter = Union[RandomDistribution, float, Tuple[float, float], List]
+IntParameter = Union[RandomDistribution, int, Tuple[int, int], List]
 NumericParameter = Union[FloatParameter, IntParameter]
-
-
-def uniform_discrete_distribution(
-    choices: List, random_generator: Optional[np.random.RandomState] = None
-):
-    random_generator = random_generator if random_generator else np.random.RandomState()
-    return partial(random_generator.choice, choices)
-
-
-def uniform_continuous_distribution(
-    lower: Union[int, float],
-    upper: Union[int, float],
-    random_generator: Optional[np.random.RandomState] = None,
-):
-    random_generator = random_generator if random_generator else np.random.RandomState()
-    return partial(random_generator.uniform, lower, upper)
-
-
-def to_distribution(
-    param: Union[
-        int,
-        float,
-        str,
-        Callable,
-        List[int],
-        List[float],
-        List[str],
-        Tuple[int, int],
-        Tuple[float, float],
-    ],
-    random_generator: Optional[np.random.RandomState] = None,
-):
-    random_generator = random_generator if random_generator else np.random.RandomState()
-    if isinstance(param, Callable):  # type: ignore
-        return param
-
-    if isinstance(param, list):
-        #######################################################################
-        # [BUG ALERT]: Nested tuples within lists does not function as desired.
-        # Below will instantiate a random distribution from the list; however,
-        # each call will only come from the previously randomized selection,
-        # but the desired behavior would be for this to randomly select each
-        # region at call time. Commenting out for now, but should revisit in
-        # the future to add back the functionality.
-        #######################################################################
-        # if isinstance(param[0], tuple):
-        #     tuple_from_list = param[random_generator.randint(len(param))]
-        #     return uniform_continuous_distribution(
-        #         tuple_from_list[0],
-        #         tuple_from_list[1],
-        #         random_generator,
-        #     )
-        return uniform_discrete_distribution(param, random_generator)
-
-    if isinstance(param, tuple):
-        return uniform_continuous_distribution(
-            param[0],
-            param[1],
-            random_generator,
-        )
-
-    if isinstance(param, int) or isinstance(param, float):
-        return uniform_discrete_distribution([param], random_generator)
-
-    return param
 
 
 def normalize(
@@ -250,7 +185,9 @@ def awgn(tensor: np.ndarray, noise_power_db: float) -> np.ndarray:
     """
     real_noise = np.random.randn(*tensor.shape)
     imag_noise = np.random.randn(*tensor.shape)
-    return tensor + (10.0 ** (noise_power_db / 20.0)) * (real_noise + 1j * imag_noise) / np.sqrt(2)
+    return tensor + (10.0 ** (noise_power_db / 20.0)) * (
+        real_noise + 1j * imag_noise
+    ) / np.sqrt(2)
 
 
 def time_varying_awgn(
@@ -310,9 +247,13 @@ def time_varying_awgn(
         duration = stop_idx - start_idx
         start_power = noise_power_db_low if idx % 2 == 0 else noise_power_db_high
         stop_power = noise_power_db_high if idx % 2 == 0 else noise_power_db_low
-        noise_power_db[start_idx:stop_idx] = np.linspace(start_power, stop_power, duration)
+        noise_power_db[start_idx:stop_idx] = np.linspace(
+            start_power, stop_power, duration
+        )
 
-    return tensor + (10.0 ** (noise_power_db / 20.0)) * (real_noise + 1j * imag_noise) / np.sqrt(2)
+    return tensor + (10.0 ** (noise_power_db / 20.0)) * (
+        real_noise + 1j * imag_noise
+    ) / np.sqrt(2)
 
 
 @njit(cache=False)
@@ -378,7 +319,9 @@ def rayleigh_fading(
         )
     )
     # Generate initial taps
-    rayleigh_taps = np.random.randn(num_taps) + 1j * np.random.randn(num_taps)  # multi-path channel
+    rayleigh_taps = np.random.randn(num_taps) + 1j * np.random.randn(
+        num_taps
+    )  # multi-path channel
 
     # Linear interpolate taps by a factor of 100 -- so we can get accurate coherence bandwidths
     old_time = np.linspace(0, 1.0, num_taps, endpoint=True)
@@ -525,6 +468,8 @@ def spectrogram(
     nperseg: int,
     noverlap: int,
     nfft: int,
+    detrend: Optional[str],
+    scaling: Optional[str],
     window_fcn: Callable[[int], np.ndarray],
     mode: str,
 ) -> np.ndarray:
@@ -546,6 +491,16 @@ def spectrogram(
             Length of the FFT used, if a zero padded FFT is desired.
             If None, the FFT length is nperseg.
 
+        detrend : str or function or False, optional
+            Specifies how to detrend each segment. If detrend is a string, it is passed as the type
+            argument to the detrend function. If it is a function, it takes a segment and returns a
+            detrended segment. If detrend is False, no detrending is done. Defaults to ‘constant’.
+
+        scaling : { ‘density’, ‘spectrum’ }, optional
+            Selects between computing the power spectral density (‘density’) where Sxx has units of
+            V**2/Hz and computing the power spectrum (‘spectrum’) where Sxx has units of V**2, if
+            x is measured in V and fs is measured in Hz. Defaults to ‘density’.
+
         window_fcn (:obj:`Callable`):
             Function generating the window for each FFT
 
@@ -561,6 +516,8 @@ def spectrogram(
         nperseg=nperseg,
         noverlap=noverlap,
         nfft=nfft,
+        detrend=detrend,
+        scaling=scaling,
         window=window_fcn(nperseg),
         return_onesided=False,
         mode=mode,
@@ -595,7 +552,9 @@ def continuous_wavelet_transform(
             Scalogram of tensor along time dimension
     """
     scales = np.arange(1, nscales)
-    cwtmatr, _ = pywt.cwt(tensor, scales=scales, wavelet=wavelet, sampling_period=1.0 / sample_rate)
+    cwtmatr, _ = pywt.cwt(
+        tensor, scales=scales, wavelet=wavelet, sampling_period=1.0 / sample_rate
+    )
 
     # if the dtype is complex then return the magnitude
     if np.iscomplexobj(cwtmatr):
@@ -679,7 +638,9 @@ def freq_shift(tensor: np.ndarray, f_shift: float) -> np.ndarray:
         transformed (:class:`numpy.ndarray`):
             Tensor that has been frequency shifted along time dimension of size tensor.shape
     """
-    sinusoid = np.exp(2j * np.pi * f_shift * np.arange(tensor.shape[0], dtype=np.float64))
+    sinusoid = np.exp(
+        2j * np.pi * f_shift * np.arange(tensor.shape[0], dtype=np.float64)
+    )
     return np.multiply(tensor, np.asarray(sinusoid))
 
 
@@ -706,23 +667,23 @@ def freq_shift_avoid_aliasing(
 
     # Interpolate up to avoid frequency wrap around during shift
     up = 2
-    down = 1
-    tensor = sp.resample_poly(tensor, up, down)
-
-    taps = low_pass(cutoff=1 / 4, transition_bandwidth=(0.5 - 1 / 4) / 4)
-    tensor = sp.convolve(tensor, taps, mode="same")
+    tensor = sp.resample_poly(tensor, up=up, down=1)
 
     # Freq shift to desired center freq
     time_vector = np.arange(tensor.shape[0], dtype=np.float64)
-    tensor = tensor * np.exp(2j * np.pi * f_shift / up * time_vector)
+    tensor = tensor * np.exp(2j * np.pi * f_shift * time_vector / up)
 
-    # Filter to remove out-of-band regions
-    taps = low_pass(cutoff=1 / 4, transition_bandwidth=(0.5 - 1 / 4) / 4)
-    tensor = sp.convolve(tensor, taps, mode="same")
-    tensor = tensor[: int(num_iq_samples * up)]  # prune to be correct size out of filter
+    # design anti-alaising LPF. the frequency shift can cause the signal's energy
+    # to overlap with the aliasing boundary +fs/2 and -fs/2 due to downsampling.
+    # optimally an ideal LPF (infinite length in time, zero width transtion) band
+    # would be used but it is impractical. instead, the cutoff frequency must be
+    # reduced in order to create space in the frequency domain for a transition
+    # band. the trade-off is the decimating LPF causes some distortion across the
+    # passband of the signal at the benefit of reducing aliasing artifacts.
+    taps = low_pass(cutoff=0.75 / up / 2, transition_bandwidth=1 / up / 4)
 
-    # Decimate back down to correct sample rate
-    tensor = sp.resample_poly(tensor, down, up)
+    # Downsample by 2 down to correct sample rate
+    tensor = sp.upfirdn(x=tensor, h=taps, up=1, down=up)
 
     return tensor[:num_iq_samples]
 
@@ -759,7 +720,9 @@ def _fractional_shift_helper(
     return output
 
 
-def fractional_shift(tensor: np.ndarray, taps: np.ndarray, stride: int, delay: float) -> np.ndarray:
+def fractional_shift(
+    tensor: np.ndarray, taps: np.ndarray, stride: int, delay: float
+) -> np.ndarray:
     """Applies fractional sample delay of delay using a polyphase interpolator
 
     Args:
@@ -779,8 +742,12 @@ def fractional_shift(tensor: np.ndarray, taps: np.ndarray, stride: int, delay: f
         transformed (:class:`numpy.ndarray`):
             Tensor that has been fractionally-shifted along time dimension of size tensor.shape
     """
-    real_part = _fractional_shift_helper(taps, tensor.real, stride, int(stride * float(delay)))
-    imag_part = _fractional_shift_helper(taps, tensor.imag, stride, int(stride * float(delay)))
+    real_part = _fractional_shift_helper(
+        taps, tensor.real, stride, int(stride * float(delay))
+    )
+    imag_part = _fractional_shift_helper(
+        taps, tensor.imag, stride, int(stride * float(delay))
+    )
     tensor = real_part[: tensor.shape[0]] + 1j * imag_part[: tensor.shape[0]]
     zero_idx = -1 if delay < 0 else 0  # do not extrapolate, zero-pad.
     tensor[zero_idx] = 0
@@ -822,9 +789,11 @@ def iq_imbalance(
         1j * (np.pi / 2.0 + iq_phase_imbalance / 2.0)
     ) * np.imag(tensor)
 
-    tensor += 10 ** (iq_dc_offset_db / 10.0) * np.real(tensor) + 1j * 10 ** (
-        iq_dc_offset_db / 10.0
-    ) * np.imag(tensor)
+    tensor = (
+        tensor
+        + 10 ** (iq_dc_offset_db / 10.0) * np.real(tensor)
+        + 1j * 10 ** (iq_dc_offset_db / 10.0) * np.imag(tensor)
+    )
     return tensor
 
 
@@ -896,9 +865,8 @@ def amplitude_reversal(tensor: np.ndarray) -> np.ndarray:
 
 def roll_off(
     tensor: np.ndarray,
-    lowercutfreq: float,
-    uppercutfreq: float,
-    fltorder: int,
+    cutoff: float,
+    cfo: float,
 ) -> np.ndarray:
     """Applies front-end filter to tensor. Rolls off lower/upper edges of bandwidth
 
@@ -906,31 +874,21 @@ def roll_off(
         tensor: (:class:`numpy.ndarray`):
             (batch_size, vector_length, ...)-sized tensor.
 
-        lowercutfreq (:obj:`float`):
-            lower bandwidth cut-off to begin linear roll-off
+        cutoff (:obj:`float`):
+            cutoff frequency for the roll-off filter, within 0.25 to 0.5 (representing fs/4 to fs/2)
 
-        uppercutfreq (:obj:`float`):
-            upper bandwidth cut-off to begin linear roll-off
-
-        fltorder (:obj:`int`):
-            order of each FIR filter to be applied
+        cfo (:obj:`float`):
+            center frequency offset (CFO) for the filter, within -0.1 to 0.1 (representing -fs/10 to fs/10)
 
     Returns:
         transformed (:class:`numpy.ndarray`):
             Tensor that has undergone front-end filtering.
 
     """
-    if (lowercutfreq == 0) & (uppercutfreq == 1):
-        return tensor
 
-    elif uppercutfreq == 1:
-        if fltorder % 2 == 0:
-            fltorder += 1
-    bandwidth = uppercutfreq - lowercutfreq
-    center_freq = lowercutfreq - 0.5 + bandwidth / 2
-    taps = low_pass(cutoff=bandwidth / 2, transition_bandwidth=(0.5 - bandwidth / 2) / 4)
-    sinusoid = np.exp(2j * np.pi * center_freq * np.linspace(0, len(taps) - 1, len(taps)))
-    taps = taps * sinusoid
+    # design the roll-off filter
+    taps = roll_off_filter(cutoff, cfo)
+
     return sp.convolve(tensor, taps, mode="same")
 
 
@@ -1006,17 +964,22 @@ def drop_samples(
     """
     for idx, drop_start in enumerate(drop_starts):
         if fill == "ffill":
-            drop_region = np.ones(drop_sizes[idx], dtype=np.complex64) * tensor[drop_start - 1]
+            drop_region = (
+                np.ones(drop_sizes[idx], dtype=np.complex64) * tensor[drop_start - 1]
+            )
         elif fill == "bfill":
             drop_region = (
-                np.ones(drop_sizes[idx], dtype=np.complex64) * tensor[drop_start + drop_sizes[idx]]
+                np.ones(drop_sizes[idx], dtype=np.complex64)
+                * tensor[drop_start + drop_sizes[idx]]
             )
         elif fill == "mean":
             drop_region = np.ones(drop_sizes[idx], dtype=np.complex64) * np.mean(tensor)
         elif fill == "zero":
             drop_region = np.zeros(drop_sizes[idx], dtype=np.complex64)
         else:
-            raise ValueError("fill expects ffill, bfill, mean, or zero. Found {}".format(fill))
+            raise ValueError(
+                "fill expects ffill, bfill, mean, or zero. Found {}".format(fill)
+            )
 
         # Update drop region
         tensor[drop_start : drop_start + drop_sizes[idx]] = drop_region
@@ -1047,29 +1010,30 @@ def quantize(
 
     """
     # Setup quantization resolution/bins
-    max_value = max(np.abs(tensor)) + 1e-9
+    real_max = np.max(np.abs(tensor.real))
+    imag_max = np.max(np.abs(tensor.imag))
+
+    max_value = max(real_max, imag_max)
     bins = np.linspace(-max_value, max_value, num_levels + 1)
 
     # Digitize to bins
-    quantized_real = np.digitize(tensor.real, bins)
-    quantized_imag = np.digitize(tensor.imag, bins)
+    bins_real = np.digitize(tensor.real, bins)
+    bins_imag = np.digitize(tensor.imag, bins)
 
     if round_type == "floor":
-        quantized_real -= 1
-        quantized_imag -= 1
+        bins_real -= 1
+        bins_imag -= 1
 
     # Revert to values
-    quantized_real = bins[quantized_real]
-    quantized_imag = bins[quantized_imag]
+    quantized_real = bins[bins_real]
+    quantized_imag = bins[bins_imag]
 
     if round_type == "nearest":
         bin_size = np.diff(bins)[0]
         quantized_real -= bin_size / 2
         quantized_imag -= bin_size / 2
 
-    quantized_tensor = quantized_real + 1j * quantized_imag
-
-    return quantized_tensor
+    return quantized_real + 1j * quantized_imag
 
 
 def clip(tensor: np.ndarray, clip_percentage: float) -> np.ndarray:
@@ -1208,7 +1172,9 @@ def agc(
         elif sample_idx == 0:  # first sample, no smoothing
             level_db = np.log(np.abs(sample))
         else:
-            level_db = level_db * alpha_smooth + np.log(np.abs(sample)) * (1 - alpha_smooth)
+            level_db = level_db * alpha_smooth + np.log(np.abs(sample)) * (
+                1 - alpha_smooth
+            )
         output_db = level_db + gain_db
         diff_db = ref_level_db - output_db
 
@@ -1268,7 +1234,11 @@ def cut_out(
         real_noise = np.random.randn(cut_mask_length)
         imag_noise = np.random.randn(cut_mask_length)
         noise_power_db = -100
-        cut_mask = (10.0 ** (noise_power_db / 20.0)) * (real_noise + 1j * imag_noise) / np.sqrt(2)
+        cut_mask = (
+            (10.0 ** (noise_power_db / 20.0))
+            * (real_noise + 1j * imag_noise)
+            / np.sqrt(2)
+        )
     elif cut_type == "avg_noise":
         real_noise = np.random.randn(cut_mask_length)
         imag_noise = np.random.randn(cut_mask_length)
@@ -1278,7 +1248,11 @@ def cut_out(
         real_noise = np.random.randn(cut_mask_length)
         imag_noise = np.random.randn(cut_mask_length)
         noise_power_db = 40
-        cut_mask = (10.0 ** (noise_power_db / 20.0)) * (real_noise + 1j * imag_noise) / np.sqrt(2)
+        cut_mask = (
+            (10.0 ** (noise_power_db / 20.0))
+            * (real_noise + 1j * imag_noise)
+            / np.sqrt(2)
+        )
     else:
         raise ValueError(
             "cut_type must be: zeros, ones, low_noise, avg_noise, or high_noise. Found: {}".format(
@@ -1361,34 +1335,52 @@ def drop_spec_samples(
     for idx, drop_start in enumerate(drop_starts):
         if fill == "ffill":
             drop_region_real = np.ones(drop_sizes[idx]) * flat_spec[0, drop_start - 1]
-            drop_region_complex = np.ones(drop_sizes[idx]) * flat_spec[1, drop_start - 1]
+            drop_region_complex = (
+                np.ones(drop_sizes[idx]) * flat_spec[1, drop_start - 1]
+            )
             flat_spec[0, drop_start : drop_start + drop_sizes[idx]] = drop_region_real
-            flat_spec[1, drop_start : drop_start + drop_sizes[idx]] = drop_region_complex
+            flat_spec[
+                1, drop_start : drop_start + drop_sizes[idx]
+            ] = drop_region_complex
         elif fill == "bfill":
-            drop_region_real = np.ones(drop_sizes[idx]) * flat_spec[0, drop_start + drop_sizes[idx]]
+            drop_region_real = (
+                np.ones(drop_sizes[idx]) * flat_spec[0, drop_start + drop_sizes[idx]]
+            )
             drop_region_complex = (
                 np.ones(drop_sizes[idx]) * flat_spec[1, drop_start + drop_sizes[idx]]
             )
             flat_spec[0, drop_start : drop_start + drop_sizes[idx]] = drop_region_real
-            flat_spec[1, drop_start : drop_start + drop_sizes[idx]] = drop_region_complex
+            flat_spec[
+                1, drop_start : drop_start + drop_sizes[idx]
+            ] = drop_region_complex
         elif fill == "mean":
             drop_region_real = np.ones(drop_sizes[idx]) * np.mean(flat_spec[0])
             drop_region_complex = np.ones(drop_sizes[idx]) * np.mean(flat_spec[1])
             flat_spec[0, drop_start : drop_start + drop_sizes[idx]] = drop_region_real
-            flat_spec[1, drop_start : drop_start + drop_sizes[idx]] = drop_region_complex
+            flat_spec[
+                1, drop_start : drop_start + drop_sizes[idx]
+            ] = drop_region_complex
         elif fill == "zero":
             drop_region = np.zeros(drop_sizes[idx])
             flat_spec[:, drop_start : drop_start + drop_sizes[idx]] = drop_region
         elif fill == "min":
             drop_region_real = np.ones(drop_sizes[idx]) * np.min(np.abs(flat_spec[0]))
-            drop_region_complex = np.ones(drop_sizes[idx]) * np.min(np.abs(flat_spec[1]))
+            drop_region_complex = np.ones(drop_sizes[idx]) * np.min(
+                np.abs(flat_spec[1])
+            )
             flat_spec[0, drop_start : drop_start + drop_sizes[idx]] = drop_region_real
-            flat_spec[1, drop_start : drop_start + drop_sizes[idx]] = drop_region_complex
+            flat_spec[
+                1, drop_start : drop_start + drop_sizes[idx]
+            ] = drop_region_complex
         elif fill == "max":
             drop_region_real = np.ones(drop_sizes[idx]) * np.max(np.abs(flat_spec[0]))
-            drop_region_complex = np.ones(drop_sizes[idx]) * np.max(np.abs(flat_spec[1]))
+            drop_region_complex = np.ones(drop_sizes[idx]) * np.max(
+                np.abs(flat_spec[1])
+            )
             flat_spec[0, drop_start : drop_start + drop_sizes[idx]] = drop_region_real
-            flat_spec[1, drop_start : drop_start + drop_sizes[idx]] = drop_region_complex
+            flat_spec[
+                1, drop_start : drop_start + drop_sizes[idx]
+            ] = drop_region_complex
         elif fill == "low":
             drop_region = np.ones(drop_sizes[idx]) * 1e-3
             flat_spec[:, drop_start : drop_start + drop_sizes[idx]] = drop_region
@@ -1397,7 +1389,9 @@ def drop_spec_samples(
             flat_spec[:, drop_start : drop_start + drop_sizes[idx]] = drop_region
         else:
             raise ValueError(
-                "fill expects ffill, bfill, mean, zero, min, max, low, ones. Found {}".format(fill)
+                "fill expects ffill, bfill, mean, zero, min, max, low, ones. Found {}".format(
+                    fill
+                )
             )
     new_tensor = flat_spec.reshape(tensor.shape[0], tensor.shape[1], tensor.shape[2])
     return new_tensor
@@ -1500,3 +1494,63 @@ def spec_translate(
         new_tensor[:, :valid_bw, :valid_dur] = tensor[:, -freq_shift:, -time_shift:]
 
     return new_tensor
+
+
+def spectrogram_image(
+    tensor: np.ndarray,
+    nperseg=512,
+    noverlap=0,
+    nfft=None,
+    mode="psd",
+    colormap="viridis",
+) -> np.ndarray:
+    """Computes spectrogram of complex IQ vector
+
+    Args:
+        tensor (:class:`numpy.ndarray`):
+            (batch_size, vector_length, ...)-sized tensor.
+
+        nperseg (:obj:`int`):
+            Length of each segment.
+            Default 512
+
+        noverlap (:obj:`int`):
+            Number of points to overlap between segments.
+            Default 0
+
+        nfft (:obj:`int`):
+            Length of the FFT used, if a zero padded FFT is desired.
+            Default same as nperseg
+
+        mode (:obj:`str`):
+            Mode of the spectrogram to be computed.
+            Default psd
+
+        colormap (:obj:'str'):
+            Define OpenCV colormap to use for spectrogram image
+            Default twilight
+
+    Returns:
+        transformed (:class:`numpy.ndarray`):
+            Spectrogram of tensor along time dimension
+    """
+    if nfft is None:
+        nfft = nperseg
+
+    spec_data = spectrogram(
+        tensor,
+        nperseg=nperseg,
+        noverlap=noverlap,
+        nfft=nfft,
+        window_fcn=np.blackman,
+        scaling="density",
+        detrend="constant",
+        mode=mode,
+    )
+    flattened = spec_data.flatten()
+    spec_data = spec_data / np.linalg.norm(flattened, ord=np.inf, keepdims=True)
+    spec = 20 * np.log10(spec_data)
+    img = np.zeros((spec.shape[0], spec.shape[1], 3), dtype=np.float32)
+    img = cv2.normalize(spec, img, 0, 255, cv2.NORM_MINMAX)
+    colormap = colormap.upper()
+    return cv2.applyColorMap(img.astype(np.uint8), cv2.COLORMAP_VIRIDIS + colormap)
