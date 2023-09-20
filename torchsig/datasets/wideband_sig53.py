@@ -95,6 +95,7 @@ class WidebandSig53:
         root: str,
         train: bool = True,
         impaired: bool = True,
+        compressed: bool = False,
         transform: Optional[Callable] = None,
         target_transform: Optional[Callable] = None,
         use_signal_data: bool = True,
@@ -105,6 +106,7 @@ class WidebandSig53:
 
         self.train = train
         self.impaired = impaired
+        self.compressed = compressed
 
         self.T = transform if transform else Identity()
         self.TT = target_transform if target_transform else Identity()
@@ -139,6 +141,10 @@ class WidebandSig53:
         encoded_idx = pickle.dumps(idx)
         with self.env.begin(db=self.data_db) as data_txn:
             iq_data: np.ndarray = pickle.loads(data_txn.get(encoded_idx))
+            if self.compressed:
+                iq_data = iq_data.astype(np.float64).view(np.complex128) / (
+                    np.iinfo(np.int16).max - 1
+                )
 
         with self.env.begin(db=self.label_db) as label_txn:
             label = pickle.loads(label_txn.get(encoded_idx))

@@ -96,7 +96,9 @@ class LMDBDatasetWriter(DatasetWriter):
         return False
 
     @staticmethod
-    def _compress(data: np.ndarray, storage_type: np.dtype = np.int16) -> np.ndarray:
+    def _compress(
+        data: np.ndarray, storage_type: np.dtype = np.dtype(np.int16)
+    ) -> np.ndarray:
         if storage_type == np.float64:
             return data
 
