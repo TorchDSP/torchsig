@@ -385,7 +385,7 @@ class SigMFInterpreter(TargetInterpreter):
         class_list: List[str],
         num_iq_samples: int = int(512 * 512),
         capture_duration_samples: int = int(512 * 512),
-        class_target: str = "core:description",
+        class_target: str = "core:label",
         **kwargs,
     ):
         self.target_file = target_file
