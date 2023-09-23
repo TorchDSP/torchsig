@@ -891,7 +891,7 @@ class AddNoise(SignalTransform):
             return new_data
 
         else:
-            noise_power_db = self.noise_power_db(size=data.shape[0])
+            noise_power_db = self.noise_power_db(num=data.shape[0])
             noise_power_db = (
                 10 * np.log10(noise_power_db) if self.linear else noise_power_db
             )
