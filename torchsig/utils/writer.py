@@ -1,5 +1,6 @@
 import os
 import pickle
+import pickletools
 import random
 from functools import partial
 from typing import Callable, Optional
@@ -11,6 +12,10 @@ import tqdm
 from torch.utils.data import DataLoader
 
 from torchsig.utils.dataset import SignalDataset
+
+
+def pickle_dumps(instance, protocol=pickle.HIGHEST_PROTOCOL):
+    return pickletools.optimize(pickle.dumps(instance, protocol=protocol))
 
 
 class DatasetLoader:
@@ -103,21 +108,21 @@ class LMDBDatasetWriter(DatasetWriter):
             if isinstance(labels, tuple):
                 for label_idx, label in enumerate(labels):
                     txn.put(
-                        pickle.dumps(last_idx + label_idx),
-                        pickle.dumps(tuple(label)),
+                        pickle_dumps(last_idx + label_idx),
+                        pickle_dumps(tuple(label)),
                         db=self.label_db,
                     )
             if isinstance(labels, list):
                 for label_idx, label in enumerate(zip(*labels)):
                     txn.put(
-                        pickle.dumps(last_idx + label_idx),
-                        pickle.dumps(label),
+                        pickle_dumps(last_idx + label_idx),
+                        pickle_dumps(label),
                         db=self.label_db,
                     )
             for element_idx in range(len(data)):
                 txn.put(
-                    pickle.dumps(last_idx + element_idx),
-                    pickle.dumps(data[element_idx]),
+                    pickle_dumps(last_idx + element_idx),
+                    pickle_dumps(data[element_idx]),
                     db=self.data_db,
                 )
 

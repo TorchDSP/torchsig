@@ -1,6 +1,11 @@
+import pickle
 import numpy as np
 
 from torchsig.utils.types import SignalCapture, SignalData
+
+
+def pickle_loads(instance):
+    return pickle.loads(instance)
 
 
 def reader_from_sigmf(signal_file: SignalCapture) -> SignalData:
