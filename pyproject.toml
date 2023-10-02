@@ -23,7 +23,7 @@ dependencies = [
     "numpy",
     "scipy",
     "h5py",
-    "matplotlib",
+    "matplotlib==3.7.2",
     "numba",
     "ipdb",
     "PyWavelets",

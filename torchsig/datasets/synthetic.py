@@ -1,5 +1,4 @@
 import itertools
-import pickle
 from collections import OrderedDict
 from typing import Any, Dict, List, Optional, Tuple, Union
 
@@ -12,6 +11,8 @@ from torchsig.transforms.functional import FloatParameter, IntParameter
 from torchsig.utils.dataset import SignalDataset
 from torchsig.utils.dsp import convolve, gaussian_taps, low_pass, rrc_taps
 from torchsig.utils.types import SignalData, SignalDescription
+from torchsig.utils.reader import pickle_loads
+from torchsig.utils.writer import pickle_dumps
 
 
 def remove_corners(const):
@@ -553,7 +554,7 @@ class OFDMDataset(SyntheticDataset):
                 burst_region_dur = int(burst_region_dur * zero_pad.shape[1] // 4)
                 burst_region_stop = burst_region_start + burst_region_dur
             # bursty = deepcopy(zero_pad)
-            bursty = pickle.loads(pickle.dumps(zero_pad, -1))  # no random hangs like deepcopy
+            bursty = pickle_loads(pickle_dumps(zero_pad))  # no random hangs like deepcopy
 
             burst_dur = np.random.choice([1, 2, 4])
             original_on = True if np.random.rand() <= 0.5 else False

@@ -1,8 +1,8 @@
 from torchsig.transforms.target_transforms import DescToClassIndex
-from torchsig.utils.writer import DatasetCreator
+from torchsig.utils.reader import pickle_loads
+from torchsig.utils.writer import DatasetCreator, pickle_dumps
 from torchsig.datasets.synthetic import DigitalModulationDataset
 from torchsig.transforms import AddNoise
-import pickle
 import shutil
 import torch
 import lmdb
@@ -46,10 +46,10 @@ def test_can_seed_modulation_dataset():
     with env1.begin(db=data_db1) as txn1:
         with env2.begin(db=data_db2) as txn2:
             for idx in range(txn1.stat()["entries"]):
-                item1 = pickle.loads(txn1.get(pickle.dumps(idx)))
+                item1 = pickle_loads(txn1.get(pickle_dumps(idx)))
                 data1: torch.complex128 = item1[0]
                 label1 = item1[1]
-                item2 = pickle.loads(txn2.get(pickle.dumps(idx)))
+                item2 = pickle_loads(txn2.get(pickle_dumps(idx)))
                 data2: torch.complex128 = item2[0]
                 label2: torch.Tensor = item2[1]
 

@@ -1,5 +1,4 @@
 import os
-import pickle
 from copy import deepcopy
 from pathlib import Path
 from typing import Callable, List, Optional
@@ -10,7 +9,9 @@ import numpy as np
 from torchsig.datasets import conf
 from torchsig.transforms.target_transforms import ListTupleToDesc
 from torchsig.transforms.transforms import Identity
+from torchsig.utils.reader import pickle_loads
 from torchsig.utils.types import SignalData
+from torchsig.utils.writer import pickle_dumps
 
 
 class WidebandSig53:
@@ -136,12 +137,12 @@ class WidebandSig53:
         return self.length
 
     def __getitem__(self, idx: int) -> tuple:
-        encoded_idx = pickle.dumps(idx)
+        encoded_idx = pickle_dumps(idx)
         with self.env.begin(db=self.data_db) as data_txn:
-            iq_data: np.ndarray = pickle.loads(data_txn.get(encoded_idx))
+            iq_data: np.ndarray = pickle_loads(data_txn.get(encoded_idx))
 
         with self.env.begin(db=self.label_db) as label_txn:
-            label = pickle.loads(label_txn.get(encoded_idx))
+            label = pickle_loads(label_txn.get(encoded_idx))
 
         if self.use_signal_data:
             data = SignalData(

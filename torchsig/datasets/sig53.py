@@ -1,4 +1,3 @@
-import pickle
 from copy import deepcopy
 from pathlib import Path
 from typing import Any, Callable, Optional, Tuple
@@ -10,6 +9,8 @@ from torchsig.datasets import conf
 from torchsig.datasets.modulations import ModulationsDataset
 from torchsig.transforms import Identity
 from torchsig.utils.types import SignalData, SignalDescription
+from torchsig.utils.reader import pickle_loads
+from torchsig.utils.writer import pickle_dumps
 
 
 class Sig53:
@@ -99,12 +100,12 @@ class Sig53:
         return self.length
 
     def __getitem__(self, idx: int) -> Tuple[np.ndarray, Any]:
-        encoded_idx = pickle.dumps(idx)
+        encoded_idx = pickle_dumps(idx)
         with self.env.begin(db=self.data_db) as data_txn:
-            iq_data = pickle.loads(data_txn.get(encoded_idx)).numpy()
+            iq_data = pickle_loads(data_txn.get(encoded_idx)).numpy()
 
         with self.env.begin(db=self.label_db) as label_txn:
-            mod, snr = pickle.loads(label_txn.get(encoded_idx))
+            mod, snr = pickle_loads(label_txn.get(encoded_idx))
 
         mod = int(mod.numpy())
         if self.use_signal_data:
