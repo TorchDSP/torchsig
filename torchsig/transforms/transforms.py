@@ -12,7 +12,6 @@ from torchsig.transforms.functional import (
     NumericParameter,
     to_distribution,
     uniform_continuous_distribution,
-    uniform_discrete_distribution,
 )
 from torchsig.utils.dataset import SignalDataset
 from torchsig.utils.types import SignalData, SignalDescription
@@ -1018,7 +1017,7 @@ class TimeVaryingNoise(SignalTransform):
             avg_noise_power_db = (
                 min(noise_power_db_low, noise_power_db_high) + noise_power_db_change / 2
             )
-            for signal_desc in new_signal_description:
+            for signal_desc in signal_description_list:
                 new_signal_desc = deepcopy(signal_desc)
                 assert new_signal_desc.snr is not None
                 new_signal_desc.snr -= avg_noise_power_db
