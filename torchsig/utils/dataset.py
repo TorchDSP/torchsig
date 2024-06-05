@@ -1,10 +1,8 @@
-from copy import deepcopy
 from typing import Any, Callable, List, Optional, Tuple, Union
-
+from torchsig.utils.types import SignalCapture, SignalData
+from copy import deepcopy
 import numpy as np
 import torch
-
-from torchsig.utils.types import SignalCapture, SignalData
 
 
 class SignalDataset(torch.utils.data.Dataset):
@@ -26,14 +24,14 @@ class SignalDataset(torch.utils.data.Dataset):
         seed: Optional[int] = None,
     ) -> None:
         super(SignalDataset, self).__init__()
-        self.random_generator = np.random.RandomState(seed)
+        self.random_generator = np.random.default_rng(seed=seed)
         self.transform = transform
         self.target_transform = target_transform
 
     def __getitem__(
         self,
         index: int,
-    ) -> Tuple[Union[SignalData, np.ndarray], Any]:
+    ):
         raise NotImplementedError
 
     def __len__(self) -> int:

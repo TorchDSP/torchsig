@@ -4,9 +4,11 @@ from torchsig.datasets import conf
 from typing import List
 import click
 import os
+import numpy as np
 
 
-def generate(path: str, configs: List[conf.Sig53Config]):
+def generate(path: str, configs: List[conf.Sig53Config], num_workers: int):
+    batch_size = int(np.min((config.num_samples // num_workers, 32)))
     for config in configs:
         ds = ModulationsDataset(
             level=config.level,
@@ -19,14 +21,15 @@ def generate(path: str, configs: List[conf.Sig53Config]):
         loader = DatasetLoader(
             ds,
             seed=12345678,
-            num_workers=os.cpu_count() // 2,
-            batch_size=os.cpu_count() // 2,
+            num_workers=num_workers,
+            batch_size=batch_size,
         )
         creator = DatasetCreator(
             ds,
             seed=12345678,
             path="{}".format(os.path.join(path, config.name)),
             loader=loader,
+            num_workers=num_workers,
         )
         creator.create()
 
@@ -35,12 +38,9 @@ def generate(path: str, configs: List[conf.Sig53Config]):
 @click.option("--root", default="sig53", help="Path to generate sig53 datasets")
 @click.option("--all", default=True, help="Generate all versions of sig53 dataset.")
 @click.option("--qa", default=False, help="Generate only QA versions of sig53 dataset.")
-@click.option(
-    "--impaired",
-    default=False,
-    help="Generate impaired dataset. Ignored if --all=True (default)",
-)
-def main(root: str, all: bool, qa: bool, impaired: bool):
+@click.option("--num-workers", "num_workers", default=os.cpu_count() // 2, help="Define number of workers for both DatasetLoader and DatasetCreator")
+@click.option("--impaired", default=False, help="Generate impaired dataset. Ignored if --all=True (default)")
+def main(root: str, all: bool, qa: bool, impaired: bool, num_workers: int):
     if not os.path.isdir(root):
         os.mkdir(root)
 
@@ -54,19 +54,19 @@ def main(root: str, all: bool, qa: bool, impaired: bool):
         conf.Sig53ImpairedTrainQAConfig,
         conf.Sig53ImpairedValQAConfig,
     ]
-    if qa:
-        generate(root, configs[4:])
-        return
-
     if all:
-        generate(root, configs[:4])
+        generate(root, configs[:4], num_workers)
+        return
+    
+    if qa:
+        generate(root, configs[4:], num_workers)
         return
 
     if impaired:
-        generate(root, configs[2:4])
+        generate(root, configs[2:4], num_workers)
         return
 
-    generate(root, configs[:2])
+    generate(root, configs[:2], num_workers)
 
 
 if __name__ == "__main__":

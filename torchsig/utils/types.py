@@ -1,135 +1,242 @@
-from typing import List, Optional, Union
-
+from typing import List, Optional, TypedDict
+from torch import Tensor
 import numpy as np
 
-
-class SignalDescription:
-    """A class containing typically necessary details to understand the data
-
-    Args:
-        sample_rate (:obj:`Optional[int]`):
-            Sample rate of signal data
-        num_iq_samples (:obj:`Optional[int]`):
-            Number of IQ samples in the full example
-        lower_frequency (:obj:`Optional[float]`):
-            Lower frequency of signal data within example
-        upper_frequency (:obj:`Optional[float]`):
-            Upper frequency of signal data within example
-        center_frequency (:obj:`Optional[float]`):
-            Center frequency of signal data within example
-        bandwidth (:obj:`Optional[float]`):
-            Bandwidth of signal data within example
-        start (:obj:`Optional[float]`):
-            In [0.0, 1.0], the start of the signal data should be at `start*num_iq_samples`
-        stop (:obj:`Optional[float]`):
-            In [0.0, 1.0], the stop of the signal data should be at `stop*num_iq_samples`
-        duration (:obj:`Optional[float]`):
-            In [0.0, 1.0], the duration of the signal data should be `duration*num_iq_samples`
-        snr (:obj:`Optional[float]`):
-            Signal-to-noise ratio (SNR) of signal data in dB
-        bits_per_symbol (:obj:`Optional[int]`):
-            Bits per symbol of signal data
-        samples_per_symbol (:obj:`Optional[float]`):
-            IQ samples per symbol of the signal data
-        excess_bandwidth (:obj:`Optional[float]`):
-            Excess bandwidth of pulse shaping filter for signal data
-        class_name (:obj:`Optional[str]`):
-            Name of the signal's class
-        class_index (:obj:`Optional[int]`):
-            Index of the signal's class
-
-    """
-
-    def __init__(
-        self,
-        sample_rate: Optional[float] = 1,
-        num_iq_samples: Optional[int] = 4096,
-        lower_frequency: Optional[float] = -0.25,
-        upper_frequency: Optional[float] = 0.25,
-        center_frequency: Optional[float] = None,
-        bandwidth: Optional[float] = None,
-        start: Optional[float] = 0.0,
-        stop: Optional[float] = 1.0,
-        duration: Optional[float] = None,
-        snr: Optional[float] = 0,
-        bits_per_symbol: Optional[int] = 0,
-        samples_per_symbol: Optional[float] = 0.0,
-        excess_bandwidth: Optional[float] = 0.0,
-        class_name: Optional[str] = None,
-        class_index: Optional[int] = None,
-    ) -> None:
-        self.sample_rate = sample_rate
-        self.num_iq_samples = num_iq_samples
-        if center_frequency and bandwidth:
-            self.lower_frequency: Optional[float] = (
-                lower_frequency if lower_frequency else center_frequency - bandwidth / 2
-            )
-            self.upper_frequency: Optional[float] = (
-                upper_frequency if upper_frequency else center_frequency + bandwidth / 2
-            )
-        else:
-            self.lower_frequency = lower_frequency
-            self.upper_frequency = upper_frequency
-        if lower_frequency and upper_frequency:
-            self.bandwidth: Optional[float] = (
-                bandwidth if bandwidth else upper_frequency - lower_frequency
-            )
-            self.center_frequency: Optional[float] = (
-                center_frequency if center_frequency else lower_frequency + self.bandwidth / 2
-            )
-        else:
-            self.bandwidth = bandwidth
-            self.center_frequency = center_frequency
-        self.start = start
-        self.stop = stop
-        self.duration: Optional[float] = stop - start if start and stop else duration
-        self.snr = snr
-        self.bits_per_symbol = bits_per_symbol
-        self.samples_per_symbol = samples_per_symbol
-        self.excess_bandwidth = excess_bandwidth
-        self.class_name = class_name
-        self.class_index = class_index
+n_type = (float, int, Tensor, np.float16)
 
 
-class SignalData:
-    """A class representing signal data and typical meta-data to be used when
-    applying signal transforms
-
-    Args:
-        data: bytes
-            Signal data
-        item_type: np.dtype
-            Underlying real-valued precision of original data
-        data_type: np.dtype
-            Target real or complex-valued precision
-        signal_description: Optional[Union[List[SignalDescription], SignalDescription]]
-            Either a SignalDescription of signal data or a list of multiple
-            SignalDescription objects describing multiple signals
-
-    """
-
-    def __init__(
-        self,
-        data: Optional[bytes],
-        item_type: np.dtype,
-        data_type: np.dtype,
-        signal_description: Optional[Union[List[SignalDescription], SignalDescription]] = None,
-    ) -> None:
-        self.iq_data: Optional[np.ndarray] = None
-        self.signal_description: Optional[
-            Union[List[SignalDescription], SignalDescription]
-        ] = signal_description
-        if data is not None:
-            # No matter the underlying item type, we convert to double-precision
-            self.iq_data = np.frombuffer(data, dtype=item_type).astype(np.float64).view(data_type)
-
-        self.signal_description = (
-            [signal_description]
-            if not isinstance(signal_description, list) and signal_description
-            else signal_description
-        )
+# --------------------------------------------------------------------------------- #
+# SignalMetadata
+# --------------------------------------------------------------------------------- #
+class SignalMetadata(TypedDict):
+    sample_rate: float
+    num_samples: int
 
 
+def create_signal_metadata(
+    sample_rate: float = 0.0, num_samples: int = 0
+) -> SignalMetadata:
+    return SignalMetadata(sample_rate=sample_rate, num_samples=num_samples)
+
+
+def is_signal_metadata(d: SignalMetadata) -> bool:
+    if "sample_rate" not in d.keys() or "num_samples" not in d.keys():
+        return False
+
+    return isinstance(d["sample_rate"], n_type) and isinstance(d["num_samples"], n_type)  # type: ignore
+
+
+# --------------------------------------------------------------------------------- #
+# RFMetadata
+# --------------------------------------------------------------------------------- #
+class RFMetadata(SignalMetadata):
+    complex: bool
+    lower_freq: float
+    upper_freq: float
+    center_freq: float
+    bandwidth: float
+    start: float
+    stop: float
+    duration: float
+
+
+def create_rf_metadata(
+    sample_rate: float = 0,
+    num_samples: int = 0,
+    complex: bool = True,
+    lower_freq: float = -0.25,
+    upper_freq: float = 0.25,
+    center_freq: float = 0.0,
+    bandwidth: float = 0.5,
+    start: float = 0.0,
+    stop: float = 1.0,
+    duration: float = 1.0,
+) -> RFMetadata:
+    return RFMetadata(
+        sample_rate=sample_rate,
+        num_samples=num_samples,
+        complex=complex,
+        lower_freq=lower_freq,
+        upper_freq=upper_freq,
+        center_freq=center_freq,
+        bandwidth=bandwidth,
+        start=start,
+        stop=stop,
+        duration=duration,
+    )
+
+
+def is_rf_metadata(d: SignalMetadata) -> bool:
+    rf_keys = (
+        "complex",
+        "lower_freq",
+        "upper_freq",
+        "center_freq",
+        "bandwidth",
+        "start",
+        "stop",
+        "duration",
+    )
+    rf_types = (bool, n_type, n_type, n_type, n_type, n_type, n_type, n_type)
+    if not all(k in d for k in rf_keys):
+        return False
+
+    if not is_signal_metadata(d):
+        return False
+
+    return all(isinstance(d[k], t) for k, t in zip(rf_keys, rf_types))  # type: ignore
+
+
+def has_rf_metadata(metadata: List[SignalMetadata]) -> bool:
+    return any(is_rf_metadata(m) for m in metadata)
+
+
+def meta_bound_frequency(meta: SignalMetadata) -> SignalMetadata:
+    # Check bounds for partial signals
+    meta["lower_freq"] = np.clip(meta["lower_freq"], a_min=-0.5, a_max=0.5)
+    meta["upper_freq"] = np.clip(meta["upper_freq"], a_min=-0.5, a_max=0.5)
+    meta["bandwidth"] = meta["upper_freq"] - meta["lower_freq"]
+    meta["center_freq"] = (meta["lower_freq"] + meta["upper_freq"]) * 0.5
+    return meta
+
+
+def meta_pad_height(meta: SignalMetadata, height: float, pixel_height: float, pad_start: float):
+    meta["lower_freq"] = (
+        (meta["lower_freq"] + 0.5) * height + pad_start
+    ) / pixel_height - 0.5
+    meta["upper_freq"] = (
+        (meta["upper_freq"] + 0.5) * height + pad_start
+    ) / pixel_height - 0.5
+    meta["center_freq"] = (
+        (meta["center_freq"] + 0.5) * height + pad_start
+    ) / pixel_height - 0.5
+    meta["bandwidth"] = meta["upper_freq"] - meta["lower_freq"]
+
+
+# --------------------------------------------------------------------------------- #
+# ModulatedRFMetadata
+# --------------------------------------------------------------------------------- #
+class ModulatedRFMetadata(RFMetadata):
+    snr: float
+    bits_per_symbol: float
+    samples_per_symbol: float
+    excess_bandwidth: float
+    class_name: str
+    class_index: int
+
+
+def create_modulated_rf_metadata(
+    sample_rate: float = 0.0,
+    num_samples: int = 0,
+    complex: bool = True,
+    lower_freq: float = -0.25,
+    upper_freq: float = 0.25,
+    center_freq: float = 0.0,
+    bandwidth: float = 0.5,
+    start: float = 0.0,
+    stop: float = 1.0,
+    duration: float = 1.0,
+    snr: float = 0.0,
+    bits_per_symbol: float = 0.0,
+    samples_per_symbol: float = 0.0,
+    excess_bandwidth: float = 0.0,
+    class_name: str = "",
+    class_index: int = 0,
+) -> RFMetadata:
+    return ModulatedRFMetadata(
+        sample_rate=sample_rate,
+        num_samples=num_samples,
+        complex=complex,
+        lower_freq=lower_freq,
+        upper_freq=upper_freq,
+        center_freq=center_freq,
+        bandwidth=bandwidth,
+        start=start,
+        stop=stop,
+        duration=duration,
+        snr=snr,
+        bits_per_symbol=bits_per_symbol,
+        samples_per_symbol=samples_per_symbol,
+        excess_bandwidth=excess_bandwidth,
+        class_name=class_name,
+        class_index=class_index,
+    )
+
+
+def is_rf_modulated_metadata(d: SignalMetadata) -> bool:
+    mod_keys = (
+        "snr",
+        "bits_per_symbol",
+        "samples_per_symbol",
+        "excess_bandwidth",
+        "class_name",
+        "class_index",
+    )
+    mod_types = (n_type, n_type, n_type, n_type, str, int)
+    if not all(k in d for k in mod_keys):
+        return False
+
+    if not is_rf_metadata(d):
+        return False
+
+    return all(isinstance(d[k], t) for k, t in zip(mod_keys, mod_types))  # type: ignore
+
+
+def has_modulated_rf_metadata(metadata: List[SignalMetadata]) -> bool:
+    return any([is_rf_modulated_metadata(m) for m in metadata])
+
+
+# --------------------------------------------------------------------------------- #
+# SignalData
+# --------------------------------------------------------------------------------- #
+class SignalData(TypedDict):
+    samples: np.ndarray
+
+
+def create_signal_data(samples: np.ndarray = np.empty((1,))) -> SignalData:
+    return SignalData(samples=samples)
+
+
+def is_signal_data(d: SignalData) -> bool:
+    if "samples" not in d.keys():
+        return False
+
+    return isinstance(d["samples"], np.ndarray)
+
+
+def data_shape(data: SignalData) -> tuple:
+    return data["samples"].shape
+
+
+# --------------------------------------------------------------------------------- #
+# Signal
+#
+# --------------------------------------------------------------------------------- #
+class Signal(TypedDict):
+    data: SignalData
+    metadata: List[SignalMetadata]
+
+
+def create_signal(data: SignalData, metadata: List[SignalMetadata]) -> Signal:
+    return Signal(data=data, metadata=metadata)
+
+
+def is_signal(d: Signal) -> bool:
+    if not isinstance(d, dict):
+        return False
+
+    if "data" not in d.keys() or "metadata" not in d.keys():
+        return False
+
+    if not isinstance(d["metadata"], list):
+        return False
+
+    return is_signal_data(d["data"]) and all(
+        [is_signal_metadata(m) for m in d["metadata"]]
+    )
+
+
+# TODO[GV] Very niche class, probably can refactor this out.
 class SignalCapture:
     def __init__(
         self,
@@ -138,7 +245,7 @@ class SignalCapture:
         item_type: np.dtype,
         is_complex: bool,
         byte_offset: int = 0,
-        signal_description: Optional[SignalDescription] = None,
+        metadata: Optional[SignalMetadata] = None,
     ) -> None:
         self.absolute_path = absolute_path
         self.num_bytes = num_bytes
@@ -147,4 +254,4 @@ class SignalCapture:
         self.byte_offset = byte_offset
         self.num_samples = self.num_bytes // self.item_type.itemsize
         self.num_samples //= 2 if is_complex else 1
-        self.signal_description = signal_description
+        self.meta = metadata if metadata else create_signal_metadata()

@@ -18,6 +18,7 @@ keywords = ["signal processing", "machine learning"]
 dependencies = [
     "torch==2.0.1",
     "torchvision",
+    "opencv-python",
     "torchmetrics[detection]",
     "tqdm",
     "numpy",

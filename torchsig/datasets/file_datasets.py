@@ -1,21 +1,9 @@
+from torchsig.datasets.wideband import BurstSourceDataset, SignalBurst
+from typing import List, Optional
+import pandas as pd
+import numpy as np
 import json
 import os
-import xml
-import xml.etree.ElementTree as ET
-from typing import Any, List, Optional
-
-import numpy as np
-import pandas as pd
-
-from torchsig.datasets.wideband import BurstSourceDataset, SignalBurst
-from torchsig.transforms.functional import (
-    FloatParameter,
-    NumericParameter,
-    to_distribution,
-    uniform_continuous_distribution,
-    uniform_discrete_distribution,
-)
-from torchsig.utils.types import SignalDescription
 
 
 class WidebandFileSignalBurst(SignalBurst):
@@ -48,10 +36,8 @@ class WidebandFileSignalBurst(SignalBurst):
         **kwargs,
     ):
         super(WidebandFileSignalBurst, self).__init__(**kwargs)
-        assert self.center_frequency is not None
-        assert self.bandwidth is not None
-        self.lower_frequency = self.center_frequency - self.bandwidth / 2
-        self.upper_frequency = self.center_frequency + self.bandwidth / 2
+        self.meta["lower_freq"] = self.meta["center_freq"] - self.meta["bandwidth"] / 2
+        self.meta["upper_freq"] = self.meta["center_freq"] + self.meta["bandwidth"] / 2
         self.data_file = data_file
         self.start_sample = start_sample
         self.is_complex = is_complex
@@ -70,7 +56,9 @@ class WidebandFileSignalBurst(SignalBurst):
                 # Read desired number of samples from file
                 iq_data = (
                     np.frombuffer(
-                        file_object.read(int(self.num_iq_samples) * self.bytes_per_sample),
+                        file_object.read(
+                            int(self.num_iq_samples) * self.bytes_per_sample
+                        ),
                         dtype=self.capture_type,
                     )
                     .astype(np.float64)
@@ -82,8 +70,8 @@ class WidebandFileSignalBurst(SignalBurst):
             # file repetitively and summing with itself
             iq_data = np.zeros(self.num_iq_samples, dtype=np.complex128)
         return iq_data[: self.num_iq_samples]
-    
-    
+
+
 class TargetInterpreter:
     """The TargetInterpreter base class is meant to be inherited and modified
     for specific interpreters such that each sub-class implements a transform
@@ -168,13 +156,16 @@ class TargetInterpreter:
         for label in self.detections_df.iloc[df_indicies].itertuples():
             # Determine cut vs full capture relationship
             startInWindow = bool(
-                label.start >= start_sample and label.start < start_sample + self.num_iq_samples
+                label.start >= start_sample
+                and label.start < start_sample + self.num_iq_samples
             )
             stopInWindow = bool(
-                label.stop > start_sample and label.stop <= start_sample + self.num_iq_samples
+                label.stop > start_sample
+                and label.stop <= start_sample + self.num_iq_samples
             )
             spansFullWindow = bool(
-                label.start <= start_sample and label.stop >= start_sample + self.num_iq_samples
+                label.start <= start_sample
+                and label.stop >= start_sample + self.num_iq_samples
             )
             fullyContainedInWindow = bool(startInWindow and stopInWindow)
 
@@ -197,7 +188,7 @@ class TargetInterpreter:
                         bandwidth=bandwidth,
                         class_name=label.class_name,
                         class_index=label.class_index,
-                        random_generator=np.random.RandomState,
+                        random_generator=np.random.Generator,
                     )
                 )
 
@@ -213,7 +204,7 @@ class TargetInterpreter:
                         bandwidth=bandwidth,
                         class_name=label.class_name,
                         class_index=label.class_index,
-                        random_generator=np.random.RandomState,
+                        random_generator=np.random.Generator,
                     )
                 )
 
@@ -229,7 +220,7 @@ class TargetInterpreter:
                         bandwidth=bandwidth,
                         class_name=label.class_name,
                         class_index=label.class_index,
-                        random_generator=np.random.RandomState,
+                        random_generator=np.random.Generator,
                     )
                 )
 
@@ -245,7 +236,7 @@ class TargetInterpreter:
                         bandwidth=bandwidth,
                         class_name=label.class_name,
                         class_index=label.class_index,
-                        random_generator=np.random.RandomState,
+                        random_generator=np.random.Generator,
                     )
                 )
         return signal_bursts
@@ -337,7 +328,9 @@ class CSVFileInterpreter(TargetInterpreter):
         self.class_column = class_column
         # Generate dataframe
         self.detections_df = self._convert_to_dataframe()
-        self.detections_df = self.detections_df.sort_values(by=["start"]).reset_index(drop=True)
+        self.detections_df = self.detections_df.sort_values(by=["start"]).reset_index(
+            drop=True
+        )
         self.num_labels = len(self.detections_df)
         self.detections_df = self._convert_class_name_to_index()
 
@@ -400,7 +393,9 @@ class SigMFInterpreter(TargetInterpreter):
         self.class_target = class_target
         # Generate dataframe
         self.detections_df = self._convert_to_dataframe()
-        self.detections_df = self.detections_df.sort_values(by=["start"]).reset_index(drop=True)
+        self.detections_df = self.detections_df.sort_values(by=["start"]).reset_index(
+            drop=True
+        )
         self.num_labels = len(self.detections_df)
         self.detections_df = self._convert_class_name_to_index()
 
@@ -561,7 +556,10 @@ class FileBurstSourceDataset(BurstSourceDataset):
 
             # Distribute randomness evenly over labels, rather than files then labels
             # If more than 10,000 files, omit this step for speed
-            if self.sample_policy == "random_labels" and len(self.target_files) < 10_000:
+            if (
+                self.sample_policy == "random_labels"
+                and len(self.target_files) < 10_000
+            ):
                 annotations_per_file = []
                 for file_index, target_file in enumerate(self.target_files):
                     # Read total file size
@@ -581,11 +579,14 @@ class FileBurstSourceDataset(BurstSourceDataset):
                     # Track number of annotations
                     annotations_per_file.append(len(annotations))
                 total_annotations = sum(annotations_per_file)
-                self.file_probabilities = np.asarray(annotations_per_file) / total_annotations
+                self.file_probabilities = (
+                    np.asarray(annotations_per_file) / total_annotations
+                )
 
         # Generate the index by creating a set of bursts.
         self.index = [
-            (collection, idx) for idx, collection in enumerate(self._generate_burst_collections())
+            (collection, idx)
+            for idx, collection in enumerate(self._generate_burst_collections())
         ]
 
     def _generate_burst_collections(self) -> List[List[SignalBurst]]:
@@ -639,7 +640,9 @@ class FileBurstSourceDataset(BurstSourceDataset):
                             self.capture_type.itemsize * 2
                         )
                     else:
-                        sample_burst_collection[0].bytes_per_sample = self.capture_type.itemsize
+                        sample_burst_collection[
+                            0
+                        ].bytes_per_sample = self.capture_type.itemsize
                 else:
                     # Create invalid SignalBurst for data file information only
                     sample_burst_collection = []
@@ -656,7 +659,7 @@ class FileBurstSourceDataset(BurstSourceDataset):
                             start_sample=data_index,
                             is_complex=self.is_complex,
                             capture_type=self.capture_type,
-                            random_generator=np.random.RandomState,
+                            random_generator=np.random.Generator,
                         )
                     )
 
@@ -703,22 +706,32 @@ class FileBurstSourceDataset(BurstSourceDataset):
                 while null_interval < self.num_iq_samples:
                     # Randomly sample label index to search around
                     label_index = np.random.randint(interpreter.num_labels)
-                    if interpreter.num_labels > 1 and label_index + 1 <= interpreter.num_labels - 1:
+                    if (
+                        interpreter.num_labels > 1
+                        and label_index + 1 <= interpreter.num_labels - 1
+                    ):
                         # Max over previous annotation stop and previous null start to handle cases of long signals
-                        null_start_index = max(annotations.iloc[label_index].stop, null_start_index)
+                        null_start_index = max(
+                            annotations.iloc[label_index].stop, null_start_index
+                        )
                         null_stop_index = annotations.iloc[label_index + 1].start
                     elif (
-                        interpreter.num_labels > 1 and label_index + 1 > interpreter.num_labels - 1
+                        interpreter.num_labels > 1
+                        and label_index + 1 > interpreter.num_labels - 1
                     ):
                         # Start start index at end of final label
-                        null_start_index = max(annotations.iloc[label_index].stop, null_start_index)
+                        null_start_index = max(
+                            annotations.iloc[label_index].stop, null_start_index
+                        )
                         null_stop_index = capture_duration_samples
                     elif interpreter.num_labels == 1:
                         # Sample from before or after the only label
                         before = True if np.random.rand() >= 0.5 else False
                         null_start_index = 0 if before else annotations.iloc[0].stop
                         null_stop_index = (
-                            annotations.iloc[0].start if before else capture_duration_samples
+                            annotations.iloc[0].start
+                            if before
+                            else capture_duration_samples
                         )
                     else:
                         # Sample from anywhere in file
@@ -758,7 +771,7 @@ class FileBurstSourceDataset(BurstSourceDataset):
                         start_sample=data_index,
                         is_complex=self.is_complex,
                         capture_type=self.capture_type,
-                        random_generator=np.random.RandomState,
+                        random_generator=np.random.Generator,
                     )
                 )
 
@@ -771,7 +784,9 @@ class FileBurstSourceDataset(BurstSourceDataset):
             for sample_idx in range(self.num_valid_samples):
                 if self.sample_policy == "random_labels":
                     # Sample random file, weighted by number of annotations
-                    file_index = np.random.choice(len(self.data_files), p=self.file_probabilities)
+                    file_index = np.random.choice(
+                        len(self.data_files), p=self.file_probabilities
+                    )
                 # Read total file size
                 capture_duration_samples = (
                     os.path.getsize(os.path.join(self.data_files[file_index]))
@@ -810,11 +825,15 @@ class FileBurstSourceDataset(BurstSourceDataset):
                         latest_sample_index = burst_start_index + burst_duration / 2
                 else:
                     # Long burst: Ensure at least a quarter of the window is occupied
-                    earliest_sample_index = burst_start_index - (0.75 * self.num_iq_samples)
+                    earliest_sample_index = burst_start_index - (
+                        0.75 * self.num_iq_samples
+                    )
                     latest_sample_index = annotations.iloc[label_index].stop - (
                         0.25 * self.num_iq_samples
                     )
-                data_index = max(0, np.random.randint(earliest_sample_index, latest_sample_index))
+                data_index = max(
+                    0, np.random.randint(earliest_sample_index, latest_sample_index)
+                )
 
                 # Check duration
                 if capture_duration_samples - data_index < self.num_iq_samples:
@@ -838,7 +857,9 @@ class FileBurstSourceDataset(BurstSourceDataset):
                         self.capture_type.itemsize * 2
                     )
                 else:
-                    sample_burst_collection[0].bytes_per_sample = self.capture_type.itemsize
+                    sample_burst_collection[
+                        0
+                    ].bytes_per_sample = self.capture_type.itemsize
 
                 # If sequentially sampling, increment
                 if self.sample_policy == "sequential_labels":

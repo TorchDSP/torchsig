@@ -1,16 +1,14 @@
+from torchsig.utils.dataset import SignalDataset
+from torch.utils.data import DataLoader
+from typing import Callable, Optional
+from functools import partial
+import numpy as np
 import os
 import pickle
 import random
-from functools import partial
-from typing import Callable, Optional
-
 import lmdb
-import numpy as np
 import torch
 import tqdm
-from torch.utils.data import DataLoader
-
-from torchsig.utils.dataset import SignalDataset
 
 
 class DatasetLoader:
@@ -27,6 +25,7 @@ class DatasetLoader:
     @staticmethod
     def worker_init_fn(worker_id: int, seed: int):
         seed = seed + worker_id
+        # print(f'datasetloader seed -> {seed}')
         torch.manual_seed(seed)
         np.random.seed(seed)
         random.seed(seed)
@@ -39,8 +38,9 @@ class DatasetLoader:
         batch_size: Optional[int] = None,
         collate_fn: Optional[Callable] = None,
     ) -> None:
-        num_workers = num_workers if num_workers else os.cpu_count()
-        batch_size = batch_size if batch_size else os.cpu_count()
+        
+        num_workers = num_workers if num_workers is not None else os.cpu_count()
+        batch_size = batch_size if batch_size is not None else os.cpu_count()
         assert num_workers is not None
         assert batch_size is not None
         self.loader = DataLoader(
@@ -48,7 +48,7 @@ class DatasetLoader:
             shuffle=True,
             batch_size=batch_size,
             num_workers=num_workers,
-            prefetch_factor=2,
+            prefetch_factor=4,
             worker_init_fn=partial(DatasetLoader.worker_init_fn, seed=seed),
             multiprocessing_context=torch.multiprocessing.get_context("fork"),
             collate_fn=collate_fn,
@@ -84,9 +84,9 @@ class LMDBDatasetWriter(DatasetWriter):
     """
 
     def __init__(self, path: str, *args, **kwargs):
-        super(LMDBDatasetWriter, self).__init__(*args, **kwargs)
+        # super(LMDBDatasetWriter, self).__init__(*args, **kwargs)
         self.path = path
-        self.env = lmdb.Environment(path, subdir=True, map_size=int(4e12), max_dbs=2)
+        self.env = lmdb.Environment(path, subdir=True, map_size=int(kwargs["map_size"]), max_dbs=2)
         self.data_db = self.env.open_db(b"data")
         self.label_db = self.env.open_db(b"label")
 
@@ -121,7 +121,6 @@ class LMDBDatasetWriter(DatasetWriter):
                     db=self.data_db,
                 )
 
-
 class DatasetCreator:
     """Class is whose sole responsibility is to interface a dataset (a generator)
     with a DatasetLoader and a DatasetWriter to produce a static dataset with a
@@ -140,12 +139,15 @@ class DatasetCreator:
         dataset: SignalDataset,
         seed: int,
         path: str,
+        num_workers: Optional[int] = None,
+        batch_size: Optional[int] = None,
         writer: Optional[DatasetWriter] = None,
         loader: Optional[DatasetLoader] = None,
+        # collate_fn: Optional[DatasetLoader] = collate_fn,
     ) -> None:
-        self.loader = DatasetLoader(dataset=dataset, seed=seed)
+        self.loader = DatasetLoader(dataset=dataset, seed=seed, num_workers=num_workers, batch_size=batch_size)
         self.loader = self.loader if not loader else loader
-        self.writer = LMDBDatasetWriter(path=path)
+        self.writer = LMDBDatasetWriter(path, map_size=4e13)
         self.writer = self.writer if not writer else writer  # type: ignore
         self.path = path
 

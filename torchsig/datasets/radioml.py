@@ -1,17 +1,15 @@
 from typing import Any, Callable, List, Optional, Tuple
-
-import h5py
-import numpy as np
-import pandas as pd
-
+from torchsig.utils.dataset import SignalDataset
+from torchsig.utils.types import *
 from torchsig.transforms.target_transforms import (
     DescToClassIndex,
     DescToClassIndexSNR,
     DescToClassName,
     DescToClassNameSNR,
 )
-from torchsig.utils.dataset import SignalDataset
-from torchsig.utils.types import SignalData, SignalDescription
+import pandas as pd
+import numpy as np
+import h5py
 
 
 class RadioML2016(SignalDataset):
@@ -61,7 +59,9 @@ class RadioML2016(SignalDataset):
             for idx in range(len(data[k])):
                 mods.append(k[0])
                 snrs.append(k[1])
-                iq_data.append(np.asarray(data[k][idx][::2] + 1j * data[k][idx][1::2]).squeeze())
+                iq_data.append(
+                    np.asarray(data[k][idx][::2] + 1j * data[k][idx][1::2]).squeeze()
+                )
         data_dict = {"class_name": mods, "snr": snrs, "data": iq_data}
         self.data_table = pd.DataFrame(data_dict)
 
@@ -89,29 +89,22 @@ class RadioML2016(SignalDataset):
         self.transform = transform
 
     def __getitem__(self, item: int):
-        signal_description = SignalDescription(
-            sample_rate=0,
+        metadata = create_modulated_rf_metadata(
             samples_per_symbol=8,
             class_name=self.data_table["class_name"].iloc[item],
             snr=self.data_table["snr"].iloc[item],
         )
-        signal_data = SignalData(
-            data=None,
-            item_type=np.dtype(np.float64),
-            data_type=np.dtype(np.complex128),
-            signal_description=signal_description,
-        )
-        signal_data.iq_data = self.data_table["data"].iloc[item]
+        data = create_signal_data(samples=self.data_table["data"].iloc[item])
+        signal = create_signal(data=data, metadata=[metadata])
 
         if self.transform:
-            signal_data = self.transform(signal_data)
+            signal = self.transform(signal)
 
+        target = signal["metadata"]
         if self.target_transform:
-            target = self.target_transform(signal_data.signal_description)
-        else:
-            target = signal_description
+            target = self.target_transform(signal["metadata"])
 
-        return signal_data.iq_data, target
+        return signal["data"]["samples"], target
 
     def __len__(self) -> int:
         return self.data_table.shape[0]
@@ -189,7 +182,9 @@ class RadioML2018(SignalDataset):
         if not target_transform:
             if use_class_idx:
                 if include_snr:
-                    self.target_transform = DescToClassIndexSNR(class_list=self.class_list)
+                    self.target_transform = DescToClassIndexSNR(
+                        class_list=self.class_list
+                    )
                 else:
                     self.target_transform = DescToClassIndex(class_list=self.class_list)
             else:
@@ -200,29 +195,24 @@ class RadioML2018(SignalDataset):
         self.transform = transform
 
     def __getitem__(self, item: int):
-        signal_description = SignalDescription(
-            sample_rate=0,
+        metadata = create_modulated_rf_metadata(
             samples_per_symbol=8,
             class_name=self.class_list[np.argmax(self.modulation_onehot[item])],
             snr=self.snr[item][0],
         )
-        signal_data = SignalData(
-            data=None,
-            item_type=np.dtype(np.float64),
-            data_type=np.dtype(np.complex128),
-            signal_description=signal_description,
+        data = create_signal_data(
+            samples=self.data[item][:, 0] + 1j * self.data[item][:, 1]
         )
-        signal_data.iq_data = self.data[item][:, 0] + 1j * self.data[item][:, 1]
+        signal = create_signal(data=data, metadata=[metadata])
 
         if self.transform:
-            signal_data = self.transform(signal_data)
+            signal = self.transform(signal)
 
+        target = signal["metadata"]
         if self.target_transform:
-            target = self.target_transform(signal_data.signal_description)
-        else:
-            target = signal_description
+            target = self.target_transform(signal["metadata"])
 
-        return signal_data.iq_data, target
+        return signal["data"]["samples"], target
 
     def __len__(self) -> int:
         return self.data.shape[0]
