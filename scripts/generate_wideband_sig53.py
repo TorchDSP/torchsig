@@ -5,14 +5,16 @@ from torchsig.datasets import conf
 from typing import List
 import click
 import os
+import numpy as np
 
 
 def collate_fn(batch):
     return tuple(zip(*batch))
 
 
-def generate(root: str, configs: List[conf.WidebandSig53Config]):
+def generate(root: str, configs: List[conf.WidebandSig53Config], num_workers: int):
     for config in configs:
+        batch_size = int(np.min((config.num_samples // num_workers, 32)))
         wideband_ds = WidebandModulationsDataset(
             level=config.level,
             num_iq_samples=config.num_iq_samples,
@@ -23,36 +25,28 @@ def generate(root: str, configs: List[conf.WidebandSig53Config]):
 
         dataset_loader = DatasetLoader(
             wideband_ds,
-            num_workers=8,
-            batch_size=8,
             seed=12345678,
             collate_fn=collate_fn,
+            num_workers=num_workers,
+            batch_size=batch_size,
         )
         creator = DatasetCreator(
             wideband_ds,
             seed=12345678,
             path=os.path.join(root, config.name),
             loader=dataset_loader,
+            num_workers=num_workers,
         )
         creator.create()
 
 
 @click.command()
-@click.option(
-    "--root", default="wideband_sig53", help="Path to generate wideband_sig53 datasets"
-)
-@click.option(
-    "--all", default=True, help="Generate all versions of wideband_sig53 dataset."
-)
-@click.option(
-    "--qa", default=True, help="Generate only QA versions of wideband_sig53 dataset."
-)
-@click.option(
-    "--impaired",
-    default=False,
-    help="Generate impaired dataset. Ignored if --all=True (default)",
-)
-def main(root: str, all: bool, qa: bool, impaired: bool):
+@click.option("--root", default="wideband_sig53", help="Path to generate wideband_sig53 datasets")
+@click.option("--all", default=True, help="Generate all versions of wideband_sig53 dataset.")
+@click.option("--qa", default=False, help="Generate only QA versions of wideband_sig53 dataset.")
+@click.option("--num-workers", "num_workers", default=os.cpu_count() // 2, help="Define number of workers for both DatasetLoader and DatasetCreator")
+@click.option("--impaired", default=False, help="Generate impaired dataset. Ignored if --all=True (default)")
+def main(root: str, all: bool, qa: bool, impaired: bool, num_workers: int):
     if not os.path.isdir(root):
         os.mkdir(root)
 
@@ -66,19 +60,20 @@ def main(root: str, all: bool, qa: bool, impaired: bool):
         conf.WidebandSig53ImpairedTrainQAConfig,
         conf.WidebandSig53ImpairedValQAConfig,
     ]
-    if qa:
-        generate(root, configs[4:])
-        return
 
     if all:
-        generate(root, configs[:4])
+        generate(root, configs[:4], num_workers)
+        return
+    
+    if qa:
+        generate(root, configs[4:], num_workers)
         return
 
     if impaired:
-        generate(root, configs[2:4])
+        generate(root, configs[2:4], num_workers)
         return
 
-    generate(root, configs[:2])
+    generate(root, configs[:2], num_workers)
 
 
 if __name__ == "__main__":

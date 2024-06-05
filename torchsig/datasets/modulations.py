@@ -195,11 +195,7 @@ class ModulationsDataset(ConcatDataset):
                     RandomPhaseShift((-1, 1)),
                     RandomTimeShift((-0.5, 0.5)),
                     RandomFrequencyShift((-0.16, 0.16)),
-                    IQImbalance(
-                        (-3, 3),
-                        (-np.pi * 1.0 / 180.0, np.pi * 1.0 / 180.0),
-                        (-0.1, 0.1),
-                    ),
+                    IQImbalance((-3, 3), (-np.pi * 1.0 / 180.0, np.pi * 1.0 / 180.0), (-0.1, 0.1)),
                     RandomResample((0.75, 1.5), num_iq_samples=num_iq_samples),
                     TargetSNR((80, 80), eb_no=eb_no),
                     Normalize(norm=np.inf),
@@ -212,22 +208,9 @@ class ModulationsDataset(ConcatDataset):
                     RandomApply(RandomPhaseShift((-1, 1)), 0.9),
                     RandomApply(RandomTimeShift((-32, 32)), 0.9),
                     RandomApply(RandomFrequencyShift((-0.16, 0.16)), 0.7),
-                    RandomApply(
-                        RayleighFadingChannel((0.05, 0.5), power_delay_profile=(1.0, 0.5, 0.1)),
-                        0.5,
-                    ),
-                    RandomApply(
-                        IQImbalance(
-                            (-3, 3),
-                            (-np.pi * 1.0 / 180.0, np.pi * 1.0 / 180.0),
-                            (-0.1, 0.1),
-                        ),
-                        0.9,
-                    ),
-                    RandomApply(
-                        RandomResample((0.75, 1.5), num_iq_samples=num_iq_samples),
-                        0.5,
-                    ),
+                    RandomApply(RayleighFadingChannel((0.05, 0.5), power_delay_profile=(1.0, 0.5, 0.1)), 0.5),
+                    RandomApply(IQImbalance((-3, 3), (-np.pi * 1.0 / 180.0, np.pi * 1.0 / 180.0), (-0.1, 0.1)), 0.9),
+                    RandomApply(RandomResample((0.75, 1.5), num_iq_samples=num_iq_samples), 0.5),
                     TargetSNR((-2, 30), eb_no=eb_no),
                     Normalize(norm=np.inf),
                 ]
@@ -277,7 +260,8 @@ class ModulationsDataset(ConcatDataset):
             )
 
         if num_digital > 0 and num_ofdm > 0:
-            super(ModulationsDataset, self).__init__([digital_dataset, ofdm_dataset], **kwargs)
+            super(ModulationsDataset, self).__init__([digital_dataset, ofdm_dataset], **kwargs
+)
         elif num_digital > 0:
             super(ModulationsDataset, self).__init__([digital_dataset], **kwargs)
         elif num_ofdm > 0:
