@@ -8,8 +8,8 @@ import numpy as np
 
 
 def generate(path: str, configs: List[conf.Sig53Config], num_workers: int):
-    batch_size = int(np.min((config.num_samples // num_workers, 32)))
     for config in configs:
+        batch_size = int(np.min((config.num_samples // num_workers, 32)))
         ds = ModulationsDataset(
             level=config.level,
             num_samples=config.num_samples,
