@@ -10,7 +10,7 @@ Inputs:
     component_datasets: a list of Dataset objects which contain instances of each component, represented as (image_component: ndarray(c,height,width), class_id: int)
     balance: whether or not to balance the dataset by selecting samples from component datasets at random
 """
-class ConcatDataset(Dataset):
+class CombineDataset(Dataset):
     def __init__(self, component_datasets, balance = True, transforms = []):
         self.component_datasets = component_datasets
         self.balance = balance

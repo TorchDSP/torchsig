@@ -1,7 +1,7 @@
 import os
 from torchsig.image_datasets.datasets.synthetic_signals import GeneratorFunctionDataset, rectangle_signal_generator_function, tone_generator_function, repeated_signal_generator_function
 from torchsig.image_datasets.datasets.file_loading_datasets import SOIExtractorDataset, LazyImageDirectoryDataset
-from torchsig.image_datasets.datasets.composites import YOLOImageCompositeDataset, ConcatDataset
+from torchsig.image_datasets.datasets.composites import YOLOImageCompositeDataset, CombineDataset
 from torchsig.image_datasets.transforms.impairments import BlurTransform, RandomGaussianNoiseTransform, RandomImageResizeTransform, RandomRippleNoiseTransform, ScaleTransform, scale_dynamic_range, normalize_image
 from torchsig.image_datasets.dataset_generation import batched_write_yolo_synthetic_dataset
 
@@ -39,7 +39,7 @@ signal_transforms = [normalize_image]
 signal_transforms += [RandomImageResizeTransform([0.6,3])]
 signal_transforms += [BlurTransform(strength=1, blur_shape=(5,1))]
 signal_transforms += [ripple_transform]
-image_ds = ConcatDataset(image_datasets, transforms = signal_transforms)
+image_ds = CombineDataset(image_datasets, transforms = signal_transforms)
 
 
 soi_transforms = [normalize_image]
@@ -53,7 +53,7 @@ soi_dataset = SOIExtractorDataset(SOI_FOLDER_PATH,1, transforms=signal_transform
 
 
 
-repeat_image_ds = ConcatDataset(image_datasets, transforms = [RandomImageResizeTransform([0.6,3])])
+repeat_image_ds = CombineDataset(image_datasets, transforms = [RandomImageResizeTransform([0.6,3])])
 repeater_transforms = [BlurTransform(strength=1, blur_shape=(5,1)), ripple_transform]
 repeater_signal_dataset = GeneratorFunctionDataset(repeated_signal_generator_function(lambda: repeat_image_ds[0][0], min_gap=10, max_gap=40, min_repeats=3, max_repeats=6), 0, transforms=repeater_transforms)
 
