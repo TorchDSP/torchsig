@@ -11,5 +11,6 @@ lightning_logs/
 *.pt
 *.jpg
 *.benchmarks/
+*.ipynb_checkpoints/
 dist/
 examples/*.ipynb_checkpoints/
