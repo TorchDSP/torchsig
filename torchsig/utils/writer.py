@@ -25,7 +25,6 @@ class DatasetLoader:
     @staticmethod
     def worker_init_fn(worker_id: int, seed: int):
         seed = seed + worker_id
-        # print(f'datasetloader seed -> {seed}')
         torch.manual_seed(seed)
         np.random.seed(seed)
         random.seed(seed)
@@ -104,7 +103,7 @@ class LMDBDatasetWriter(DatasetWriter):
                 for label_idx, label in enumerate(labels):
                     txn.put(
                         pickle.dumps(last_idx + label_idx),
-                        pickle.dumps(tuple(label)),
+                        pickle.dumps(tuple(label.numpy())),
                         db=self.label_db,
                     )
             if isinstance(labels, list):
@@ -117,7 +116,7 @@ class LMDBDatasetWriter(DatasetWriter):
             for element_idx in range(len(data)):
                 txn.put(
                     pickle.dumps(last_idx + element_idx),
-                    pickle.dumps(data[element_idx]),
+                    pickle.dumps(data[element_idx].numpy()),
                     db=self.data_db,
                 )
 
@@ -147,7 +146,7 @@ class DatasetCreator:
     ) -> None:
         self.loader = DatasetLoader(dataset=dataset, seed=seed, num_workers=num_workers, batch_size=batch_size)
         self.loader = self.loader if not loader else loader
-        self.writer = LMDBDatasetWriter(path, map_size=4e13)
+        self.writer = LMDBDatasetWriter(path, map_size=1e12)
         self.writer = self.writer if not writer else writer  # type: ignore
         self.path = path
 

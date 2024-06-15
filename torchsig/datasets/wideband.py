@@ -820,6 +820,7 @@ class WidebandModulationsDataset(SignalDataset):
         **kwargs,
     ):
         super(WidebandModulationsDataset, self).__init__(**kwargs)
+        #print(f'seed -> {seed}')
         self.random_generator = np.random.default_rng(seed)
         self.update_rng = False
         self.seed = seed
@@ -924,6 +925,7 @@ class WidebandModulationsDataset(SignalDataset):
                 ]
             )
 
+        print(self.transform)
         self.target_transform = target_transform
 
         self.num_signals = to_distribution(num_signals, random_generator=self.random_generator)
