@@ -1,0 +1,23 @@
+name: torch_sig_container_${PROJECT_NAME}
+services:
+    torchsig_service:
+        build: .
+        image: torchsig:v0.5.0
+        container_name: torchsig_${PROJECT_NAME}
+        stdin_open: true
+        tty: true
+        volumes:
+            - ./:/workspace/code
+        ports:
+            - '${JUP_PORT}:${JUP_PORT}'
+        environment:
+            - NVIDIA_VISIBLE_DEVICES=all
+            - NVIDIA_DRIVER_CAPABILITIES=all
+        command: jupyter lab --allow-root --ip=0.0.0.0 --no-browser --port ${JUP_PORT} --NotebookApp.token=''
+        shm_size: 512GB
+        deploy:
+            resources:
+                reservations:
+                    devices:
+                        - capabilities: [gpu]
+                          driver: nvidia
