@@ -35,7 +35,6 @@ def generate(root: str, configs: List[conf.WidebandSig53Config], num_workers: in
             seed=12345678,
             path=os.path.join(root, config.name),
             loader=dataset_loader,
-            num_workers=num_workers,
         )
         creator.create()
 
