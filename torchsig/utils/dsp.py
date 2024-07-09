@@ -17,7 +17,6 @@ def low_pass(cutoff: float, transition_bandwidth: float) -> np.ndarray:
         transition_bandwidth (float): width of the transition region
 
     """
-    transition_bandwidth = (0.5 - cutoff) / 4
     num_taps = estimate_filter_length(transition_bandwidth)
     return sp.firwin(
         num_taps,
@@ -28,6 +27,25 @@ def low_pass(cutoff: float, transition_bandwidth: float) -> np.ndarray:
         fs=1,
     )
 
+def polyphase_prototype_filter ( num_branches: int ) -> np.ndarray:
+    # design a low-pass filter
+    cutoff = 1/(2*num_branches)
+    transitionBandwidth = 1/(4*num_branches)
+    prototypeFilterPFB = low_pass(cutoff=cutoff, transition_bandwidth=transitionBandwidth)
+    # increase gain to account for change in sample rate
+    prototypeFilterPFB *= num_branches
+    return prototypeFilterPFB
+
+def irrational_rate_resampler ( input_signal: np.ndarray, resampler_rate: float ) -> np.ndarray:
+    # TODO: needs to be estimated, not a fixed value
+    numBranchesPFB = 10000
+    resamplerUpRate = numBranchesPFB
+    resamplerDownRate = int(np.round(numBranchesPFB/resampler_rate))
+    # design the PFB prototype filter
+    prototypeFilterPFB = polyphase_prototype_filter ( numBranchesPFB )
+    # apply the PFB via upfirdn()
+    output = sp.upfirdn(prototypeFilterPFB, input_signal, up=resamplerUpRate, down=resamplerDownRate)
+    return output
 
 def estimate_filter_length(
     transition_bandwidth: float, attenuation_db: int = 120, sample_rate: float = 1.0

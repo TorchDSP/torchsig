@@ -4,7 +4,7 @@ from torchsig.utils.types import (
     create_rf_metadata,
     create_modulated_rf_metadata,
 )
-from torchsig.utils.dsp import convolve, gaussian_taps, low_pass, rrc_taps
+from torchsig.utils.dsp import convolve, gaussian_taps, low_pass, rrc_taps, irrational_rate_resampler
 from torchsig.transforms.functional import FloatParameter, IntParameter
 from torchsig.utils.dataset import SignalDataset
 from torchsig.utils.dsp import estimate_filter_length
@@ -226,6 +226,7 @@ class SyntheticDataset(SignalDataset):
             signal = self.transform(signal)
 
         target = signal["metadata"]
+
         if self.target_transform:
             target = self.target_transform(signal["metadata"])
 
@@ -263,6 +264,9 @@ class ConstellationDataset(SyntheticDataset):
         user_const_map (:obj:`bool`):
             user constellation dict
 
+        center_freq (:obj:`float`):
+            center frequency of the signal, will be upconverted internally
+
     """
 
     def __init__(
@@ -275,6 +279,7 @@ class ConstellationDataset(SyntheticDataset):
         random_pulse_shaping: bool = False,
         random_data: bool = False,
         user_const_map: Optional[Dict[str, np.ndarray]] = None,
+        center_freq: float = 0,
         **kwargs,
     ):
         super(ConstellationDataset, self).__init__(**kwargs)
@@ -314,6 +319,7 @@ class ConstellationDataset(SyntheticDataset):
                     class_name=const_name,
                     class_index=const_idx,
                     excess_bandwidth=alphas[int(const_idx * self.num_samples_per_class + idx)],
+                    center_freq=center_freq
                 )
                 self.index.append(
                     (
@@ -327,11 +333,14 @@ class ConstellationDataset(SyntheticDataset):
         class_name = item[0]
         index = item[1]
         meta = item[2][0]
+
+        center_freq = meta["center_freq"]
+        bandwidth = 1/self.iq_samples_per_symbol
+
         orig_state = np.random.get_state()
         if not self.random_data:
             np.random.seed(index)
 
-        
         const = self.const_map[class_name] / np.mean(np.abs(self.const_map[class_name]))
         symbol_nums = np.random.randint(0, len(const), int(self.num_iq_samples / self.iq_samples_per_symbol))
         symbols = const[symbol_nums]
@@ -348,6 +357,23 @@ class ConstellationDataset(SyntheticDataset):
         ridx = lidx + self.num_iq_samples
 
         filtered = filtered[lidx:ridx]
+
+        # apply frequency shifting
+        filtered *= np.exp(2j*np.pi*center_freq*np.arange(0,len(filtered)))
+
+        # determine the boundaries for where the signal currently resides.
+        # these values are used to determine if aliasing has occured
+        upperSignalEdge = center_freq + (bandwidth/2)
+        lowerSignalEdge = center_freq - (bandwidth/2)
+
+        # check to see if aliasing has occured due to upconversion. if so, then apply
+        # a filter to minimize it
+        if ( upperSignalEdge > 0.5 or lowerSignalEdge < -0.5):
+
+            # the signal has overlaped either the -fs/2 or +fs/2 boundary and therefore
+            # a BPF filter will be applied to attenuate the portion of the signal that
+            # is overlapping the -fs/2 or +fs/2 boundary to minimize aliasing
+            filtered = upconversionAntiAliasingFilter ( filtered, center_freq, bandwidth )
 
         if not self.random_data:
             np.random.set_state(orig_state)  # return numpy back to its previous state
@@ -406,6 +432,12 @@ class OFDMDataset(SyntheticDataset):
             Note: The partial bursty behavior occurs prior to time slicing, and as such, is more interesting in longer
             duration examples
 
+        center_freq (:obj:`float`):
+            center frequency of the signal, will be upconverted internally
+
+        bandwidth (:obj:`float`):
+            bandwidth of the signal, will be resampled internally
+
         transform (:obj:`Callable`, optional):
             A function/transform that takes in an IQ vector and returns a transformed version.
 
@@ -428,6 +460,8 @@ class OFDMDataset(SyntheticDataset):
         ),
         dc_subcarrier: tuple = ("on", "off"),
         time_varying_realism: tuple = ("off",),
+        center_freq: float = 0,
+        bandwidth: float = 0.5,
         **kwargs,
     ):
         super(OFDMDataset, self).__init__(**kwargs)
@@ -481,10 +515,10 @@ class OFDMDataset(SyntheticDataset):
                     sample_rate=0.0,
                     num_samples=self.num_iq_samples,
                     complex=True,
-                    lower_freq=-0.25,
-                    upper_freq=0.25,
-                    center_freq=0.0,
-                    bandwidth=0.5,
+                    lower_freq=center_freq-(bandwidth/2),
+                    upper_freq=center_freq+(bandwidth/2),
+                    center_freq=center_freq,
+                    bandwidth=bandwidth,
                     start=0.0,
                     stop=1.0,
                     duration=1.0,
@@ -519,6 +553,10 @@ class OFDMDataset(SyntheticDataset):
         sidelobe_suppression_method = item[6]
         dc_subcarrier = item[7]
         time_varying_realism = item[8]
+        meta = item[9][0]
+        center_freq = meta["center_freq"]
+        bandwidth = meta["bandwidth"]
+
         orig_state = np.random.get_state()
         if not self.random_data:
             np.random.seed(index)
@@ -749,10 +787,36 @@ class OFDMDataset(SyntheticDataset):
             # else:
             #     start_idx = np.random.randint(0, int(symbol_dur * burst_dur))
 
+
+        # determine the fine resampling rate required after signal is modulated,
+        # OFDM modulator uses a nominal oversampling rate of 2.
+        resamplerRate = (1/2)/bandwidth
+
+        # apply resampling
+        output = irrational_rate_resampler ( output, resamplerRate )
+
+        # apply frequency shifting
+        output *= np.exp(2j*np.pi*center_freq*np.arange(0,len(output)))
+
+        # determine the boundaries for where the signal currently resides.
+        # these values are used to determine if aliasing has occured
+        upperSignalEdge = center_freq + (bandwidth/2)
+        lowerSignalEdge = center_freq - (bandwidth/2)
+
+        # check to see if aliasing has occured due to upconversion. if so, then apply
+        # a filter to minimize it
+        if ( upperSignalEdge > 0.5 or lowerSignalEdge < -0.5):
+
+            # the signal has overlaped either the -fs/2 or +fs/2 boundary and therefore
+            # a BPF filter will be applied to attenuate the portion of the signal that
+            # is overlapping the -fs/2 or +fs/2 boundary to minimize aliasing
+            output = upconversionAntiAliasingFilter ( output, center_freq, bandwidth )
+
         if not self.random_data:
             np.random.set_state(orig_state)  # return numpy back to its previous state
 
-        return output[start_idx : start_idx + self.num_iq_samples]
+        return output[0:self.num_iq_samples]
+
 
 
 class FSKDataset(SyntheticDataset):
@@ -774,6 +838,12 @@ class FSKDataset(SyntheticDataset):
         random_data (:obj:`bool`):
             whether the modulated binary utils should be random each time, or seeded by index
 
+        center_freq (:obj:`float`):
+            center frequency of the signal, will be upconverted internally
+
+        bandwidth (:obj:`float`):
+            bandwidth of the signal, will be resampled internally
+
         transform (:obj:`Callable`, optional):
             A function/transform that takes in an IQ vector and returns a transformed version.
 
@@ -787,6 +857,8 @@ class FSKDataset(SyntheticDataset):
         iq_samples_per_symbol: int = 2,
         random_data: bool = False,
         random_pulse_shaping: bool = False,
+        center_freq: float = 0,
+        bandwidth: float = 0.5,
         **kwargs,
     ):
         super(FSKDataset, self).__init__(**kwargs)
@@ -804,17 +876,17 @@ class FSKDataset(SyntheticDataset):
                 # iq_samples_per_symbol is used as an oversampling rate in
                 # FSKDataset class, therefore the signal bandwidth can be
                 # approximated by mod_idx/iq_samples_per_symbol.
-                mod_idx = self._mod_index(freq_name)
-                bandwidth_cutoff = mod_idx / self.iq_samples_per_symbol
-                bandwidth = np.random.uniform(bandwidth_cutoff, 0.5 - bandwidth_cutoff) if self.random_pulse_shaping else 0.0
+                #mod_idx = self._mod_index(freq_name)
+                #bandwidth_cutoff = mod_idx / self.iq_samples_per_symbol
+                #bandwidth = np.random.uniform(bandwidth_cutoff, 0.5 - bandwidth_cutoff) #if self.random_pulse_shaping else 0.0
                 meta = ModulatedRFMetadata(
                     sample_rate=0.0,
                     num_samples=float(self.num_iq_samples),
                     complex=True,
-                    lower_freq=-0.25,
-                    upper_freq=0.25,
-                    center_freq=0.0,
-                    bandwidth=0.5,
+                    lower_freq=center_freq-(bandwidth/2),
+                    upper_freq=center_freq+(bandwidth/2),
+                    center_freq=center_freq,
+                    bandwidth=bandwidth,
                     start=0.0,
                     stop=1.0,
                     duration=1.0,
@@ -823,16 +895,17 @@ class FSKDataset(SyntheticDataset):
                     samples_per_symbol=float(iq_samples_per_symbol),
                     class_name=freq_name,
                     class_index=freq_idx,
-                    excess_bandwidth=bandwidth,
+                    excess_bandwidth=0,
                 )
-                self.index.append((freq_name, freq_idx * self.num_samples_per_class + idx, bandwidth, [meta])
+                self.index.append((freq_name, freq_idx * self.num_samples_per_class + idx, [meta])
                 )
 
     def _generate_samples(self, item: Tuple) -> np.ndarray:
         const_name = item[0]
         index = item[1]
-        bandwidth = item[2]
-        metadata = item[3][0]
+        metadata = item[2][0]
+        center_freq = metadata["center_freq"]
+        bandwidth = metadata["bandwidth"]
 
         # calculate the modulation order, ex: the "4" in "4-FSK"
         const = freq_map[const_name]
@@ -854,8 +927,15 @@ class FSKDataset(SyntheticDataset):
         if not self.random_data:
             np.random.seed(index)
 
+        # get the modulation index
+        mod_idx = self._mod_index(const_name)
+
+        # calculate the resampling rate to convert from the oversampling rate specified by
+        # self.iq_samples_per_symbol into the proper bandwidth
+        resampleRate = bandwidth*mod_idx/(1/oversampling_rate)
+
         # calculate the indexes into symbol table
-        symbol_nums = np.random.randint(0, len(const_oversampled), int(self.num_iq_samples / samples_per_symbol_recalculated))
+        symbol_nums = np.random.randint(0, len(const_oversampled), int(np.ceil((self.num_iq_samples / samples_per_symbol_recalculated) * (1/resampleRate)) ))
         # produce data symbols
         symbols = const_oversampled[symbol_nums]
         # rectangular pulse shape
@@ -864,7 +944,6 @@ class FSKDataset(SyntheticDataset):
         if "g" in const_name:
             # GMSK, GFSK
             taps = gaussian_taps(samples_per_symbol_recalculated, bandwidth)
-            metadata["excess_bandwidth"] = bandwidth
             pulse_shape = np.convolve(taps,pulse_shape)
 
         # upsample symbols and apply pulse shaping
@@ -873,7 +952,6 @@ class FSKDataset(SyntheticDataset):
         # insert a zero at first sample to start at zero phase
         filtered = np.insert(filtered, 0, 0)
 
-        mod_idx = self._mod_index(const_name)
         phase = np.cumsum(np.array(filtered) * 1j * mod_idx * np.pi)
         modulated = np.exp(phase)
 
@@ -882,10 +960,30 @@ class FSKDataset(SyntheticDataset):
             # apply the filter
             modulated = convolve(modulated, taps)
 
+        # apply resampling
+        modulated = irrational_rate_resampler ( modulated, resampleRate )
+
+        # apply center frequency shifting
+        modulated *= np.exp(2j*np.pi*center_freq*np.arange(0,len(modulated)))
+
+        # determine the boundaries for where the signal currently resides.
+        # these values are used to determine if aliasing has occured
+        upperSignalEdge = center_freq + (bandwidth/2)
+        lowerSignalEdge = center_freq - (bandwidth/2)
+
+        # check to see if aliasing has occured due to upconversion. if so, then apply
+        # a filter to minimize it
+        if ( upperSignalEdge > 0.5 or lowerSignalEdge < -0.5):
+
+            # the signal has overlaped either the -fs/2 or +fs/2 boundary and therefore
+            # a BPF filter will be applied to attenuate the portion of the signal that
+            # is overlapping the -fs/2 or +fs/2 boundary to minimize aliasing
+            modulated = upconversionAntiAliasingFilter ( modulated, center_freq, bandwidth )
+
         if not self.random_data:
             np.random.set_state(orig_state)  # return numpy back to its previous state
 
-        return modulated[:self.num_iq_samples]  #[-self.num_iq_samples :]
+        return modulated[:self.num_iq_samples]
 
     def _mod_index(self, const_name):
         # returns the modulation index based on the modulation
@@ -1040,6 +1138,7 @@ class FMDataset(SyntheticDataset):
     def _generate_samples(self, item: Tuple) -> np.ndarray:
         # class_name = item[0]
         index = item[1]
+        meta = item[2]
         orig_state = np.random.get_state()
         if not self.random_data:
             np.random.seed(index)
@@ -1050,4 +1149,58 @@ class FMDataset(SyntheticDataset):
         if not self.random_data:
             np.random.set_state(orig_state)  # return numpy back to its previous state
 
-        return modulated[-self.num_iq_samples :]
+        return modulated[-self.num_iq_samples :], meta
+
+
+# apply an anti-aliasing filter to a signal which has aliased and wrapped around the
+# -fs/2 or +fs/2 boundary due to upconversion
+def upconversionAntiAliasingFilter ( input_signal, center_freq, bandwidth ):
+
+    # determine the boundaries for where the signal currently resides.
+    # these values are used to determine if aliasing has occured
+    upperSignalEdge = center_freq + (bandwidth/2)
+    lowerSignalEdge = center_freq - (bandwidth/2)
+
+    # define the boundary for the upper and lower frequencies
+    # upon which a BPF will be designed to limit aliasing
+    upperBoundary = 0.48
+    lowerBoundary = -upperBoundary
+
+    # determine if aliasing has occured, and if so, which direction,
+    # either +fs/2 or -fs/2
+    if ( upperSignalEdge > 0.5): # aliasing occurs across +fs/2
+        slicedUpperSignalEdge = upperBoundary
+        slicedLowerSignalEdge = -0.5+center_freq
+    elif ( lowerSignalEdge < -0.5): # aliasing occurs across -fs/2
+        slicedLowerSignalEdge = lowerBoundary
+        slicedUpperSignalEdge = 0.5+center_freq
+    else: # no aliasing occurs
+        slicedUpperSignalEdge = upperSignalEdge
+        slicedLowerSignalEdge = lowerSignalEdge
+
+    # compute the bandwidth and center frequency after the BPF is applied
+    slicedBandwidth = slicedUpperSignalEdge - slicedLowerSignalEdge
+    slicedCenterFreq = slicedLowerSignalEdge + (slicedBandwidth/2)
+
+    # design a LPF then upconvert it to a BPF
+    # 
+    # calculate the transition bandwidth for the LPF with proportion to the
+    # signal's bandwidth. a fixed ratio is used here in order to keep the 
+    # transition bandwidth small
+    transitionBandwidth = slicedBandwidth/16
+    # the passband edge of the LPF is 1/2 of the post-filtered bandwidth. this
+    # pushes the cutoff frequency past the 3 dB point in the signal bandwidth 
+    # as to minimize the distortion of the underlying signal
+    fPass = slicedBandwidth/2
+    # calculate the filter cutoff location
+    cutoff = fPass + (transitionBandwidth/2)
+    # design the LPF
+    LPFWeights = low_pass(cutoff=cutoff,transition_bandwidth=transitionBandwidth)
+    # modulate the LPF to BPF
+    numLPFWeights = len(LPFWeights)
+    n = np.arange(-int(numLPFWeights-1)/2,((numLPFWeights-1)/2)+1)
+    BPFWeights = LPFWeights * np.exp(2j*np.pi*slicedCenterFreq*n)
+    # apply BPF
+    output = np.convolve(BPFWeights,input_signal)
+    return output
+
