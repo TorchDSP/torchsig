@@ -9,7 +9,7 @@ def get_layer_list(model):
         arr = [m for m in model.modules()]
         if len(arr) > 1:
             for module in arr[1:]:
-                final_arr += get_module_list(module)
+                final_arr += (module)
             return final_arr
         else:
             return arr

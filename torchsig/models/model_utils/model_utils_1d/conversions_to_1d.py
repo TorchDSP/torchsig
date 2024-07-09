@@ -54,6 +54,7 @@ def convert_2d_model_to_1d(model):
     type_factory_pairs = [
         ('Conv2d', conv2d_to_conv1d),
         ('BatchNorm2d', batchNorm2d_to_GBN1d),
+        ('BatchNormAct2d', batchNorm2d_to_batchNorm1d),
         ('SqueezeExcite', squeezeExcite_to_squeezeExcite1d),
         ('SelectAdaptivePool2d',make_fast_avg_pooling_layer),
     ]
