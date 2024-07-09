@@ -217,30 +217,17 @@ class ModulatedSignalBurst(SignalBurst):
         self.meta["upper_freq"] = self.meta["center_freq"] + self.meta["bandwidth"] / 2
 
     def generate_iq(self):
-        # Read mod_index to determine which synthetic dataset to read from
         self.meta["class_name"] = self.classes()
         self.meta["class_index"] = self.class_list.index(self.meta["class_name"])
+
+        # estimate the approximate samples per symbol (used as an oversampling estimate for ConstellationDataset and FSK/MSK modulations)
         approx_samp_per_sym = int(np.ceil(self.meta["bandwidth"] ** -1)) if self.meta["bandwidth"] < 1.0 else int(np.ceil(self.meta["bandwidth"])) 
-        approx_bandwidth = approx_samp_per_sym**-1 if self.meta["bandwidth"] < 1.0 else int(np.ceil(self.meta["bandwidth"]))
-        
-        # Determine if the new rate of the requested signal to determine how many samples to request
-        if "ofdm" in self.meta["class_name"]:
-            occupied_bandwidth = 0.5
-        elif "g" in self.meta["class_name"]:
-            if "m" in self.meta["class_name"]:
-                occupied_bandwidth = approx_bandwidth * (1 - 0.5 + self.meta["excess_bandwidth"])
-            else:
-                occupied_bandwidth = approx_bandwidth * (1 + 0.25 + self.meta["excess_bandwidth"])
-        elif "fsk" in self.meta["class_name"]:
-            occupied_bandwidth = approx_bandwidth * (1 + 1)
-        elif "msk" in self.meta["class_name"]:
-            occupied_bandwidth = approx_bandwidth
-        else:
-            occupied_bandwidth = approx_bandwidth * (1 + self.meta["excess_bandwidth"])
+        # self.meta["num_samples"] is the total number of IQ samples used in the snapshot. the duration (self.meta["duration"]) represents
+        # what proportion of the snapshot that the modulated waveform will occupy. the duration is on a range of [0,1]. for example, a 
+        # duration of 0.75 means that the modulated waveform will occupy 75% of the total length of the snapshot.
         self.meta["duration"] = self.meta["stop"] - self.meta["start"]
-        new_rate = occupied_bandwidth / self.meta["bandwidth"]
-        # TODO: why the 1.1
-        num_iq_samples = int(np.ceil(self.meta["num_samples"] * self.meta["duration"] / new_rate * 1.1) )
+        # calculate how many IQ samples are needed from the modulator based on the duration
+        num_iq_samples = int(np.ceil(self.meta["num_samples"] * self.meta["duration"]) )
 
         # Create modulated burst
         if "ofdm" in self.meta["class_name"]:
@@ -262,8 +249,10 @@ class ModulatedSignalBurst(SignalBurst):
                 sidelobe_suppression_methods=sidelobe_suppression_methods,
                 dc_subcarrier=("on", "off"),
                 time_varying_realism=("on", "off"),
+                center_freq=self.meta["center_freq"],
+                bandwidth=self.meta["bandwidth"]
             )
-        elif "g" in self.meta["class_name"]:
+        elif "fsk" in self.meta["class_name"] or "msk" in self.meta["class_name"]: # FSK, GFSK, MSK, GMSK
             modulated_burst = FSKDataset(
                 modulations=[self.meta["class_name"]],
                 num_iq_samples=num_iq_samples,
@@ -271,17 +260,10 @@ class ModulatedSignalBurst(SignalBurst):
                 iq_samples_per_symbol=approx_samp_per_sym,
                 random_data=True,
                 random_pulse_shaping=True,
+                center_freq=self.meta["center_freq"],
+                bandwidth=self.meta["bandwidth"]
             )
-        elif "fsk" in self.meta["class_name"] or "msk" in self.meta["class_name"]:
-            modulated_burst = FSKDataset(
-                modulations=[self.meta["class_name"]],
-                num_iq_samples=num_iq_samples,
-                num_samples_per_class=1,
-                iq_samples_per_symbol=approx_samp_per_sym,
-                random_data=True,
-                random_pulse_shaping=False,
-            )
-        else:
+        else: # QAM/PSK and related
             modulated_burst = ConstellationDataset(
                 constellations=[self.meta["class_name"]],
                 num_iq_samples=num_iq_samples,
@@ -289,49 +271,18 @@ class ModulatedSignalBurst(SignalBurst):
                 iq_samples_per_symbol=approx_samp_per_sym,
                 random_data=True,
                 random_pulse_shaping=False, #True, TODO fix pulse shaping code.
+                center_freq=self.meta["center_freq"],
             )
 
         # Extract IQ samples from dataset example
         iq_samples = modulated_burst[0][0]
-        # Resample to target bandwidth * oversample to avoid freq wrap during shift
-        if (self.meta["center_freq"] + self.meta["bandwidth"] / 2 > 0.4 or self.meta["center_freq"] - self.meta["bandwidth"] / 2 < -0.4):
-            oversample = 2 if self.meta["bandwidth"] < 1.0 else int(np.ceil(self.meta["bandwidth"] * 2)) 
-        else:
-            oversample = 1
-        # TODO : this is poor resampling.
-        up_rate = np.floor(new_rate * 100 * oversample).astype(np.int32)
-        down_rate = 100
-        iq_samples = sp.resample_poly(iq_samples, up_rate, down_rate)
 
-        # Freq shift to desired center freq
-        time_vector = np.arange(iq_samples.shape[0], dtype=float)
-        iq_samples = iq_samples * np.exp(2j * np.pi * self.meta["center_freq"] / oversample * time_vector)
-
-        if oversample == 1:
-            # Prune to length
-            iq_samples = iq_samples[:int(self.meta["num_samples"] * self.meta["duration"])]
-
-        else:
-            # Pre-prune to reduce filtering cost
-            iq_samples = iq_samples[:int(self.meta["num_samples"] * self.meta["duration"] * oversample)]
-            taps = low_pass(cutoff=1 / oversample / 2, transition_bandwidth=(0.5 - 1 / oversample / 2) / 4)
-            filtered = sp.convolve(iq_samples, taps, mode="full")
-            lidx = (len(filtered) - len(iq_samples)) // 2
-            ridx = lidx + len(iq_samples)
-            iq_samples = filtered[lidx:ridx]
-
-            # Decimate back down to correct sample rate
-            iq_samples = sp.resample_poly(iq_samples, 1, oversample)
-
+        # limit the number of samples to the desired duration
+        iq_samples = iq_samples[:int(self.meta["num_samples"] * self.meta["duration"])]
 
         # Set power
         iq_samples = iq_samples / np.sqrt(np.mean(np.abs(iq_samples) ** 2))
         iq_samples = np.sqrt(self.meta["bandwidth"]) * (10 ** (self.meta["snr"] / 20.0)) * iq_samples / np.sqrt(2)
-
-        if iq_samples.shape[0] > 50:
-            window = np.blackman(50) / np.max(np.blackman(50))
-            iq_samples[:25] *= window[:25]
-            iq_samples[-25:] *= window[-25:]
 
         # Zero-pad to fit num_iq_samples
         leading_silence = int(self.meta["num_samples"] * self.meta["start"])
@@ -604,10 +555,7 @@ class SyntheticBurstSourceDataset(BurstSourceDataset):
         self.start = to_distribution(start, random_generator=self.random_generator)
 
         # Generate the index by creating a set of bursts.
-        self.index = [
-            (collection, idx)
-            for idx, collection in enumerate(self._generate_burst_collections())
-        ]
+        self.index = [(collection, idx) for idx, collection in enumerate(self._generate_burst_collections())]
 
     def _generate_burst_collections(self) -> List[List[SignalBurst]]:
         dataset = []
@@ -685,7 +633,7 @@ class WidebandDataset(SignalDataset):
         self.index = []
         self.pregenerate = False
         if pregenerate:
-            print("Pregenerating dataset...")
+            #print("Pregenerating dataset...")
             for idx in tqdm(range(self.num_samples)):
                 self.index.append(self.__getitem__(idx))
         self.pregenerate = pregenerate
@@ -925,9 +873,7 @@ class WidebandModulationsDataset(SignalDataset):
                 ]
             )
 
-        print(self.transform)
         self.target_transform = target_transform
-
         self.num_signals = to_distribution(num_signals, random_generator=self.random_generator)
         self.snrs = to_distribution(snrs, random_generator=self.random_generator)
 
@@ -1037,7 +983,6 @@ class WidebandModulationsDataset(SignalDataset):
                 silence_multiple = to_distribution(literal_eval(self.metadata.iloc[meta_idx].silence_multiple), random_generator=self.random_generator)()
                 stops_in_frame = False
                 if hop_random_var < self.metadata.iloc[meta_idx].freq_hopping_prob:
-                # if 1:
                     # override bandwidth with smaller options for freq hoppers
                     if ofdm_present:
                         bandwidth = self.random_generator.uniform(0.0125, 0.025)
@@ -1097,51 +1042,51 @@ class WidebandModulationsDataset(SignalDataset):
                 stop = 1.0
 
             # Handle overlaps
-            overlap = False
-            minimum_freq_spacing = 0.05
-            for source in signal_sources:
-                for signal in source.index[0][0]:
-                    meta = signal.meta
-                    # Check time overlap
-                    if (
-                        (start > meta["start"] and start < meta["stop"])
-                        or (
-                            start + burst_duration > meta["stop"]
-                            and stop < meta["stop"]
-                        )
-                        or (meta["start"] > start and meta["start"] < stop)
-                        or (meta["stop"] > start and meta["stop"] < stop)
-                        or (start == 0.0 and meta["start"] == 0.0)
-                        or (stop == 1.0 and meta["stop"] == 1.0)
-                    ):
-                        # Check freq overlap
-                        if (
-                            (
-                                low_freq > meta["lower_freq"] - minimum_freq_spacing
-                                and low_freq < meta["upper_freq"] + minimum_freq_spacing
-                            )
-                            or (
-                                high_freq > meta["lower_freq"] - minimum_freq_spacing
-                                and high_freq
-                                < meta["upper_freq"] + minimum_freq_spacing
-                            )
-                            or (
-                                meta["lower_freq"] - minimum_freq_spacing > low_freq
-                                and meta["lower_freq"] - minimum_freq_spacing
-                                < high_freq
-                            )
-                            or (
-                                meta["upper_freq"] + minimum_freq_spacing > low_freq
-                                and meta["upper_freq"] + minimum_freq_spacing
-                                < high_freq
-                            )
-                        ):
-                            # Overlaps in both time and freq, skip
-                            overlap = True
-            if overlap:
-                overlap_counter += 1
-                # print('skipping signal')
-                continue
+            # overlap = False
+            # minimum_freq_spacing = 0.05
+            # for source in signal_sources:
+            #     for signal in source.index[0][0]:
+            #         meta = signal.meta
+            #         # Check time overlap
+            #         if (
+            #             (start > meta["start"] and start < meta["stop"])
+            #             or (
+            #                 start + burst_duration > meta["stop"]
+            #                 and stop < meta["stop"]
+            #             )
+            #             or (meta["start"] > start and meta["start"] < stop)
+            #             or (meta["stop"] > start and meta["stop"] < stop)
+            #             or (start == 0.0 and meta["start"] == 0.0)
+            #             or (stop == 1.0 and meta["stop"] == 1.0)
+            #         ):
+            #             # Check freq overlap
+            #             if (
+            #                 (
+            #                     low_freq > meta["lower_freq"] - minimum_freq_spacing
+            #                     and low_freq < meta["upper_freq"] + minimum_freq_spacing
+            #                 )
+            #                 or (
+            #                     high_freq > meta["lower_freq"] - minimum_freq_spacing
+            #                     and high_freq
+            #                     < meta["upper_freq"] + minimum_freq_spacing
+            #                 )
+            #                 or (
+            #                     meta["lower_freq"] - minimum_freq_spacing > low_freq
+            #                     and meta["lower_freq"] - minimum_freq_spacing
+            #                     < high_freq
+            #                 )
+            #                 or (
+            #                     meta["upper_freq"] + minimum_freq_spacing > low_freq
+            #                     and meta["upper_freq"] + minimum_freq_spacing
+            #                     < high_freq
+            #                 )
+            #             ):
+            #                 # Overlaps in both time and freq, skip
+            #                 overlap = True
+            # if overlap:
+            #     overlap_counter += 1
+            #     # print('skipping signal')
+            #     continue
 
             # Add signal to signal sources
             snrs_db = self.snrs()

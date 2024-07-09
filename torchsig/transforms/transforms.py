@@ -281,10 +281,7 @@ class TargetConcatenate(Transform):
 class SignalTransform(Transform):
     """An abstract base class which explicitly only operates on Signal data"""
 
-    def __init__(
-        self,
-        **kwargs,
-    ) -> None:
+    def __init__(self, **kwargs,) -> None:
         super(SignalTransform, self).__init__(**kwargs)
 
     def __call__(self, signal: Signal) -> Signal:
@@ -530,7 +527,7 @@ class RandomResample(SignalTransform):
 
         keep_samples (:obj:`bool`):
             Despite returning a different number of samples being an issue, return however many samples
-            are returned from resample_poly
+            are returned from resampler
 
     Note:
         When rate_ratio is > 1.0, the resampling algorithm produces more samples than the original tensor.
@@ -1280,8 +1277,6 @@ class Spectrogram(SignalTransform):
         return signal
     
     def transform_meta(self, signal: Signal, params: Tuple) -> Signal:
-        # for meta in signal["metadata"]:
-            # print(f'meta[start] -> {meta["start"]} meta[stop] -> {meta["stop"]} meta[duration] ->  {meta["duration"]}')
         return signal 
 
 class ContinuousWavelet(SignalTransform):

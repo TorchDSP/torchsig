@@ -8,6 +8,7 @@ from copy import deepcopy
 import numpy as np
 import pywt
 import torch
+import pdb
 
 
 class Visualizer:
@@ -922,17 +923,14 @@ def mask_class_to_outline(tensor: np.ndarray) -> Tuple[List[List[int]], List[Any
     for idx in range(batch_size):
         label = tensor[idx].numpy()
         class_idx_curr = []
+        pdb.set_trace()
         for individual_burst_idx in range(label.shape[0]):
             if np.count_nonzero(label[individual_burst_idx]) > 0:
                 class_idx_curr.append(individual_burst_idx)
-            label[individual_burst_idx] = label[
-                individual_burst_idx
-            ] - ndimage.binary_erosion(label[individual_burst_idx])
+            label[individual_burst_idx] = label[individual_burst_idx] - ndimage.binary_erosion(label[individual_burst_idx])
         label = np.sum(label, axis=0)
         label[label > 0] = 1
-        label = ndimage.binary_dilation(label, structure=struct, iterations=2).astype(
-            label.dtype
-        )
+        label = ndimage.binary_dilation(label, structure=struct, iterations=2).astype(label.dtype)
         label = np.ma.masked_where(label == 0, label)
         class_idx.append(class_idx_curr)
         labels.append(label)
