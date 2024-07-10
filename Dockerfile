@@ -9,8 +9,6 @@ RUN apt-get update && apt-get install -y \
     rsync \
     libgl1-mesa-glx
 
-
-
 ADD torchsig/ /build/torchsig
 
 ADD pyproject.toml /build/pyproject.toml
