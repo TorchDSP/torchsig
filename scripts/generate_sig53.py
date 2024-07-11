@@ -8,7 +8,7 @@ import numpy as np
 
 
 def generate(path: str, configs: List[conf.Sig53Config], num_workers: int, num_samples_override: int):
-    num_samples = config.num_samples if num_samples == 0 else num_samples
+    num_samples = config.num_samples if num_samples_override == 0 else num_samples_override
     for config in configs:
         num_samples = config.num_samples if num_samples_override <=0 else num_samples_override
         batch_size = int(np.min((config.num_samples // num_workers, 32)))
