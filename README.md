@@ -48,14 +48,14 @@ If you'd like to generate the named datasets without messing with your current P
 
 ```
 docker build -t torchsig -f Dockerfile .
-docker run -u $(id -u ${USER}):$(id -g ${USER}) -v `pwd`:/workspace/code/torchsig torchsig python3 torchsig/scripts/generate_sig53.py --root=/workspace/code/torchsig/examples/sig53 --all=True
+docker run --ipc=host --ulimit memlock=-1 -u $(id -u ${USER}):$(id -g ${USER}) -v `pwd`:/workspace/code/torchsig torchsig python3 torchsig/scripts/generate_sig53.py --root=/workspace/code/torchsig/examples/sig53 --all=True
 ```
 
 For the wideband dataset, you can do:
 
 ```
 docker build -t torchsig -f Dockerfile .
-docker run -u $(id -u ${USER}):$(id -g ${USER}) -v `pwd`:/workspace/code/torchsig torchsig python3 torchsig/scripts/generate_wideband_sig53.py --root=/workspace/code/torchsig/examples/wideband_sig53 --all=True
+docker run --ipc=host --ulimit memlock=-1 -u $(id -u ${USER}):$(id -g ${USER}) -v `pwd`:/workspace/code/torchsig torchsig python3 torchsig/scripts/generate_wideband_sig53.py --root=/workspace/code/torchsig/examples/wideband_sig53 --all=True
 ```
 
 If you do not need to use Docker, you can also just generate using the regular command-line interface
