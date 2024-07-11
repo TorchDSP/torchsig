@@ -146,7 +146,7 @@ class DatasetCreator:
     ) -> None:
         self.loader = DatasetLoader(dataset=dataset, seed=seed, num_workers=num_workers, batch_size=batch_size)
         self.loader = self.loader if not loader else loader
-        self.writer = LMDBDatasetWriter(path, map_size=1e12)
+        self.writer = LMDBDatasetWriter(path, map_size=1e13)
         self.writer = self.writer if not writer else writer  # type: ignore
         self.path = path
 
