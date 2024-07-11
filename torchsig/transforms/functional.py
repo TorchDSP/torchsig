@@ -5,12 +5,13 @@ from scipy import interpolate
 from scipy import signal as sp
 from functools import partial
 import numpy as np
+from pathlib import Path
 import pywt
 import os
 import pickle
 import cv2
 
-DIR_PATH = os.path.dirname(os.path.realpath(__file__))
+DIR_PATH = Path.home()
 
 
 
