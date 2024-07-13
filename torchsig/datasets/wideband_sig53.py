@@ -105,23 +105,13 @@ class WidebandSig53:
         self.T = transform if transform else Identity()
         self.TT = target_transform if target_transform else Identity()
 
-        cfg = (
-            "WidebandSig53"
-            + ("Impaired" if impaired else "Clean")
-            + ("Train" if train else "Val")
-            + "Config"
-        )
+        cfg = ("WidebandSig53"+ ("Impaired" if impaired else "Clean") + ("Train" if train else "Val") + "Config")
         cfg = getattr(conf, cfg)()
 
-        self.signal_desc_transform = ListTupleToDesc(
-            num_iq_samples=cfg.num_iq_samples,  # type: ignore
-            class_list=self.modulation_list,
-        )
+        self.signal_desc_transform = ListTupleToDesc(num_iq_samples=cfg.num_iq_samples, class_list=self.modulation_list)
 
         self.path = self.root / cfg.name  # type: ignore
-        self.env = lmdb.Environment(
-            str(self.path).encode(), map_size=int(1e12), max_dbs=2, lock=False
-        )
+        self.env = lmdb.Environment(str(self.path).encode(), map_size=int(1e12), max_dbs=2, lock=False)
         self.data_db = self.env.open_db(b"data")
         self.label_db = self.env.open_db(b"label")
         with self.env.begin(db=self.data_db) as data_txn:
@@ -138,10 +128,7 @@ class WidebandSig53:
         with self.env.begin(db=self.label_db) as label_txn:
             label = pickle.loads(label_txn.get(encoded_idx))
 
-        signal = Signal(
-            data=create_signal_data(samples=iq_data),
-            metadata=self.signal_desc_transform(label),
-        )
+        signal = Signal(data=create_signal_data(samples=iq_data), metadata=self.signal_desc_transform(label))
         signal = self.T(signal)  # type: ignore
         target = self.TT(signal["metadata"])  # type: ignore
 

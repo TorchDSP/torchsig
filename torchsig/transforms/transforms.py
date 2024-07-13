@@ -584,7 +584,6 @@ class RandomResample(SignalTransform):
                 else:
                     ret_rate = meta['upper_freq'] / .5
                 ret_list.append(ret_rate)
-                # print(f'adjusting resampling ratio new {ret_rate} old {new_rate}')
             else:
                 ret_list.append(new_rate)
 
@@ -1681,7 +1680,6 @@ class RandomFrequencyShift(SignalTransform):
                 else:
                     freq_shift = .5 - meta['upper_freq']
                 ret_list.append(freq_shift)
-                # print(f'adjusting resampling ratio new {ret_rate} old {new_rate}')
             else:
                 ret_list.append(freq_shift)
 
