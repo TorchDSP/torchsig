@@ -633,7 +633,6 @@ class WidebandDataset(SignalDataset):
         self.index = []
         self.pregenerate = False
         if pregenerate:
-            #print("Pregenerating dataset...")
             for idx in tqdm(range(self.num_samples)):
                 self.index.append(self.__getitem__(idx))
         self.pregenerate = pregenerate
@@ -768,7 +767,6 @@ class WidebandModulationsDataset(SignalDataset):
         **kwargs,
     ):
         super(WidebandModulationsDataset, self).__init__(**kwargs)
-        #print(f'seed -> {seed}')
         self.random_generator = np.random.default_rng(seed)
         self.update_rng = False
         self.seed = seed
@@ -927,8 +925,6 @@ class WidebandModulationsDataset(SignalDataset):
     def __getitem__(self, item: int) -> Tuple[np.ndarray, Any]:
         # Initialize empty list of signal sources & signal descriptors
         if not self.update_rng:
-            # rng = np.random.default_rng(os.getpid())
-            #print(f'pid -> {os.getpid()}, updated dataset')
             self.random_generator = np.random.default_rng(os.getpid())
             self.update_rng = True
         signal_sources: List[SyntheticBurstSourceDataset] = []

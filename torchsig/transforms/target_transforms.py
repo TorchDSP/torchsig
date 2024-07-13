@@ -55,7 +55,6 @@ def generate_mask(
 
     begin_height = int((meta["lower_freq"] + 0.5) * height)
     end_height = int((meta["upper_freq"] + 0.5) * height)
-    # print(f' start/stop in the transform -> {meta["start"]} {meta["stop"]}')
     begin_width = int(meta["start"] * width)
     end_width = int(meta["stop"] * width)
 
@@ -398,7 +397,6 @@ class DescToMaskClass(Transform):
             if not is_rf_modulated_metadata(meta):
                 continue
 
-            # print(f'start/stop {meta["start"]} {meta["stop"]}')
             meta = meta_bound_frequency(meta)
             masks = generate_mask(meta, masks, meta["class_index"], 1.0, self.height, self.width)
 
@@ -1390,9 +1388,7 @@ class ListTupleToDesc(Transform):
         metadata: List[SignalMetadata] = []
         # Loop through SignalMetadata's, converting values of interest to tuples
         for curr_tuple in list_tuple:
-            tup: Tuple[Any, ...] = tuple(
-                [l.numpy() if isinstance(l, torch.Tensor) else l for l in curr_tuple]
-            )
+            tup: Tuple[Any, ...] = tuple([l.numpy() if isinstance(l, torch.Tensor) else l for l in curr_tuple])
             name, start, stop, cf, bw, snr = tup
             meta: SignalMetadata = create_modulated_rf_metadata(
                 sample_rate=0 if not self.sample_rate else self.sample_rate,

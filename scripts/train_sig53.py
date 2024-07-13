@@ -11,7 +11,6 @@ from pytorch_lightning import LightningModule, Trainer
 from sklearn.metrics import classification_report
 from torchsig.utils.cm_plotter import plot_confusion_matrix
 from torchsig.datasets.sig53 import Sig53
-from torchsig.datasets import conf
 from torch.utils.data import DataLoader
 from matplotlib import pyplot as plt
 from torch import optim
@@ -80,11 +79,6 @@ def main(root: str, impaired: bool):
     )
     target_transform = DescToClassIndex(class_list=class_list)
 
-    if impaired == True:
-        num_samples = conf.Sig53ImpairedTrainConfig.num_samples
-    else:
-        num_samples = conf.Sig53CleanTrainConfig.num_samples
-
     sig53_train = Sig53(
         root,
         train=True,
@@ -103,21 +97,18 @@ def main(root: str, impaired: bool):
         use_signal_data=True,
     )
 
-    num_workers=os.cpu_count() // 2
-    batch_size=int(np.min((num_samples // num_workers, 32)))
-    print(batch_size,'batch_size',num_workers,'num_workers')
     # Create dataloaders"data
     train_dataloader = DataLoader(
         dataset=sig53_train,
-        batch_size=batch_size,
-        num_workers=num_workers,
+        batch_size=os.cpu_count(),
+        num_workers=os.cpu_count() // 2,
         shuffle=True,
         drop_last=True,
     )
     val_dataloader = DataLoader(
         dataset=sig53_val,
-        batch_size=batch_size,
-        num_workers=num_workers,
+        batch_size=os.cpu_count(),
+        num_workers=os.cpu_count() // 2,
         shuffle=False,
         drop_last=True,
     )

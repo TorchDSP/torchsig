@@ -84,9 +84,7 @@ class Sig53:
         cfg = getattr(conf, cfg)()  # type: ignore
 
         self.path = self.root / cfg.name
-        self.env = lmdb.Environment(
-            str(self.path).encode(), map_size=int(1e12), max_dbs=2, lock=False
-        )
+        self.env = lmdb.Environment(str(self.path).encode(), map_size=int(1e12), max_dbs=2, lock=False)
         self.data_db = self.env.open_db(b"data")
         self.label_db = self.env.open_db(b"label")
         with self.env.begin(db=self.data_db) as data_txn:

@@ -103,7 +103,7 @@ class LMDBDatasetWriter(DatasetWriter):
                 for label_idx, label in enumerate(labels):
                     txn.put(
                         pickle.dumps(last_idx + label_idx),
-                        pickle.dumps(tuple(label.numpy())),
+                        pickle.dumps(tuple(label)),
                         db=self.label_db,
                     )
             if isinstance(labels, list):
@@ -116,7 +116,7 @@ class LMDBDatasetWriter(DatasetWriter):
             for element_idx in range(len(data)):
                 txn.put(
                     pickle.dumps(last_idx + element_idx),
-                    pickle.dumps(data[element_idx].numpy()),
+                    pickle.dumps(data[element_idx]),
                     db=self.data_db,
                 )
 
@@ -146,7 +146,7 @@ class DatasetCreator:
     ) -> None:
         self.loader = DatasetLoader(dataset=dataset, seed=seed, num_workers=num_workers, batch_size=batch_size)
         self.loader = self.loader if not loader else loader
-        self.writer = LMDBDatasetWriter(path, map_size=1e12)
+        self.writer = LMDBDatasetWriter(path, map_size=1e13)
         self.writer = self.writer if not writer else writer  # type: ignore
         self.path = path
 
