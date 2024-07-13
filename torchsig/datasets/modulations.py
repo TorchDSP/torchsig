@@ -260,14 +260,16 @@ class ModulationsDataset(ConcatDataset):
             )
 
         if num_digital > 0 and num_ofdm > 0:
-            super(ModulationsDataset, self).__init__([digital_dataset, ofdm_dataset], **kwargs
-)
+            super(ModulationsDataset, self).__init__([digital_dataset, ofdm_dataset], **kwargs)
+            # Torch's ConcatDataset should create this.
+
         elif num_digital > 0:
             super(ModulationsDataset, self).__init__([digital_dataset], **kwargs)
         elif num_ofdm > 0:
             super(ModulationsDataset, self).__init__([ofdm_dataset], **kwargs)
         else:
             raise ValueError("Input classes must contain at least 1 valid class")
+
 
     def __getitem__(self, item):
         return super(ModulationsDataset, self).__getitem__(item)

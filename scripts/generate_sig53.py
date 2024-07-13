@@ -6,13 +6,16 @@ import click
 import os
 import numpy as np
 
+def collate_fn(batch):
+    return tuple(zip(*batch))
+
 
 def generate(path: str, configs: List[conf.Sig53Config], num_workers: int, num_samples_override: int):
-    num_samples = config.num_samples if num_samples == 0 else num_samples
+    num_samples = config.num_samples if num_samples_override == 0 else num_samples_override
     for config in configs:
         num_samples = config.num_samples if num_samples_override <=0 else num_samples_override
         batch_size = int(np.min((config.num_samples // num_workers, 32)))
-        print(f'batch_size -> {batch_size} num_samples -> {num_samples}')
+        print(f'batch_size -> {batch_size} num_samples -> {num_samples}, config -> {config}')
         ds = ModulationsDataset(
             level=config.level,
             num_samples=num_samples,
@@ -21,19 +24,8 @@ def generate(path: str, configs: List[conf.Sig53Config], num_workers: int, num_s
             include_snr=config.include_snr,
             eb_no=config.eb_no,
         )
-        loader = DatasetLoader(
-            ds,
-            seed=12345678,
-            num_workers=num_workers,
-            batch_size=batch_size,
-        )
-        creator = DatasetCreator(
-            ds,
-            seed=12345678,
-            path="{}".format(os.path.join(path, config.name)),
-            loader=loader,
-            num_workers=num_workers,
-        )
+        dataset_loader = DatasetLoader(ds, seed=12345678, collate_fn=collate_fn, num_workers=num_workers, batch_size=batch_size)
+        creator = DatasetCreator(ds, seed=12345678, path="{}".format(os.path.join(path, config.name)), loader=dataset_loader, num_workers=num_workers)
         creator.create()
 
 

@@ -211,7 +211,6 @@ class DigitalModulationDataset(ConcatDataset):
         )
         super(DigitalModulationDataset, self).__init__([const_dataset, fsk_dataset, gfsks_dataset])
 
-
 class SyntheticDataset(SignalDataset):
     def __init__(self, **kwargs) -> None:
         super(SyntheticDataset, self).__init__(**kwargs)
@@ -921,7 +920,6 @@ class FSKDataset(SyntheticDataset):
         # scale the frequency map by the oversampling rate such that the tones
         # are packed tighter around f=0 the larger the oversampling rate
         const_oversampled = const / oversampling_rate
-        # print(f'const -> {const}, const_oversampled -> {const_oversampled} samples_per_symbol_recalculated -> {samples_per_symbol_recalculated}')
 
         orig_state = np.random.get_state()
         if not self.random_data:
