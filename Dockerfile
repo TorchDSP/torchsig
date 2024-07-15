@@ -1,4 +1,4 @@
-FROM nvcr.io/nvidia/pytorch:24.06-py3
+FROM pytorch/pytorch:2.3.1-cuda12.1-cudnn8-runtime
 
 ENV DEBIAN_FRONTEND=noninteractive
 
