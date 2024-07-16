@@ -1,7 +1,7 @@
 from torchsig.models.model_utils.layer_tools import replace_layers_of_types
 from torchsig.models.model_utils.model_utils_1d.layers_1d import GBN1d, SqueezeExcite1d, FastGlobalAvgPool1d
 
-from torch.nn import Conv1d, BatchNorm1d
+from torch.nn import Conv1d, BatchNorm1d, MaxPool1d
 
 def conv2d_to_conv1d(layer_2d):
     """
@@ -44,6 +44,20 @@ def make_fast_avg_pooling_layer(layer_2d):
     """
     return FastGlobalAvgPool1d(flatten=True)
 
+def maxpool2d_to_maxpool1d(layer_2d):
+    """
+    Returns a 1d maxpool layer corresponding to the input maxpool2d layer
+    No mutation is performed
+    """
+    return MaxPool1d(
+        kernel_size=layer_2d.kernel_size if isinstance(layer_2d.kernel_size, int) else layer_2d.kernel_size[0],
+        stride=layer_2d.stride if layer_2d.stride is None or isinstance(layer_2d.stride, int) else layer_2d.stride[0],
+        padding=layer_2d.padding if isinstance(layer_2d.padding, int) else layer_2d.padding[0],
+        dilation=layer_2d.dilation if isinstance(layer_2d.dilation, int) else layer_2d.dilation[0],
+        ceil_mode=layer_2d.ceil_mode,
+        return_indices=layer_2d.return_indices
+    )
+
 def convert_2d_model_to_1d(model):
     """
     converts a 2d model to a corresponding 1d model by replacing convolutional layers and other 2d layers with their 1d equivalents
@@ -56,9 +70,10 @@ def convert_2d_model_to_1d(model):
         ('BatchNorm2d', batchNorm2d_to_GBN1d),
         ('BatchNormAct2d', batchNorm2d_to_batchNorm1d),
         ('SqueezeExcite', squeezeExcite_to_squeezeExcite1d),
-        ('SelectAdaptivePool2d',make_fast_avg_pooling_layer),
+        ('SelectAdaptivePool2d', make_fast_avg_pooling_layer),
+        ('MaxPool2d', maxpool2d_to_maxpool1d),  # Add this line
     ]
-    
+
     replace_layers_of_types(model, type_factory_pairs)
     return model
 
