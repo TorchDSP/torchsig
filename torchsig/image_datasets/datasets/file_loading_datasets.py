@@ -105,13 +105,11 @@ def extract_sois(filepaths, filter_strength=None):
 A Dataset class for loading marked signals of interest (SOIs) from images in a folder
 Inputs:
     filepath: a string file path to a folder containing images in which all signals of interest have been marked wit ha colored bounding box
-    class_id: the integer class id to associate with this signal type; must be specified; generally should not be the same as other instances
     transforms: either a single function or list of functions from images to images to be applied to each SOI; used for adding noise and impairments to data; defaults to None
     read_black_hot: whether or not to read loaded images as black-hot; this will invert the value of loaded SOIs
 """
 class SOIExtractorDataset(Dataset):
-    def __init__(self, filepath: str, class_id: int, transforms = None, read_black_hot = False, filter_strength = None):
-        self.class_id = class_id
+    def __init__(self, filepath: str, transforms = None, read_black_hot = False, filter_strength = None):
         self.filepath = filepath
         self.transforms = transforms
         image_paths = []
@@ -133,7 +131,7 @@ class SOIExtractorDataset(Dataset):
                     soi = transform(soi)
             else:
                 soi = self.transforms(soi)
-        return soi, self.class_id
+        return soi
     def next(self):
         return self[np.random.randint(len(self))]
 
@@ -141,13 +139,11 @@ class SOIExtractorDataset(Dataset):
 A Dataset class for loading image files from a directory
 Inputs:
     filepath: a string file path to a folder containing .png images to load
-    class_id: the integer class id to associate with this signal type; must be specified; generally should not be the same as other instances
     transforms: either a single function or list of functions from images to images to be applied to each loaded image; used for adding noise and impairments to data; defaults to None
     read_black_hot: whether or not to read loaded images as black-hot; this will invert the value of loaded SOIs
 """
 class ImageDirectoryDataset(Dataset):
-    def __init__(self, filepath: str, class_id: int, transforms = None, read_black_hot = False):
-        self.class_id = class_id
+    def __init__(self, filepath: str, transforms = None, read_black_hot = False):
         self.filepath = filepath
         self.transforms = transforms
         image_paths = []
@@ -169,7 +165,7 @@ class ImageDirectoryDataset(Dataset):
                     image = transform(image)
             else:
                 image = self.transforms(image)
-        return image, self.class_id
+        return image
     def next(self):
         return self[np.random.randint(len(self))]
 
@@ -177,8 +173,7 @@ class ImageDirectoryDataset(Dataset):
 As ImageDirectoryDataset, but with lazy evaluation, so files are not loaded in advance
 """
 class LazyImageDirectoryDataset(Dataset):
-    def __init__(self, filepath: str, class_id: int, transforms = None, read_black_hot = False):
-        self.class_id = class_id
+    def __init__(self, filepath: str, transforms = None, read_black_hot = False):
         self.filepath = filepath
         self.transforms = transforms
         self.image_paths = [os.path.join(filepath, f) for f in os.listdir(filepath) if f.endswith(".png")]
@@ -204,7 +199,7 @@ class LazyImageDirectoryDataset(Dataset):
                     image = transform(image)
             else:
                 image = self.transforms(image)
-        return image, self.class_id
+        return image
     def next(self):
         return self[np.random.randint(len(self))]
 

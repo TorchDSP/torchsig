@@ -1,0 +1,2 @@
+#!/bin/bash
+yolo detect train data=wbsig53.yaml model=yolov8x pretrained=yolov8x.pt device=0 epochs=1 batch=32 save=True save_period=1 single_cls=True imgsz=1024 name=8x_freeze1 cos_lr=False cache=False workers=16 freeze=1 lr0=0.0033329

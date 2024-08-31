@@ -88,7 +88,7 @@ def replace_bn(parent):
 
 def replace_se(parent):
     for n, m in parent.named_children():
-        if type(m) is timm.models.efficientnet_blocks.SqueezeExcite:
+        if type(m) is timm.models._efficientnet_blocks.SqueezeExcite:
             setattr(
                 parent,
                 n,

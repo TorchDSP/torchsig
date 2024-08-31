@@ -1,5 +1,6 @@
+"""TorchSig Dataset Configs
+"""
 from dataclasses import dataclass
-
 
 @dataclass
 class Sig53Config:
@@ -21,10 +22,17 @@ class Sig53CleanTrainConfig(Sig53Config):
     num_samples: int = 1_060_000
     level: int = 0
 
+@dataclass
+class Sig53CleanEbNoTrainConfig(Sig53CleanTrainConfig):
+    eb_no: bool = True
 
 @dataclass
 class Sig53CleanTrainQAConfig(Sig53CleanTrainConfig):
-    num_samples: int = 106
+    num_samples: int = 10_600
+    
+@dataclass
+class Sig53CleanEbNoTrainQAConfig(Sig53CleanTrainQAConfig):
+    eb_no: bool = True
 
 
 @dataclass
@@ -32,12 +40,19 @@ class Sig53CleanValConfig(Sig53CleanTrainConfig):
     name: str = "sig53_clean_val"
     seed: int = 1234567891
     eb_no: bool = False
-    num_samples: int = 106_000
+    num_samples: int = 10_600
 
+@dataclass
+class Sig53CleanEbNoValConfig(Sig53CleanValConfig):
+    eb_no: bool = True
 
 @dataclass
 class Sig53CleanValQAConfig(Sig53CleanValConfig):
-    num_samples: int = 106
+    num_samples: int = 1060
+
+@dataclass
+class Sig53CleanEbNoValQAConfig(Sig53CleanValQAConfig):
+    eb_no: bool = True
 
 
 @dataclass
@@ -51,7 +66,7 @@ class Sig53ImpairedTrainConfig(Sig53Config):
 
 @dataclass
 class Sig53ImpairedTrainQAConfig(Sig53ImpairedTrainConfig):
-    num_samples: int = 106
+    num_samples: int = 10_600
 
 
 @dataclass
@@ -63,7 +78,7 @@ class Sig53ImpairedValConfig(Sig53ImpairedTrainConfig):
 
 @dataclass
 class Sig53ImpairedValQAConfig(Sig53ImpairedValConfig):
-    num_samples: int = 106
+    num_samples: int = 1060
 
 
 @dataclass
@@ -77,7 +92,7 @@ class Sig53ImpairedEbNoTrainConfig(Sig53Config):
 
 @dataclass
 class Sig53ImpairedEbNoTrainQAConfig(Sig53ImpairedEbNoTrainConfig):
-    num_samples: int = 106
+    num_samples: int = 10_600
 
 
 @dataclass
@@ -90,7 +105,7 @@ class Sig53ImpairedEbNoValConfig(Sig53ImpairedTrainConfig):
 
 @dataclass
 class Sig53ImpairedEbNoValQAConfig(Sig53ImpairedEbNoValConfig):
-    num_samples: int = 106
+    num_samples: int = 1060
 
 
 @dataclass
@@ -100,6 +115,7 @@ class WidebandSig53Config:
     level: int
     seed: int
     num_iq_samples: int = int(512 * 512)
+    overlap_prob: float = 0.0
 
 
 @dataclass
@@ -108,6 +124,7 @@ class WidebandSig53CleanTrainConfig(WidebandSig53Config):
     seed: int = 1234567890
     num_samples: int = 250_000
     level: int = 1
+    overlap_prob:float = 0.0
 
 
 @dataclass
@@ -133,6 +150,7 @@ class WidebandSig53ImpairedTrainConfig(WidebandSig53Config):
     seed: int = 1234567892
     num_samples: int = 250_000
     level: int = 2
+    overlap_prob: float = 0.1 #TODO
 
 
 @dataclass
