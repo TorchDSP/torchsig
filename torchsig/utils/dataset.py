@@ -4,6 +4,9 @@ from copy import deepcopy
 import numpy as np
 import torch
 
+def collate_fn(batch):
+    return tuple(zip(*batch))
+
 
 class SignalDataset(torch.utils.data.Dataset):
     """An abstract dataset class to be sub-classed by SignalDatasets

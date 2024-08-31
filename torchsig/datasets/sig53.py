@@ -1,5 +1,5 @@
 from torchsig.utils.types import SignalData, ModulatedRFMetadata, Signal
-from torchsig.datasets.modulations import ModulationsDataset
+from torchsig.datasets.signal_classes import sig53
 from typing import Any, Callable, Optional, Tuple
 from torchsig.transforms import Identity
 from torchsig.datasets import conf
@@ -43,8 +43,8 @@ class Sig53:
 
     """
 
-    _idx_to_name_dict = dict(zip(range(53), ModulationsDataset.default_classes))
-    _name_to_idx_dict = dict(zip(ModulationsDataset.default_classes, range(53)))
+    _idx_to_name_dict = dict(zip(range(53), sig53.class_list))
+    _name_to_idx_dict = dict(zip(sig53.class_list, range(53)))
 
     @staticmethod
     def convert_idx_to_name(idx: int) -> str:
