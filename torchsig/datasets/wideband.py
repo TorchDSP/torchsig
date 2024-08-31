@@ -14,6 +14,7 @@ import os
 from torchsig.utils.types import SignalData, SignalMetadata, Signal
 from torchsig.utils.dataset import SignalDataset
 from torchsig.utils.dsp import low_pass
+from torchsig.datasets.signal_classes import sig53
 from typing import Any, Callable, List, Optional, Tuple, Union
 from ast import literal_eval
 from functools import partial
@@ -56,12 +57,13 @@ class ShapedNoiseSignalBurst(SignalBurst):
         # Update freq values
         self.meta["lower_freq"] = self.meta["center_freq"] - self.meta["bandwidth"] / 2
         self.meta["upper_freq"] = self.meta["center_freq"] + self.meta["bandwidth"] / 2
+        self.snr = self.meta["snr"]
 
     def generate_iq(self):
-        real_noise = self.random_generator.randn(
+        real_noise = self.random_generator.standard_normal(
             int(self.meta["num_samples"] * self.meta["duration"])
         )
-        imag_noise = self.random_generator.randn(
+        imag_noise = self.random_generator.standard_normal(
             int(self.meta["num_samples"] * self.meta["duration"])
         )
         iq_samples = real_noise + 1j * imag_noise
@@ -142,64 +144,9 @@ class ModulatedSignalBurst(SignalBurst):
         **kwargs,
     ):
         super(ModulatedSignalBurst, self).__init__(**kwargs)
-        # Read in full modulation list
-        default_class_list = [
-            "ook",
-            "bpsk",
-            "4pam",
-            "4ask",
-            "qpsk",
-            "8pam",
-            "8ask",
-            "8psk",
-            "16qam",
-            "16pam",
-            "16ask",
-            "16psk",
-            "32qam",
-            "32qam_cross",
-            "32pam",
-            "32ask",
-            "32psk",
-            "64qam",
-            "64pam",
-            "64ask",
-            "64psk",
-            "128qam_cross",
-            "256qam",
-            "512qam_cross",
-            "1024qam",
-            "2fsk",
-            "2gfsk",
-            "2msk",
-            "2gmsk",
-            "4fsk",
-            "4gfsk",
-            "4msk",
-            "4gmsk",
-            "8fsk",
-            "8gfsk",
-            "8msk",
-            "8gmsk",
-            "16fsk",
-            "16gfsk",
-            "16msk",
-            "16gmsk",
-            "ofdm-64",
-            "ofdm-72",
-            "ofdm-128",
-            "ofdm-180",
-            "ofdm-256",
-            "ofdm-300",
-            "ofdm-512",
-            "ofdm-600",
-            "ofdm-900",
-            "ofdm-1024",
-            "ofdm-1200",
-            "ofdm-2048",
-        ]
+
         if modulation_list == "all" or modulation_list == None:
-            self.class_list = default_class_list
+            self.class_list = sig53.class_list
         else:
             self.class_list = modulation_list
 
@@ -559,10 +506,9 @@ class SyntheticBurstSourceDataset(BurstSourceDataset):
 
     def _generate_burst_collections(self) -> List[List[SignalBurst]]:
         dataset = []
-        for sample_idx in range(self.num_samples):
+        for _ in range(self.num_samples):
             sample_burst_collection = []
             start = self.start()  # could get negative values
-            duration_last = -1
             while start < 0.95:  # Avoid bursts of durations < 0.05 at end
                 burst_duration = self.burst_durations()               
                 silence_duration = self.silence_durations()
@@ -589,7 +535,6 @@ class SyntheticBurstSourceDataset(BurstSourceDataset):
                         random_generator=self.random_generator,
                     )
                 )
-                duration_last = burst_duration
                 start = start + burst_duration + silence_duration
             dataset.append(sample_burst_collection)
 
@@ -695,65 +640,14 @@ class WidebandModulationsDataset(SignalDataset):
         seed (:obj: `int`, optional):
             A seed for reproducibility
 
+        overlap_prob (Optional[float], optional): 
+            Set the signal overlap probability. Defaults to 0.
+
         **kwargs
 
     """
 
-    default_modulations: List[str] = [
-        "ook",
-        "bpsk",
-        "4pam",
-        "4ask",
-        "qpsk",
-        "8pam",
-        "8ask",
-        "8psk",
-        "16qam",
-        "16pam",
-        "16ask",
-        "16psk",
-        "32qam",
-        "32qam_cross",
-        "32pam",
-        "32ask",
-        "32psk",
-        "64qam",
-        "64pam",
-        "64ask",
-        "64psk",
-        "128qam_cross",
-        "256qam",
-        "512qam_cross",
-        "1024qam",
-        "2fsk",
-        "2gfsk",
-        "2msk",
-        "2gmsk",
-        "4fsk",
-        "4gfsk",
-        "4msk",
-        "4gmsk",
-        "8fsk",
-        "8gfsk",
-        "8msk",
-        "8gmsk",
-        "16fsk",
-        "16gfsk",
-        "16msk",
-        "16gmsk",
-        "ofdm-64",
-        "ofdm-72",
-        "ofdm-128",
-        "ofdm-180",
-        "ofdm-256",
-        "ofdm-300",
-        "ofdm-512",
-        "ofdm-600",
-        "ofdm-900",
-        "ofdm-1024",
-        "ofdm-1200",
-        "ofdm-2048",
-    ]
+    default_modulations: List[str] = sig53.class_list
 
     def __init__(
         self,
@@ -764,6 +658,7 @@ class WidebandModulationsDataset(SignalDataset):
         transform: Optional[Callable] = None,
         target_transform: Optional[Callable] = None,
         seed: Optional[int] = None,
+        overlap_prob: Optional[float] = 0,
         **kwargs,
     ):
         super(WidebandModulationsDataset, self).__init__(**kwargs)
@@ -779,6 +674,7 @@ class WidebandModulationsDataset(SignalDataset):
         self.ofdm_ratio = (self.num_ofdm / self.num_modulations) * 2.0
         self.num_iq_samples = num_iq_samples
         self.num_samples = num_samples
+        self.overlap_prob = overlap_prob
 
         # Set level-specific parameters
         if level == 0:
@@ -875,6 +771,9 @@ class WidebandModulationsDataset(SignalDataset):
         self.num_signals = to_distribution(num_signals, random_generator=self.random_generator)
         self.snrs = to_distribution(snrs, random_generator=self.random_generator)
 
+    def ret_transforms(self):
+        return self.transform
+
     def __gen_metadata__(self, modulation_list: List) -> pd.DataFrame:
         """This method defines the parameters of the modulations to be inserted
         into the wideband data. The values below are hardcoded; however, if
@@ -921,6 +820,26 @@ class WidebandModulationsDataset(SignalDataset):
             )
 
         return pd.DataFrame(metadata, columns=column_names)
+    
+    @staticmethod
+    def iter_cf_bw(bw, cf, edge_val=.495):
+        cf_temp  = cf if isinstance(cf, list) else [cf]            
+        band_edges = (np.max(cf) + bw / 2, np.min(cf) - bw / 2)
+        bw_check = band_edges[0] > edge_val or band_edges[1] < -edge_val
+        while bw_check:
+            if band_edges[0] > edge_val:
+                center_freq_shift = np.max(cf_temp) - (edge_val - bw /  2)                     
+            else:
+                center_freq_shift = np.min(cf_temp) + (edge_val - bw /  2) 
+            cf_temp = [value - center_freq_shift for value in cf_temp]
+
+            band_edges = (np.max(cf_temp) + bw / 2, np.min(cf_temp) - bw / 2)
+            bw_check = band_edges[0] > edge_val or band_edges[1] < -edge_val
+            if bw_check:
+                bw *=.95
+
+        ret_cf = cf_temp if isinstance(cf, list) else cf_temp[0]
+        return bw, ret_cf
 
     def __getitem__(self, item: int) -> Tuple[np.ndarray, Any]:
         # Initialize empty list of signal sources & signal descriptors
@@ -940,7 +859,7 @@ class WidebandModulationsDataset(SignalDataset):
         while sig_counter < num_signals and overlap_counter < 5:
             if ofdm_present:
                 if sig_counter == 0:
-                    # Randomly sample from OFDM options (assumes OFDM at end)
+                    # Randomly sample from OFDM excluding options (assumes OFDM at end)
                     meta_idx = self.random_generator.integers(self.num_modulations - self.num_ofdm, self.num_modulations)
                     modulation = self.metadata.iloc[meta_idx].modulation
                 else:
@@ -969,6 +888,7 @@ class WidebandModulationsDataset(SignalDataset):
 
             # Random center frequency
             center_freq = self.random_generator.uniform(-0.4, 0.4)
+            center_freq_list = []
             # Determine if continuous or bursty
             burst_random_var = self.random_generator.random()
             hop_random_var = self.random_generator.random()
@@ -987,32 +907,23 @@ class WidebandModulationsDataset(SignalDataset):
 
                     silence_duration = burst_duration * (silence_multiple - 1)
                     freq_channels = to_distribution(literal_eval(self.metadata.iloc[meta_idx].freq_hopping_channels), random_generator=self.random_generator)()
-
                     # Convert channel count to list of center frequencies
                     center_freq_array = np.arange(center_freq, center_freq + (bandwidth * freq_channels), bandwidth)
                     center_freq_array = center_freq_array - (freq_channels / 2 * bandwidth)
                     center_freq_array = center_freq_array[center_freq_array < 0.5]
                     center_freq_array = center_freq_array[center_freq_array > -0.5]
                     center_freq_list = center_freq_array.tolist()
-                    if len(center_freq_list) == 1 and silence_duration == 0:
-                        # If all but one band outside freq range, ensure nonzero silence duration
-                        silence_duration = burst_duration
-
+                    bandwidth, center_freq_list = WidebandModulationsDataset.iter_cf_bw(bandwidth, center_freq_list)
                     low_freq = min(center_freq_list) - bandwidth / 2
                     high_freq = max(center_freq_list) + bandwidth / 2
-                    
-                    #pvallance test
-                    silence_duration = burst_duration * silence_multiple
-                    low_freq = center_freq - bandwidth / 2
-                    high_freq = center_freq + bandwidth / 2
-
                 else:
+                    bandwidth, center_freq = WidebandModulationsDataset.iter_cf_bw(bandwidth, center_freq)
                     silence_duration = burst_duration * silence_multiple
                     low_freq = center_freq - bandwidth / 2
                     high_freq = center_freq + bandwidth / 2
-
             else:
                 # Signal is continous
+                bandwidth, center_freq = WidebandModulationsDataset.iter_cf_bw(bandwidth, center_freq)
                 bursty = False
                 burst_duration = 1.0
                 silence_duration = 1.0
@@ -1029,67 +940,19 @@ class WidebandModulationsDataset(SignalDataset):
             # Randomly determine if the signal should start in the frame
             if self.random_generator.random() < 0.2 and not stops_in_frame:
                 start = self.random_generator.uniform(0, 0.95)
-                stop = 1.0
+                stop = np.clip(start + burst_duration, 0., 1.)
             else:
                 start = 0.0
                 stop = burst_duration
-            if bursty:
-                start = start + self.random_generator.random() * burst_duration
-                stop = 1.0
 
             # Handle overlaps
-            # overlap = False
-            # minimum_freq_spacing = 0.05
-            # for source in signal_sources:
-            #     for signal in source.index[0][0]:
-            #         meta = signal.meta
-            #         # Check time overlap
-            #         if (
-            #             (start > meta["start"] and start < meta["stop"])
-            #             or (
-            #                 start + burst_duration > meta["stop"]
-            #                 and stop < meta["stop"]
-            #             )
-            #             or (meta["start"] > start and meta["start"] < stop)
-            #             or (meta["stop"] > start and meta["stop"] < stop)
-            #             or (start == 0.0 and meta["start"] == 0.0)
-            #             or (stop == 1.0 and meta["stop"] == 1.0)
-            #         ):
-            #             # Check freq overlap
-            #             if (
-            #                 (
-            #                     low_freq > meta["lower_freq"] - minimum_freq_spacing
-            #                     and low_freq < meta["upper_freq"] + minimum_freq_spacing
-            #                 )
-            #                 or (
-            #                     high_freq > meta["lower_freq"] - minimum_freq_spacing
-            #                     and high_freq
-            #                     < meta["upper_freq"] + minimum_freq_spacing
-            #                 )
-            #                 or (
-            #                     meta["lower_freq"] - minimum_freq_spacing > low_freq
-            #                     and meta["lower_freq"] - minimum_freq_spacing
-            #                     < high_freq
-            #                 )
-            #                 or (
-            #                     meta["upper_freq"] + minimum_freq_spacing > low_freq
-            #                     and meta["upper_freq"] + minimum_freq_spacing
-            #                     < high_freq
-            #                 )
-            #             ):
-            #                 # Overlaps in both time and freq, skip
-            #                 overlap = True
-            # if overlap:
-            #     overlap_counter += 1
-            #     # print('skipping signal')
-            #     continue
-
             # Add signal to signal sources
+            center_freqs = center_freq if len(center_freq_list) == 0 else center_freq_list
             snrs_db = self.snrs()
             signal_sources.append(
                 SyntheticBurstSourceDataset(
                     bandwidths=bandwidth,
-                    center_frequencies=center_freq,
+                    center_frequencies=center_freqs,
                     burst_durations=burst_duration,
                     silence_durations=silence_duration,
                     snrs_db=snrs_db,
@@ -1102,7 +965,7 @@ class WidebandModulationsDataset(SignalDataset):
                             bandwidth=bandwidth,
                             center_freq=center_freq,
                             start=start,
-                            stop=start + burst_duration
+                            stop=stop
                         ),
                     ),
                     num_iq_samples=self.num_iq_samples,
@@ -1111,6 +974,44 @@ class WidebandModulationsDataset(SignalDataset):
                     seed=self.seed + item * 53 if self.seed else None,
                 ),
             )
+            
+            overlap = False
+            minimum_freq_spacing = 0.05
+            for curr_sig in signal_sources[-1].index[0][0]: 
+                curr_sig_meta = curr_sig.meta
+                start = curr_sig_meta["start"]
+                stop = curr_sig_meta["stop"]
+                low_freq = curr_sig_meta["lower_freq"]
+                high_freq = curr_sig_meta["upper_freq"]
+
+                for source in signal_sources[:-1]:
+                    for signal in source.index[0][0]:
+                        meta = signal.meta
+                        # Check time overlap
+                        if (
+                            (start >= meta["start"] and start <= meta["stop"])
+                            or (stop >= meta["start"] and stop <= meta["stop"])
+                            or (meta["start"] > start and meta["start"] < stop)
+                            or (meta["stop"] > start and meta["stop"] < stop)
+                            or (start == 0.0 and meta["start"] == 0.0)
+                            or (stop == 1.0 and meta["stop"] == 1.0)
+                        ):
+                            # Check freq overlap
+                            if ((low_freq > (meta["lower_freq"] - minimum_freq_spacing) and low_freq < (meta["upper_freq"] + minimum_freq_spacing))
+                                or (high_freq > (meta["lower_freq"] - minimum_freq_spacing) and high_freq < (meta["upper_freq"] + minimum_freq_spacing))
+                                or ((meta["lower_freq"] - minimum_freq_spacing) > low_freq and (meta["lower_freq"] - minimum_freq_spacing) < high_freq)
+                                or ((meta["upper_freq"] + minimum_freq_spacing) > low_freq and (meta["upper_freq"] + minimum_freq_spacing) < high_freq)):
+                                # Overlaps in both time and freq, skip
+                                overlap = True
+
+                            
+            if overlap:
+                overlap_draw = self.random_generator.uniform(0., 1.0)
+                if overlap_draw < (1 - self.overlap_prob):
+                    overlap_counter += 1
+                    signal_sources.pop()
+                    continue
+            
             sig_counter += 1
 
         iq_data = None
@@ -1199,61 +1100,7 @@ class RandomSignalInsertion(SignalTransform):
 
     """
 
-    default_modulation_list: List[str] = [
-        "ook",
-        "bpsk",
-        "4pam",
-        "4ask",
-        "qpsk",
-        "8pam",
-        "8ask",
-        "8psk",
-        "16qam",
-        "16pam",
-        "16ask",
-        "16psk",
-        "32qam",
-        "32qam_cross",
-        "32pam",
-        "32ask",
-        "32psk",
-        "64qam",
-        "64pam",
-        "64ask",
-        "64psk",
-        "128qam_cross",
-        "256qam",
-        "512qam_cross",
-        "1024qam",
-        "2fsk",
-        "2gfsk",
-        "2msk",
-        "2gmsk",
-        "4fsk",
-        "4gfsk",
-        "4msk",
-        "4gmsk",
-        "8fsk",
-        "8gfsk",
-        "8msk",
-        "8gmsk",
-        "16fsk",
-        "16gfsk",
-        "16msk",
-        "16gmsk",
-        "ofdm-64",
-        "ofdm-72",
-        "ofdm-128",
-        "ofdm-180",
-        "ofdm-256",
-        "ofdm-300",
-        "ofdm-512",
-        "ofdm-600",
-        "ofdm-900",
-        "ofdm-1024",
-        "ofdm-1200",
-        "ofdm-2048",
-    ]
+    default_modulation_list: List[str] = sig53.class_list
 
     def __init__(self, modulation_list: Optional[List[str]] = None):
         super(RandomSignalInsertion, self).__init__()
@@ -1303,7 +1150,7 @@ class RandomSignalInsertion(SignalTransform):
                 silence_durations=silence_duration,
                 snrs_db=20,
                 seed=self.seed,
-                start=(-0.05, 0.95),
+                start=(0.0, 0.95),
                 burst_class=partial(  # type: ignore
                     ModulatedSignalBurst,
                     modulation=modulation_list,

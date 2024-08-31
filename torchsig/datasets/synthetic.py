@@ -562,9 +562,7 @@ class OFDMDataset(SyntheticDataset):
 
         if mod_type == "random":
             symbols_idxs = np.random.randint(0, 1024, size=self.num_iq_samples)
-            const_idxes = np.random.choice(
-                range(len(self.random_symbols)), size=num_subcarriers
-            )
+            const_idxes = np.random.choice(range(len(self.random_symbols)), size=num_subcarriers)
             symbols = np.zeros(self.num_iq_samples, dtype=np.complex128)
             for subcarrier_idx, const_idx in enumerate(const_idxes):
                 begin_idx = (self.num_iq_samples) * subcarrier_idx

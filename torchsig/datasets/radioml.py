@@ -1,5 +1,6 @@
 from typing import Any, Callable, List, Optional, Tuple
 from torchsig.utils.dataset import SignalDataset
+from torchsig.datasets.signal_classes import radioml2018
 from torchsig.utils.types import *
 from torchsig.transforms.target_transforms import (
     DescToClassIndex,
@@ -151,32 +152,7 @@ class RadioML2018(SignalDataset):
         self.snr = hdf5_file["Z"]
 
         # Class list corrected from `classes.txt` file
-        self.class_list = [
-            "OOK",
-            "4ASK",
-            "8ASK",
-            "BPSK",
-            "QPSK",
-            "8PSK",
-            "16PSK",
-            "32PSK",
-            "16APSK",
-            "32APSK",
-            "64APSK",
-            "128APSK",
-            "16QAM",
-            "32QAM",
-            "64QAM",
-            "128QAM",
-            "256QAM",
-            "AM-SSB-WC",
-            "AM-SSB-SC",
-            "AM-DSB-WC",
-            "AM-DSB-SC",
-            "FM",
-            "GMSK",
-            "OQPSK",
-        ]
+        self.class_list = radioml2018.family_class_list
 
         # Set the target transform based on input options if none provided
         if not target_transform:

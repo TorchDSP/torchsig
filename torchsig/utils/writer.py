@@ -1,5 +1,6 @@
 from torchsig.utils.dataset import SignalDataset
 from torch.utils.data import DataLoader
+from torchsig.utils.dataset import collate_fn
 from typing import Callable, Optional
 from functools import partial
 import numpy as np
@@ -36,20 +37,34 @@ class DatasetLoader:
         num_workers: Optional[int] = None,
         batch_size: Optional[int] = None,
         collate_fn: Optional[Callable] = None,
+        prefetch_factor: Optional[int] = 4,
     ) -> None:
+
+        num_workers = num_workers if num_workers is not None else os.cpu_count() // 2
+        # try give main process access to cpus needed for num_workers
+        if len(os.sched_getaffinity(0)) < num_workers:
+            try:
+                os.sched_setaffinity(0, range(num_workers))
+                # if could not set all desired cpus, use what is available
+                num_workers = min(num_workers, len(os.sched_getaffinity(0)))
+            except OSError:
+                # print("Warning: num_workers > num CPU cores with affinity == 0.")
+                pass
         
-        num_workers = num_workers if num_workers is not None else os.cpu_count()
-        batch_size = batch_size if batch_size is not None else os.cpu_count()
+        batch_size = batch_size if batch_size is not None else os.cpu_count() // 2
+        prefetch_factor = None if num_workers <= 1 else prefetch_factor
         assert num_workers is not None
-        assert batch_size is not None
+        assert batch_size is not None or 0
+        multiprocessing_context = None if num_workers <= 1 else torch.multiprocessing.get_context("fork")
         self.loader = DataLoader(
             dataset,
             shuffle=True,
             batch_size=batch_size,
             num_workers=num_workers,
-            prefetch_factor=4,
+            prefetch_factor=prefetch_factor,
             worker_init_fn=partial(DatasetLoader.worker_init_fn, seed=seed),
-            multiprocessing_context=torch.multiprocessing.get_context("fork"),
+            multiprocessing_context=multiprocessing_context, 
+            persistent_workers=True,
             collate_fn=collate_fn,
         )
         self.length = int(len(dataset) / batch_size)
@@ -100,12 +115,20 @@ class LMDBDatasetWriter(DatasetWriter):
         with self.env.begin(write=True) as txn:
             last_idx = txn.stat(db=self.data_db)["entries"]
             if isinstance(labels, tuple):
-                for label_idx, label in enumerate(labels):
-                    txn.put(
-                        pickle.dumps(last_idx + label_idx),
-                        pickle.dumps(tuple(label)),
-                        db=self.label_db,
-                    )
+                if isinstance(labels[0], int):
+                    for label_idx, label in enumerate(labels):
+                        txn.put(
+                            pickle.dumps(last_idx + label_idx),
+                            pickle.dumps(tuple([label])),
+                            db=self.label_db,
+                        )
+                else:
+                    for label_idx, label in enumerate(labels):
+                        txn.put(
+                            pickle.dumps(last_idx + label_idx),
+                            pickle.dumps(tuple(label)),
+                            db=self.label_db,
+                        )                    
             if isinstance(labels, list):
                 for label_idx, label in enumerate(zip(*labels)):
                     txn.put(
@@ -142,10 +165,13 @@ class DatasetCreator:
         batch_size: Optional[int] = None,
         writer: Optional[DatasetWriter] = None,
         loader: Optional[DatasetLoader] = None,
-        # collate_fn: Optional[DatasetLoader] = collate_fn,
+        collate_fn: Optional[DatasetLoader] = collate_fn,
     ) -> None:
-        self.loader = DatasetLoader(dataset=dataset, seed=seed, num_workers=num_workers, batch_size=batch_size)
-        self.loader = self.loader if not loader else loader
+        
+        if loader is None:
+            self.loader = DatasetLoader(dataset=dataset, seed=seed, num_workers=num_workers, batch_size=batch_size, collate_fn=collate_fn)
+        else:
+            self.loader = loader
         self.writer = LMDBDatasetWriter(path, map_size=1e13)
         self.writer = self.writer if not writer else writer  # type: ignore
         self.path = path
@@ -155,5 +181,6 @@ class DatasetCreator:
             print("Dataset already exists in {}. Not regenerating".format(self.path))
             return
 
+        print(self.loader)
         for batch in tqdm.tqdm(self.loader, total=len(self.loader)):
             self.writer.write(batch)

@@ -4,6 +4,7 @@ import numpy as np
 from torch.utils.data import ConcatDataset
 
 from torchsig.datasets.synthetic import DigitalModulationDataset, OFDMDataset
+from torchsig.datasets.signal_classes import sig53
 from torchsig.transforms import (
     Compose,
     IQImbalance,
@@ -81,61 +82,7 @@ class ModulationsDataset(ConcatDataset):
 
     """
 
-    default_classes: List[str] = [
-        "ook",
-        "bpsk",
-        "4pam",
-        "4ask",
-        "qpsk",
-        "8pam",
-        "8ask",
-        "8psk",
-        "16qam",
-        "16pam",
-        "16ask",
-        "16psk",
-        "32qam",
-        "32qam_cross",
-        "32pam",
-        "32ask",
-        "32psk",
-        "64qam",
-        "64pam",
-        "64ask",
-        "64psk",
-        "128qam_cross",
-        "256qam",
-        "512qam_cross",
-        "1024qam",
-        "2fsk",
-        "2gfsk",
-        "2msk",
-        "2gmsk",
-        "4fsk",
-        "4gfsk",
-        "4msk",
-        "4gmsk",
-        "8fsk",
-        "8gfsk",
-        "8msk",
-        "8gmsk",
-        "16fsk",
-        "16gfsk",
-        "16msk",
-        "16gmsk",
-        "ofdm-64",
-        "ofdm-72",
-        "ofdm-128",
-        "ofdm-180",
-        "ofdm-256",
-        "ofdm-300",
-        "ofdm-512",
-        "ofdm-600",
-        "ofdm-900",
-        "ofdm-1024",
-        "ofdm-1200",
-        "ofdm-2048",
-    ]
+    default_classes: List[str] = sig53.class_list
 
     def __init__(
         self,
@@ -150,7 +97,12 @@ class ModulationsDataset(ConcatDataset):
         target_transform: Optional[Callable] = None,
         **kwargs,
     ) -> None:
-        classes = self.default_classes if classes is None else classes
+        classes = ModulationsDataset.default_classes if classes is None else classes
+        for c in classes:
+            if 'ofdm' in c:
+                size = int(c.split('-')[1])
+                assert size<=num_iq_samples, f"{c} has a native size larger than the {num_iq_samples} IQ samples requested. Increase the number of IQ samples, or remove this class"
+    
         # Set the target transform based on input options if none provided
         if not target_transform:
             if use_class_idx:

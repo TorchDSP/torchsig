@@ -167,7 +167,7 @@ class BlurTransform():
         self.kernel = self.kernel/self.kernel.sum()
     def __call__(self, image_raw):
         if type(image_raw) != torch.Tensor:
-            image = torch.Tensor(image)
+            image = torch.Tensor(image_raw)
         else:
             image = image_raw
         if len(image_raw.shape) < 3:

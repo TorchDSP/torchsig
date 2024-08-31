@@ -1,6 +1,7 @@
 import numpy as np
 import torch
 from torch.utils.data import Dataset
+import cv2
 
 from torchsig.image_datasets.transforms.impairments import BlurTransform, normalize_image, pad_border
 
@@ -12,8 +13,7 @@ Inputs:
     transforms: either a single function or list of functions from images to images to be applied to each generated image; used for adding noise and impairments to data; defaults to None
 """
 class GeneratorFunctionDataset(Dataset):
-    def __init__(self, generator_function, class_id: int, transforms = None):
-        self.class_id = class_id
+    def __init__(self, generator_function, transforms = None):
         self.generator_function = generator_function
         self.transforms = transforms
     def __len__(self):
@@ -21,14 +21,13 @@ class GeneratorFunctionDataset(Dataset):
     def __getitem__(self, idx):
         #image = normalize_image(self.generator_function())
         image = self.generator_function()
-        label = self.class_id
         if self.transforms:
             if type(self.transforms) == list:
                 for transform in self.transforms:
                     image = transform(image)
             else:
                 image = self.transforms(image)
-        return image, self.class_id
+        return image
     def next(self):
         return self[0]
 
@@ -53,6 +52,30 @@ curried implementation of 'generate_tone'
 """
 def tone_generator_function(tone_width: int, max_height: int = 10, min_height: int = 3):
     return lambda: generate_tone(tone_width, max_height=max_height, min_height=min_height)
+
+"""
+Takes no arguments and returns a 2d ndarray representing the spectrogram of a randomly generated tone
+Inputs:
+    chirp_width: the width of the chirp to be generated; corresponds to the thickness of the chirp in the spectrogram
+    height: the height of the chirp to be generat
+Outputs:
+    2d ndarray representing the spectrogram of a randomly generated chirp
+"""
+def generate_chirp(chirp_width: int, height: int, width: int, random_height_scale: float = [1,1], random_width_scale: float = [1,1]):
+    thickness = chirp_width
+    x_size = int(width * (np.random.rand()*(random_width_scale[1] - random_width_scale[0]) + random_width_scale[0]))
+    y_size = int(height * (np.random.rand()*(random_height_scale[1] - random_height_scale[0]) + random_height_scale[0]))
+    
+    img = np.zeros([y_size,x_size,3])
+    cv2.line(img, (x_size,0), (0,y_size), (255,255,255), thickness)
+    img = (img[:,:,0]/255)[None,:,:]
+    return torch.Tensor(img)
+
+"""
+curried implementation of 'generate_chirp'
+"""
+def chirp_generator_function(chirp_width: int, height: int, width: int, random_height_scale: float = [1,1], random_width_scale: float = [1,1]):
+    return lambda: generate_chirp(chirp_width, height, width, random_height_scale=random_height_scale, random_width_scale=random_width_scale)
 
 """
 Takes no arguments and returns a 2d ndarray representing the spectrogram of a randomly generated 'signal' rectangle

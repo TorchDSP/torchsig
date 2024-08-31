@@ -1,11 +1,13 @@
 from torchsig.utils.types import SignalMetadata, RFMetadata, ModulatedRFMetadata
 from torchsig.utils.types import (
     meta_bound_frequency,
+    is_rf_metadata,
     is_rf_modulated_metadata,
     create_modulated_rf_metadata,
     has_modulated_rf_metadata,
     has_rf_metadata,
 )
+from torchsig.datasets.signal_classes import sig53
 from torchsig.transforms.transforms import Transform
 from typing import Any, Dict, List, Optional, Tuple, Union
 import numpy as np
@@ -15,6 +17,7 @@ import torch
 __all__ = [
     "DescToClassName",
     "DescToClassNameSNR",
+    "DescToFamilyName",
     "DescToClassIndex",
     "DescToClassIndexSNR",
     "DescToMask",
@@ -32,6 +35,8 @@ __all__ = [
     "DescToWeightedCutMix",
     "DescToBBoxDict",
     "DescToBBoxSignalDict",
+    "DescToBBoxYoloSignalDict",
+    "DescToBBoxYoloDict",
     "DescToBBoxFamilyDict",
     "DescToInstMaskDict",
     "DescToSignalInstMaskDict",
@@ -39,6 +44,7 @@ __all__ = [
     "DescToListTuple",
     "ListTupleToDesc",
     "LabelSmoothing",
+    "ListTupleToYOLO",
 ]
 
 
@@ -93,6 +99,40 @@ class DescToClassName(Transform):
 
         if len(classes) == 1:
             return classes[0]
+
+        return []
+
+class DescToFamilyName(Transform):
+    """Transform to transform SignalMetadata into either the single class name
+    or a list of the classes present if there are multiple classes
+
+    """
+    class_family_dict: Dict[str, str] = sig53.family_dict
+    
+    def __init__(self, class_family_dict: Optional[Dict[str, str]] = None,family_list: Optional[List[str]] = None,) -> None:
+        super(DescToFamilyName, self).__init__()    
+        self.class_family_dict: Dict[str, str] = (
+                class_family_dict if class_family_dict else self.class_family_dict
+            )
+        self.family_list: List[str] = (
+                family_list
+                if family_list
+                else sorted(list(set(self.class_family_dict.values())))
+            )
+
+    def __call__(self, metadata: List[SignalMetadata]) -> Union[List[str], str]:
+        families: List[str] = []
+        for meta in metadata:
+            if isinstance(meta["class_name"], list):
+                families.extend(self.class_family_dict[meta])
+            else:
+                families.append(self.class_family_dict[meta["class_name"]])
+
+        if len(families) > 1:
+            return families
+
+        if len(families) == 1:
+            return families[0]
 
         return []
 
@@ -257,7 +297,7 @@ class DescToMaskSignal(Transform):
 
 class DescToMaskFamily(Transform):
     """Transform to transform SignalMetadatas into spectrogram masks with
-    different channels for each class'smetadata: SignalMetadata family. If no `class_family_dict`
+    different channels for each class's metadata: SignalMetadata family. If no `class_family_dict`
     provided, the default mapping for the WBSig53 modulation families is used.
 
     Args:
@@ -272,61 +312,7 @@ class DescToMaskFamily(Transform):
 
     """
 
-    class_family_dict: Dict[str, str] = {
-        "4ask": "ask",
-        "8ask": "ask",
-        "16ask": "ask",
-        "32ask": "ask",
-        "64ask": "ask",
-        "ook": "pam",
-        "4pam": "pam",
-        "8pam": "pam",
-        "16pam": "pam",
-        "32pam": "pam",
-        "64pam": "pam",
-        "2fsk": "fsk",
-        "2gfsk": "fsk",
-        "2msk": "fsk",
-        "2gmsk": "fsk",
-        "4fsk": "fsk",
-        "4gfsk": "fsk",
-        "4msk": "fsk",
-        "4gmsk": "fsk",
-        "8fsk": "fsk",
-        "8gfsk": "fsk",
-        "8msk": "fsk",
-        "8gmsk": "fsk",
-        "16fsk": "fsk",
-        "16gfsk": "fsk",
-        "16msk": "fsk",
-        "16gmsk": "fsk",
-        "bpsk": "psk",
-        "qpsk": "psk",
-        "8psk": "psk",
-        "16psk": "psk",
-        "32psk": "psk",
-        "64psk": "psk",
-        "16qam": "qam",
-        "32qam": "qam",
-        "32qam_cross": "qam",
-        "64qam": "qam",
-        "128qam_cross": "qam",
-        "256qam": "qam",
-        "512qam_cross": "qam",
-        "1024qam": "qam",
-        "ofdm-64": "ofdm",
-        "ofdm-72": "ofdm",
-        "ofdm-128": "ofdm",
-        "ofdm-180": "ofdm",
-        "ofdm-256": "ofdm",
-        "ofdm-300": "ofdm",
-        "ofdm-512": "ofdm",
-        "ofdm-600": "ofdm",
-        "ofdm-900": "ofdm",
-        "ofdm-1024": "ofdm",
-        "ofdm-1200": "ofdm",
-        "ofdm-2048": "ofdm",
-    }
+    class_family_dict: Dict[str, str] = sig53.family_dict
 
     def __init__(
         self,
@@ -352,8 +338,8 @@ class DescToMaskFamily(Transform):
     def __call__(self, metadata: List[SignalMetadata]) -> np.ndarray:
         masks: np.ndarray = np.zeros((len(self.family_list), self.height, self.width))
         for meta in metadata:
-            if not is_rf_modulated_metadata(meta):
-                continue
+            if not is_rf_metadata(meta) and not is_rf_modulated_metadata(meta):
+                raise TypeError("Target Transform requires RFMetadata")
 
             meta = meta_bound_frequency(meta)
 
@@ -395,6 +381,8 @@ class DescToMaskClass(Transform):
         masks: np.ndarray = np.zeros((self.num_classes, self.height, self.width))
         for meta in metadata:
             if not is_rf_modulated_metadata(meta):
+                print("throwing away meta data")
+                print(meta, metadata, type(metadata))
                 continue
 
             meta = meta_bound_frequency(meta)
@@ -414,11 +402,11 @@ class DescToSemanticClass(Transform):
     burst that appears later in the burst collection.
 
     Args:
-        num_classes (:obj:`int`):
+        num_classes (int):
             Integer number of classes, setting the channel dimension of the resultant mask
-        width (:obj:`int`):
+        width (int):
             Width of resultant spectrogram mask
-        height (:obj:`int`):
+        height (int):
             Height of resultant spectrogram mask
 
     """
@@ -779,14 +767,8 @@ class DescToClassEncoding(Transform):
         num_classes: Optional[int] = None,
     ) -> None:
         super(DescToClassEncoding, self).__init__()
-        self.class_list = class_list
-        self.num_classes: int = 0
-        if num_classes:
-            self.num_classes = num_classes
-        elif class_list:
-            self.num_classes = len(class_list)
-        else:
-            raise ValueError("class_list or num_classes must be provided")
+        self.class_list = sig53.class_list if class_list is None else class_list
+        self.num_classes = len(self.class_list) if num_classes is None else num_classes
 
     def __call__(self, metadata: List[SignalMetadata]) -> np.ndarray:
         encoding: np.ndarray = np.zeros((self.num_classes,))
@@ -887,12 +869,12 @@ class DescToBBoxDict(Transform):
             bandwidth: float = meta["upper_freq"] - meta["lower_freq"]
             boxes[meta_idx] = np.array(
                 [
-                    meta["start"] + 0.5 * duration,
-                    meta["lower_freq"] + 0.5 + 0.5 * bandwidth,
+                    meta["start"],
+                    meta["lower_freq"] + 0.5,
                     duration,
                     bandwidth,
                 ]
-            )[0]
+            )
             labels.append(self.class_list.index(meta["class_name"]))
 
         targets: Dict[str, torch.Tensor] = {
@@ -922,22 +904,102 @@ class DescToBBoxSignalDict(Transform):
             if not is_rf_modulated_metadata(meta):
                 continue
 
-            # xcycwh
+            # xywh
             duration: float = meta["stop"] - meta["start"]
             bandwidth: float = meta["upper_freq"] - meta["lower_freq"]
             boxes[meta_idx] = np.array(
                 [
-                    meta["start"] + 0.5 * duration,
-                    meta["lower_freq"] + 0.5 + 0.5 * bandwidth,
+                    meta["start"],
+                    meta["lower_freq"] + 0.5,
                     duration,
                     bandwidth,
                 ]
-            )[0]
+            )
             labels.append(self.class_list.index(self.class_list[0]))
 
         targets: Dict[str, torch.Tensor] = {
             "labels": torch.LongTensor(labels),
             "boxes": torch.FloatTensor(boxes),
+        }
+        return targets
+
+class DescToBBoxYoloSignalDict(Transform):
+    """Transform to transform SignalMetadatas into the YOLO class bounding box format
+    using dictionaries of labels and boxes, similar to the COCO image dataset.
+    Differs from the `SignalMetadataToBoundingBoxDictTransform` in the ommission
+    of signal-specific class labels, grouping all objects into the 'signal'
+    class.
+
+    """
+
+    def __init__(self) -> None:
+        super(DescToBBoxYoloSignalDict, self).__init__()
+        self.class_list: List[str] = ["signal"]
+
+    def __call__(self, metadata: List[SignalMetadata]) -> Dict[str, torch.Tensor]:
+        labels: List[int] = []
+        boxes: np.ndarray = np.empty((len(metadata), 4))
+        for meta_idx, meta in enumerate(metadata):
+            if not is_rf_modulated_metadata(meta):
+                continue
+
+            # xcycwh
+            duration: float = meta["stop"] - meta["start"]
+            bandwidth: float = meta["upper_freq"] - meta["lower_freq"]
+            boxes[meta_idx] = np.array(
+                [
+                    meta["start"] + (duration / 2),
+                    meta["lower_freq"] + 0.5 + (bandwidth / 2),
+                    duration,
+                    bandwidth,
+                ]
+            )
+            labels.append(self.class_list.index(self.class_list[0]))
+
+        targets: Dict[str, torch.Tensor] = {
+            "labels": torch.LongTensor(labels),
+            "boxes": torch.FloatTensor(boxes),
+        }
+        return targets
+
+class DescToBBoxYoloDict(Transform):
+    """Transform to transform SignalMetadatas into the class bounding box format
+    using dictionaries of labels and boxes, similar to the COCO image dataset
+
+    Args:
+        class_list (:obj:`list`):
+            List of class names. Used when converting SignalMetadata class names
+            to indices
+
+    """
+
+    def __init__(self, class_list: List[str]) -> None:
+        super(DescToBBoxYoloDict, self).__init__()
+        self.class_list = class_list
+
+    def __call__(self, metadata: List[SignalMetadata]) -> Dict[str, torch.Tensor]:
+        labels: List[int] = []
+        boxes: np.ndarray = np.empty((len(metadata), 4))
+        for meta_idx, meta in enumerate(metadata):
+            if not is_rf_modulated_metadata(meta):
+                continue
+
+            # xcycwh
+            duration: float = meta["stop"] - meta["start"]
+            bandwidth: float = meta["upper_freq"] - meta["lower_freq"]
+            boxes[meta_idx] = np.array(
+                [
+                    meta["start"] + (duration / 2),
+                    meta["lower_freq"] + 0.5 + (bandwidth / 2),
+                    duration,
+                    bandwidth,
+                ]
+            )
+            labels.append(self.class_list.index(meta["class_name"]))
+
+        targets: Dict[str, torch.Tensor] = {
+            "labels": torch.Tensor(labels).long(),
+            "boxes": torch.Tensor(boxes),
         }
         return targets
 
@@ -955,61 +1017,7 @@ class DescToBBoxFamilyDict(Transform):
 
     """
 
-    class_family_dict: Dict[str, str] = {
-        "4ask": "ask",
-        "8ask": "ask",
-        "16ask": "ask",
-        "32ask": "ask",
-        "64ask": "ask",
-        "ook": "pam",
-        "4pam": "pam",
-        "8pam": "pam",
-        "16pam": "pam",
-        "32pam": "pam",
-        "64pam": "pam",
-        "2fsk": "fsk",
-        "2gfsk": "fsk",
-        "2msk": "fsk",
-        "2gmsk": "fsk",
-        "4fsk": "fsk",
-        "4gfsk": "fsk",
-        "4msk": "fsk",
-        "4gmsk": "fsk",
-        "8fsk": "fsk",
-        "8gfsk": "fsk",
-        "8msk": "fsk",
-        "8gmsk": "fsk",
-        "16fsk": "fsk",
-        "16gfsk": "fsk",
-        "16msk": "fsk",
-        "16gmsk": "fsk",
-        "bpsk": "psk",
-        "qpsk": "psk",
-        "8psk": "psk",
-        "16psk": "psk",
-        "32psk": "psk",
-        "64psk": "psk",
-        "16qam": "qam",
-        "32qam": "qam",
-        "32qam_cross": "qam",
-        "64qam": "qam",
-        "128qam_cross": "qam",
-        "256qam": "qam",
-        "512qam_cross": "qam",
-        "1024qam": "qam",
-        "ofdm-64": "ofdm",
-        "ofdm-72": "ofdm",
-        "ofdm-128": "ofdm",
-        "ofdm-180": "ofdm",
-        "ofdm-256": "ofdm",
-        "ofdm-300": "ofdm",
-        "ofdm-512": "ofdm",
-        "ofdm-600": "ofdm",
-        "ofdm-900": "ofdm",
-        "ofdm-1024": "ofdm",
-        "ofdm-1200": "ofdm",
-        "ofdm-2048": "ofdm",
-    }
+    class_family_dict: Dict[str, str] = sig53.family_dict
 
     def __init__(
         self,
@@ -1030,8 +1038,8 @@ class DescToBBoxFamilyDict(Transform):
         labels: List[int] = []
         boxes: np.ndarray = np.empty((len(metadata), 4))
         for meta_idx, meta in enumerate(metadata):
-            if not is_rf_modulated_metadata(meta):
-                continue
+            if not is_rf_metadata(meta) and not is_rf_modulated_metadata(meta):
+                raise TypeError("Target Transform requires RFMetadata")
 
             # xcycwh
             duration: float = meta["stop"] - meta["start"]
@@ -1202,58 +1210,7 @@ class DescToSignalFamilyInstMaskDict(Transform):
 
     """
 
-    class_family_dict: Dict[str, str] = {
-        "4ask": "ask",
-        "8ask": "ask",
-        "16ask": "ask",
-        "32ask": "ask",
-        "64ask": "ask",
-        "ook": "pam",
-        "4pam": "pam",
-        "8pam": "pam",
-        "2fsk": "fsk",
-        "2gfsk": "fsk",
-        "2msk": "fsk",
-        "2gmsk": "fsk",
-        "4fsk": "fsk",
-        "4gfsk": "fsk",
-        "4msk": "fsk",
-        "4gmsk": "fsk",
-        "8fsk": "fsk",
-        "8gfsk": "fsk",
-        "8msk": "fsk",
-        "8gmsk": "fsk",
-        "16fsk": "fsk",
-        "16gfsk": "fsk",
-        "16msk": "fsk",
-        "16gmsk": "fsk",
-        "bpsk": "psk",
-        "qpsk": "psk",
-        "8psk": "psk",
-        "16psk": "psk",
-        "32psk": "psk",
-        "64psk": "psk",
-        "16qam": "qam",
-        "32qam": "qam",
-        "32qam_cross": "qam",
-        "64qam": "qam",
-        "128qam_cross": "qam",
-        "256qam": "qam",
-        "512qam_cross": "qam",
-        "1024qam": "qam",
-        "ofdm-64": "ofdm",
-        "ofdm-72": "ofdm",
-        "ofdm-128": "ofdm",
-        "ofdm-180": "ofdm",
-        "ofdm-256": "ofdm",
-        "ofdm-300": "ofdm",
-        "ofdm-512": "ofdm",
-        "ofdm-600": "ofdm",
-        "ofdm-900": "ofdm",
-        "ofdm-1024": "ofdm",
-        "ofdm-1200": "ofdm",
-        "ofdm-2048": "ofdm",
-    }
+    class_family_dict: Dict[str, str] = sig53.family_dict
 
     def __init__(
         self,
@@ -1279,8 +1236,8 @@ class DescToSignalFamilyInstMaskDict(Transform):
         labels: List[int] = []
         masks: np.ndarray = np.zeros((num_objects, self.height, self.width))
         for meta_idx, meta in enumerate(metadata):
-            if not is_rf_modulated_metadata(meta):
-                continue
+            if not is_rf_metadata(meta) and not is_rf_modulated_metadata(meta):
+                raise TypeError("Target Transform requires RFMetadata")
 
             family_name: str = self.class_family_dict[meta["class_name"]]
             family_idx: int = self.family_list.index(family_name)
@@ -1315,19 +1272,16 @@ class DescToSignalFamilyInstMaskDict(Transform):
         }
         return targets
 
-
 class DescToListTuple(Transform):
     """Transform to transform SignalMetadata into a list of tuples containing
     the modulation, start time, stop time, center frequency, bandwidth, and SNR
     for each signal present
 
     Args:
-        precision (:obj: `np.dtype`):
-            Specify the data type precision for the tuple's information
-
+        precision (np.dtype, optional): 
+        Specify the data type precision for the tuple's information. Defaults to np.dtype(np.float64).
     """
-
-    def __init__(self, precision: np.dtype = np.dtype(np.float16)) -> None:
+    def __init__(self, precision: np.dtype = np.dtype(np.float64)) -> None:
         super(DescToListTuple, self).__init__()
         self.precision = precision
 
@@ -1353,28 +1307,13 @@ class DescToListTuple(Transform):
 
 
 class ListTupleToDesc(Transform):
-    """Transform to transform a list of tuples to a list of SignalMetadatas
-    Sample rate and number of IQ samples optional arguments are provided in
-    order to fill in additional information if desired. If a class list is
-    provided, the class names are used with the list to fill in class indices
-
-    Args:
-        sample_rate (:obj: `Optional[float]`):
-            Optionally provide the sample rate for the SignalMetadatas
-
-        num_iq_samples (:obj: `Optional[int]`):
-            Optionally provide the number of IQ samples for the SignalMetadatas
-
-        class_list (:obj: `List`):
-            Optionally provide the class list to fill in class indices
-
-    """
+    
 
     def __init__(
         self,
-        sample_rate: Optional[float] = None,
-        num_iq_samples: Optional[int] = None,
-        class_list: Optional[List[str]] = None,
+        sample_rate: float,
+        num_iq_samples: int,
+        class_list: List[str],
     ) -> None:
         super(ListTupleToDesc, self).__init__()
         self.sample_rate = sample_rate
@@ -1440,4 +1379,52 @@ class LabelSmoothing(Transform):
         output: np.ndarray = (1 - self.alpha) / np.sum(encoding) * encoding + (
             self.alpha / encoding.shape[0]
         )
+        return output
+
+class ListTupleToYOLO(Transform):
+    """Transform SignalMetadata (label) into YOLO format containing class and bounding box information.
+    
+        (class: str, start: float, stop: float, center_freq: float, bandwidth: float, snr: float)
+        ->
+        (class: int, x: float, y: float, width: int, height: int)
+        
+        See Ultralytics for more information: 
+        https://docs.ultralytics.com/yolov5/tutorials/train_custom_data/#22-create-labels
+        
+        Args:
+            None
+    """
+    
+    def __init__(self):
+        super().__init__()
+        
+    def __call__(self,list_tuple: List[Tuple[str, float, float, float, float, float]]) -> List[Tuple[int, float, float, float, float]]:
+        # prevents circular imports
+        from torchsig.datasets.modulations import ModulationsDataset
+        
+        output: List[Tuple[int, float, float, float, float]] = []
+        
+        for row in list_tuple:
+            sig_class = row[0] # signal class name
+            start = row[1] # signal start pixel
+            stop = row[2] # signal end pixel
+            center_freq = row[3] + 0.5 # norm [-0.5, 0.5], convert to [0, 1]
+            bandwidth = row[4] # signal height
+            
+            sig_class_index = ModulationsDataset.default_classes.index(sig_class) # signal class index
+            width = stop - start # width
+            height = bandwidth # height
+            x_center = start + (width / 2.0) 
+            y_center = center_freq
+            # center of signal (x, y)
+            
+            t: Tuple[int, float, float, float, float] = (
+                sig_class_index,
+                x_center,
+                y_center,
+                width,
+                height
+            )
+            output.append(t)
+            
         return output

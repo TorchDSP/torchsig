@@ -848,18 +848,12 @@ def iq_imbalance(tensor: np.ndarray, iq_amplitude_imbalance_db: float, iq_phase_
             Tensor that has an IQ imbalance applied across the time dimension of size tensor.shape
     """
     # amplitude imbalance
-    tensor = 10 ** (iq_amplitude_imbalance_db / 10.0) * np.real(tensor) + 1j * 10 ** (
-        iq_amplitude_imbalance_db / 10.0
-    ) * np.imag(tensor)
+    tensor = 10 ** (iq_amplitude_imbalance_db / 10.0) * np.real(tensor) + 1j * 10 ** (iq_amplitude_imbalance_db / 10.0) * np.imag(tensor)
 
     # phase imbalance
-    tensor = np.exp(-1j * iq_phase_imbalance / 2.0) * np.real(tensor) + np.exp(
-        1j * (np.pi / 2.0 + iq_phase_imbalance / 2.0)
-    ) * np.imag(tensor)
+    tensor = np.exp(-1j * iq_phase_imbalance / 2.0) * np.real(tensor) + np.exp(1j * (np.pi / 2.0 + iq_phase_imbalance / 2.0)) * np.imag(tensor)
 
-    tensor += 10 ** (iq_dc_offset_db / 10.0) * np.real(tensor) + 1j * 10 ** (
-        iq_dc_offset_db / 10.0
-    ) * np.imag(tensor)
+    tensor += 10 ** (iq_dc_offset_db / 10.0) * np.real(tensor) + 1j * 10 ** (iq_dc_offset_db / 10.0) * np.imag(tensor)
     return tensor
 
 
@@ -1069,6 +1063,7 @@ def drop_samples(
             )
 
         # Update drop region
+        # breakpoint()
         tensor[drop_start : drop_start + drop_sizes[idx]] = drop_region
 
     return tensor
@@ -1089,7 +1084,7 @@ def quantize(
             Number of quantization levels
 
         round_type (:obj:`str`):
-            Quantization rounding. Options: 'floor', 'middle', 'ceiling'
+            Quantization rounding. Options: 'floor', 'nearest'
 
     Returns:
         transformed (:class:`numpy.ndarray`):
@@ -1598,8 +1593,8 @@ def spectrogram_image(
         Tensor:
             array.
     """
-    spec = 10 * np.log10(tensor)
-    img = np.zeros((tensor.shape[0], tensor.shape[1], 3), dtype=np.float32)
-    img = cv2.normalize(tensor, img, 0, 255, cv2.NORM_MINMAX)
+    spec = 10 * np.log10(tensor+np.finfo(np.float32).tiny)
+    img = np.zeros((spec.shape[0], spec.shape[1], 3), dtype=np.float32)
+    img = cv2.normalize(spec, img, 0, 255, cv2.NORM_MINMAX)
     img = cv2.cvtColor(img.astype(np.uint8), cv2.COLOR_GRAY2BGR)
-    return cv2.bitwise_not(img)
+    return img
