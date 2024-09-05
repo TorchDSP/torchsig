@@ -1,4 +1,8 @@
 """ Testing Generate Wideband Sig53 Scripts
+
+Examples:
+    >>> pytest test_generate_wideband_sig53_scripts.py
+    >>> pytest test_generate_wideband_sig53_scripts.py --pdb
 """
 import generate_wideband_sig53
 from torchsig.datasets import conf
@@ -36,18 +40,18 @@ def test_generate_wideband_sig53_impaired_qa_train(tmp_path):
 def test_generate_wideband_sig53_impaired_qa_val(tmp_path):
     generate_wideband_sig53.generate(tmp_path, [conf.WidebandSig53ImpairedValQAConfig], num_workers, -1)
 
-@pytest.mark.skip(reason="too big")
+# @pytest.mark.skip(reason="too big")
 def test_generate_wideband_sig53_clean_train(tmp_path):
     generate_wideband_sig53.generate(tmp_path, [conf.WidebandSig53CleanTrainConfig], num_workers, -1)
 
-@pytest.mark.skip(reason="too big")
+# @pytest.mark.skip(reason="too big")
 def test_generate_wideband_sig53_clean_val(tmp_path):
     generate_wideband_sig53.generate(tmp_path, [conf.WidebandSig53CleanValConfig], num_workers, -1)
 
-@pytest.mark.skip(reason="too big")
+# @pytest.mark.skip(reason="too big")
 def test_generate_wideband_sig53_impaired_train(tmp_path):
     generate_wideband_sig53.generate(tmp_path, [conf.WidebandSig53ImpairedTrainConfig], num_workers, -1)
 
-@pytest.mark.skip(reason="too big")
+# @pytest.mark.skip(reason="too big")
 def test_generate_wideband_sig53_impaired_val(tmp_path):
     generate_wideband_sig53.generate(tmp_path, [conf.WidebandSig53ImpairedValConfig], num_workers, -1)

@@ -5,7 +5,7 @@ path_dir_img = './datasets/impaired/images/val/'
 path_dir_label = './datasets/impaired/labels/val/'
 image_files = glob.glob(path_dir_img+'*.png')
 num_cnt = 0
-for img_file in image_files[:1]:
+for img_file in image_files[:10]:
     print(img_file)
     print('press 0 to close')
     img = cv2.imread(img_file)
@@ -35,8 +35,8 @@ for img_file in image_files[:1]:
 
         cv2.rectangle(img, (l, t), (r, b), (0, 0, 255), 1)
 
-    cv2.imshow(img_file,img)
-    cv2.waitKey(0)
-    #cv2.imwrite(str(num_cnt)+'.png', img, [cv2.IMWRITE_PNG_COMPRESSION, 9])
-    cv2.destroyAllWindows()
+    #cv2.imshow(img_file,img)
+    #cv2.waitKey(0)
+    cv2.imwrite(str(num_cnt)+'.png', img, [cv2.IMWRITE_PNG_COMPRESSION, 9])
+    #cv2.destroyAllWindows()
     num_cnt += 1
