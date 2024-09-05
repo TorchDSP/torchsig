@@ -1,23 +1,24 @@
-train: './datasets'
+train: './datasets/'
 val: './datasets/'
 
 level: 2
 include_snr:  False
 nc: 53
+num_samples: 530
 
 # Determines if you are classify all 53 classes or modulation family (see Classes below)
 family: False
 
 overrides:
     model: yolov8n-cls.pt
-    project: SNOWY_CLASSIFY_SPEC
-    name: heatmap
+    project: YOUR_PROJECT_NAME
+    name: YOUR_CLASSIFY_EXPERIMENT
     epochs: 1
     data:  classify.yaml
-    device: 0
+    device: 1
     imgsz: 64
     batch: 32
-    workers: 8
+    workers: 32
     cos_lr: False
     exist_ok: False
 
@@ -78,7 +79,7 @@ names:
   51: ofdm-1200
   52: ofdm-2048
 
-family:
+families:
     0: ask
     1: fsk
     2: ofdm

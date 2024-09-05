@@ -49,7 +49,7 @@ class TorchsigClassificationDataset:
 
         # Determine whether to map descriptions to family names
         if self.config['family']:
-            self.class_to_idx_dict = {v: k for k, v in self.config['family'].items()}
+            self.class_to_idx_dict = {v: k for k, v in self.config['families'].items()}
             target_transform = CP([DescToFamilyName()])
         else:
             self.class_to_idx_dict = {v: k for k, v in self.config['names'].items()}
@@ -61,7 +61,7 @@ class TorchsigClassificationDataset:
             use_class_idx=False,
             level=self.config['level'],
             num_iq_samples=args.imgsz**2,
-            num_samples=int(self.config['nc'] * 1000),
+            num_samples=self.config['num_samples'],
             include_snr=self.config['include_snr'],
             target_transform=target_transform
         )
@@ -197,8 +197,11 @@ class YoloClassifyTrainer(ClassificationTrainer):
         """
         with open(self.args.data, 'r') as file:
             config = yaml.safe_load(file)
-        names = config['names']
-        nc = config['nc']
+        if config['family']:
+            names = config['families']
+        else:
+            names = config['names']
+        nc = len(names)
         data = {"train": self.args.data, "val": self.args.data, "test": self.args.data, "nc": nc, "names": names}
         self.data = data
         return data["train"], data.get("val") or data.get("test")
