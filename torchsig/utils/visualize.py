@@ -1,4 +1,5 @@
 from typing import Any, Callable, Iterable, List, Optional, Tuple, Union
+from torchsig.datasets.signal_classes import sig53
 from matplotlib.figure import Figure
 from matplotlib import pyplot as plt
 from matplotlib import patches
@@ -165,6 +166,10 @@ class WaveletVisualizer(Visualizer):
                 sample_idx + 1,
             )
             scales = np.arange(1, self.nscales)
+
+            if torch.is_tensor(iq_data):
+                iq_data = iq_data.numpy() 
+
             cwt_matrix, freqs = pywt.cwt(
                 iq_data[sample_idx],
                 scales=scales,
@@ -291,6 +296,10 @@ class ImageVisualizer(Visualizer):
                 int(np.sqrt(batch_size)),
                 sample_idx + 1,
             )
+
+            if torch.is_tensor(data):
+                data = data.numpy() 
+
             plt.imshow(
                 data[sample_idx],
                 vmin=np.min(data[sample_idx][data[sample_idx] != -np.inf]),
@@ -399,9 +408,9 @@ class MaskClassVisualizer(Visualizer):
         **kwargs:
     """
 
-    def __init__(self, class_list, **kwargs) -> None:
+    def __init__(self, class_list=None, **kwargs) -> None:
         super(MaskClassVisualizer, self).__init__(**kwargs)
-        self.class_list = class_list
+        self.class_list = sig53.class_list if class_list is None else class_list
 
     def __next__(self) -> Figure:
         iq_data, targets = next(self.data_iter)
