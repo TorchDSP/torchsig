@@ -1,5 +1,7 @@
 from scipy.signal import ShortTimeFFT
 from scipy.interpolate import interp1d
+from scipy.ndimage import gaussian_filter
+from scipy.interpolate import splrep, splev
 from PIL import Image
 import numpy as np
 import pywt
@@ -59,57 +61,90 @@ def spectrogram_image(signal, nfft=64):
     
     return img
 
+class PLL:
+    def __init__(self, sample_rate, loop_bandwidth, damping_factor):
+        self.sample_rate = sample_rate
+        self.loop_bandwidth = loop_bandwidth
+        self.damping_factor = damping_factor
+        self.phase_error_integral = 0
+        self.omega = 2 * np.pi * self.loop_bandwidth
+        self.filter_alpha = 1 / (1 + (self.omega / (2 * np.pi * self.damping_factor))**2)
+        self.filter_beta = (self.filter_alpha ** 2) / (4 * self.damping_factor)
+
+    def phase_detector(self, signal, reference):
+        """Compute the phase difference between the signal and the reference."""
+        phase_diff = np.angle(signal * np.conj(reference))
+        return phase_diff
+
+    def loop_filter(self, phase_error):
+        """Apply a PI controller to the phase error."""
+        proportional = self.filter_alpha * np.mean(phase_error)
+        integral = self.filter_beta * self.phase_error_integral
+        self.phase_error_integral += np.mean(phase_error)
+        control_signal = proportional + integral
+        return control_signal
+
+    def vco(self, control_signal, length):
+        """Generate a signal with frequency adjusted by the control signal."""
+        time = np.arange(length) / self.sample_rate
+        return np.exp(1j * (2 * np.pi * np.cumsum(np.full(length, control_signal)) / self.sample_rate))
+
+    def correct_signal(self, signal):
+        """Correct the input signal using the PLL."""
+        reference = np.exp(1j * np.angle(signal))  # Initial reference
+        phase_error = self.phase_detector(signal, reference)
+        control_signal = self.loop_filter(phase_error)
+        corrected_signal = signal * np.conj(self.vco(control_signal, len(signal)))
+        return corrected_signal
+
 def upsample_iq(iq, target_length):
-    # Separate real and imaginary components
     iqx, iqy = iq.real, iq.imag
-    
-    # Create a linear space for interpolation
     original_indices = np.arange(len(iq))
     target_indices = np.linspace(0, len(iq) - 1, target_length)
     
-    # Interpolate real and imaginary parts
-    iqx_interp = interp1d(original_indices, iqx, kind='cubic')(target_indices)
-    iqy_interp = interp1d(original_indices, iqy, kind='cubic')(target_indices)
+    # Compute the spline representation for both real and imaginary parts
+    tck_iqx = splrep(original_indices, iqx, s=0)
+    tck_iqy = splrep(original_indices, iqy, s=0)
+    
+    # Evaluate the spline over the target indices
+    iqx_interp = splev(target_indices, tck_iqx, der=0)
+    iqy_interp = splev(target_indices, tck_iqy, der=0)
     
     # Recombine into a complex signal
     iq_upsampled = iqx_interp + 1j * iqy_interp
     return iq_upsampled
 
-def complex_iq_to_heatmap(iq, output_size=[128, 128]):
-    # Calculate resolution based on the square root of the data length
-    resolution = int(np.sqrt(len(iq)))
+def complex_iq_to_heatmap(iq, output_size=(224, 224), loop_bandwidth=1000, damping_factor=1, amp_factor=.5):
+    sample_rate = len(iq)
+    pll = PLL(sample_rate, loop_bandwidth, damping_factor)
+    iq_corrected = pll.correct_signal(iq)
     
-    # Calculate the target upsample length
     target_length = output_size[0] * output_size[1]
+    iq_upsampled = upsample_iq(iq_corrected, target_length)
     
-    # Upsample I/Q signal to match the output size dimensions
-    iq_upsampled = upsample_iq(iq, target_length)
-    
-    # Separate real and imaginary components
     iqx, iqy = iq_upsampled.real, iq_upsampled.imag
-    
-    # Normalize the real and imaginary components to [0, 1]
     iqx = (iqx - iqx.min()) / (iqx.max() - iqx.min() + 1e-8)
     iqy = (iqy - iqy.min()) / (iqy.max() - iqy.min() + 1e-8)
     
-    # Initialize an empty heatmap
     heatmap = np.zeros(output_size)
-    
-    # Map the I/Q values to the output size grid
     ix = (iqx * (output_size[1] - 1)).astype(int)
     iy = (iqy * (output_size[0] - 1)).astype(int)
     
-    # Accumulate counts in the heatmap
     np.add.at(heatmap, (iy, ix), 1)
     
-    # Normalize the heatmap to [0, 1]
+    heatmap = np.power(heatmap, amp_factor)
+    
+    # Apply Gaussian smoothing
+    heatmap = gaussian_filter(heatmap, sigma=1.0)
+    
     if heatmap.max() > 0:
         heatmap /= heatmap.max()
     
-    # Convert the heatmap to 8-bit for visualization
     heatmap_8bit = np.uint8(heatmap * 255)
     
-    # Apply a colormap to the heatmap using OpenCV
+    # Contrast adjustment
+    heatmap_8bit = cv2.equalizeHist(heatmap_8bit)
+    
     heatmap_colored = cv2.applyColorMap(heatmap_8bit, cv2.COLORMAP_TWILIGHT)
     
     return heatmap_colored

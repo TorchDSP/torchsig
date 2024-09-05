@@ -1046,8 +1046,8 @@ class DescToBBoxFamilyDict(Transform):
             bandwidth: float = meta["upper_freq"] - meta["lower_freq"]
             boxes[meta_idx] = np.array(
                 [
-                    meta["start"] + 0.5 * duration,
-                    meta["lower_freq"] + 0.5 + 0.5 * bandwidth,
+                    meta["start"] + (duration / 2),
+                    meta["lower_freq"] + 0.5 + (bandwidth / 2),
                     duration,
                     bandwidth,
                 ]
