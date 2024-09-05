@@ -181,6 +181,5 @@ class DatasetCreator:
             print("Dataset already exists in {}. Not regenerating".format(self.path))
             return
 
-        print(self.loader)
         for batch in tqdm.tqdm(self.loader, total=len(self.loader)):
             self.writer.write(batch)

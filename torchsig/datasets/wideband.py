@@ -500,6 +500,7 @@ class SyntheticBurstSourceDataset(BurstSourceDataset):
         # self.silence_durations = silence_durations
         self.snrs_db = to_distribution(snrs_db, random_generator=self.random_generator)
         self.start = to_distribution(start, random_generator=self.random_generator)
+        self.start_test = start
 
         # Generate the index by creating a set of bursts.
         self.index = [(collection, idx) for idx, collection in enumerate(self._generate_burst_collections())]
@@ -1079,6 +1080,9 @@ class Interferers(SignalTransform):
 
     def __call__(self, data: Any) -> Any:
         idx = np.random.randint(self.num_samples)
+        
+        import ipdb
+        ipdb.set_trace()
         if is_signal_data(data):
             data["data"]["samples"] = data["data"]["samples"] + self.interferers[idx][0]
         else:
