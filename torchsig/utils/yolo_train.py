@@ -1,4 +1,4 @@
-from torchsig.transforms.target_transforms import DescToBBoxYoloSignalDict
+from torchsig.transforms.target_transforms import DescToBBoxYoloSignalDict, DescToBBoxFamilyDict
 from torchsig.transforms import Spectrogram, Normalize, SpectrogramImage
 from torchsig.datasets.wideband_sig53 import WidebandSig53
 from torchsig.transforms.transforms import Compose as CP
@@ -50,7 +50,8 @@ class TorchsigDataset(YOLODataset):
 
         # Define the transformation for converting description to bounding boxes
         target_transform = CP([
-            DescToBBoxYoloSignalDict()
+            # DescToBBoxYoloSignalDict()
+            DescToBBoxFamilyDict()
         ])
 
         # Initialize the WidebandSig53 dataset with the defined transforms

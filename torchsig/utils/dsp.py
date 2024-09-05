@@ -4,6 +4,13 @@ import numpy as np
 
 
 def convolve(signal: np.ndarray, taps: np.ndarray) -> np.ndarray:
+    """A modified version of scipy.signal.convolve, which discards trasitional regions
+
+    Args:
+        signal (np.ndarray): input signal to be filtered
+        taps (np.ndarray): filter with which to colvolve the signal
+
+    """
     filtered = sp.convolve(signal, taps, "full") 
     lidx = (len(filtered) - len(signal)) // 2
     ridx = lidx + len(signal)
