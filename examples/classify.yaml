@@ -15,7 +15,7 @@ overrides:
     name: YOUR_CLASSIFY_EXPERIMENT
     epochs: 1
     data:  classify.yaml
-    device: 1
+    device: 0
     imgsz: 64
     batch: 32
     workers: 32
