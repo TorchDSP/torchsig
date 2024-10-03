@@ -187,7 +187,7 @@ class ModulatedSignalBurst(SignalBurst):
                 num_subcarriers=tuple(num_subcarriers),  # possible number of subcarriers
                 num_iq_samples=num_iq_samples,
                 num_samples_per_class=1,
-                random_data=True,
+                random_data=False,
                 sidelobe_suppression_methods=sidelobe_suppression_methods,
                 dc_subcarrier=("on", "off"),
                 time_varying_realism=("on", "off"),
@@ -200,7 +200,7 @@ class ModulatedSignalBurst(SignalBurst):
                 num_iq_samples=num_iq_samples,
                 num_samples_per_class=1,
                 iq_samples_per_symbol=approx_samp_per_sym,
-                random_data=True,
+                random_data=False,
                 random_pulse_shaping=True,
                 center_freq=self.meta["center_freq"],
                 bandwidth=self.meta["bandwidth"]
@@ -211,7 +211,7 @@ class ModulatedSignalBurst(SignalBurst):
                 num_iq_samples=num_iq_samples,
                 num_samples_per_class=1,
                 iq_samples_per_symbol=approx_samp_per_sym,
-                random_data=True,
+                random_data=False,
                 random_pulse_shaping=False, #True, TODO fix pulse shaping code.
                 center_freq=self.meta["center_freq"],
             )

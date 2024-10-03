@@ -100,12 +100,8 @@ class Transform:
     """
 
     def __init__(self, seed: Optional[int] = None) -> None:
-        if seed is not None:
-            warnings.warn(
-                "Seeding transforms is deprecated and does nothing", DeprecationWarning
-            )
         self.string = self.__class__.__name__ + "()"
-        self.random_generator = np.random.default_rng()
+        self.random_generator = np.random.default_rng(seed)
 
     def __call__(self, data: Any) -> Any:
         raise NotImplementedError
