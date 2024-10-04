@@ -192,7 +192,8 @@ class ModulatedSignalBurst(SignalBurst):
                 dc_subcarrier=("on", "off"),
                 time_varying_realism=("on", "off"),
                 center_freq=self.meta["center_freq"],
-                bandwidth=self.meta["bandwidth"]
+                bandwidth=self.meta["bandwidth"],
+                seed=self.random_generator.integers(123456789),
             )
         elif self.meta["class_name"] in torchsig_signals.fsk_signals: # FSK, GFSK, MSK, GMSK
             modulated_burst = FSKDataset(
