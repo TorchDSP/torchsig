@@ -705,56 +705,74 @@ class WidebandModulationsDataset(SignalDataset):
         self.num_iq_samples = num_iq_samples
         self.num_samples = num_samples
         self.overlap_prob = overlap_prob
+        self._transform = transform
+        self.target_transform = target_transform
 
+    def _initialize_random_parameters(self, seed: Optional[int] = None):
         # Set level-specific parameters
-        if level == 0:
+        if self.level == 0:
             num_signals = (1, 1)
             snrs = (40, 40)
-            self.transform = Compose(
+            transform = Compose(
                 [
-                    AddNoise(noise_power_db=(0, 0), input_noise_floor_db=-100),  # Set input noise floor very low because this transform sets the floor
+                    AddNoise(
+                        noise_power_db=(0, 0), input_noise_floor_db=-100, seed=seed
+                    ),  # Set input noise floor very low because this transform sets the floor
                     Normalize(norm=np.inf),
                 ]
             )
-        elif level == 1:
+        elif self.level == 1:
             num_signals = (1, 6)
             snrs = (20, 40)
-            self.transform = Compose(
+            transform = Compose(
                 [
-                    AddNoise(noise_power_db=(0, 0), input_noise_floor_db=-100),  # Set input noise floor very low because this transform sets the floor
-                    AddNoise(noise_power_db=(-40, -20), input_noise_floor_db=0),  # Then add minimal noise without affecting SNR
+                    AddNoise(
+                        noise_power_db=(0, 0), input_noise_floor_db=-100, seed=seed
+                    ),  # Set input noise floor very low because this transform sets the floor
+                    AddNoise(
+                        noise_power_db=(-40, -20), input_noise_floor_db=0, seed=seed
+                    ),  # Then add minimal noise without affecting SNR
                     Normalize(norm=np.inf),
                 ]
             )
-        elif level == 2:
+        elif self.level == 2:
             num_signals = (1, 6)
             snrs = (0, 30)
-            self.transform = Compose(
+            transform = Compose(
                 transforms=[
                     RandomApply(
                         RandomTimeShift(
-                            shift=(-int(num_iq_samples / 2), int(num_iq_samples / 2))
+                            shift=(-int(num_iq_samples / 2), int(num_iq_samples / 2)),
+                            seed=seed,
                         ),
                         0.25,
+                        seed=seed,
                     ),
-                    RandomApply(RandomFrequencyShift(freq_shift=(-0.2, 0.2)), 0.25),
+                    RandomApply(
+                        RandomFrequencyShift(freq_shift=(-0.2, 0.2)), 0.25, seed=seed
+                    ),
                     RandomApply(
                         RandomResample(
-                            rate_ratio=(0.8, 1.2), num_iq_samples=num_iq_samples
+                            rate_ratio=(0.8, 1.2),
+                            num_iq_samples=num_iq_samples,
+                            seed=seed,
                         ),
                         0.25,
+                        seed=seed,
                     ),
-                    RandomApply(SpectralInversion(), 0.5),
+                    RandomApply(SpectralInversion(), 0.5, seed=seed),
                     AddNoise(
-                        noise_power_db=(0, 0), input_noise_floor_db=-100
+                        noise_power_db=(0, 0), input_noise_floor_db=-100, seed=seed
                     ),  # Set input noise floor very low because this transform sets the floor
                     AddNoise(
-                        noise_power_db=(-40, -20), input_noise_floor_db=0
+                        noise_power_db=(-40, -20), input_noise_floor_db=0, seed=seed
                     ),  # Then add minimal noise without affecting SNR
                     RandAugment(
                         [
                             RandomApply(
-                                RandomMagRescale(start=(0, 0.9), scale=(-4, 4)), 0.5
+                                RandomMagRescale(start=(0, 0.9), scale=(-4, 4)),
+                                0.5,
+                                seed=seed,
                             ),
                             RollOff(
                                 low_freq=(0.00, 0.05),
@@ -762,22 +780,28 @@ class WidebandModulationsDataset(SignalDataset):
                                 low_cut_apply=0.5,
                                 upper_cut_apply=0.5,
                                 order=(6, 20),
+                                seed=seed,
                             ),
-                            RandomConvolve(num_taps=(2, 5), alpha=(0.1, 0.4)),
-                            RayleighFadingChannel((0.001, 0.01)),
+                            RandomConvolve(
+                                num_taps=(2, 5), alpha=(0.1, 0.4), seed=seed
+                            ),
+                            RayleighFadingChannel((0.001, 0.01), seed=seed),
                             RandomDropSamples(
                                 drop_rate=0.01,
                                 size=(1, 1),
                                 fill=["ffill", "bfill", "mean", "zero"],
+                                seed=seed,
                             ),
-                            RandomPhaseShift((-1, 1)),
+                            RandomPhaseShift((-1, 1), seed=seed),
                             IQImbalance(
                                 (-3, 3),
                                 (-np.pi * 1.0 / 180.0, np.pi * 1.0 / 180.0),
                                 (-0.1, 0.1),
+                                seed=seed,
                             ),
                         ],
                         num_transforms=2,
+                        seed=seed,
                     ),
                     Normalize(norm=np.inf),
                 ]
@@ -789,20 +813,17 @@ class WidebandModulationsDataset(SignalDataset):
                 )
             )
 
-        if transform is not None:
-            self.transform = Compose(
+        if self._transform is not None:
+            transform = Compose(
                 [
-                    self.transform,
                     transform,
+                    self._transform,
                 ]
             )
 
-        self.target_transform = target_transform
-        self.num_signals = to_distribution(num_signals, random_generator=self.random_generator)
-        self.snrs = to_distribution(snrs, random_generator=self.random_generator)
-
-    def ret_transforms(self):
-        return self.transform
+        num_signals = to_distribution(num_signals, random_generator=self.random_generator)
+        snrs = to_distribution(snrs, random_generator=self.random_generator)
+        return transform, num_signals, snrs
 
     def __gen_metadata__(self, modulation_list: List) -> pd.DataFrame:
         """This method defines the parameters of the modulations to be inserted
@@ -876,10 +897,12 @@ class WidebandModulationsDataset(SignalDataset):
         if not self.update_rng:
             self.random_generator = np.random.default_rng(os.getpid())
             self.update_rng = True
+        seed = self.seed + item * 53 if self.seed else None
+        transform, get_num_signals, snrs = self._initialize_random_parameters(seed)
         signal_sources: List[SyntheticBurstSourceDataset] = []
 
         # Randomly decide how many signals in capture
-        num_signals = int(self.num_signals())
+        num_signals = int(get_num_signals())
 
         # Randomly decide if OFDM signals are in capture
         ofdm_present = True if self.random_generator.random() < self.ofdm_ratio else False
@@ -978,7 +1001,7 @@ class WidebandModulationsDataset(SignalDataset):
             # Handle overlaps
             # Add signal to signal sources
             center_freqs = center_freq if len(center_freq_list) == 0 else center_freq_list
-            snrs_db = self.snrs()
+            snrs_db = snrs()
             signal_sources.append(
                 SyntheticBurstSourceDataset(
                     bandwidths=bandwidth,
@@ -1001,7 +1024,7 @@ class WidebandModulationsDataset(SignalDataset):
                     num_iq_samples=self.num_iq_samples,
                     num_samples=1,
                     transform=None,
-                    seed=self.seed + item * 53 if self.seed else None,
+                    seed=seed,
                 ),
             )
             
@@ -1061,7 +1084,7 @@ class WidebandModulationsDataset(SignalDataset):
         signal = Signal(data=SignalData(samples=iq_data), metadata=metadata)
 
         # Apply transforms
-        signal = self.transform(signal) if self.transform else signal
+        signal = transform(signal) if transform else signal
         target = signal["metadata"]
         if self.target_transform:
             target = self.target_transform(signal["metadata"])
