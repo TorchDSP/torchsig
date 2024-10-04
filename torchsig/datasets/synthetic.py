@@ -513,7 +513,7 @@ class OFDMDataset(SyntheticDataset):
                     sidelobe_suppression_method,
                     dc_subcarrier,
                     time_varying_realism,
-                ) = combinations[self.random_generator.randint(len(combinations))]
+                ) = combinations[self.random_generator.integers(len(combinations))]
                 meta = ModulatedRFMetadata(
                     sample_rate=0.0,
                     num_samples=self.num_iq_samples,
