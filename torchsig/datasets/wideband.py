@@ -197,7 +197,8 @@ class ModulatedSignalBurst(SignalBurst):
                 dc_subcarrier=("on", "off"),
                 time_varying_realism=("on", "off"),
                 center_freq=self.meta["center_freq"],
-                bandwidth=self.meta["bandwidth"]
+                bandwidth=self.meta["bandwidth"],
+                seed=self.random_generator.integers(123456789),
             )
         elif "fsk" in self.meta["class_name"] or "msk" in self.meta["class_name"]: # FSK, GFSK, MSK, GMSK
             modulated_burst = FSKDataset(
