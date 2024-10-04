@@ -707,8 +707,10 @@ class WidebandModulationsDataset(SignalDataset):
         self.overlap_prob = overlap_prob
         self._transform = transform
         self.target_transform = target_transform
+        self.random_generator, self.transform, self.num_signals, self.snrs = self._initialize_random_parameters(self.seed)
 
     def _initialize_random_parameters(self, seed: Optional[int] = None):
+        random_generator = np.random.default_rng(seed)
         # Set level-specific parameters
         if self.level == 0:
             num_signals = (1, 1)
@@ -821,9 +823,9 @@ class WidebandModulationsDataset(SignalDataset):
                 ]
             )
 
-        num_signals = to_distribution(num_signals, random_generator=self.random_generator)
-        snrs = to_distribution(snrs, random_generator=self.random_generator)
-        return transform, num_signals, snrs
+        num_signals = to_distribution(num_signals, random_generator=random_generator)
+        snrs = to_distribution(snrs, random_generator=random_generator)
+        return random_generator, transform, num_signals, snrs
 
     def __gen_metadata__(self, modulation_list: List) -> pd.DataFrame:
         """This method defines the parameters of the modulations to be inserted
@@ -893,16 +895,18 @@ class WidebandModulationsDataset(SignalDataset):
         return bw, ret_cf
 
     def __getitem__(self, item: int) -> Tuple[np.ndarray, Any]:
+        seed = self.seed + item * 53 if self.seed else None
         # Initialize empty list of signal sources & signal descriptors
         if not self.update_rng:
             self.random_generator = np.random.default_rng(os.getpid())
             self.update_rng = True
-        seed = self.seed + item * 53 if self.seed else None
-        transform, get_num_signals, snrs = self._initialize_random_parameters(seed)
+        self.random_generator, self.transform, self.num_signals, self.snrs = (
+            self._initialize_random_parameters(seed)
+        )
         signal_sources: List[SyntheticBurstSourceDataset] = []
 
         # Randomly decide how many signals in capture
-        num_signals = int(get_num_signals())
+        num_signals = int(self.num_signals())
 
         # Randomly decide if OFDM signals are in capture
         ofdm_present = True if self.random_generator.random() < self.ofdm_ratio else False
@@ -1001,7 +1005,7 @@ class WidebandModulationsDataset(SignalDataset):
             # Handle overlaps
             # Add signal to signal sources
             center_freqs = center_freq if len(center_freq_list) == 0 else center_freq_list
-            snrs_db = snrs()
+            snrs_db = self.snrs()
             signal_sources.append(
                 SyntheticBurstSourceDataset(
                     bandwidths=bandwidth,
@@ -1084,7 +1088,7 @@ class WidebandModulationsDataset(SignalDataset):
         signal = Signal(data=SignalData(samples=iq_data), metadata=metadata)
 
         # Apply transforms
-        signal = transform(signal) if transform else signal
+        signal = self.transform(signal) if self.transform else signal
         target = signal["metadata"]
         if self.target_transform:
             target = self.target_transform(signal["metadata"])
