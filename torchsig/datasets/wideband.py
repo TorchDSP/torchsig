@@ -900,6 +900,8 @@ class WidebandModulationsDataset(SignalDataset):
         if not self.update_rng:
             self.random_generator = np.random.default_rng(os.getpid())
             self.update_rng = True
+        original_state = np.random.get_state()
+        np.random.seed(seed)
         self.random_generator, self.transform, self.num_signals, self.snrs = (
             self._initialize_random_parameters(seed)
         )
@@ -1093,6 +1095,7 @@ class WidebandModulationsDataset(SignalDataset):
         if self.target_transform:
             target = self.target_transform(signal["metadata"])
 
+        np.random.set_state(original_state)
         return signal["data"]["samples"], target
 
     def __len__(self) -> int:
