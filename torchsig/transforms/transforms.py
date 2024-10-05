@@ -547,8 +547,9 @@ class RandomResample(SignalTransform):
         num_iq_samples: int = 4096,
         keep_samples: bool = False,
         min_time: float = .05,
+        **kwargs,
     ) -> None:
-        super(RandomResample, self).__init__()
+        super(RandomResample, self).__init__(**kwargs)
         self.rate_ratio: Callable = to_distribution(rate_ratio, self.random_generator)
         self.num_iq_samples = num_iq_samples
         self.keep_samples = keep_samples
@@ -2253,8 +2254,9 @@ class IQImbalance(SignalTransform):
             np.pi * 1.0 / 180.0,
         ),
         iq_dc_offset_db: NumericParameter = (-0.1, 0.1),
+        **kwargs
     ) -> None:
-        super(IQImbalance, self).__init__()
+        super(IQImbalance, self).__init__(**kwargs)
         self.amp_imbalance = to_distribution(
             iq_amplitude_imbalance_db, self.random_generator
         )
@@ -2319,8 +2321,9 @@ class RollOff(SignalTransform):
         low_cut_apply: float = 0.5,
         upper_cut_apply: float = 0.5,
         order: NumericParameter = (6, 20),
+        **kwargs
     ) -> None:
-        super(RollOff, self).__init__()
+        super(RollOff, self).__init__(**kwargs)
         self.low_freq = to_distribution(low_freq, self.random_generator)
         self.upper_freq = to_distribution(upper_freq, self.random_generator)
         self.low_cut_apply = low_cut_apply
@@ -2492,8 +2495,9 @@ class RandomDropSamples(SignalTransform):
         drop_rate: NumericParameter = (0.01, 0.05),
         size: NumericParameter = (1, 10),
         fill: List[str] = (["ffill", "bfill", "mean", "zero"]),
+        **kwargs,
     ) -> None:
-        super(RandomDropSamples, self).__init__()
+        super(RandomDropSamples, self).__init__(**kwargs)
         self.drop_rate = to_distribution(drop_rate, self.random_generator)
         self.size = to_distribution(size, self.random_generator)
         self.fill = to_distribution(fill, self.random_generator)
