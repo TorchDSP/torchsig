@@ -744,7 +744,10 @@ class WidebandModulationsDataset(SignalDataset):
                 transforms=[
                     RandomApply(
                         RandomTimeShift(
-                            shift=(-int(num_iq_samples / 2), int(num_iq_samples / 2)),
+                            shift=(
+                                -int(self.num_iq_samples / 2),
+                                int(self.num_iq_samples / 2),
+                            ),
                             seed=seed,
                         ),
                         0.25,
@@ -756,7 +759,7 @@ class WidebandModulationsDataset(SignalDataset):
                     RandomApply(
                         RandomResample(
                             rate_ratio=(0.8, 1.2),
-                            num_iq_samples=num_iq_samples,
+                            num_iq_samples=self.num_iq_samples,
                             seed=seed,
                         ),
                         0.25,
