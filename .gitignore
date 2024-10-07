@@ -14,3 +14,4 @@ lightning_logs/
 *.ipynb_checkpoints/
 dist/
 examples/*.ipynb_checkpoints/
+gr-spectrumdetect/examples/*.pt
