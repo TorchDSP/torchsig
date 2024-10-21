@@ -3,7 +3,7 @@
 from dataclasses import dataclass
 
 @dataclass
-class Sig53Config:
+class NarrowbandConfig:
     name: str
     num_samples: int
     level: int
@@ -15,49 +15,49 @@ class Sig53Config:
 
 
 @dataclass
-class Sig53CleanTrainConfig(Sig53Config):
-    name: str = "sig53_clean_train"
+class NarrowbandCleanTrainConfig(NarrowbandConfig):
+    name: str = "narrowband_clean_train"
     seed: int = 1234567890
     eb_no: bool = False
     num_samples: int = 1_060_000
     level: int = 0
 
 @dataclass
-class Sig53CleanEbNoTrainConfig(Sig53CleanTrainConfig):
+class NarrowbandCleanEbNoTrainConfig(NarrowbandCleanTrainConfig):
     eb_no: bool = True
 
 @dataclass
-class Sig53CleanTrainQAConfig(Sig53CleanTrainConfig):
+class NarrowbandCleanTrainQAConfig(NarrowbandCleanTrainConfig):
     num_samples: int = 10_600
     
 @dataclass
-class Sig53CleanEbNoTrainQAConfig(Sig53CleanTrainQAConfig):
+class NarrowbandCleanEbNoTrainQAConfig(NarrowbandCleanTrainQAConfig):
     eb_no: bool = True
 
 
 @dataclass
-class Sig53CleanValConfig(Sig53CleanTrainConfig):
-    name: str = "sig53_clean_val"
+class NarrowbandCleanValConfig(NarrowbandCleanTrainConfig):
+    name: str = "narrowband_clean_val"
     seed: int = 1234567891
     eb_no: bool = False
     num_samples: int = 10_600
 
 @dataclass
-class Sig53CleanEbNoValConfig(Sig53CleanValConfig):
+class NarrowbandCleanEbNoValConfig(NarrowbandCleanValConfig):
     eb_no: bool = True
 
 @dataclass
-class Sig53CleanValQAConfig(Sig53CleanValConfig):
+class NarrowbandCleanValQAConfig(NarrowbandCleanValConfig):
     num_samples: int = 1060
 
 @dataclass
-class Sig53CleanEbNoValQAConfig(Sig53CleanValQAConfig):
+class NarrowbandCleanEbNoValQAConfig(NarrowbandCleanValQAConfig):
     eb_no: bool = True
 
 
 @dataclass
-class Sig53ImpairedTrainConfig(Sig53Config):
-    name: str = "sig53_impaired_train"
+class NarrowbandImpairedTrainConfig(NarrowbandConfig):
+    name: str = "narrowband_impaired_train"
     seed: int = 1234567892
     eb_no: bool = False
     num_samples: int = 5_300_000
@@ -65,25 +65,25 @@ class Sig53ImpairedTrainConfig(Sig53Config):
 
 
 @dataclass
-class Sig53ImpairedTrainQAConfig(Sig53ImpairedTrainConfig):
+class NarrowbandImpairedTrainQAConfig(NarrowbandImpairedTrainConfig):
     num_samples: int = 10_600
 
 
 @dataclass
-class Sig53ImpairedValConfig(Sig53ImpairedTrainConfig):
-    name: str = "sig53_impaired_val"
+class NarrowbandImpairedValConfig(NarrowbandImpairedTrainConfig):
+    name: str = "narrowband_impaired_val"
     seed: int = 1234567893
     num_samples: int = 106_000
 
 
 @dataclass
-class Sig53ImpairedValQAConfig(Sig53ImpairedValConfig):
+class NarrowbandImpairedValQAConfig(NarrowbandImpairedValConfig):
     num_samples: int = 1060
 
 
 @dataclass
-class Sig53ImpairedEbNoTrainConfig(Sig53Config):
-    name: str = "sig53_impaired_ebno_train"
+class NarrowbandImpairedEbNoTrainConfig(NarrowbandConfig):
+    name: str = "narrowband_impaired_ebno_train"
     seed: int = 1234567892
     eb_no: bool = True
     num_samples: int = 5_300_000
@@ -91,25 +91,25 @@ class Sig53ImpairedEbNoTrainConfig(Sig53Config):
 
 
 @dataclass
-class Sig53ImpairedEbNoTrainQAConfig(Sig53ImpairedEbNoTrainConfig):
+class NarrowbandImpairedEbNoTrainQAConfig(NarrowbandImpairedEbNoTrainConfig):
     num_samples: int = 10_600
 
 
 @dataclass
-class Sig53ImpairedEbNoValConfig(Sig53ImpairedTrainConfig):
-    name: str = "sig53_impaired_ebno_val"
+class NarrowbandImpairedEbNoValConfig(NarrowbandImpairedTrainConfig):
+    name: str = "narrowband_impaired_ebno_val"
     seed: int = 1234567893
     eb_no: bool = True
     num_samples: int = 106_000
 
 
 @dataclass
-class Sig53ImpairedEbNoValQAConfig(Sig53ImpairedEbNoValConfig):
+class NarrowbandImpairedEbNoValQAConfig(NarrowbandImpairedEbNoValConfig):
     num_samples: int = 1060
 
 
 @dataclass
-class WidebandSig53Config:
+class WidebandConfig:
     name: str
     num_samples: int
     level: int
@@ -119,8 +119,8 @@ class WidebandSig53Config:
 
 
 @dataclass
-class WidebandSig53CleanTrainConfig(WidebandSig53Config):
-    name: str = "wideband_sig53_clean_train"
+class WidebandCleanTrainConfig(WidebandConfig):
+    name: str = "wideband_clean_train"
     seed: int = 1234567890
     num_samples: int = 250_000
     level: int = 1
@@ -128,43 +128,43 @@ class WidebandSig53CleanTrainConfig(WidebandSig53Config):
 
 
 @dataclass
-class WidebandSig53CleanTrainQAConfig(WidebandSig53CleanTrainConfig):
+class WidebandCleanTrainQAConfig(WidebandCleanTrainConfig):
     num_samples: int = 250
 
 
 @dataclass
-class WidebandSig53CleanValConfig(WidebandSig53CleanTrainConfig):
-    name: str = "wideband_sig53_clean_val"
+class WidebandCleanValConfig(WidebandCleanTrainConfig):
+    name: str = "wideband_clean_val"
     seed: int = 1234567891
     num_samples: int = 25_000
 
 
 @dataclass
-class WidebandSig53CleanValQAConfig(WidebandSig53CleanValConfig):
+class WidebandCleanValQAConfig(WidebandCleanValConfig):
     num_samples: int = 250
 
 
 @dataclass
-class WidebandSig53ImpairedTrainConfig(WidebandSig53Config):
-    name: str = "wideband_sig53_impaired_train"
+class WidebandImpairedTrainConfig(WidebandConfig):
+    name: str = "wideband_impaired_train"
     seed: int = 1234567892
     num_samples: int = 250_000
     level: int = 2
-    overlap_prob: float = 0.1 #TODO
+    overlap_prob: float = 0.1
 
 
 @dataclass
-class WidebandSig53ImpairedTrainQAConfig(WidebandSig53ImpairedTrainConfig):
+class WidebandImpairedTrainQAConfig(WidebandImpairedTrainConfig):
     num_samples: int = 250
 
 
 @dataclass
-class WidebandSig53ImpairedValConfig(WidebandSig53ImpairedTrainConfig):
-    name: str = "wideband_sig53_impaired_val"
+class WidebandImpairedValConfig(WidebandImpairedTrainConfig):
+    name: str = "wideband_impaired_val"
     seed: int = 1234567893
     num_samples: int = 25_000
 
 
 @dataclass
-class WidebandSig53ImpairedValQAConfig(WidebandSig53ImpairedValConfig):
+class WidebandImpairedValQAConfig(WidebandImpairedValConfig):
     num_samples: int = 250

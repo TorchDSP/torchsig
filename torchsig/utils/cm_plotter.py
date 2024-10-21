@@ -1,3 +1,6 @@
+"""Confusion Matrix Plotter
+"""
+
 from sklearn.metrics import confusion_matrix
 from matplotlib import pyplot as plt
 from typing import Optional

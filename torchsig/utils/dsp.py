@@ -1,7 +1,9 @@
+"""Digital Signal Processing (DSP) Utils
+"""
+
 import scipy
 from scipy import signal as sp
 import numpy as np
-
 
 def convolve(signal: np.ndarray, taps: np.ndarray) -> np.ndarray:
     """A modified version of scipy.signal.convolve, which discards trasitional regions
@@ -43,8 +45,7 @@ def polyphase_prototype_filter ( num_branches: int ) -> np.ndarray:
     prototypeFilterPFB *= num_branches
     return prototypeFilterPFB
 
-def irrational_rate_resampler ( input_signal: np.ndarray, resampler_rate: float ) -> np.ndarray:
-    # TODO: needs to be estimated, not a fixed value
+def rational_rate_resampler ( input_signal: np.ndarray, resampler_rate: float ) -> np.ndarray:
     numBranchesPFB = 10000
     resamplerUpRate = numBranchesPFB
     resamplerDownRate = int(np.round(numBranchesPFB/resampler_rate))
@@ -110,7 +111,7 @@ def gaussian_taps(samples_per_symbol: int, BT: float = 0.35) -> np.ndarray:
 
 def calculate_exponential_filter ( M=1, P=1, fc=.25, num_taps=None, K=4. ):
     """
-        Class used to generate Single Band FIR filter using either the Remez
+        Function used to generate Single Band FIR filter using either the Remez
         algorithm or exponential filters.
 
         Calculate the filter-coefficients for the finite impulse response
@@ -187,4 +188,18 @@ def calculate_exponential_filter ( M=1, P=1, fc=.25, num_taps=None, K=4. ):
     b /= np.sum(b)
 
     return b
+
+# signal upper edge cannot exceed this number, calculated as center freq + (bandwidth/2)
+#
+# these number needs to be slightly less than 0.5 in order to account for transition bandwidth
+# such that a filter can be designed with some transition bandwidth (see: function
+# antiAliasingFilter())
+#
+# additionally, 0.48 is close enough to 0.5 such that signals can still press up against the 
+# edge of the -fs/2 and +fs/2 boundary to simulate a receiver being offtuned.
+# 
+# these values need to be treated as constants!
+# they cannot be changed on the fly at run-time
+MAX_SIGNAL_UPPER_EDGE_FREQ = 0.48
+MAX_SIGNAL_LOWER_EDGE_FREQ = -MAX_SIGNAL_UPPER_EDGE_FREQ
 

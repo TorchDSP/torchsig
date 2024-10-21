@@ -1,13 +1,17 @@
+"""Synthetic Dataset Generation Tools
+"""
+
 from torchsig.utils.types import SignalData, SignalMetadata, Signal, ModulatedRFMetadata
 from torchsig.utils.types import (
     create_signal_metadata,
     create_rf_metadata,
     create_modulated_rf_metadata,
 )
-from torchsig.utils.dsp import convolve, gaussian_taps, low_pass, rrc_taps, irrational_rate_resampler
+from torchsig.utils.dsp import convolve, gaussian_taps, low_pass, rrc_taps, rational_rate_resampler
 from torchsig.transforms.functional import FloatParameter, IntParameter
 from torchsig.utils.dataset import SignalDataset
-from torchsig.utils.dsp import estimate_filter_length
+from torchsig.datasets.signal_classes import torchsig_signals
+from torchsig.utils.dsp import estimate_filter_length, MAX_SIGNAL_UPPER_EDGE_FREQ, MAX_SIGNAL_LOWER_EDGE_FREQ
 from typing import Any, Dict, List, Optional, Tuple, Union
 from torch.utils.data import ConcatDataset
 from scipy import signal as sp
@@ -104,30 +108,8 @@ default_const_map = OrderedDict(
     }
 )
 
-# This is probably redundant.
-freq_map = OrderedDict(
-    {
-        "2fsk": np.linspace(-1 + (1 / 2), 1 - (1 / 2), 2, endpoint=True),
-        "2gfsk": np.linspace(-1 + (1 / 2), 1 - (1 / 2), 2, endpoint=True),
-        "2msk": np.linspace(-1 + (1 / 2), 1 - (1 / 2), 2, endpoint=True),
-        "2gmsk": np.linspace(-1 + (1 / 2), 1 - (1 / 2), 2, endpoint=True),
-        "4fsk": np.linspace(-1 + (1 / 4), 1 - (1 / 4), 4, endpoint=True),
-        "4gfsk": np.linspace(-1 + (1 / 4), 1 - (1 / 4), 4, endpoint=True),
-        "4msk": np.linspace(-1 + (1 / 4), 1 - (1 / 4), 4, endpoint=True),
-        "4gmsk": np.linspace(-1 + (1 / 4), 1 - (1 / 4), 4, endpoint=True),
-        "8fsk": np.linspace(-1 + (1 / 8), 1 - (1 / 8), 8, endpoint=True),
-        "8gfsk": np.linspace(-1 + (1 / 8), 1 - (1 / 8), 8, endpoint=True),
-        "8msk": np.linspace(-1 + (1 / 8), 1 - (1 / 8), 8, endpoint=True),
-        "8gmsk": np.linspace(-1 + (1 / 8), 1 - (1 / 8), 8, endpoint=True),
-        "16fsk": np.linspace(-1 + (1 / 16), 1 - (1 / 16), 16, endpoint=True),
-        "16gfsk": np.linspace(-1 + (1 / 16), 1 - (1 / 16), 16, endpoint=True),
-        "16msk": np.linspace(-1 + (1 / 16), 1 - (1 / 16), 16, endpoint=True),
-        "16gmsk": np.linspace(-1 + (1 / 16), 1 - (1 / 16), 16, endpoint=True),
-    }
-)
 
-
-class DigitalModulationDataset(ConcatDataset):
+class ModulateNarrowbandDataset(ConcatDataset):
     """Digital Modulation Dataset
 
     Args:
@@ -149,32 +131,33 @@ class DigitalModulationDataset(ConcatDataset):
         random_pulse_shaping (:obj:`bool`):
             boolean to enable/disable randomized pulse shaping
 
-        user_const_map (:obj:`Optional[OrderedDict]`):
-            optional user-defined constellation map, defaults to Sig53 modulations
-
     """
 
     def __init__(
         self,
-        modulations: Optional[Union[List, Tuple]] = ("bpsk", "2gfsk"),
+        modulations: Optional[Union[List, Tuple]] = torchsig_signals.class_list,
         num_iq_samples: int = 100,
         num_samples_per_class: int = 100,
         iq_samples_per_symbol: Optional[int] = None,
         random_data: bool = False,
         random_pulse_shaping: bool = False,
-        user_const_map: Optional[OrderedDict] = None,
         **kwargs,
     ) -> None:
-        const_map = user_const_map if user_const_map else default_const_map
         modulations = (
-            list(const_map.keys()) + list(freq_map.keys())
+            torchsig_signals.class_list
             if modulations is None
             else modulations
         )
-        constellations = [m for m in map(str.lower, modulations) if m in const_map.keys()]
-        freqs = [m for m in map(str.lower, modulations) if m in freq_map.keys()]
+
+        constellation_list = [m for m in map(str.lower, modulations) if m in torchsig_signals.constellation_signals]
+        fsk_list = [m for m in map(str.lower, modulations) if m in torchsig_signals.fsk_signals]
+        fm_list = [m for m in map(str.lower, modulations) if m in torchsig_signals.fm_signals]
+        am_list = [m for m in map(str.lower, modulations) if m in torchsig_signals.am_signals]
+        lfm_list = [m for m in map(str.lower, modulations) if m in torchsig_signals.lfm_signals]
+        chirpss_list = [m for m in map(str.lower, modulations) if m in torchsig_signals.chirpss_signals]
+
         const_dataset = ConstellationDataset(
-            constellations=constellations,
+            constellations=constellation_list,
             num_iq_samples=num_iq_samples,
             num_samples_per_class=num_samples_per_class,
             iq_samples_per_symbol=2
@@ -185,23 +168,8 @@ class DigitalModulationDataset(ConcatDataset):
             **kwargs,
         )
 
-        # FSK signals with the Gaussian pulse shaping filter are handled differently than without
-        fsks = []
-        gfsks = []
-        for freq_mod in freqs:
-            if "g" in freq_mod:
-                gfsks.append(freq_mod)
-            else:
-                fsks.append(freq_mod)
         fsk_dataset = FSKDataset(
-            modulations=fsks,
-            num_iq_samples=num_iq_samples,
-            num_samples_per_class=num_samples_per_class,
-            iq_samples_per_symbol=8,
-            **kwargs,
-        )
-        gfsks_dataset = FSKDataset(
-            modulations=gfsks,
+            modulations=fsk_list,
             num_iq_samples=num_iq_samples,
             num_samples_per_class=num_samples_per_class,
             iq_samples_per_symbol=8,
@@ -209,7 +177,36 @@ class DigitalModulationDataset(ConcatDataset):
             random_pulse_shaping=random_pulse_shaping,
             **kwargs,
         )
-        super(DigitalModulationDataset, self).__init__([const_dataset, fsk_dataset, gfsks_dataset])
+
+        fm_dataset = FMDataset(
+            num_iq_samples=num_iq_samples,
+            num_samples_per_class=num_samples_per_class,
+            random_data=random_data,
+            **kwargs,
+        )
+
+        am_dataset = AMDataset(
+            num_iq_samples=num_iq_samples,
+            num_samples_per_class=num_samples_per_class,
+            random_data=random_data,
+            **kwargs,
+        )
+
+        lfm_dataset = LFMDataset(
+            num_iq_samples=num_iq_samples,
+            num_samples_per_class=num_samples_per_class,
+            random_data=random_data,
+            **kwargs,
+        )
+
+        chirpss_dataset = ChirpSSDataset(
+            num_iq_samples=num_iq_samples,
+            num_samples_per_class=num_samples_per_class,
+            random_data=random_data,
+            **kwargs,
+        )
+
+        super(ModulateNarrowbandDataset, self).__init__([const_dataset, fsk_dataset, fm_dataset, am_dataset, lfm_dataset, chirpss_dataset])
 
 class SyntheticDataset(SignalDataset):
     def __init__(self, **kwargs) -> None:
@@ -237,6 +234,33 @@ class SyntheticDataset(SignalDataset):
     def _generate_samples(self, item: Tuple) -> np.ndarray:
         raise NotImplementedError
 
+def ConstellationBasebandModulator ( class_name, excess_bandwidth, iq_samples_per_symbol, num_iq_samples ):
+
+    # get the constellation maps
+    const_map = default_const_map
+    # normalize the constellation map to unit energy
+    const = const_map[class_name] / np.mean(np.abs(const_map[class_name]))
+    # compute the symbols to index into the symbol map
+    symbol_nums = np.random.randint(0, len(const), int(num_iq_samples / iq_samples_per_symbol))
+    # compute symbols
+    symbols = const[symbol_nums]
+    # zero-pad the symbols
+    zero_padded = np.zeros((iq_samples_per_symbol * len(symbols),), dtype=np.complex64)
+    zero_padded[::iq_samples_per_symbol] = symbols
+    # design the pulse shaping filter:
+    #   excess bandwidth is defined in porportion to signal bandwidth, not sampling rate,
+    #   thus needs to be scaled by the samples per symbol
+    pulse_shape_filter_length = estimate_filter_length(excess_bandwidth / iq_samples_per_symbol)
+    pulse_shape_filter_span = int((pulse_shape_filter_length - 1) / (2*iq_samples_per_symbol))  # convert filter length into the span
+    pulse_shape_filter = rrc_taps(iq_samples_per_symbol, pulse_shape_filter_span, excess_bandwidth,)
+    # apply pulse shaping filter 
+    filtered = sp.convolve(zero_padded, pulse_shape_filter, 'full')
+    # remove transition periods
+    lidx = (len(filtered) - num_iq_samples) // 2
+    ridx = lidx + num_iq_samples
+    filtered = filtered[lidx:ridx]
+    return filtered
+
 
 class ConstellationDataset(SyntheticDataset):
     """Constellation Dataset
@@ -260,9 +284,6 @@ class ConstellationDataset(SyntheticDataset):
         random_data (:obj:`bool`):
             whether the modulated binary utils should be random each time, or seeded by index
 
-        user_const_map (:obj:`bool`):
-            user constellation dict
-
         center_freq (:obj:`float`):
             center frequency of the signal, will be upconverted internally
 
@@ -270,23 +291,20 @@ class ConstellationDataset(SyntheticDataset):
 
     def __init__(
         self,
-        constellations: Optional[Union[List, Tuple]] = ("bpsk", "qpsk"),
+        constellations: Optional[Union[List, Tuple]] = torchsig_signals.constellation_signals,
         num_iq_samples: int = 100,
         num_samples_per_class: int = 100,
         iq_samples_per_symbol: int = 2,
         pulse_shape_filter: Optional[Union[bool, np.ndarray]] = None,
         random_pulse_shaping: bool = False,
         random_data: bool = False,
-        user_const_map: Optional[Dict[str, np.ndarray]] = None,
         center_freq: float = 0,
         **kwargs,
     ):
         super(ConstellationDataset, self).__init__(**kwargs)
-        self.const_map: Dict[str, np.ndarray] = (
-            default_const_map if user_const_map is None else user_const_map
-        )
+        self.const_map: Dict[str, np.ndarray] = default_const_map
         self.constellations = (
-            list(self.const_map.keys()) if constellations is None else constellations
+            list(torchsig_signals.constellation_signals) if constellations is None else constellations
         )
         self.num_iq_samples = num_iq_samples
         self.iq_samples_per_symbol = iq_samples_per_symbol
@@ -340,22 +358,8 @@ class ConstellationDataset(SyntheticDataset):
         if not self.random_data:
             np.random.seed(index)
 
-        const = self.const_map[class_name] / np.mean(np.abs(self.const_map[class_name]))
-        symbol_nums = np.random.randint(0, len(const), int(self.num_iq_samples / self.iq_samples_per_symbol))
-        symbols = const[symbol_nums]
-        zero_padded = np.zeros((self.iq_samples_per_symbol * len(symbols),), dtype=np.complex64)
-        zero_padded[::self.iq_samples_per_symbol] = symbols
-        # excess bandwidth is defined in porportion to signal bandwidth, not sampling rate,
-        # thus needs to be scaled by the samples per symbol
-        pulse_shape_filter_length = estimate_filter_length(meta["excess_bandwidth"] / self.iq_samples_per_symbol)
-        pulse_shape_filter_span = int((pulse_shape_filter_length - 1) / (2*self.iq_samples_per_symbol))  # convert filter length into the span
-        self.pulse_shape_filter = rrc_taps(self.iq_samples_per_symbol, pulse_shape_filter_span, meta["excess_bandwidth"],)
-        
-        filtered = sp.convolve(zero_padded, self.pulse_shape_filter, 'full')
-        lidx = (len(filtered) - self.num_iq_samples) // 2
-        ridx = lidx + self.num_iq_samples
-
-        filtered = filtered[lidx:ridx]
+        # apply baseband signal modulator
+        filtered = ConstellationBasebandModulator ( class_name, meta["excess_bandwidth"], self.iq_samples_per_symbol, self.num_iq_samples )
 
         # apply frequency shifting
         filtered *= np.exp(2j*np.pi*center_freq*np.arange(0,len(filtered)))
@@ -377,7 +381,7 @@ class ConstellationDataset(SyntheticDataset):
         if not self.random_data:
             np.random.set_state(orig_state)  # return numpy back to its previous state
 
-        return filtered[0:self.num_iq_samples]     #[-self.num_iq_samples :]
+        return filtered[0:self.num_iq_samples]
 
 
 class OFDMDataset(SyntheticDataset):
@@ -790,7 +794,7 @@ class OFDMDataset(SyntheticDataset):
         resamplerRate = (1/2)/bandwidth
 
         # apply resampling
-        output = irrational_rate_resampler ( output, resamplerRate )
+        output = rational_rate_resampler ( output, resamplerRate )
 
         # apply frequency shifting
         output *= np.exp(2j*np.pi*center_freq*np.arange(0,len(output)))
@@ -813,6 +817,93 @@ class OFDMDataset(SyntheticDataset):
             np.random.set_state(orig_state)  # return numpy back to its previous state
 
         return output[0:self.num_iq_samples]
+
+
+def getFSKFreqMap ( ):
+    freq_map = OrderedDict(
+        {
+            "2fsk": np.linspace(-1 + (1 / 2), 1 - (1 / 2), 2, endpoint=True),
+            "2gfsk": np.linspace(-1 + (1 / 2), 1 - (1 / 2), 2, endpoint=True),
+            "2msk": np.linspace(-1 + (1 / 2), 1 - (1 / 2), 2, endpoint=True),
+            "2gmsk": np.linspace(-1 + (1 / 2), 1 - (1 / 2), 2, endpoint=True),
+            "4fsk": np.linspace(-1 + (1 / 4), 1 - (1 / 4), 4, endpoint=True),
+            "4gfsk": np.linspace(-1 + (1 / 4), 1 - (1 / 4), 4, endpoint=True),
+            "4msk": np.linspace(-1 + (1 / 4), 1 - (1 / 4), 4, endpoint=True),
+            "4gmsk": np.linspace(-1 + (1 / 4), 1 - (1 / 4), 4, endpoint=True),
+            "8fsk": np.linspace(-1 + (1 / 8), 1 - (1 / 8), 8, endpoint=True),
+            "8gfsk": np.linspace(-1 + (1 / 8), 1 - (1 / 8), 8, endpoint=True),
+            "8msk": np.linspace(-1 + (1 / 8), 1 - (1 / 8), 8, endpoint=True),
+            "8gmsk": np.linspace(-1 + (1 / 8), 1 - (1 / 8), 8, endpoint=True),
+            "16fsk": np.linspace(-1 + (1 / 16), 1 - (1 / 16), 16, endpoint=True),
+            "16gfsk": np.linspace(-1 + (1 / 16), 1 - (1 / 16), 16, endpoint=True),
+            "16msk": np.linspace(-1 + (1 / 16), 1 - (1 / 16), 16, endpoint=True),
+            "16gmsk": np.linspace(-1 + (1 / 16), 1 - (1 / 16), 16, endpoint=True),
+        }
+    )
+    return freq_map
+
+def getFSKModIndex( const_name ):
+    # returns the modulation index based on the modulation
+    if "gfsk" in const_name:
+        # bluetooth
+        mod_idx = 0.32
+    elif "msk" in const_name:
+        # MSK, GMSK
+        mod_idx = 0.5
+    else: # FSK
+        # 50% chance to use mod index of 1 (orthogonal) ...
+        if (np.random.uniform(0,1) < 0.5):
+            mod_idx = 1
+        else: # ... or something else (non-orthogonal)
+            mod_idx = np.random.uniform(0.7,1)
+    return mod_idx
+
+
+def FSKBasebandModulator ( const_name, mod_idx, oversampling_rate, num_iq_samples ):
+
+    # get the FSK frequency symbol map
+    freq_map = getFSKFreqMap()
+
+    # get the constellation to modulate
+    const = freq_map[const_name]
+
+    # calculate the modulation order, ex: the "4" in "4-FSK"
+    mod_order = len(const)
+
+    # determine how many samples are in each symbol
+    samples_per_symbol_recalculated = int(mod_order * oversampling_rate)
+
+    # scale the frequency map by the oversampling rate such that the tones
+    # are packed tighter around f=0 the larger the oversampling rate
+    const_oversampled = const / oversampling_rate
+
+    # calculate the indexes into symbol table
+    symbol_nums = np.random.randint(0, len(const_oversampled), int(np.ceil((num_iq_samples / samples_per_symbol_recalculated) * oversampling_rate)))
+
+    # produce data symbols
+    symbols = const_oversampled[symbol_nums]
+
+    # rectangular pulse shape
+    pulse_shape = np.ones(samples_per_symbol_recalculated)
+
+    if "g" in const_name: # GMSK, GFSK
+        # design the gaussian pulse shape with the bandwidth as dictated by the
+        # oversampling rate, which will then be fine-tuned into the proper 'bandwidth'
+        # by the resampling stage
+        preresample_bandwidth = 1/oversampling_rate
+        taps = gaussian_taps(samples_per_symbol_recalculated, preresample_bandwidth)
+        pulse_shape = np.convolve(taps,pulse_shape)
+
+    # upsample symbols and apply pulse shaping
+    filtered = sp.upfirdn(pulse_shape,symbols,up=samples_per_symbol_recalculated,down=1)
+
+    # insert a zero at first sample to start at zero phase
+    filtered = np.insert(filtered, 0, 0)
+
+    phase = np.cumsum(np.array(filtered) * 1j * mod_idx * np.pi)
+    modulated = np.exp(phase)
+
+    return modulated
 
 
 
@@ -848,7 +939,7 @@ class FSKDataset(SyntheticDataset):
 
     def __init__(
         self,
-        modulations: Optional[Union[List, Tuple]] = ("2fsk", "2gmsk"),
+        modulations: Optional[Union[List, Tuple]] = torchsig_signals.fsk_signals,
         num_iq_samples: int = 100,
         num_samples_per_class: int = 100,
         iq_samples_per_symbol: int = 2,
@@ -859,13 +950,14 @@ class FSKDataset(SyntheticDataset):
         **kwargs,
     ):
         super(FSKDataset, self).__init__(**kwargs)
-        self.modulations = list(freq_map.keys()) if modulations is None else modulations
+        self.modulations = list(torchsig_signals.fsk_signals) if modulations is None else modulations
         self.num_iq_samples = num_iq_samples
         self.num_samples_per_class = num_samples_per_class
         self.iq_samples_per_symbol = iq_samples_per_symbol
         self.random_data = random_data
         self.random_pulse_shaping = random_pulse_shaping
         self.index = []
+        self.freq_map = getFSKFreqMap() # TODO: this needs to be removed
 
         for freq_idx, freq_name in enumerate(map(str.lower, self.modulations)):
             for idx in range(self.num_samples_per_class):
@@ -888,7 +980,7 @@ class FSKDataset(SyntheticDataset):
                     stop=1.0,
                     duration=1.0,
                     snr=0.0,
-                    bits_per_symbol=np.log2(len(freq_map[freq_name])),
+                    bits_per_symbol=np.log2(len(self.freq_map[freq_name])), # TODO: this needs to be removed
                     samples_per_symbol=float(iq_samples_per_symbol),
                     class_name=freq_name,
                     class_index=freq_idx,
@@ -904,60 +996,34 @@ class FSKDataset(SyntheticDataset):
         center_freq = metadata["center_freq"]
         bandwidth = metadata["bandwidth"]
 
-        # calculate the modulation order, ex: the "4" in "4-FSK"
-        const = freq_map[const_name]
-        mod_order = len(const)
-
         # samples per symbol presumably used as a bandwidth measure (ex: BW=1/SPS),
         # but does not work for FSK. samples per symbol is redefined into
         # the "oversampling rate", and samples per symbol is instead derived
         # from the modulation order
         oversampling_rate = np.copy(self.iq_samples_per_symbol)
-        samples_per_symbol_recalculated = int(mod_order * oversampling_rate)
 
-        # scale the frequency map by the oversampling rate such that the tones
-        # are packed tighter around f=0 the larger the oversampling rate
-        const_oversampled = const / oversampling_rate
-
+        # control RNG
         orig_state = np.random.get_state()
         if not self.random_data:
             np.random.seed(index)
 
-        # get the modulation index
-        mod_idx = self._mod_index(const_name)
+        # determine modulation index
+        mod_idx = getFSKModIndex(const_name)
 
-        # calculate the resampling rate to convert from the oversampling rate specified by
-        # self.iq_samples_per_symbol into the proper bandwidth
-        resampleRate = bandwidth*mod_idx/(1/oversampling_rate)
-
-        # calculate the indexes into symbol table
-        symbol_nums = np.random.randint(0, len(const_oversampled), int(np.ceil((self.num_iq_samples / samples_per_symbol_recalculated) * (1/resampleRate)) ))
-        # produce data symbols
-        symbols = const_oversampled[symbol_nums]
-        # rectangular pulse shape
-        pulse_shape = np.ones(samples_per_symbol_recalculated)
-
-        if "g" in const_name:
-            # GMSK, GFSK
-            taps = gaussian_taps(samples_per_symbol_recalculated, bandwidth)
-            pulse_shape = np.convolve(taps,pulse_shape)
-
-        # upsample symbols and apply pulse shaping
-        filtered = sp.upfirdn(pulse_shape,symbols,up=samples_per_symbol_recalculated,down=1)
-
-        # insert a zero at first sample to start at zero phase
-        filtered = np.insert(filtered, 0, 0)
-
-        phase = np.cumsum(np.array(filtered) * 1j * mod_idx * np.pi)
-        modulated = np.exp(phase)
+        # modulate the FSK signal at complex baseband
+        modulated = FSKBasebandModulator ( const_name, mod_idx, oversampling_rate, self.num_iq_samples )
 
         if self.random_pulse_shaping:
             taps = low_pass(cutoff=bandwidth / 2, transition_bandwidth=(0.5 - bandwidth / 2) / 4)
             # apply the filter
             modulated = convolve(modulated, taps)
 
+        # calculate the resampling rate to convert from the oversampling rate specified by
+        # self.iq_samples_per_symbol into the proper bandwidth
+        resampleRate = bandwidth*mod_idx/(1/oversampling_rate)
+
         # apply resampling
-        modulated = irrational_rate_resampler ( modulated, resampleRate )
+        modulated = rational_rate_resampler ( modulated, resampleRate )
 
         # apply center frequency shifting
         modulated *= np.exp(2j*np.pi*center_freq*np.arange(0,len(modulated)))
@@ -979,20 +1045,9 @@ class FSKDataset(SyntheticDataset):
         if not self.random_data:
             np.random.set_state(orig_state)  # return numpy back to its previous state
 
-        return modulated[:self.num_iq_samples]
+        return modulated[0:self.num_iq_samples]
 
-    def _mod_index(self, const_name):
-        # returns the modulation index based on the modulation
-        if "gfsk" in const_name:
-            # bluetooth
-            mod_idx = 0.32
-        elif "msk" in const_name:
-            # MSK, GMSK
-            mod_idx = 0.5
-        else:
-            # FSK
-            mod_idx = 1.0
-        return mod_idx
+
 
 
 class AMDataset(SyntheticDataset):
@@ -1006,19 +1061,24 @@ class AMDataset(SyntheticDataset):
 
     def __init__(
         self,
+        modulations: Optional[Union[List, Tuple]] = torchsig_signals.am_signals,
         num_iq_samples: int = 100,
         num_samples_per_class: int = 100,
         random_data: bool = False,
+        center_freq: float = 0,
+        bandwidth: float = 0.5,
         **kwargs,
     ):
         super(AMDataset, self).__init__(**kwargs)
         self.num_iq_samples = num_iq_samples
         self.num_samples_per_class = num_samples_per_class
-        self.classes = ["am", "am-ssb", "am-dsb"]
+        self.modulations = modulations
         self.random_data = random_data
+        self.center_freq = center_freq
+        self.bandwidth = bandwidth
         self.index = []
 
-        for class_idx, class_name in enumerate(self.classes):
+        for class_idx, class_name in enumerate(self.modulations):
             meta = ModulatedRFMetadata(
                 sample_rate=0.0,
                 num_samples=self.num_iq_samples,
@@ -1056,25 +1116,87 @@ class AMDataset(SyntheticDataset):
         if not self.random_data:
             np.random.seed(index)
 
-        source = np.random.randn(self.num_iq_samples) + 0j
-        taps = sp.firwin(
-            100,  # num taps
-            0.5 if "ssb" not in const_name else 0.25,
-            0.5 / 16 if "ssb" not in const_name else 0.25 / 4,
-            window="blackman",
-        )
-        filtered = sp.convolve(source, taps, "full")
-        lidx = (len(filtered) - self.num_iq_samples) // 2
-        ridx = lidx + self.num_iq_samples
-        filtered = filtered[lidx:ridx]
-        sinusoid = np.exp(2j * np.pi * 0.125 * np.arange(self.num_iq_samples))
-        filtered *= np.ones_like(filtered) if "ssb" not in const_name else sinusoid
-        filtered += 5 if const_name == "am" else 0
+        if ("lsb" in const_name or "usb" in const_name):
+            num_samples = 2*self.num_iq_samples
+        else:
+            num_samples = self.num_iq_samples
+
+        # generate the random message
+        message = np.random.randn(num_samples) + 0j
+        # generate bandwidth-limiting LPF
+        LPF = low_pass(cutoff=self.bandwidth/2, transition_bandwidth=self.bandwidth/4)
+        # scale LPF in order to increase power due to balance reduction in bandwidth
+        LPF *= 1/self.bandwidth
+        # apply bandwidth-limiting filter
+        shapedMessage = sp.convolve(message, LPF, "full")
+        # remove transients
+        lidx = (len(shapedMessage) - num_samples) // 2
+        ridx = lidx + num_samples
+        shapedMessage = shapedMessage[lidx:ridx]
+        if (const_name == "am-dsb-sc"):
+            basebandSignal = shapedMessage
+        elif (const_name == "am-dsb"):
+            # build carrier
+            carrier = np.ones(len(shapedMessage))
+            # randomly determine modulation index
+            modulationIndex = np.random.uniform(0.1,1)
+            basebandSignal = (modulationIndex*shapedMessage) + carrier
+        elif (const_name == "am-lsb"):
+            # upconvert signal to bandwidth/2
+            LSBMixer = np.exp(2j*np.pi*(self.bandwidth/2)*np.arange(0,len(shapedMessage)))
+            DSBUpconverted = LSBMixer*shapedMessage
+            # the existing BW limiting filter can be be repurposed to discard upper band
+            LSBSignalAtIF = np.convolve(DSBUpconverted,LPF)
+            # remove transients
+            lidx = (len(LSBSignalAtIF) - num_samples) // 2
+            ridx = lidx + num_samples
+            LSBSignalAtIF = LSBSignalAtIF[lidx:ridx]
+            # mix LSB back down to baseband
+            basebandSignalOversampled = LSBSignalAtIF*np.exp(-2j*np.pi*(self.bandwidth/4)*np.arange(0,len(LSBSignalAtIF)))
+            # since threw away 1/2 the bandwidth to only retain LSB, then downsample by 2 in order to match
+            # the requested self.bandwidth
+            basebandSignal = rational_rate_resampler ( basebandSignalOversampled, resampler_rate=0.5 )
+            basebandSignal = basebandSignal[0:self.num_iq_samples]
+        elif (const_name == "am-usb"):
+            # downconvert signal to -bandwidth/2
+            USBMixer = np.exp(-2j*np.pi*(self.bandwidth/2)*np.arange(0,len(shapedMessage)))
+            DSBDownconverted = USBMixer*shapedMessage
+            # the existing BW limiting filter can be be repurposed to discard upper band
+            USBSignalAtIF = np.convolve(DSBDownconverted,LPF)
+            # remove transients
+            lidx = (len(USBSignalAtIF) - num_samples) // 2
+            ridx = lidx + num_samples
+            USBSignalAtIF = USBSignalAtIF[lidx:ridx]
+            # mix USB back up to baseband
+            basebandSignalOversampled = USBSignalAtIF*np.exp(2j*np.pi*(self.bandwidth/4)*np.arange(0,len(USBSignalAtIF)))
+            # since threw away 1/2 the bandwidth to only retain USB, then downsample by 2 in order to match
+            # the requested self.bandwidth
+            basebandSignal = rational_rate_resampler ( basebandSignalOversampled, resampler_rate=0.5 )
+            basebandSignal = basebandSignal[0:self.num_iq_samples]
+
+        # generate mixer
+        mixer = np.exp(2j * np.pi * self.center_freq * np.arange(self.num_iq_samples))
+        # apply upconversion to center frequency
+        modulated = mixer*basebandSignal
+
+        # determine the boundaries for where the signal currently resides.
+        # these values are used to determine if aliasing has occured
+        upperSignalEdge = self.center_freq + (self.bandwidth/2)
+        lowerSignalEdge = self.center_freq - (self.bandwidth/2)
+
+        # check to see if aliasing has occured due to upconversion. if so, then apply
+        # a filter to minimize it
+        if ( upperSignalEdge > 0.5 or lowerSignalEdge < -0.5):
+
+            # the signal has overlaped either the -fs/2 or +fs/2 boundary and therefore
+            # a BPF filter will be applied to attenuate the portion of the signal that
+            # is overlapping the -fs/2 or +fs/2 boundary to minimize aliasing
+            modulated = upconversionAntiAliasingFilter ( modulated, self.center_freq, self.bandwidth )
 
         if not self.random_data:
             np.random.set_state(orig_state)  # return numpy back to its previous state
 
-        return filtered
+        return modulated[0:self.num_iq_samples]
 
 
 class FMDataset(SyntheticDataset):
@@ -1091,24 +1213,28 @@ class FMDataset(SyntheticDataset):
         num_iq_samples: int = 100,
         num_samples_per_class: int = 100,
         random_data: bool = False,
+        center_freq: float = 0,
+        bandwidth: float = 0.5,
         **kwargs,
     ):
         super(FMDataset, self).__init__(**kwargs)
         self.num_iq_samples = num_iq_samples
         self.num_samples_per_class = num_samples_per_class
-        self.classes = ["fm"]
+        self.classes = torchsig_signals.fm_signals
         self.random_data = random_data
         self.index = []
+        self.center_freq = center_freq
+        self.bandwidth = bandwidth
 
         for class_idx, class_name in enumerate(self.classes):
             meta = ModulatedRFMetadata(
                 sample_rate=0.0,
                 num_samples=self.num_iq_samples,
                 complex=True,
-                lower_freq=-0.25,
-                upper_freq=0.25,
-                center_freq=0.0,
-                bandwidth=0.5,
+                lower_freq=center_freq-(bandwidth/2),
+                upper_freq=center_freq+(bandwidth/2),
+                center_freq=center_freq,
+                bandwidth=bandwidth,
                 start=0.0,
                 stop=1.0,
                 duration=1.0,
@@ -1139,13 +1265,402 @@ class FMDataset(SyntheticDataset):
         if not self.random_data:
             np.random.seed(index)
 
-        source = np.random.randn(self.num_iq_samples) + 0j
-        modulated = np.exp(1j * np.pi / 2 * np.cumsum(source) / 2.0)
+        # randomly determine modulation index
+        mod_index = np.random.uniform(1,10)
+        # calculate the frequency deviation using Carson's Rule
+        fdev = (self.bandwidth/2)/(1 + (1/mod_index))
+        # calculate the maximum deviation
+        fmax = fdev/mod_index
+        # compute input message
+        message = np.random.normal(0,1,self.num_iq_samples)
+        # design LPF to limit frequencies based on fmax
+        LPF = low_pass(cutoff=fmax,transition_bandwidth=fmax)
+        # apply the LPF to noise to limit the bandwidth prior to modulation
+        source = np.convolve(message,LPF)
+        # normalize maximum amplitude to 1
+        source = source/np.max(np.abs(source))
+        # apply FM modulation
+        modulated = np.exp(2j * np.pi * np.cumsum(source) * fdev)
+        # frequency shift to center_freq
+        modulated *= np.exp(2j*np.pi*self.center_freq*np.arange(0,len(modulated)))
+        
+        # determine the boundaries for where the signal currently resides.
+        # these values are used to determine if aliasing has occured
+        upperSignalEdge = self.center_freq + (self.bandwidth/2)
+        lowerSignalEdge = self.center_freq - (self.bandwidth/2)
+        
+        # check to see if aliasing has occured due to upconversion. if so, then apply
+        # a filter to minimize it
+        if ( upperSignalEdge > 0.5 or lowerSignalEdge < -0.5):
+        
+            # the signal has overlaped either the -fs/2 or +fs/2 boundary and therefore
+            # a BPF filter will be applied to attenuate the portion of the signal that
+            # is overlapping the -fs/2 or +fs/2 boundary to minimize aliasing
+            modulated = upconversionAntiAliasingFilter ( modulated, self.center_freq, self.bandwidth )
 
         if not self.random_data:
             np.random.set_state(orig_state)  # return numpy back to its previous state
 
-        return modulated[-self.num_iq_samples :], meta
+        return modulated[0:self.num_iq_samples]
+
+
+class ToneDataset(SyntheticDataset):
+    """Tone Dataset
+
+    Args:
+        transform (:obj:`Callable`, optional):
+            A function/transform that takes in an IQ vector and returns a transformed version.
+
+    """
+
+    def __init__(
+        self,
+        num_iq_samples: int = 100,
+        num_samples_per_class: int = 100,
+        random_data: bool = False,
+        center_freq: float = 0,
+        bandwidth: float = 0.5,
+        **kwargs,
+    ):
+        super(ToneDataset, self).__init__(**kwargs)
+        self.num_iq_samples = num_iq_samples
+        self.num_samples_per_class = num_samples_per_class
+        self.classes = ["tone"]
+        self.random_data = random_data
+        self.index = []
+        self.center_freq = center_freq
+
+        for class_idx, class_name in enumerate(self.classes):
+            meta = ModulatedRFMetadata(
+                sample_rate=0.0,
+                num_samples=self.num_iq_samples,
+                complex=True,
+                lower_freq=center_freq,
+                upper_freq=center_freq,
+                center_freq=center_freq,
+                bandwidth=0.0,
+                start=0.0,
+                stop=1.0,
+                duration=1.0,
+                snr=0.0,
+                bits_per_symbol=0.0,
+                samples_per_symbol=0.0,
+                class_name=class_name,
+                class_index=class_idx,
+                excess_bandwidth=0.0,
+            )
+            for idx in range(self.num_samples_per_class):
+                self.index.append(
+                    (
+                        class_name,
+                        class_idx * self.num_samples_per_class + idx,
+                        [meta],
+                    )
+                )
+
+    def __len__(self) -> int:
+        return len(self.index)
+
+    def _generate_samples(self, item: Tuple) -> np.ndarray:
+        # class_name = item[0]
+        index = item[1]
+        meta = item[2]
+        orig_state = np.random.get_state()
+        if not self.random_data:
+            np.random.seed(index)
+
+        # compute a random phase offset
+        phaseOffset = np.random.uniform(0,2*np.pi)
+        # compute time indices
+        n = np.arange(0,self.num_iq_samples)
+        # create tone
+        modulated = np.exp(2j*np.pi*self.center_freq*n)*np.exp(1j*phaseOffset)
+
+        if not self.random_data:
+            np.random.set_state(orig_state)  # return numpy back to its previous state
+
+        return modulated[-self.num_iq_samples :]
+
+
+class ChirpSSDataset(SyntheticDataset):
+    """Frequency Shift Chirp Spread Spectrum Modulated Dataset
+
+    Args:
+        num_iq_samples (:obj:`int`):
+            number of iq samples in record, pads record with trailing zeros
+
+        num_samples_per_class (:obj:`int`):
+            number of samples of each class
+
+        iq_samples_per_symbol (:obj:`Optional[int]`):
+            number of IQ samples per symbol
+       
+        random_data (:obj:`bool`):
+            uses numpy random values
+
+        center_freq (:obj:`float`):
+            center frequency of the signal
+
+        bandwidth (:obj:`float`):
+            bandwidth of the signal            
+
+    """
+
+    def __init__(
+        self,
+        constellations: Optional[Union[List, Tuple]] = torchsig_signals.chirpss_signals,
+        num_iq_samples : int = 10000,
+        num_samples_per_class: int = 20,
+        iq_samples_per_symbol: int = 1000,
+        random_data: bool = False,
+        center_freq: float = 0.,
+        bandwidth: float = 0.5,        
+        **kwargs,
+    ):
+        super(ChirpSSDataset, self).__init__(**kwargs)
+        self.symbol_map: Dict[str, np.ndarray] = self.get_symbol_map()
+        self.constellations = (
+            list(torchsig_signals.constellation_signals) if constellations is None else constellations
+        )
+        self.num_iq_samples = num_iq_samples 
+        self.num_samples_per_class = num_samples_per_class
+        self.iq_samples_per_symbol = iq_samples_per_symbol
+        self.random_data = random_data
+        self.index = []
+
+        for const_idx, const_name in enumerate(map(str.lower, self.constellations)):
+            for idx in range(self.num_samples_per_class):
+                meta = create_modulated_rf_metadata(
+                    num_samples=self.num_iq_samples,
+                    bits_per_symbol=1,
+                    samples_per_symbol=iq_samples_per_symbol,
+                    class_name=const_name,
+                    class_index=const_idx,
+                    center_freq=center_freq,
+                    bandwidth=bandwidth
+                )
+                self.index.append(
+                    (
+                        const_name,
+                        const_idx * self.num_samples_per_class + idx,
+                        [meta],
+                    )
+                )
+
+        # design filter
+        transitionBandwidth = bandwidth/8
+        cutoff = bandwidth/2 + (transitionBandwidth/2)
+        self.LPFWeights = low_pass(cutoff=cutoff,transition_bandwidth=transitionBandwidth)
+
+    def __len__(self) -> int:
+        return len(self.index)
+
+    def chirp(self, t0, t1, f0, f1, phi=0) -> np.ndarray:
+        t = np.linspace(t0, t1, 2*self.iq_samples_per_symbol)
+        b = (f1 - f0) / (t1 - t0)
+        phase = 2 * np.pi * (f0 * t + 0.5 * b * t * t) # Linear FM
+        phi *= np.pi / 180
+        return np.exp(1j*(phase+phi))
+
+    def _generate_samples(self, item: Tuple) -> np.ndarray:
+        class_name = item[0]
+        index = item[1]
+        metadata = item[2][0]
+        center_freq = metadata["center_freq"]
+        bandwidth = metadata["bandwidth"]
+        
+        orig_state = np.random.get_state()
+        if not self.random_data:
+            np.random.seed(index)
+
+        # symbol mapping and padding
+        const = self.symbol_map[class_name] 
+        symbol_nums = np.random.randint(
+            0, len(const), int(self.num_iq_samples / self.iq_samples_per_symbol)
+        )
+        symbols = const[symbol_nums]
+        modulated = np.zeros((self.num_iq_samples,), dtype=np.complex128)
+        
+        # construct template symbol
+        upchirp = self.chirp(0,self.iq_samples_per_symbol,-bandwidth,bandwidth)
+        double_upchirp = np.concatenate((upchirp, upchirp), axis=0)
+
+        # modulate 
+        sym_start_index = 0
+        M = const.size
+        for s in symbols:
+            chirp_start_index = int((s/M)*self.iq_samples_per_symbol)
+            modulated[sym_start_index:(sym_start_index+self.iq_samples_per_symbol)] = \
+                double_upchirp[chirp_start_index:(chirp_start_index+self.iq_samples_per_symbol)] 
+            sym_start_index = sym_start_index + self.iq_samples_per_symbol # 100% duty cycle
+        
+        modulated = np.convolve(self.LPFWeights, modulated)
+
+        # apply center frequency shifting
+        modulated *= np.exp(2j*np.pi*center_freq*np.arange(0,len(modulated)))
+
+        # determine the boundaries for where the signal currently resides.
+        # these values are used to determine if aliasing has occured
+        upperSignalEdge = center_freq + (bandwidth/2)
+        lowerSignalEdge = center_freq - (bandwidth/2)
+
+        # check to see if aliasing has occured due to upconversion. if so, then apply
+        # a filter to minimize it
+        if ( upperSignalEdge > 0.5 or lowerSignalEdge < -0.5):
+
+            # the signal has overlaped either the -fs/2 or +fs/2 boundary and therefore
+            # a BPF filter will be applied to attenuate the portion of the signal that
+            # is overlapping the -fs/2 or +fs/2 boundary to minimize aliasing
+            modulated = upconversionAntiAliasingFilter ( modulated, center_freq, bandwidth )
+
+        if not self.random_data:
+            np.random.set_state(orig_state)  # return numpy back to its previous state
+
+        return modulated[:self.num_iq_samples]
+
+    def get_symbol_map ( self ):
+        chirpss_symbol_map = OrderedDict(
+            {
+                'chirpss': np.linspace(0,2**7-1,2**7),
+            })
+        return chirpss_symbol_map
+
+class LFMDataset(SyntheticDataset):
+    """Linear Frequency Modulated (LFM) Dataset: 
+    Calculates number of LFM chirp symbols that can fit in specified length, 
+    then modulates random data upchirp/downchirp symbols based on a custom or
+    default provided constellation map 
+
+    Args:
+        num_iq_samples (:obj:`int`):
+            number of iq samples in record, pads record with trailing zeros 
+
+        num_samples_per_class (:obj:`int`):
+            number of samples of each class
+
+        iq_samples_per_symbol (:obj:`Optional[int]`):
+            number of IQ samples per symbol 
+       
+        random_data (:obj:`bool`):
+            uses numpy random values
+
+        center_freq (:obj:`float`):
+            center frequency of the signal
+
+        bandwidth (:obj:`float`):
+            bandwidth of the signal
+
+    """
+
+    def __init__(
+        self,
+        constellations: Optional[Union[List, Tuple]] = torchsig_signals.lfm_signals,
+        num_iq_samples : int = 10000,
+        num_samples_per_class: int = 20,
+        iq_samples_per_symbol: int = 1000,
+        random_data: bool = False,
+        center_freq: float = 0.,
+        bandwidth: float = 0.5,
+        **kwargs,
+    ):
+
+        super(LFMDataset, self).__init__(**kwargs)
+        self.symbol_map: Dict[str, np.ndarray] = self.get_symbol_map()
+        self.constellations = (
+            list(torchsig_signals.constellation_signals) if constellations is None else constellations
+        )
+        self.num_iq_samples = num_iq_samples 
+        self.num_samples_per_class = num_samples_per_class
+        self.iq_samples_per_symbol = iq_samples_per_symbol
+        self.random_data = random_data
+        self.index = []
+
+        for const_idx, const_name in enumerate(map(str.lower, self.constellations)):
+            for idx in range(self.num_samples_per_class):
+                meta = create_modulated_rf_metadata(
+                    num_samples=self.num_iq_samples,
+                    bits_per_symbol=1,
+                    samples_per_symbol=iq_samples_per_symbol,
+                    class_name=const_name,
+                    class_index=const_idx,
+                    center_freq=center_freq,
+                    bandwidth=bandwidth
+                )
+                self.index.append(
+                    (
+                        const_name,
+                        const_idx * self.num_samples_per_class + idx,
+                        [meta],
+                    )
+                )
+
+    def __len__(self) -> int:
+        return len(self.index)
+
+    def chirp(self, t0, t1, f0, f1, phi=0) -> np.ndarray:
+        t = np.linspace(t0, t1, self.iq_samples_per_symbol)
+        b = (f1 - f0) / (t1 - t0)
+        phase = 2 * np.pi * (f0 * t + 0.5 * b * t * t) # Linear FM
+        phi *= np.pi / 180
+        return np.exp(1j*(phase+phi))
+
+    def _generate_samples(self, item: Tuple) -> np.ndarray:
+        class_name = item[0]
+        index = item[1]
+        metadata = item[2][0]
+        center_freq = metadata["center_freq"]
+        bandwidth = metadata["bandwidth"]   
+        f0 = center_freq - bandwidth / 2
+        f1 = center_freq + bandwidth / 2
+
+        orig_state = np.random.get_state()
+        if not self.random_data:
+            np.random.seed(index)
+
+        # symbol mapping and padding
+        const = self.symbol_map[class_name] 
+        symbol_nums = np.random.randint(
+            0, len(const), int(self.num_iq_samples / self.iq_samples_per_symbol)
+        )
+        symbols = const[symbol_nums]
+        modulated = np.zeros((self.num_iq_samples,), dtype=np.complex128)
+        upchirp = self.chirp(0,self.iq_samples_per_symbol,f0,f1)
+        downchirp = self.chirp(0,self.iq_samples_per_symbol,f1,f0)
+
+        sym_start_index = 0
+        for s in symbols:
+            if s > 0:
+                modulated[sym_start_index:(sym_start_index+self.iq_samples_per_symbol)] = upchirp
+            else:
+                modulated[sym_start_index:(sym_start_index+self.iq_samples_per_symbol)] = downchirp
+            sym_start_index = sym_start_index + self.iq_samples_per_symbol
+
+        # determine the boundaries for where the signal currently resides.
+        # these values are used to determine if aliasing has occured
+        upperSignalEdge = center_freq + (bandwidth/2)
+        lowerSignalEdge = center_freq - (bandwidth/2)
+
+        # check to see if aliasing has occured due to upconversion. if so, then apply
+        # a filter to minimize it
+        if ( upperSignalEdge > 0.5 or lowerSignalEdge < -0.5):
+
+            # the signal has overlaped either the -fs/2 or +fs/2 boundary and therefore
+            # a BPF filter will be applied to attenuate the portion of the signal that
+            # is overlapping the -fs/2 or +fs/2 boundary to minimize aliasing
+            modulated = upconversionAntiAliasingFilter ( modulated, center_freq, bandwidth )
+
+        if not self.random_data:
+            np.random.set_state(orig_state)  # return numpy back to its previous state
+
+        return modulated[:self.num_iq_samples]
+
+    def get_symbol_map ( self ):
+        lfm_symbol_map = OrderedDict(
+            {
+                'lfm_data': np.array([-1.,1.]),
+                'lfm_radar': np.array([1.]),
+            })
+        return lfm_symbol_map
 
 
 # apply an anti-aliasing filter to a signal which has aliased and wrapped around the
@@ -1159,8 +1674,8 @@ def upconversionAntiAliasingFilter ( input_signal, center_freq, bandwidth ):
 
     # define the boundary for the upper and lower frequencies
     # upon which a BPF will be designed to limit aliasing
-    upperBoundary = 0.48
-    lowerBoundary = -upperBoundary
+    upperBoundary = MAX_SIGNAL_UPPER_EDGE_FREQ
+    lowerBoundary = MAX_SIGNAL_LOWER_EDGE_FREQ
 
     # determine if aliasing has occured, and if so, which direction,
     # either +fs/2 or -fs/2
@@ -1199,4 +1714,3 @@ def upconversionAntiAliasingFilter ( input_signal, center_freq, bandwidth ):
     # apply BPF
     output = np.convolve(BPFWeights,input_signal)
     return output
-

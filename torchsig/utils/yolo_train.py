@@ -1,6 +1,8 @@
+"""YOLO Training Utils
+"""
 from torchsig.transforms.target_transforms import DescToBBoxYoloSignalDict, DescToBBoxFamilyDict
 from torchsig.transforms import Spectrogram, Normalize, SpectrogramImage
-from torchsig.datasets.wideband_sig53 import WidebandSig53
+from torchsig.datasets.torchsig_wideband import TorchSigWideband
 from torchsig.transforms.transforms import Compose as CP
 from torchsig.datasets import conf
 import torchaudio
@@ -26,7 +28,7 @@ class TorchsigDataset(YOLODataset):
     def __init__(self, *args, mode='train', imgsz=640, hyp=DEFAULT_CFG, data=None, task="detect", **kwargs):
         """
         Initializes the TorchsigDataset, which inherits from YOLODataset. This custom dataset class is tailored 
-        to handle spectrogram data and corresponding bounding box labels using the WidebandSig53 dataset.
+        to handle spectrogram data and corresponding bounding box labels using the TorchSigWideband dataset.
 
         Args:
             mode (str): Indicates whether the dataset is for training ('train') or validation/testing ('val' or 'test').
@@ -54,8 +56,8 @@ class TorchsigDataset(YOLODataset):
             DescToBBoxFamilyDict()
         ])
 
-        # Initialize the WidebandSig53 dataset with the defined transforms
-        self.wbsig53 = WidebandSig53(
+        # Initialize the TorchSigWideband dataset with the defined transforms
+        self.wideband_dataset = TorchSigWideband(
             root=self.root,
             train=self.train,
             impaired=True,
@@ -85,7 +87,7 @@ class TorchsigDataset(YOLODataset):
             x = load_dataset_cache_file(cache_path)
         else:
             x = {'labels': []}  # Initialize a dictionary to store labels
-            num_samples = self.wbsig53.length
+            num_samples = self.wideband_dataset.length
             
             # Create a list of (start_idx, end_idx) tuples for each batch
             batches = [(i, min(i + batch_size, num_samples)) for i in range(0, num_samples, batch_size)]
@@ -93,7 +95,7 @@ class TorchsigDataset(YOLODataset):
             # Use multithreading to process each batch
             with concurrent.futures.ThreadPoolExecutor(max_workers=num_threads) as executor:    
                 with tqdm(total=len(batches), desc=f"Fetching labels for: {self.mode}") as pbar:
-                    for batch_labels in executor.map(lambda b: process_batch(*b, self.wbsig53, self.root, self.mode, self.imgsz), batches):
+                    for batch_labels in executor.map(lambda b: process_batch(*b, self.wideband_dataset, self.root, self.mode, self.imgsz), batches):
                         x['labels'].extend(batch_labels)
                         pbar.update(1) 
             print(f'Caching labels to {cache_path}')
@@ -155,7 +157,7 @@ class TorchsigDataset(YOLODataset):
                           and other relevant information.
         """
         label = deepcopy(self.labels[index])  # Deep copy label to avoid modifications to the original
-        data, _ = self.wbsig53[label['idx']] # Retrieve image and label using the dataset index
+        data, _ = self.wideband_dataset[label['idx']] # Retrieve image and label using the dataset index
 
         
         label.pop("shape", None)  # Remove the shape key as it's used only for rectangle mode
@@ -256,7 +258,7 @@ def process_batch(start_idx, end_idx, dataset, root, mode, imgsz):
     Args:
         start_idx (int): Start index for the batch.
         end_idx (int): End index for the batch.
-        wbsig53 (Dataset): The dataset object.
+        wideband_dataset (Dataset): The dataset object.
         root (str): Root directory for the image files.
         mode (str): Mode indicating the dataset type.
         imgsz (int): Image size.

@@ -13,12 +13,23 @@ TorchSig
 :mod:`TorchSig` is an open-source signals processing machine learning toolkit.
 
 .. toctree::
+    :maxdepth: 2
+    :caption: Contents:
 
     datasets
+    image_datasets
     transforms
+    target_transforms
     models
     utils
+    api
    
-.. automodule:: torchsig
-    :members:
+.. .. automodule:: torchsig
+..     :members:
+
+Indices and tables
+==================
+
+* :ref:`genindex`
+* :ref:`modindex`
 

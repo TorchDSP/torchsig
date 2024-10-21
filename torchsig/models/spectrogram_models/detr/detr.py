@@ -43,7 +43,7 @@ def detr_b0_nano(
     XCiT from `"XCiT: Cross-Covariance Image Transformers" <https://arxiv.org/pdf/2106.09681.pdf>`_.
 
     Args:
-        pretrained (bool): If True, returns a model pre-trained on WBSig53
+        pretrained (bool): If True, returns a model pre-trained on Wideband
         path (str): Path to existing model or where to download checkpoint to
         num_classes (int): Number of output classes; if loading checkpoint and number does not equal 1, final layer will not be loaded from checkpoint
         drop_path_rate_backbone (float): Backbone drop path rate for training
@@ -92,7 +92,7 @@ def detr_b2_nano(
     XCiT from `"XCiT: Cross-Covariance Image Transformers" <https://arxiv.org/pdf/2106.09681.pdf>`_.
 
     Args:
-        pretrained (bool): If True, returns a model pre-trained on WBSig53
+        pretrained (bool): If True, returns a model pre-trained on Wideband
         path (str): Path to existing model or where to download checkpoint to
         num_classes (int): Number of output classes; if loading checkpoint and number does not equal 1, final layer will not be loaded from checkpoint
         drop_path_rate_backbone (float): Backbone drop path rate for training
@@ -141,7 +141,7 @@ def detr_b4_nano(
     XCiT from `"XCiT: Cross-Covariance Image Transformers" <https://arxiv.org/pdf/2106.09681.pdf>`_.
 
     Args:
-        pretrained (bool): If True, returns a model pre-trained on WBSig53
+        pretrained (bool): If True, returns a model pre-trained on Wideband
         path (str): Path to existing model or where to download checkpoint to
         num_classes (int): Number of output classes; if loading checkpoint and number does not equal 1, final layer will not be loaded from checkpoint
         drop_path_rate_backbone (float): Backbone drop path rate for training
@@ -190,7 +190,7 @@ def detr_b0_nano_mod_family(
     XCiT from `"XCiT: Cross-Covariance Image Transformers" <https://arxiv.org/pdf/2106.09681.pdf>`_.
 
     Args:
-        pretrained (bool): If True, returns a model pre-trained on WBSig53
+        pretrained (bool): If True, returns a model pre-trained on Wideband
         path (str): Path to existing model or where to download checkpoint to
         num_classes (int): Number of output classes; if loading checkpoint and number does not equal 6, final layer will not be loaded from checkpoint
         drop_path_rate_backbone (float): Backbone drop path rate for training
@@ -239,7 +239,7 @@ def detr_b2_nano_mod_family(
     XCiT from `"XCiT: Cross-Covariance Image Transformers" <https://arxiv.org/pdf/2106.09681.pdf>`_.
 
     Args:
-        pretrained (bool): If True, returns a model pre-trained on WBSig53
+        pretrained (bool): If True, returns a model pre-trained on Wideband
         path (str): Path to existing model or where to download checkpoint to
         num_classes (int): Number of output classes; if loading checkpoint and number does not equal 6, final layer will not be loaded from checkpoint
         drop_path_rate_backbone (float): Backbone drop path rate for training
@@ -288,7 +288,7 @@ def detr_b4_nano_mod_family(
     XCiT from `"XCiT: Cross-Covariance Image Transformers" <https://arxiv.org/pdf/2106.09681.pdf>`_.
 
     Args:
-        pretrained (bool): If True, returns a model pre-trained on WBSig53
+        pretrained (bool): If True, returns a model pre-trained on Wideband
         path (str): Path to existing model or where to download checkpoint to
         num_classes (int): Number of output classes; if loading checkpoint and number does not equal 6, final layer will not be loaded from checkpoint
         drop_path_rate_backbone (float): Backbone drop path rate for training

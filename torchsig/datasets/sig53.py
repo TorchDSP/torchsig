@@ -7,10 +7,11 @@ from pathlib import Path
 import numpy as np
 import pickle
 import lmdb
+import warnings
 
 
 class Sig53:
-    """The Official Sig53 dataset
+    """Legacy Sig53 dataset
 
     Args:
         root (string):
@@ -64,6 +65,7 @@ class Sig53:
         target_transform: Optional[Callable] = None,
         use_signal_data: bool = False,
     ):
+        warnings.warn("Sig53 is depreciated. Use Narrowband instead.", DeprecationWarning, stacklevel=2)
         self.root = Path(root)
         self.train = train
         self.impaired = impaired
@@ -74,7 +76,7 @@ class Sig53:
         self.TT = target_transform if target_transform else Identity()
 
         cfg: conf.Sig53Config = (
-            "Sig53"  # type: ignore
+            "Narrowband"  # type: ignore
             + ("Impaired" if impaired else "Clean")
             + ("EbNo" if (impaired and eb_no) else "")
             + ("Train" if train else "Val")

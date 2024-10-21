@@ -1,3 +1,6 @@
+"""Signal Transforms on metadata/label
+"""
+
 from torchsig.utils.types import SignalMetadata, RFMetadata, ModulatedRFMetadata
 from torchsig.utils.types import (
     meta_bound_frequency,
@@ -7,7 +10,7 @@ from torchsig.utils.types import (
     has_modulated_rf_metadata,
     has_rf_metadata,
 )
-from torchsig.datasets.signal_classes import sig53
+from torchsig.datasets.signal_classes import torchsig_signals
 from torchsig.transforms.transforms import Transform
 from typing import Any, Dict, List, Optional, Tuple, Union
 import numpy as np
@@ -107,7 +110,7 @@ class DescToFamilyName(Transform):
     or a list of the classes present if there are multiple classes
 
     """
-    class_family_dict: Dict[str, str] = sig53.family_dict
+    class_family_dict: Dict[str, str] = torchsig_signals.family_dict
     
     def __init__(self, class_family_dict: Optional[Dict[str, str]] = None,family_list: Optional[List[str]] = None,) -> None:
         super(DescToFamilyName, self).__init__()    
@@ -298,7 +301,7 @@ class DescToMaskSignal(Transform):
 class DescToMaskFamily(Transform):
     """Transform to transform SignalMetadatas into spectrogram masks with
     different channels for each class's metadata: SignalMetadata family. If no `class_family_dict`
-    provided, the default mapping for the WBSig53 modulation families is used.
+    provided, the default mapping for the Wideband modulation families is used.
 
     Args:
         class_family_dict (:obj:`dict`):
@@ -312,7 +315,7 @@ class DescToMaskFamily(Transform):
 
     """
 
-    class_family_dict: Dict[str, str] = sig53.family_dict
+    class_family_dict: Dict[str, str] = torchsig_signals.family_dict
 
     def __init__(
         self,
@@ -767,7 +770,7 @@ class DescToClassEncoding(Transform):
         num_classes: Optional[int] = None,
     ) -> None:
         super(DescToClassEncoding, self).__init__()
-        self.class_list = sig53.class_list if class_list is None else class_list
+        self.class_list = torchsig_signals.class_list if class_list is None else class_list
         self.num_classes = len(self.class_list) if num_classes is None else num_classes
 
     def __call__(self, metadata: List[SignalMetadata]) -> np.ndarray:
@@ -1017,7 +1020,7 @@ class DescToBBoxFamilyDict(Transform):
 
     """
 
-    class_family_dict: Dict[str, str] = sig53.family_dict
+    class_family_dict: Dict[str, str] = torchsig_signals.family_dict
 
     def __init__(
         self,
@@ -1195,7 +1198,7 @@ class DescToSignalFamilyInstMaskDict(Transform):
     """Transform to transform SignalMetadatas into the class mask format
     using dictionaries of labels and masks, similar to the COCO image dataset.
     The labels with this target transform are set to be the class's family. If
-    no `class_family_dict` is provided, the default mapping for the WBSig53
+    no `class_family_dict` is provided, the default mapping for the Wideband
     modulation families is used.
 
     Args:
@@ -1210,7 +1213,7 @@ class DescToSignalFamilyInstMaskDict(Transform):
 
     """
 
-    class_family_dict: Dict[str, str] = sig53.family_dict
+    class_family_dict: Dict[str, str] = torchsig_signals.family_dict
 
     def __init__(
         self,
@@ -1307,14 +1310,21 @@ class DescToListTuple(Transform):
 
 
 class ListTupleToDesc(Transform):
-    
+    """Transform to transform list of tuples into SignalMetadata.
+    List of tuples contain
+    the modulation, start time, stop time, center frequency, bandwidth, and SNR
 
+    Args:
+        sample_rate (float): Signal sample rate.
+        num_iq_samples (int): Number of IQ samples.
+        class_list (List[str]): List of signal classes.
+    """
     def __init__(
         self,
         sample_rate: float,
         num_iq_samples: int,
         class_list: List[str],
-    ) -> None:
+    ) -> None:   
         super(ListTupleToDesc, self).__init__()
         self.sample_rate = sample_rate
         self.num_iq_samples = num_iq_samples

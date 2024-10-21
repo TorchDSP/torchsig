@@ -2,7 +2,7 @@ name: torch_sig_container_${PROJECT_NAME}
 services:
     torchsig_service:
         build: .
-        image: torchsig_github:v0.5.0
+        image: torchsig_github
         container_name: torchsig_${PROJECT_NAME}
         stdin_open: true
         tty: true

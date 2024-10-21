@@ -19,109 +19,72 @@ All the datasets have almost similar API. They all have a common argument:
 ``transform`` to transform the input data.
 
 
-.. currentmodule:: torchsig.datasets.sig53
+TorchSigNarrowband
+----------------
+.. automodule:: torchsig.datasets.torchsig_narrowband
+    :members:
+    :undoc-members:
+    :show-inheritance:
 
 
-Sig53
-~~~~~~~~~~~~~~
-
-.. autoclass:: Sig53
-
-
-.. currentmodule:: torchsig.datasets.wideband_sig53
-
-WidebandSig53
-~~~~~~~~~~~~~~
-
-.. autoclass:: WidebandSig53
+TorchSigWideband
+----------------
+.. automodule:: torchsig.datasets.torchsig_wideband
+    :members:
+    :undoc-members:
+    :show-inheritance:
 
 
-.. currentmodule:: torchsig.datasets.modulations
-
-ModulationsDataset
-~~~~~~~~~~~~~~~~~~~~
-
-.. autoclass:: ModulationsDataset
 
 
-.. currentmodule:: torchsig.datasets.wideband
-
-WidebandModulationsDataset
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-.. autoclass:: WidebandModulationsDataset
-
-
-.. currentmodule:: torchsig.datasets.synthetic
-
-DigitalModulationDataset
-~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-.. autoclass:: DigitalModulationDataset
+Modulations Dataset
+------------------
+.. automodule:: torchsig.datasets.modulations
+    :members:
+    :undoc-members:
+    :show-inheritance:
 
 
-ConstellationDataset
-~~~~~~~~~~~~~~~~~~~~~~~
 
-.. autoclass:: ConstellationDataset
-
-
-OFDMDataset
-~~~~~~~~~~~~~~
-
-.. autoclass:: OFDMDataset
+Wideband Datasets
+------------------
+.. automodule:: torchsig.datasets.wideband
+    :members:
+    :undoc-members:
+    :show-inheritance:
 
 
-FSKDataset
-~~~~~~~~~~~~~~
-
-.. autoclass:: FSKDataset
-
-
-AMDataset
-~~~~~~~~~~~~~~
-
-.. autoclass:: AMDataset
+Synthetic Datasets
+------------------
+.. automodule:: torchsig.datasets.synthetic
+    :members:
+    :undoc-members:
+    :show-inheritance:
 
 
-FMDataset
-~~~~~~~~~~~~~~
 
-.. autoclass:: FMDataset
-
-
-.. currentmodule:: torchsig.datasets.wideband
-
-WidebandDataset
-~~~~~~~~~~~~~~~~~~
-
-.. autoclass:: WidebandDataset
-
-
-SyntheticBurstSourceDataset
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-.. autoclass:: SyntheticBurstSourceDataset
-
-
-.. currentmodule:: torchsig.datasets.file_datasets
-
-
-FileBurstSourceDataset
-~~~~~~~~~~~~~~~~~~~~~~~~
-
-.. autoclass:: FileBurstSourceDataset
-
-
+Radio ML Datasets
+------------------
 .. currentmodule:: torchsig.datasets.radioml
-
-RadioML2016
+Radio ML 2016
 ~~~~~~~~~~~~~~
-
 .. autoclass:: RadioML2016
+    :members:
+    :undoc-members:
+    :show-inheritance:
 
-
-RadioML2018
+Radio ML 2018
 ~~~~~~~~~~~~~~
-
 .. autoclass:: RadioML2018
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+
+
+File Datasets
+---------------
+.. automodule:: torchsig.datasets.file_datasets
+    :members:
+    :undoc-members:
+    :show-inheritance:

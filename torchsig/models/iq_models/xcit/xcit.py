@@ -104,7 +104,7 @@ def xcit_nano(
 
     Args:
         pretrained (bool):
-            If True, returns a model pre-trained on Sig53
+            If True, returns a model pre-trained on TorchSigNarrowband
 
         path (str):
             Path to existing model or where to download checkpoint to
@@ -155,7 +155,7 @@ def xcit_tiny12(
 
     Args:
         pretrained (bool):
-            If True, returns a model pre-trained on Sig53
+            If True, returns a model pre-trained on TorchSigNarrowband
 
         path (str):
             Path to existing model or where to download checkpoint to

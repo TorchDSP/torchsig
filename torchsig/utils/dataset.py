@@ -1,3 +1,5 @@
+"""Signal Dataset base classes
+"""
 from typing import Any, Callable, List, Optional, Tuple, Union
 from torchsig.utils.types import SignalCapture, SignalData
 from copy import deepcopy
