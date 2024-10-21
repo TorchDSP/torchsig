@@ -1,6 +1,9 @@
 import numpy as np
 import torch
 from torch.utils.data import Dataset
+import os
+from torchsig.image_datasets.datasets.file_loading_datasets import load_image_grey
+from torchsig.image_datasets.transforms.denoising import normalize_image, isolate_foreground_signal
 
 """
 A class for wrapping YOLO data; contains a single datum for a YOLO dataset, with image and label data together.
@@ -242,3 +245,122 @@ class YOLOImageCompositeDataset(Dataset):
                 full_datum.img = self.transforms(full_datum.img)
                 
         return full_datum
+
+def read_yolo_datum(root_dir, fname):
+    """
+    loads a YOLODatum from a root directory and file name that point to a dataset in yolo format
+    """
+    img = torch.Tensor(load_image_grey(root_dir + "images/" + fname + ".png")[None,:,:])
+    labels = []
+    labels_in_file = np.loadtxt(root_dir + "labels/" + fname + ".txt", delimiter=" ")
+    if len(labels_in_file.shape) == 2:
+        labels = list(labels_in_file)
+    elif len(labels_in_file.shape) == 1:
+        labels = [list(labels_in_file)]
+    return YOLODatum(img, labels)
+
+def yolo_to_pixels_on_image(img, box):
+    """
+    returns the (x_start, y_start, x_end, y_end) pixels of an input box in the yolo format (cx, cy, width, height) on img
+    """
+    cx, cy, width, height = box
+    img_width, img_height = img.shape[1:]
+    x_start = int((cx - width) * img_width)
+    x_end = int((cx + width) * img_width)
+    y_start = int((cy - height) * img_height)
+    y_end = int((cy + height) * img_height)
+    return (x_start, y_start, x_end, y_end)
+def yolo_box_on_image(img, box):
+    """
+    returns an image tensor containing the portion of img that falls within box, where box is a tuple (cx, cy, width, height) in yolo format
+    """
+    x_start, y_start, x_end, y_end = yolo_to_pixels_on_image(img, box)
+    return img[:, y_start:y_end, x_start:x_end]
+
+def extract_yolo_boxes(yolo_datum):
+    """
+    returns a list of new YOLODatum objects which each contain a single box from the input object
+    """
+    img, labels = yolo_datum
+    extracted_boxes = []
+    for label in labels:
+        extracted_boxes += [YOLODatum(yolo_box_on_image(img, label[1:]), int(label[0]))]
+    return extracted_boxes
+
+class YOLOFileDataset(Dataset):
+    """
+    A Dataset class for loading image and label files in YOLO format from a root directory
+    Inputs:
+        filepath: a string file path to a folder containing the yolo dataset
+        transforms: either a single function or list of functions from images to images to be applied to each loaded image; used for adding noise and impairments to data; defaults to None
+        read_black_hot: whether or not to read loaded images as black-hot; this will invert the value of loaded SOIs
+    """
+    def __init__(self, filepath: str, transforms = None):
+        self.root_filepath = filepath
+        self.transforms = transforms
+        
+        self.fnames = []
+        for f in os.listdir(self.root_filepath + "images/"):
+            if f.endswith(".png"):
+                self.fnames.append(f[:-4])
+        
+    def __len__(self):
+        return len(self.fnames)
+    def __getitem__(self, idx):
+        image, labels = read_yolo_datum(self.root_filepath, self.fnames[idx])
+        
+        if self.transforms:
+            if type(self.transforms) == list:
+                for transform in self.transforms:
+                    image = transform(image)
+            else:
+                image = self.transforms(image)
+        return YOLODatum(image, labels)
+    def next(self):
+        return self[np.random.randint(len(self))]
+
+class YOLOSOIExtractorDataset(Dataset):
+    """
+    A Dataset class for loading marked signals of interest (SOIs) from a yolo format dataset
+    Inputs:
+        filepath: a string file path to a folder containing images in which all signals of interest have been marked wit ha colored bounding box
+        transforms: either a single function or list of functions from images to images to be applied to each SOI; used for adding noise and impairments to data; defaults to None
+        read_black_hot: whether or not to read loaded images as black-hot; this will invert the value of loaded SOIs
+        soi_classes: which classes from the yolo dataset are to be considered signals of interest; None for all classes; defaults to None
+    """
+    def __init__(self, filepath: str, transforms = None, read_black_hot = False, soi_classes : list = None, filter_strength=1):
+        self.root_filepath = filepath
+        self.transforms = transforms
+        self.soi_classes = soi_classes
+        self.filter_strength = filter_strength
+        self.sois = []
+        
+        fnames = []
+        for f in os.listdir(self.root_filepath + "images/"):
+            if f.endswith(".png"):
+                fnames.append(f[:-4])
+        
+        for fname in fnames:
+            datum = read_yolo_datum(self.root_filepath, fname)
+            new_sois = [soi[0] for soi in extract_yolo_boxes(datum) if not self.soi_classes or int(soi[1][0][0]) in self.soi_classes] # take only the image part
+            new_sois = [soi for soi in new_sois if np.prod(soi.shape) > 0] # dont allow sois for boxes of null dimensions
+            if read_black_hot:
+                new_sois = [normalize_image(soi) for soi in new_sois]
+            else:
+                new_sois = [normalize_image(-soi) for soi in new_sois]
+            self.sois += [isolate_foreground_signal(soi, self.filter_strength) for soi in new_sois]
+        
+        
+    def __len__(self):
+        return len(self.sois)
+    def __getitem__(self, idx):
+        soi = torch.Tensor(self.sois[idx])
+        if self.transforms:
+            if type(self.transforms) == list:
+                for transform in self.transforms:
+                    soi = transform(soi)
+            else:
+                soi = self.transforms(soi)
+        return soi
+    def next(self):
+        return self[np.random.randint(len(self))]

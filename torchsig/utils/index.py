@@ -1,3 +1,6 @@
+"""SigMF File indexing
+"""
+
 from torchsig.utils.types import *
 from typing import Any, Dict, List, Tuple
 from copy import deepcopy

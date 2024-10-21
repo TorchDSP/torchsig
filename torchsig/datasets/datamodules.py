@@ -1,4 +1,4 @@
-"""PyTorch Lightning DataModules for Sig53 and WidebandSig53
+"""PyTorch Lightning DataModules for TorchSigNarrowband and TorchSigWideband
 """
 from torch.utils.data import DataLoader
 from torch.nn import Identity
@@ -7,8 +7,8 @@ import numpy as np
 from typing import Callable, Union, Optional
 import os
 
-from torchsig.datasets.sig53 import Sig53
-from torchsig.datasets.wideband_sig53 import WidebandSig53
+from torchsig.datasets.torchsig_narrowband import TorchSigNarrowband
+from torchsig.datasets.torchsig_wideband import TorchSigWideband
 from torchsig.datasets import conf
 from torchsig.utils.dataset import collate_fn as collate_fn_default
 from torchsig.datasets.wideband import WidebandModulationsDataset
@@ -47,7 +47,7 @@ class TorchSigDataModule(pl.LightningDataModule):
 
         Args:
             root (str): Dataset root path.
-            dataset (str): Dataset name, either "Sig53" or "WidebandSig53".
+            dataset (str): Dataset name, either "Narrowband" or "Wideband".
             impaired (bool): Dataset impairment setting.
             qa (bool, optional): Generate small dataset sample. Defaults to True.
             eb_no (bool, optional): Use EbNo config. Defaults to False.
@@ -91,7 +91,7 @@ class TorchSigDataModule(pl.LightningDataModule):
         """_summary_
 
         Args:
-            dataset (str): Dataset name, either "Sig53" or "WidebandSig53".
+            dataset (str): Dataset name, either "Narrowband" or "Wideband".
             impaired (bool): Whether dataset is impaired or not (clean).
             is_train (bool): Whether dataset is train or not (val).
             qa (bool): Whether to create smaller dataset version.
@@ -99,12 +99,12 @@ class TorchSigDataModule(pl.LightningDataModule):
             seed (int): Seed for dataset generation.
 
         Raises:
-            ValueError: Dataset name is not Sig53 or WidebandSig53.
+            ValueError: Dataset name is not Narrowband or Wideband.
 
         Returns:
             dict: TorchSig config file for dataset.
         """
-        if not dataset in ["Sig53", "WidebandSig53"]:
+        if not dataset in ["Narrowband", "Wideband"]:
             raise ValueError(f"Invalid dataset type: {dataset}")
         
         i = "Impaired" if impaired else "Clean"
@@ -113,7 +113,6 @@ class TorchSigDataModule(pl.LightningDataModule):
         e = "EbNo" if eb_no else ""
 
         config_name = f"{dataset}{i}{e}{t}{q}Config"
-        print(f"Using {config_name} for {t.lower()}.")
 
         return getattr(conf, config_name)
 
@@ -166,14 +165,14 @@ class TorchSigDataModule(pl.LightningDataModule):
             collate_fn=self.collate_fn
         )
 
-class Sig53DataModule(TorchSigDataModule):
-    """Sig53 PyTorch Lightning DataModule
+class NarrowbandDataModule(TorchSigDataModule):
+    """TorchSig Narrowband PyTorch Lightning DataModule
 
         Attributes:
-            class_list (list): Sig53 class list names.
+            class_list (list): TorchSigNarrowband class list names.
     """
 
-    class_list = list(Sig53._idx_to_name_dict.values())
+    class_list = list(TorchSigNarrowband._idx_to_name_dict.values())
     
 
     def __init__(self, 
@@ -189,7 +188,7 @@ class Sig53DataModule(TorchSigDataModule):
                  num_workers: int = 1,
                  collate_fn: Optional[Callable] = None
                 ):
-        """Sig53 DataModule Init
+        """TorchSigNarrowband DataModule Init
 
         Args:
             root (str): Dataset root path.
@@ -203,14 +202,14 @@ class Sig53DataModule(TorchSigDataModule):
             num_workers (int, optional): Dataloader number of workers to use. Defaults to 1.
             collate_fn (Optional[Callable], optional): Dataloader custom collate function. Defaults to TorchSig collate_fn.
         """
-        super().__init__(root, "Sig53", impaired, qa, eb_no, seed, overlap_prob, transform, target_transform, batch_size, num_workers, collate_fn)
+        super().__init__(root, "Narrowband", impaired, qa, eb_no, seed, overlap_prob, transform, target_transform, batch_size, num_workers, collate_fn)
 
         self.data_path = f"{self.root}/{self.dataset.lower()}_{self.clean}_"
         self.train_path = self.data_path + "train"
         self.val_path = self.data_path + "val"
 
     def prepare_data(self) -> None:
-        """Download Sig53 Dataset
+        """Download TorchSigNarrowband Dataset
         """
         ds_train = ModulationsDataset(
             level=self.train_config.level,
@@ -234,18 +233,20 @@ class Sig53DataModule(TorchSigDataModule):
         os.makedirs(self.val_path, exist_ok=True)
     
         creator_train = DatasetCreator(ds_train, seed=self.seed, path=self.train_path, num_workers = self.num_workers)
+        print(f"Using {self.train_config.__name__} for train.")
         creator_train.create()
     
         creator_val = DatasetCreator(ds_val, seed=self.seed, path=self.val_path, num_workers = self.num_workers)
+        print(f"Using {self.val_config.__name__} for val.")
         creator_val.create()
 
     def setup(self, stage: str) -> None:
-        """Set up Sig53 train and validation datasets.
+        """Set up TorchSigNarrowband train and validation datasets.
 
         Args:
             stage (str): PyTorch Lightning trainer stage - fit, test, predict.
         """
-        self.train = Sig53(
+        self.train = TorchSigNarrowband(
             self.root,
             train=True,
             impaired=self.impaired,
@@ -254,7 +255,7 @@ class Sig53DataModule(TorchSigDataModule):
             use_signal_data=True,
         )
         
-        self.val = Sig53(
+        self.val = TorchSigNarrowband(
             self.root,
             train=False,
             impaired=self.impaired,
@@ -263,8 +264,8 @@ class Sig53DataModule(TorchSigDataModule):
             use_signal_data=True,
         )
 
-class WidebandSig53DataModule(TorchSigDataModule):
-    """WidebandSig53 PyTorch Lightning DataModule
+class WidebandDataModule(TorchSigDataModule):
+    """TorchSigWideband PyTorch Lightning DataModule
 
     """
 
@@ -282,7 +283,7 @@ class WidebandSig53DataModule(TorchSigDataModule):
                  num_workers: int = 1,
                  collate_fn: Optional[Callable] = None
                 ):
-        """WidebandSig53 DataModule Init
+        """TorchSigWideband DataModule Init
 
         Args:
             root (str): Dataset root path.
@@ -299,18 +300,18 @@ class WidebandSig53DataModule(TorchSigDataModule):
             num_workers (int, optional): Dataloader number of workers to use. Defaults to 1.
             collate_fn (Optional[Callable], optional): Dataloader custom collate function. Defaults to TorchSig collate_fn.
         """
-        super().__init__(root, "WidebandSig53", impaired, qa, False, seed, overlap_prob, transform, target_transform, batch_size, num_workers, collate_fn)
+        super().__init__(root, "Wideband", impaired, qa, False, seed, overlap_prob, transform, target_transform, batch_size, num_workers, collate_fn)
 
         self.overlap_prob = self.train_config.overlap_prob if overlap_prob is None else overlap_prob
         self.fft_size = fft_size
         self.num_classes = num_classes
 
-        self.data_path = f"{self.root}/wideband_sig53_{self.clean}_"
+        self.data_path = f"{self.root}/wideband_{self.clean}_"
         self.train_path = self.data_path + "train"
         self.val_path = self.data_path + "val"
 
     def prepare_data(self) -> None:
-        """Download WidebandSig53
+        """Download TorchSigWideband
         """
         ds_train = WidebandModulationsDataset(
             level=self.train_config.level,
@@ -332,18 +333,20 @@ class WidebandSig53DataModule(TorchSigDataModule):
         os.makedirs(self.val_path, exist_ok=True)
     
         creator_train = DatasetCreator(ds_train, seed=self.seed, path=self.train_path, num_workers = self.num_workers)
+        print(f"Using {self.train_config.__name__} for train.")
         creator_train.create()
     
         creator_val = DatasetCreator(ds_val, seed=self.seed, path=self.val_path, num_workers = self.num_workers)
+        print(f"Using {self.val_config.__name__} for val.")
         creator_val.create()
 
     def setup(self, stage: str) -> None:
-        """Set up WidebandSig53 train and validation datasets.
+        """Set up TorchSigWideband train and validation datasets.
 
         Args:
             stage (str): PyTorch Lightning trainer stage - fit, test, predict.
         """
-        self.train = WidebandSig53(
+        self.train = TorchSigWideband(
             self.root,
             train=True,
             impaired=self.impaired,
@@ -351,7 +354,7 @@ class WidebandSig53DataModule(TorchSigDataModule):
             target_transform=self.target_transform
         )
         
-        self.val = WidebandSig53(
+        self.val = TorchSigWideband(
             self.root,
             train=False,
             impaired=self.impaired,

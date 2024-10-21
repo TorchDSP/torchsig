@@ -9,7 +9,7 @@ authors = [
     {name = "TorchSig Team"},
 ]
 readme = "README.md"
-requires-python = ">=3.8"
+requires-python = ">=3.9"
 license = {text = "MIT"}
 classifiers = [
     "License :: OSI Approved :: MIT License",
@@ -39,7 +39,10 @@ dependencies = [
     "pytorch_lightning",
     "sympy",
     "torchmetrics",
-    "click"
+    "click",
+    "ultralytics",
+    "optuna",
+    "jupyter_bbox_widget"
 ]
 dynamic = ["version"]
 

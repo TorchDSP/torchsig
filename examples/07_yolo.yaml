@@ -1,0 +1,86 @@
+families:
+  0: ask
+  1: fsk
+  2: ofdm
+  3: pam
+  4: psk
+  5: qam
+family: false
+include_snr: false
+level: 2
+names:
+  0: ook
+  1: bpsk
+  2: 4pam
+  3: 4ask
+  4: qpsk
+  5: 8pam
+  6: 8ask
+  7: 8psk
+  8: 16qam
+  9: 16pam
+  10: 16ask
+  11: 16psk
+  12: 32qam
+  13: 32qam_cross
+  14: 32pam
+  15: 32ask
+  16: 32psk
+  17: 64qam
+  18: 64pam
+  19: 64ask
+  20: 64psk
+  21: 128qam_cross
+  22: 256qam
+  23: 512qam_cross
+  24: 1024qam
+  25: 2fsk
+  26: 2gfsk
+  27: 2msk
+  28: 2gmsk
+  29: 4fsk
+  30: 4gfsk
+  31: 4msk
+  32: 4gmsk
+  33: 8fsk
+  34: 8gfsk
+  35: 8msk
+  36: 8gmsk
+  37: 16fsk
+  38: 16gfsk
+  39: 16msk
+  40: 16gmsk
+  41: ofdm-64
+  42: ofdm-72
+  43: ofdm-128
+  44: ofdm-180
+  45: ofdm-256
+  46: ofdm-300
+  47: ofdm-512
+  48: ofdm-600
+  49: ofdm-900
+  50: ofdm-1024
+  51: ofdm-1200
+  52: ofdm-2048
+  53: fm
+  54: am-dsb-sc
+  55: am-dsb
+  56: am-lsb
+  57: am-usb
+  58: lfm_data
+  59: lfm_radar
+  60: chirpss
+nc: 61
+num_samples: 530
+overrides:
+  batch: 32
+  data: 07_yolo.yaml
+  device: 0
+  epochs: 5
+  imgsz: 512
+  model: yolov8n-cls.pt
+  name: 07_example
+  project: yolo
+  workers: 8
+train: ./wideband/
+val: ./wideband/

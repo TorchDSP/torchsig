@@ -1,3 +1,6 @@
+"""Signal, SignalData, and SignalMetadata classes
+"""
+
 from typing import List, Optional, TypedDict
 from torch import Tensor
 import numpy as np

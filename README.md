@@ -6,74 +6,61 @@
 </a>
 
 -----
-![build](https://github.com/torchDSP/torchsig/actions/workflows/pip_build.yml/badge.svg?branch=37-automate-install-tests)
 
+[TorchSig](https://torchsig.com) is an open-source signal processing machine learning toolkit based on the PyTorch data handling pipeline. The user-friendly toolkit simplifies common digital signal processing operations, augmentations, and transformations when dealing with both real and complex-valued signals. TorchSig streamlines the integration process of these signals processing tools building on PyTorch, enabling faster and easier development and research for machine learning techniques applied to signals data, particularly within (but not limited to) the radio frequency domain. An example dataset, TorchSigNarrowband, based on many unique communication signal modulations is included to accelerate the field of modulation classification. Additionally, an example wideband dataset, TorchSigWideband, is also included that extends TorchSigNarrowband with larger data example sizes containing multiple signals enabling accelerated research in the fields of wideband signal detection and recognition.
 
-[TorchSig](https://torchsig.com) is an open-source signal processing machine learning toolkit based on the PyTorch data handling pipeline. The user-friendly toolkit simplifies common digital signal processing operations, augmentations, and transformations when dealing with both real and complex-valued signals. TorchSig streamlines the integration process of these signals processing tools building on PyTorch, enabling faster and easier development and research for machine learning techniques applied to signals data, particularly within (but not limited to) the radio frequency domain. An example dataset, Sig53, based on many unique communication signal modulations is included to accelerate the field of modulation classification. Additionally, an example wideband dataset, WidebandSig53, is also included that extends Sig53 with larger data example sizes containing multiple signals enabling accelerated research in the fields of wideband signal detection and recognition.
+# Getting Started
 
-*TorchSig is currently in beta*
+## Prerequisites
+- Ubuntu &ge; 20.04
+- Hard drive storage with:
+  - &ge; 500 GB for Narrowband
+  - &ge; 10 TB for Wideband
+- CPU with &ge; 4 cores
+- GPU with &ge; 16 GB storage (reccomended)
+- Python &ge; 3.9
 
-## Key Features
----
-TorchSig provides many useful tools to facilitate and accelerate research on signals processing machine learning technologies:
-- The `SignalData` class and its `SignalMetadata` objects enable signals objects and meta data to be seamlessly handled and operated on throughout the TorchSig infrastructure.
-- The `Sig53` Dataset is a state-of-the-art static modulations-based RF dataset meant to serve as the next baseline for RFML classification development & evaluation.
-- The `ModulationsDataset` class synthetically creates, augments, and transforms the largest communications signals modulations dataset to date in a generic, flexible fashion.
-- The `WidebandSig53` Dataset is a state-of-the-art static wideband RF signals dataset meant to serve as the baseline for RFML signal detection and recognition development & evaluation.
-- The `WidebandModulationsDataset` class synthetically creates, augments, and transforms the largest wideband communications signals dataset in a generic, flexible fashion.
-- Numerous signals processing transforms enable existing ML techniques to be employed on the signals data, streamline domain-specific signals augmentations in signals processing machine learning experiments, and signals-specific data transformations to speed up the field of expert feature signals processing machine learning integration.
-- TorchSig also includes a model API similar to open source code in other ML domains, where several state-of-the-art convolutional and transformer-based neural architectures have been adapted to the signals domain and pretrained on the `Sig53` and `WidebandSig53` datasets. These models can be easily used for follow-on research in the form of additional hyperparameter tuning, out-of-the-box comparative analysis/evaluations, and/or fine-tuning to custom datasets.
-
-
-## Documentation
----
-Documentation can be found [online](https://torchsig.readthedocs.io/en/latest/) or built locally by following the instructions below.
-```
-cd docs
-pip install -r docs-requirements.txt
-make html
-firefox build/html/index.html
-```
+We highly reccomend Ubuntu or using a Docker container.
 
 ## Installation
----
-Clone the `torchsig` repository and simply install using the following commands:
+Clone the `torchsig` repository and install using the following commands:
 ```
+git clone https://github.com/TorchDSP/torchsig.git
 cd torchsig
 pip install .
 ```
 
-## Generating the Datasets
-If you'd like to generate the named datasets without messing with your current Python environment, you can build the development container and use it to generate data at the location of your choosing.
+# Usage
+
+## Generating the Datasets with Command Line
+To create the narrowband dataset:
+```
+python3 ./scripts/generate_narrowband.py --root  ./examples/datasets --all --num-workers=4
+```
+To create the wideband dataset:
+```
+python3 ./scripts/generate_wideband.py --root ./examples/datasets --all --num-workers=4
+```
+
+## Generating the Datasets in Docker
+Docker can be used to generate the datasets without modifying your current Python environment. Build a Docker container:
 
 ```
 docker build -t torchsig -f Dockerfile .
-docker run -u $(id -u ${USER}):$(id -g ${USER}) -v `pwd`:/workspace/code/torchsig torchsig python3 torchsig/scripts/generate_sig53.py --root=/workspace/code/torchsig/data --all=True
 ```
 
-For the wideband dataset, you can do:
-
+To create the narrowband dataset with the Docker container:
 ```
-docker build -t torchsig -f Dockerfile .
-docker run -u $(id -u ${USER}):$(id -g ${USER}) -v `pwd`:/workspace/code/torchsig torchsig python3 torchsig/scripts/generate_wideband_sig53.py --root=/workspace/code/torchsig/data --all=True
+docker run -u $(id -u ${USER}):$(id -g ${USER}) -v `pwd`:/workspace/code/torchsig torchsig python3 torchsig/scripts/generate_narrowband.py --root=/workspace/code/torchsig/data --all
 ```
 
-If you do not need to use Docker, you can also just generate using the regular command-line interface
-
+To create the wideband dataset with the Docker container:
 ```
-python3 torchsig/scripts/generate_sig53.py --root=torchsig/data --all=True
-```
-
-or for the wideband dataset:
-
-```
-python3 torchsig/scripts/generate_wideband_sig53.py --root=torchsig/data --all=True
+docker run -u $(id -u ${USER}):$(id -g ${USER}) -v `pwd`:/workspace/code/torchsig torchsig python3 torchsig/scripts/generate_wideband.py --root=/workspace/code/torchsig/data --all
 ```
 
-Then, be sure to point scripts looking for ```root``` to ```torchsig/data```.
-
-## Using the Dockerfile
-If you have Docker installed along with compatible GPUs and drivers, you can try:
+## Jupyter Notebook Examples with Docker and GPUs
+The example jupyter notebooks can be run within Docker with GPU support, try the command:
 
 ```
 docker build -t torchsig -f Dockerfile .
@@ -83,13 +70,41 @@ docker exec torchsig_workspace jupyter notebook --allow-root --ip=0.0.0.0 --no-b
 
 Then use the URL in the output in your browser to run the examples and notebooks.
 
-## License
----
+
+# Key Features
+TorchSig provides many useful tools to facilitate and accelerate research on signals processing machine learning technologies:
+- The `SignalData` class and its `SignalMetadata` objects enable signals objects and meta data to be seamlessly handled and operated on throughout the TorchSig infrastructure.
+- The `TorchSigNarrowband` Dataset is a state-of-the-art static modulations-based RF dataset meant to serve as the next baseline for RFML classification development & evaluation.
+- The `ModulationsDataset` class synthetically creates, augments, and transforms the largest communications signals modulations dataset to date in a generic, flexible fashion.
+- The `TorchSigWideband` Dataset is a state-of-the-art static wideband RF signals dataset meant to serve as the baseline for RFML signal detection and recognition development & evaluation.
+- The `WidebandModulationsDataset` class synthetically creates, augments, and transforms the largest wideband communications signals dataset in a generic, flexible fashion.
+- Numerous signals processing transforms enable existing ML techniques to be employed on the signals data, streamline domain-specific signals augmentations in signals processing machine learning experiments, and signals-specific data transformations to speed up the field of expert feature signals processing machine learning integration.
+- TorchSig also includes a model API similar to open source code in other ML domains, where several state-of-the-art convolutional and transformer-based neural architectures have been adapted to the signals domain and pretrained on the `TorchSigNarrowband` and `TorchSigWideband` datasets. These models can be easily used for follow-on research in the form of additional hyperparameter tuning, out-of-the-box comparative analysis/evaluations, and/or fine-tuning to custom datasets.
+
+
+# Documentation
+Documentation can be found [online](https://torchsig.readthedocs.io/en/latest/) or built locally by following the instructions below.
+```
+cd docs
+pip install -r docs-requirements.txt
+make html
+firefox build/html/index.html
+```
+
+
+# License
 TorchSig is released under the MIT License. The MIT license is a popular open-source software license enabling free use, redistribution, and modifications, even for commercial purposes, provided the license is included in all copies or substantial portions of the software. TorchSig has no connection to MIT, other than through the use of this license.
 
+# Publications
+| Title | Year  | Cite (APA) |
+| ----- | ----  | ---------- |
+| [TorchSig: A GNU Radio Block and New Spectrogram Tools for Augmenting ML Training](https://events.gnuradio.org/event/24/contributions/628/attachments/190/473/TorchSig_GRCon2024_paper.pdf) | 2024 | Vallance, P., Oh, E., Mullins, J., Gulati, M., Hoffman, J., & Carrick, M. (2024, September). TorchSig: A GNU Radio Block and New Spectrogram Tools for Augmenting ML Training. In Proceedings of the GNU Radio Conference (Vol. 9, No. 1). |
+| [Large Scale Radio Frequency Wideband Signal Detection & Recognition](https://doi.org/10.48550/arXiv.2211.10335)| 2022 | Boegner, L., Vanhoy, G., Vallance, P., Gulati, M., Feitzinger, D., Comar, B., & Miller, R. D. (2022). Large Scale Radio Frequency Wideband Signal Detection & Recognition. arXiv preprint arXiv:2211.10335. |
+| [Large Scale Radio Frequency Signal Classification](https://doi.org/10.48550/arXiv.2207.09918) | 2022 | Boegner, L., Gulati, M., Vanhoy, G., Vallance, P., Comar, B., Kokalj-Filipovic, S., ... & Miller, R. D. (2022). Large Scale Radio Frequency Signal Classification. arXiv preprint arXiv:2207.09918. |
 
-## Citing TorchSig
----
+
+# Citing TorchSig
+
 Please cite TorchSig if you use it for your research or business.
 
 ```bibtext

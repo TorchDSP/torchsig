@@ -1,3 +1,5 @@
+""" YOLO Classification Utils
+"""
 from torchsig.datasets.modulations import ModulationsDataset
 from torchsig.transforms.target_transforms import DescToFamilyName
 from torchsig.transforms.transforms import Compose as CP
@@ -43,10 +45,12 @@ class TorchsigClassificationDataset:
         # Load the dataset configuration from the root file
         with open(root, 'r') as file:
             self.config = yaml.safe_load(file)
-
+        if augment:
+            self.num_samples = self.config['num_samples']
+        else:
+            self.num_samples = self.config['num_samples'] // 10
         # Create a list of class names
         self.class_list = [item[1] for item in self.config['names'].items()]
-
         # Determine whether to map descriptions to family names
         if self.config['family']:
             self.class_to_idx_dict = {v: k for k, v in self.config['families'].items()}
@@ -61,7 +65,7 @@ class TorchsigClassificationDataset:
             use_class_idx=False,
             level=self.config['level'],
             num_iq_samples=args.imgsz**2,
-            num_samples=self.config['num_samples'],
+            num_samples=self.num_samples,
             include_snr=self.config['include_snr'],
             target_transform=target_transform
         )
@@ -171,6 +175,8 @@ class YoloClassifyTrainer(ClassificationTrainer):
         self.image_transform = image_transform
         super().__init__(cfg, overrides, _callbacks)
 
+    
+
     def build_dataset(self, img_path, mode="train", batch=None):
         """
         Creates a dataset for training or validation.
@@ -183,7 +189,7 @@ class YoloClassifyTrainer(ClassificationTrainer):
         Returns:
             TorchsigClassificationDataset: The constructed dataset.
         """
-        print(f'args -> {img_path}')
+        print(f'mode -> {mode}')
         return TorchsigClassificationDataset(
             root=img_path, args=self.args, augment=mode == "train", image_transform=self.image_transform
         )

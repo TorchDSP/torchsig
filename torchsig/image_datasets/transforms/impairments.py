@@ -2,24 +2,7 @@ import torch
 import numpy as np
 import cv2
 
-
-"""
-returns the infinity norm of an image
-Inputs:
-    image: image to norm as a 2d ndarray
-Outputs:
-    the normalized image
-"""
-
-def normalize_image(image, axis=None):
-    if type(image) != torch.Tensor:
-            image = torch.Tensor(image)
-    if axis == None:
-        ans = image - image.min()
-        return torch.clip(ans/max(ans.max(),0.0000001), 0, 1)
-    else:
-        ans = image - image.min(dim=axis, keepdim=True)[0]
-        return torch.clip(ans/torch.clamp(ans.max(dim=axis, keepdim=True)[0],min=0.0000001), 0, 1)
+from torchsig.image_datasets.transforms.denoising import normalize_image
 
 def pad_border(image, to_pad):
     if type(image) != torch.Tensor:
