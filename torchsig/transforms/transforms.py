@@ -1,3 +1,6 @@
+"""Signal Transforms on data/IQ
+"""
+
 from typing import Any, Callable, List, Literal, Optional, Tuple, Union
 from torchsig.transforms import functional as F
 from torchsig.transforms.functional import (
@@ -9,7 +12,7 @@ from torchsig.transforms.functional import (
 )
 from torchsig.utils.dataset import SignalDataset
 from torchsig.utils.types import *
-from torchsig.utils.dsp import low_pass
+from torchsig.utils.dsp import low_pass, MAX_SIGNAL_UPPER_EDGE_FREQ, MAX_SIGNAL_LOWER_EDGE_FREQ
 from scipy import signal as sp
 from copy import deepcopy
 import numpy as np
@@ -584,39 +587,63 @@ class RandomResample(SignalTransform):
     def parameters(self) -> tuple:
         return (self.rate_ratio(),)
 
+    def check_bounds(self, meta: dict, try_new_rate: float):
+        """Checks single metadata entry is in bounds, returns rate that keeps in bounds.
+
+        Args:
+            meta (dict): SignalMetadata entry.
+            try_new_rate (float): New resampling rate to check.
+
+        Returns:
+            new_rate: Resampling rate that keeps signal in bounds.
+        """        
+        # we assume original signal is within bounds
+        assert meta["lower_freq"] is not None
+        assert meta["upper_freq"] is not None
+        assert meta["bandwidth"] < 1.0
+
+        new_rate = try_new_rate
+
+        test_lf = meta["lower_freq"] / try_new_rate
+        test_hf = meta["upper_freq"] / try_new_rate
+
+        if test_lf < MAX_SIGNAL_LOWER_EDGE_FREQ or test_hf > MAX_SIGNAL_UPPER_EDGE_FREQ: # out of bounds
+            new_rate *= 2
+        
+        return new_rate
 
     def check_time_freq_bounds(self, signal: Signal, new_rate: float) -> float:
-        """
-            Method checks frequency mins and maxes and adjust the new_rate to ensure
-            frequency bounds stay within the +-.5 boundary.
-        """
+        """Method checks frequency mins and maxes and adjust the new_rate to ensure
+            frequency bounds stay within the (approximately) +-.5 boundary.
+
+        Args:
+            signal (Signal): Signal to transform.
+            new_rate (float): Possible new_rate to resample Signal.
+
+        Returns:
+            float: New rate to resample Signal, within bounds.
+        """        
         ret_list = []
         
         for meta in signal["metadata"]:
-            if meta["lower_freq"] is None:
-                print(f'class_name no lower_freq -> {meta["class_name"]}')
-            test_lf = meta["lower_freq"] / new_rate
-            test_hf = meta["upper_freq"] / new_rate
-            if test_lf < -.5 or test_hf > .5:
-                if test_lf < -.5:
-                    ret_rate = meta['lower_freq'] / -.5 
-                else:
-                    ret_rate = meta['upper_freq'] / .5
-                ret_list.append(ret_rate)
-            else:
-                ret_list.append(new_rate)
+            new_rate = self.check_bounds(meta, new_rate)
+            ret_list.append(new_rate)
 
         try:
             new_rate = np.max(ret_list)
-        except:
+        except Exception as error:
             for meta in signal['metadata']:
                 print(f"{meta['lower_freq']} {meta['upper_freq']} {meta['class_name']}")
+            print(error)
+            raise ValueError("Unable to run: new_rate = np.max(ret_list)")
+        
         for meta in signal["metadata"]:
             start = meta["start"] * new_rate
             if start > 1 - self.min_time:
                 return -1
                     
         return new_rate
+
 
     def transform_data(self, signal: Signal, params: tuple) -> Signal:
         if not has_rf_metadata(signal["metadata"]):
@@ -1572,10 +1599,12 @@ class TimeCrop(SignalTransform):
         """
         start_list = []
         start, crop_length = params
+
         for meta in signal["metadata"]:
             original_start_sample = meta["start"] * data_shape(signal["data"])[0]
             original_stop_sample = meta["stop"] * data_shape(signal["data"])[0]
-            new_start_sample = original_start_sample - start
+            #new_start_sample = original_start_sample - start
+            new_start_sample = start
             new_stop_sample = original_stop_sample - start
             start_clip = np.clip(float(new_start_sample / crop_length), a_min=0.0, a_max=1.0)
             stop_clip = np.clip(float(new_stop_sample / crop_length), a_min=0.0, a_max=1.0)
@@ -1583,7 +1612,7 @@ class TimeCrop(SignalTransform):
             if duration < .001:
                 start_list.append(int(meta["start"] * data_shape(signal["data"])[0]))
             else:
-                start_list.append(start)
+                start_list.append(int(new_start_sample))
 
         return np.min(start_list), crop_length
 
@@ -1593,14 +1622,12 @@ class TimeCrop(SignalTransform):
         if len(signal["metadata"]) == 0:
             return signal
 
-        if signal["metadata"][0]["num_samples"] == self.crop_length:
+        if len(signal["data"]["samples"]) == self.crop_length:
             return signal
 
         params = self.check_time_bounds(signal, params)
         # if signal["metadata"][0]["num_samples"] < self.crop_length:
         if data_shape(signal["data"])[0] < self.crop_length:
-
-            pdb.set_trace()
             raise ValueError(
                 "Input data length {} is less than requested length {}".format(
                     data_shape(signal["data"])[0], self.crop_length
@@ -3038,9 +3065,9 @@ class DatasetWidebandCutMix(SignalTransform):
 
     Example:
         >>> import torchsig.transforms as ST
-        >>> from torchsig.datasets.wideband_sig53 import WidebandSig53
+        >>> from torchsig.datasets.torchsig_wideband import TorchSigWideband
         >>> # Add signals from the `ModulationsDataset`
-        >>> dataset = WidebandSig53('.')
+        >>> dataset = TorchSigWideband('.')
         >>> transform = ST.DatasetWidebandCutMix(dataset=dataset,alpha=(0.2,0.7))
 
     """
@@ -3191,9 +3218,9 @@ class DatasetWidebandMixUp(SignalTransform):
 
     Example:
         >>> import torchsig.transforms as ST
-        >>> from torchsig.datasets.wideband_sig53 import WidebandSig53
-        >>> # Add signals from the `WidebandSig53` Dataset
-        >>> dataset = WidebandSig53('.')
+        >>> from torchsig.datasets.torchsig_wideband import TorchSigWideband
+        >>> # Add signals from the `TorchSigWideband` Dataset
+        >>> dataset = TorchSigWideband('.')
         >>> transform = ST.DatasetWidebandMixUp(dataset=dataset,alpha=(0.4,0.6))
 
     """

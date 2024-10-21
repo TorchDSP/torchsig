@@ -1,3 +1,5 @@
+"""Functional transforms
+"""
 from typing import Callable, List, Literal, Optional, Tuple, Union
 from torchsig.utils.dsp import low_pass, calculate_exponential_filter
 from numba import complex64, float64, int64, njit
@@ -74,6 +76,15 @@ NumericParameter = Union[FloatParameter, IntParameter]
 def uniform_discrete_distribution(
     choices: List, random_generator: Optional[np.random.Generator] = None
 ):
+    """Unifrom Discrete Distribution
+
+    Args:
+        choices (List): List of discrete variables to sample from.
+        random_generator (Optional[np.random.Generator], optional): Random Generator to use. Defaults to None (new generator created internally)
+
+    Returns:
+        _type_: _description_
+    """
     random_generator = random_generator if random_generator else np.random.default_rng()
     return partial(random_generator.choice, choices)
 
@@ -83,6 +94,16 @@ def uniform_continuous_distribution(
     upper: Union[int, float],
     random_generator: Optional[np.random.Generator] = None,
 ):
+    """Uniform Continuous Distribution
+
+    Args:
+        lower (Union[int, float]): Lowest number possible in distribution.
+        upper (Union[int, float]): Highest number possible in distribution.
+        random_generator (Optional[np.random.Generator], optional): Random Generator to use. Defaults to None (new generator created internally)
+
+    Returns:
+        _type_: _description_
+    """
     random_generator = random_generator if random_generator else np.random.default_rng()
     return partial(random_generator.uniform, lower, upper)
 
@@ -101,6 +122,15 @@ def to_distribution(
     ],
     random_generator: Optional[np.random.Generator] = None,
 ):
+    """Create Numpy Random Generator(s) over a distribution.
+
+    Args:
+        param (Union[ int, float, str, Callable, List[int], List[float], List[str], Tuple[int, int], Tuple[float, float], ]): Range, type, or variables specifying random distribution.
+        random_generator (Optional[np.random.Generator], optional): Random generator to use. Defaults to None (new generator created internally).
+
+    Returns:
+        _type_: _description_
+    """
     random_generator = random_generator if random_generator else np.random.default_rng()
     if isinstance(param, Callable):  # type: ignore
         return param
@@ -181,11 +211,10 @@ def resample(
         tensor (:class:`numpy.ndarray`):
             tensor to be resampled.
 
-        up_rate (:class:`int`):
-            rate at which to up-sample the tensor
-
-        down_rate (:class:`int`):
-            rate at which to down-sample the tensor
+        resamp_rate(:class:`float`):
+            the resampling rate. to interpolate, resamp_rate > 1.0, to decimate
+            resamp_rate < 1.0. can accept a float number for irrational 
+            resampling rates
 
         num_iq_samples (:class:`int`):
             number of IQ samples to have after resampling
@@ -193,26 +222,25 @@ def resample(
         keep_samples (:class:`bool`):
             boolean to specify if the resampled data should be returned as is
 
-        anti_alias_lpf (:class:`bool`)):
-            boolean to specify if an additional anti aliasing filter should be
-            applied
-
     Returns:
         Tensor:
             Resampled tensor
     """
 
+    coeffs_filename = "saved_coefficients.npy"
+    coeffs_fullpath = f"{DIR_PATH}/{coeffs_filename}"
+
     max_uprate = 5000
-    try:
-        with open(f'{DIR_PATH}/resamp_fil.p', 'rb') as fh:
-            resamp_fil = pickle.load(fh)
-    except:
+
+    # save/load coefficients when possible (expensive computation)
+    # saves into saved_coefficients.npy file
+    if os.path.exists(coeffs_fullpath):
+        resamp_fil = np.load(coeffs_fullpath)
+    else:
         taps_phase = 32
         fc = 0.95 / max_uprate
         resamp_fil = calculate_exponential_filter(P=max_uprate, num_taps=taps_phase * max_uprate, fc=fc, K=24.06)
-        with open(f'{DIR_PATH}/resamp_fil.p', 'wb') as fh:
-            pickle.dump(resamp_fil, fh)
-
+        np.save(coeffs_fullpath, resamp_fil)
 
     # Resample
     resampled = sp.upfirdn(resamp_fil * max_uprate, tensor, up=max_uprate, down=max_uprate//resamp_rate)
@@ -693,9 +721,7 @@ def time_crop(tensor: np.ndarray, start: int, length: int) -> np.ndarray:
     if np.max(start) >= tensor.shape[0] or length == 0:
         return np.empty(shape=(1, 1))
 
-    crop_len = min(length, tensor.shape[0] - np.max(start))
-
-    return tensor[start : start + crop_len]
+    return tensor[start : start + length]
 
 
 def freq_shift(tensor: np.ndarray, f_shift: float) -> np.ndarray:
@@ -1581,12 +1607,13 @@ def spec_translate(
 
 def spectrogram_image(
     tensor: np.ndarray,
+    black_hot: bool = True
 ) -> np.ndarray:
     """tensor to image
 
     Args:
-        tensor (:class:`numpy.ndarray`)):
-            (batch_size, vector_length, ...)-sized tensor
+        tensor (numpy.ndarray): (batch_size, vector_length, ...)-sized tensor
+        black_hot (bool, optional): toggles black hot spectrogram. Defaults to False (white-hot).
 
 
     Returns:
@@ -1597,4 +1624,8 @@ def spectrogram_image(
     img = np.zeros((spec.shape[0], spec.shape[1], 3), dtype=np.float32)
     img = cv2.normalize(spec, img, 0, 255, cv2.NORM_MINMAX)
     img = cv2.cvtColor(img.astype(np.uint8), cv2.COLOR_GRAY2BGR)
+    
+    if black_hot:
+        img = cv2.bitwise_not(img, img)
+
     return img

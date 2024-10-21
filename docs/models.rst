@@ -42,28 +42,28 @@ Spectrogram Models
 ------------------
 
 
-YOLOv5
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.. YOLOv5
+.. ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-.. currentmodule:: torchsig.models.spectrogram_models.yolov5
+.. .. currentmodule:: torchsig.models.spectrogram_models.yolov5
 
-.. autoclass:: yolov5p
+.. .. autoclass:: yolov5p
 
-.. autoclass:: yolov5n
+.. .. autoclass:: yolov5n
 
-.. autoclass:: yolov5s
+.. .. autoclass:: yolov5s
 
-.. autoclass:: yolov5p_mod_family
+.. .. autoclass:: yolov5p_mod_family
 
-.. autoclass:: yolov5n_mod_family
+.. .. autoclass:: yolov5n_mod_family
 
-.. autoclass:: yolov5s_mod_family
+.. .. autoclass:: yolov5s_mod_family
 
 
 DETR
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-.. currentmodule:: torchsig.models.spectrogram_models.detr
+.. currentmodule:: torchsig.models.spectrogram_models.detr.detr
 
 .. autoclass:: detr_b0_nano
 
@@ -78,37 +78,37 @@ DETR
 .. autoclass:: detr_b4_nano_mod_family
 
 
-PSPNet
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.. PSPNet
+.. ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-.. currentmodule:: torchsig.models.spectrogram_models.pspnet
+.. .. currentmodule:: torchsig.models.spectrogram_models.pspnet
 
-.. autoclass:: pspnet_b0
+.. .. autoclass:: pspnet_b0
 
-.. autoclass:: pspnet_b2
+.. .. autoclass:: pspnet_b2
 
-.. autoclass:: pspnet_b4
+.. .. autoclass:: pspnet_b4
 
-.. autoclass:: pspnet_b0_mod_family
+.. .. autoclass:: pspnet_b0_mod_family
 
-.. autoclass:: pspnet_b2_mod_family
+.. .. autoclass:: pspnet_b2_mod_family
 
-.. autoclass:: pspnet_b4_mod_family
+.. .. autoclass:: pspnet_b4_mod_family
 
 
-Mask2Former
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.. Mask2Former
+.. ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-.. currentmodule:: torchsig.models.spectrogram_models.mask2former
+.. .. currentmodule:: torchsig.models.spectrogram_models.mask2former
 
-.. autoclass:: mask2former_b0
+.. .. autoclass:: mask2former_b0
 
-.. autoclass:: mask2former_b2
+.. .. autoclass:: mask2former_b2
 
-.. autoclass:: mask2former_b4
+.. .. autoclass:: mask2former_b4
 
-.. autoclass:: mask2former_b0_mod_family
+.. .. autoclass:: mask2former_b0_mod_family
 
-.. autoclass:: mask2former_b2_mod_family
+.. .. autoclass:: mask2former_b2_mod_family
 
-.. autoclass:: mask2former_b4_mod_family
+.. .. autoclass:: mask2former_b4_mod_family

@@ -1,3 +1,6 @@
+"""SigMF reader
+"""
+
 from torchsig.utils.types import *
 import numpy as np
 

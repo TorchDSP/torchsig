@@ -156,7 +156,7 @@ def efficientnet_b0(
 
     Args:
         pretrained (bool):
-            If True, returns a model pre-trained on Sig53
+            If True, returns a model pre-trained on TorchSigNarrowband
 
         path (str):
             Path to existing model or where to download checkpoint to
@@ -204,7 +204,7 @@ def efficientnet_b2(
 
     Args:
         pretrained (bool):
-            If True, returns a model pre-trained on Sig53
+            If True, returns a model pre-trained on TorchSigNarrowband
 
         path (str):
             Path to existing model or where to download checkpoint to
@@ -252,7 +252,7 @@ def efficientnet_b4(
 
     Args:
         pretrained (bool):
-            If True, returns a model pre-trained on Sig53
+            If True, returns a model pre-trained on TorchSigNarrowband
 
         path (str):
             Path to existing model or where to download checkpoint to

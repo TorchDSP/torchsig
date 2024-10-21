@@ -3,7 +3,7 @@
 
 destination_path=detect.pt
 
-file_id=1vdzNyXjnZ61D2vruFhslerNscL3rAV8c
+file_id=12e9PPgKc_-s1bFmdc9ybETdoo2OL90v7
 file_url="https://drive.usercontent.google.com/download?id=$file_id&export=download"
 
 confirmation_page=$(curl -s -L "$file_url")

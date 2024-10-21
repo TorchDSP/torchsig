@@ -16,8 +16,8 @@ from torchsig.image_datasets.dataset_generation import batched_write_yolo_synthe
 
 # constants/config stuff---------------------------------------------------------------------------------------------------------
 
-TRAINING_PATH = "./new_dataset_sig53_imgs/training/"
-TESTING_PATH = "./new_dataset_sig53_imgs/testing/"
+TRAINING_PATH = "./new_dataset_narrowband_imgs/training/"
+TESTING_PATH = "./new_dataset_narrowband_imgs/testing/"
 
 
 NUM_TRAINING_DATA = 250000

@@ -1,10 +1,13 @@
+"""Modulations Dataset for Narrowband
+"""
+
 from typing import Callable, List, Optional
 
 import numpy as np
 from torch.utils.data import ConcatDataset
 
-from torchsig.datasets.synthetic import DigitalModulationDataset, OFDMDataset
-from torchsig.datasets.signal_classes import sig53
+from torchsig.datasets.synthetic import ModulateNarrowbandDataset, OFDMDataset
+from torchsig.datasets.signal_classes import torchsig_signals
 from torchsig.transforms import (
     Compose,
     IQImbalance,
@@ -82,7 +85,7 @@ class ModulationsDataset(ConcatDataset):
 
     """
 
-    default_classes: List[str] = sig53.class_list
+    default_classes: List[str] = torchsig_signals.class_list
 
     def __init__(
         self,
@@ -179,7 +182,7 @@ class ModulationsDataset(ConcatDataset):
             )
 
         if num_digital > 0:
-            digital_dataset = DigitalModulationDataset(
+            digital_dataset = ModulateNarrowbandDataset(
                 modulations=digital_classes,  # effectively uses all modulations
                 num_iq_samples=num_iq_samples,
                 num_samples_per_class=num_samples_per_class,
@@ -193,14 +196,7 @@ class ModulationsDataset(ConcatDataset):
         if num_ofdm > 0:
             sidelobe_suppression_methods = ("lpf", "win_start")
             ofdm_dataset = OFDMDataset(
-                constellations=(
-                    "bpsk",
-                    "qpsk",
-                    "16qam",
-                    "64qam",
-                    "256qam",
-                    "1024qam",
-                ),  # sub-carrier modulations
+                constellations=torchsig_signals.ofdm_subcarrier_modulations, # sub-carrier modulations
                 num_subcarriers=num_subcarriers,  # possible number of subcarriers
                 num_iq_samples=num_iq_samples,
                 num_samples_per_class=num_samples_per_class,

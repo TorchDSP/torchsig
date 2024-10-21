@@ -11,57 +11,83 @@ The following utilities are available:
     :local:
 
 
-Signal Datasets
+Dataset Utils
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-.. currentmodule:: torchsig.utils.dataset
+.. automodule:: torchsig.utils.dataset
+    :members:
+    :undoc-members:
+    :show-inheritance:
 
-.. autoclass:: SignalDataset
+.. automodule:: torchsig.utils.writer
+    :members:
+    :undoc-members:
+    :show-inheritance:
 
-.. autoclass:: SignalFileDataset
+.. automodule:: torchsig.utils.reader
+    :members:
+    :undoc-members:
+    :show-inheritance:
 
-.. autoclass:: SignalTensorDataset
+.. automodule:: torchsig.utils.index
+    :members:
+    :undoc-members:
+    :show-inheritance:
 
 
 Signal Types
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-.. currentmodule:: torchsig.utils.types
+.. automodule:: torchsig.utils.types
+    :members:
+    :undoc-members:
+    :show-inheritance:
 
-.. autoclass:: SignalDescription
-
-.. autoclass:: SignalData
-
-.. autoclass:: SignalCapture
-
-
-Signal Visualizers
+YOLO Utils
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-.. currentmodule:: torchsig.utils.visualize
+.. automodule:: torchsig.utils.yolo_classify
+    :members:
+    :undoc-members:
+    :show-inheritance:
 
-.. autoclass:: Visualizer
+.. automodule:: torchsig.utils.yolo_train
+    :members:
+    :undoc-members:
+    :show-inheritance:
 
-.. autoclass:: SpectrogramVisualizer
+.. automodule:: torchsig.utils.yolo_val
+    :members:
+    :undoc-members:
+    :show-inheritance:
 
-.. autoclass:: WaveletVisualizer
+.. automodule:: torchsig.utils.yolo_validator
+    :members:
+    :undoc-members:
+    :show-inheritance:
 
-.. autoclass:: ConstellationVisualizer
+.. automodule:: torchsig.utils.narrowband_trainer
+    :members:
+    :undoc-members:
+    :show-inheritance:
 
-.. autoclass:: IQVisualizer
+Signal Visualizers/Plotters
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-.. autoclass:: TimeSeriesVisualizer
+.. automodule:: torchsig.utils.visualize
+    :members:
+    :undoc-members:
+    :show-inheritance:
 
-.. autoclass:: ImageVisualizer
+.. automodule:: torchsig.utils.cm_plotter
+    :members:
+    :undoc-members:
+    :show-inheritance:
 
-.. autoclass:: PSDVisualizer
+Miscellaneous
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-.. autoclass:: MaskVisualizer
-
-.. autoclass:: MaskClassVisualizer
-
-.. autoclass:: SemanticMaskClassVisualizer
-
-.. autoclass:: BoundingBoxVisualizer
-
-.. autoclass:: AnchorBoxVisualizer
+.. automodule:: torchsig.utils.dsp
+    :members:
+    :undoc-members:
+    :show-inheritance:

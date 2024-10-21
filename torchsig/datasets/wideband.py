@@ -1,9 +1,11 @@
+"""Wideband Dataset Generation Tools
+"""
 from torchsig.utils.types import (
     create_signal_data,
     create_modulated_rf_metadata,
     is_signal_data,
 )
-from torchsig.datasets.synthetic import ConstellationDataset, FSKDataset, OFDMDataset
+from torchsig.datasets.synthetic import ConstellationDataset, FSKDataset, OFDMDataset, AMDataset, FMDataset, LFMDataset, ChirpSSDataset
 from torchsig.transforms import *
 from torchsig.transforms.functional import (
     FloatParameter,
@@ -14,7 +16,7 @@ import os
 from torchsig.utils.types import SignalData, SignalMetadata, Signal
 from torchsig.utils.dataset import SignalDataset
 from torchsig.utils.dsp import low_pass
-from torchsig.datasets.signal_classes import sig53
+from torchsig.datasets.signal_classes import torchsig_signals
 from typing import Any, Callable, List, Optional, Tuple, Union
 from ast import literal_eval
 from functools import partial
@@ -146,7 +148,7 @@ class ModulatedSignalBurst(SignalBurst):
         super(ModulatedSignalBurst, self).__init__(**kwargs)
 
         if modulation_list == "all" or modulation_list == None:
-            self.class_list = sig53.class_list
+            self.class_list = torchsig_signals.class_list
         else:
             self.class_list = modulation_list
 
@@ -177,18 +179,11 @@ class ModulatedSignalBurst(SignalBurst):
         num_iq_samples = int(np.ceil(self.meta["num_samples"] * self.meta["duration"]) )
 
         # Create modulated burst
-        if "ofdm" in self.meta["class_name"]:
+        if self.meta["class_name"] in torchsig_signals.ofdm_signals:
             num_subcarriers = [int(self.meta["class_name"][5:])]
             sidelobe_suppression_methods = ("lpf", "win_start")
             modulated_burst = OFDMDataset(
-                constellations=(
-                    "bpsk",
-                    "qpsk",
-                    "16qam",
-                    "64qam",
-                    "256qam",
-                    "1024qam",
-                ),  # sub-carrier modulations
+                constellations=torchsig_signals.ofdm_subcarrier_modulations, # sub-carrier modulations
                 num_subcarriers=tuple(num_subcarriers),  # possible number of subcarriers
                 num_iq_samples=num_iq_samples,
                 num_samples_per_class=1,
@@ -199,7 +194,7 @@ class ModulatedSignalBurst(SignalBurst):
                 center_freq=self.meta["center_freq"],
                 bandwidth=self.meta["bandwidth"]
             )
-        elif "fsk" in self.meta["class_name"] or "msk" in self.meta["class_name"]: # FSK, GFSK, MSK, GMSK
+        elif self.meta["class_name"] in torchsig_signals.fsk_signals: # FSK, GFSK, MSK, GMSK
             modulated_burst = FSKDataset(
                 modulations=[self.meta["class_name"]],
                 num_iq_samples=num_iq_samples,
@@ -210,7 +205,7 @@ class ModulatedSignalBurst(SignalBurst):
                 center_freq=self.meta["center_freq"],
                 bandwidth=self.meta["bandwidth"]
             )
-        else: # QAM/PSK and related
+        elif self.meta["class_name"] in torchsig_signals.constellation_signals: # QAM, PSK, OOK, PAM, ASK
             modulated_burst = ConstellationDataset(
                 constellations=[self.meta["class_name"]],
                 num_iq_samples=num_iq_samples,
@@ -219,6 +214,39 @@ class ModulatedSignalBurst(SignalBurst):
                 random_data=True,
                 random_pulse_shaping=False, #True, TODO fix pulse shaping code.
                 center_freq=self.meta["center_freq"],
+            )
+        elif self.meta["class_name"] in torchsig_signals.am_signals: # AM-DSB, AM-DSB-SC, AM-USB, AM-LSB
+            modulated_burst = AMDataset(
+                modulations=[self.meta["class_name"]],
+                num_iq_samples=num_iq_samples,
+                num_samples_per_class=1,
+                random_data=True,
+                center_freq=self.meta["center_freq"],
+                bandwidth=self.meta["bandwidth"]
+            )
+        elif self.meta["class_name"] in torchsig_signals.fm_signals: # FM
+            modulated_burst = FMDataset(
+                num_iq_samples=num_iq_samples,
+                num_samples_per_class=1,
+                random_data=True,
+                center_freq=self.meta["center_freq"],
+                bandwidth=self.meta["bandwidth"]
+            )
+        elif self.meta["class_name"] in torchsig_signals.lfm_signals: # LFM data, LFM radar
+            modulated_burst = LFMDataset(
+                num_iq_samples=num_iq_samples,
+                num_samples_per_class=1,
+                random_data=True,
+                center_freq=self.meta["center_freq"],
+                bandwidth=self.meta["bandwidth"]
+            )
+        elif self.meta["class_name"] in torchsig_signals.chirpss_signals: # chirp SS
+            modulated_burst = ChirpSSDataset(
+                num_iq_samples=num_iq_samples,
+                num_samples_per_class=1,
+                random_data=True,
+                center_freq=self.meta["center_freq"],
+                bandwidth=self.meta["bandwidth"]
             )
 
         # Extract IQ samples from dataset example
@@ -648,7 +676,7 @@ class WidebandModulationsDataset(SignalDataset):
 
     """
 
-    default_modulations: List[str] = sig53.class_list
+    default_modulations: List[str] = torchsig_signals.class_list
 
     def __init__(
         self,
@@ -1104,7 +1132,7 @@ class RandomSignalInsertion(SignalTransform):
 
     """
 
-    default_modulation_list: List[str] = sig53.class_list
+    default_modulation_list: List[str] = torchsig_signals.class_list
 
     def __init__(self, modulation_list: Optional[List[str]] = None):
         super(RandomSignalInsertion, self).__init__()

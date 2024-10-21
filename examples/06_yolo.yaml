@@ -1,0 +1,21 @@
+names:
+  0: ask
+  1: fsk
+  2: ofdm
+  3: pam
+  4: psk
+  5: qam
+nc: 6
+overrides:
+  batch: 32
+  data: 06_yolo.yaml
+  device: 0
+  epochs: 10
+  imgsz: 512
+  model: yolov8n.pt
+  name: 06_example
+  project: yolo
+  single_cls: true
+  workers: 8
+train: ./wideband/
+val: ./wideband/

@@ -9,10 +9,11 @@ import numpy as np
 import pickle
 import lmdb
 import os
+import warnings
 
 
 class WidebandSig53:
-    """The Official WidebandSig53 dataset with optimized loading."""
+    """Legacy WidebandSig53 dataset with optimized loading."""
 
     def __init__(
         self,
@@ -23,9 +24,9 @@ class WidebandSig53:
         target_transform: Optional[Callable] = None,
         class_list: Optional[List] = None
     ):
+        warnings.warn("WidebandSig53 is depreciated. Use Wideband instead.", DeprecationWarning, stacklevel=2)
         self.root = Path(root)
-        if not os.path.exists(self.root):
-            os.makedirs(self.root)
+        os.makedirs(self.root, exist_ok=True)
 
         self.train = train
         self.impaired = impaired
@@ -34,7 +35,7 @@ class WidebandSig53:
         self.T = transform if transform else Identity()
         self.TT = target_transform if target_transform else Identity()
 
-        cfg = ("WidebandSig53" + ("Impaired" if impaired else "Clean") + ("Train" if train else "Val") + "Config")
+        cfg = ("Wideband" + ("Impaired" if impaired else "Clean") + ("Train" if train else "Val") + "Config")
         cfg = getattr(conf, cfg)()
 
         self.path = self.root / cfg.name  # type: ignore

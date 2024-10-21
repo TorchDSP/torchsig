@@ -4,11 +4,15 @@ import numpy as np
 import torch
 from torch.utils.data import Dataset
 
-from torchsig.image_datasets.transforms.impairments import normalize_image
+from torchsig.image_datasets.transforms.denoising import normalize_image
 
 def load_image_rgb(filepath):
     f = cv2.imread(filepath)
     img = cv2.cvtColor(f, cv2.COLOR_BGR2RGB)
+    return img
+def load_image_grey(filepath):
+    f = cv2.imread(filepath)
+    img = cv2.cvtColor(f, cv2.COLOR_BGR2GRAY)
     return img
 
 def extract_bounding_boxes(filepath, filter_strength=None):
