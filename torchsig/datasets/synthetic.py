@@ -564,13 +564,20 @@ class OFDMDataset(SyntheticDataset):
         if not self.random_data:
             np.random.seed(index)
 
+        # determine the fine resampling rate required after signal is modulated,
+        # OFDM modulator uses a nominal oversampling rate of 2.
+        resamplerRate = (1 / 2) / bandwidth
+        # choose n_symbols so final signal will only be slightly larger than
+        # self.num_iq_samples
+        n_symbols = int(np.ceil(self.num_iq_samples * (1 / resamplerRate) / 2))
+
         if mod_type == "random":
-            symbols_idxs = np.random.randint(0, 1024, size=self.num_iq_samples)
+            symbols_idxs = np.random.randint(0, 1024, size=n_symbols)
             const_idxes = np.random.choice(range(len(self.random_symbols)), size=num_subcarriers)
-            symbols = np.zeros(self.num_iq_samples, dtype=np.complex128)
+            symbols = np.zeros(n_symbols, dtype=np.complex128)
             for subcarrier_idx, const_idx in enumerate(const_idxes):
-                begin_idx = (self.num_iq_samples) * subcarrier_idx
-                end_idx = (self.num_iq_samples) * (subcarrier_idx + 1)
+                begin_idx = n_symbols * subcarrier_idx
+                end_idx = n_symbols * (subcarrier_idx + 1)
                 symbols[begin_idx:end_idx] = self.random_symbols[const_idx][
                     np.mod(
                         symbols_idxs[begin_idx:end_idx],
@@ -583,7 +590,7 @@ class OFDMDataset(SyntheticDataset):
             const = default_const_map[const_name] / np.mean(
                 np.abs(default_const_map[const_name])
             )
-            symbol_nums = np.random.randint(0, len(const), int(self.num_iq_samples))
+            symbol_nums = np.random.randint(0, len(const), n_symbols)
             symbols = const[symbol_nums]
         divisible_index = -(len(symbols) % num_subcarriers)
         if divisible_index != 0:
@@ -761,8 +768,8 @@ class OFDMDataset(SyntheticDataset):
             output = combined[: int(cyclic_prefixed.shape[0] * cyclic_prefixed.shape[1])]
 
         # Randomize the start index (while bypassing the initial windowing if present)
-        if num_subcarriers * 4 * burst_dur < self.num_iq_samples:
-            start_idx = np.random.randint(0, output.shape[0] - self.num_iq_samples)
+        if num_subcarriers * 4 * burst_dur < n_symbols:
+            start_idx = np.random.randint(0, output.shape[0] - n_symbols)
         else:
             if "win" in sidelobe_suppression_method:
                 start_idx = np.random.randint(
@@ -789,10 +796,6 @@ class OFDMDataset(SyntheticDataset):
             #     start_idx = np.random.randint(0, int(symbol_dur * burst_dur))
 
 
-        # determine the fine resampling rate required after signal is modulated,
-        # OFDM modulator uses a nominal oversampling rate of 2.
-        resamplerRate = (1/2)/bandwidth
-
         # apply resampling
         output = rational_rate_resampler ( output, resamplerRate )
 
@@ -816,6 +819,7 @@ class OFDMDataset(SyntheticDataset):
         if not self.random_data:
             np.random.set_state(orig_state)  # return numpy back to its previous state
 
+        assert output.size >= self.num_iq_samples
         return output[0:self.num_iq_samples]
 
 
