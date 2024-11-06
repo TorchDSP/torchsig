@@ -56,7 +56,7 @@ def create_rf_metadata(
     stop: float = 1.0,
     duration: float = 1.0,
 ) -> RFMetadata:
-    return [RFMetadata(
+    return RFMetadata(
         sample_rate=sample_rate,
         num_samples=num_samples,
         complex=complex,
@@ -67,7 +67,7 @@ def create_rf_metadata(
         start=start,
         stop=stop,
         duration=duration,
-    )]
+    )
 
 
 def is_rf_metadata(d: SignalMetadata) -> bool:
@@ -147,7 +147,7 @@ def create_modulated_rf_metadata(
     class_name: str = "",
     class_index: int = 0,
 ) -> RFMetadata:
-    return [ModulatedRFMetadata(
+    return ModulatedRFMetadata(
         sample_rate=sample_rate,
         num_samples=num_samples,
         complex=complex,
@@ -164,7 +164,7 @@ def create_modulated_rf_metadata(
         excess_bandwidth=excess_bandwidth,
         class_name=class_name,
         class_index=class_index,
-    )]
+    )
 
 
 def is_rf_modulated_metadata(d: SignalMetadata) -> bool:
@@ -232,7 +232,7 @@ def is_signal(d: Signal) -> bool:
     if "data" not in d.keys() or "metadata" not in d.keys():
         return False
 
-    if not isinstance(d["metadata"], list):
+    if not isinstance(d["metadata"], dict) or isinstance(d["metadata"], list):
         return False
 
     return is_signal_data(d["data"]) and all(
