@@ -20,7 +20,7 @@ class SignalMetadata(TypedDict):
 def create_signal_metadata(
     sample_rate: float = 0.0, num_samples: int = 0
 ) -> SignalMetadata:
-    return [SignalMetadata(sample_rate=sample_rate, num_samples=num_samples)]
+    return SignalMetadata(sample_rate=sample_rate, num_samples=num_samples)
 
 
 def is_signal_metadata(d: SignalMetadata) -> bool:
