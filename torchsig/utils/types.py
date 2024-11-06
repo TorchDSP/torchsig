@@ -231,7 +231,7 @@ def is_signal(d: Signal) -> bool:
 
     if "data" not in d.keys() or "metadata" not in d.keys():
         return False
-        
+    
     if not isinstance(d["metadata"], dict) and not isinstance(d["metadata"], list):
         return False
 
