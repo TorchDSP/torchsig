@@ -80,7 +80,7 @@ class TorchSigDataModule(pl.LightningDataModule):
 
         self.batch_size = batch_size
         self.num_workers = num_workers
-        self.collate_fn = collate_fn if collate_fn is None else collate_fn_default
+        self.collate_fn = collate_fn
 
         self.data_path = None #: str: Path to downloaded dataset in root
         self.train_path = None #: str: Path to train dataset
