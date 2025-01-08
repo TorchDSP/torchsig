@@ -5,7 +5,7 @@ from torchsig.utils.types import (
     create_modulated_rf_metadata,
     is_signal_data,
 )
-from torchsig.datasets.synthetic import ConstellationDataset, FSKDataset, OFDMDataset, AMDataset, FMDataset, LFMDataset, ChirpSSDataset
+from torchsig.datasets.synthetic import ConstellationDataset, FSKDataset, OFDMDataset, AMDataset, FMDataset, LFMDataset, ChirpSSDataset, CarrierWaveSpikeDataset
 from torchsig.transforms import *
 from torchsig.transforms.functional import (
     FloatParameter,
@@ -242,6 +242,14 @@ class ModulatedSignalBurst(SignalBurst):
             )
         elif self.meta["class_name"] in torchsig_signals.chirpss_signals: # chirp SS
             modulated_burst = ChirpSSDataset(
+                num_iq_samples=num_iq_samples,
+                num_samples_per_class=1,
+                random_data=True,
+                center_freq=self.meta["center_freq"],
+                bandwidth=self.meta["bandwidth"]
+            )
+        elif self.meta["class_name"] in torchsig_signals.cw_signals: # cw
+            modulated_burst = CarrierWaveSpikeDataset(
                 num_iq_samples=num_iq_samples,
                 num_samples_per_class=1,
                 random_data=True,

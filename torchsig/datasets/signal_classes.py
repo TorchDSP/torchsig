@@ -65,6 +65,7 @@ CLASS_FAMILY_DICT: Dict[str, str] = {
     "lfm_data": "chirp",
     "lfm_radar": "chirp",
     "chirpss": "chirp",
+    "cw":"cw"
 }
 
 SIGNALS_SHARED_LIST: list = [
@@ -129,6 +130,7 @@ SIGNALS_SHARED_LIST: list = [
         "lfm_data",
         "lfm_radar",
         "chirpss",
+        "cw"
     ]
 
 # list for radio ML 2018 dataset
@@ -157,6 +159,7 @@ FAMILY_SHARED_LIST: list = [
         "FM",
         "GMSK",
         "OQPSK",
+        "CW"
     ]
 
 @dataclass
@@ -179,6 +182,7 @@ class torchsig_signals():
     fm_signals = []
     lfm_signals = []
     chirpss_signals = []
+    cw_signals = []
     
     # automatic grouping of each signal into a specific class
     for name in class_list:
@@ -196,6 +200,8 @@ class torchsig_signals():
             lfm_signals.append(name)
         elif ('chirpss' == name):
             chirpss_signals.append(name)
+        elif ('cw' == name):
+            cw_signals.append(name)
 
     # specifically designed lists
     ofdm_subcarrier_modulations = ["bpsk", "qpsk", "16qam", "64qam", "256qam", "1024qam"]

@@ -40,18 +40,18 @@ def test_generate_wideband_impaired_qa_train(tmp_path):
 def test_generate_wideband_impaired_qa_val(tmp_path):
     generate_wideband.generate(tmp_path, [conf.WidebandImpairedValQAConfig], num_workers, -1)
 
-# @pytest.mark.skip(reason="too big")
+@pytest.mark.skip(reason="too big")
 def test_generate_wideband_clean_train(tmp_path):
     generate_wideband.generate(tmp_path, [conf.WidebandCleanTrainConfig], num_workers, -1)
 
-# @pytest.mark.skip(reason="too big")
+@pytest.mark.skip(reason="too big")
 def test_generate_wideband_clean_val(tmp_path):
     generate_wideband.generate(tmp_path, [conf.WidebandCleanValConfig], num_workers, -1)
 
-# @pytest.mark.skip(reason="too big")
+@pytest.mark.skip(reason="too big")
 def test_generate_wideband_impaired_train(tmp_path):
     generate_wideband.generate(tmp_path, [conf.WidebandImpairedTrainConfig], num_workers, -1)
 
-# @pytest.mark.skip(reason="too big")
+@pytest.mark.skip(reason="too big")
 def test_generate_wideband_impaired_val(tmp_path):
     generate_wideband.generate(tmp_path, [conf.WidebandImpairedValConfig], num_workers, -1)
