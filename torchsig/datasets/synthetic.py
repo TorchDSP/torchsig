@@ -1808,7 +1808,7 @@ class CarrierWaveSpikeDataset(SyntheticDataset):
         # modulated = np.convolve(self.LPFWeights, modulated)
 
         # apply center frequency shifting
-        upspike *= np.exp(2j*np.pi*center_freq*np.arange(0,len(modulated)))
+        upspike *= np.exp(2j*np.pi*center_freq*np.arange(0,len(upspike)))
 
         # determine the boundaries for where the signal currently resides.
         # these values are used to determine if aliasing has occured
