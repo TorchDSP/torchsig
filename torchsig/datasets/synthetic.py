@@ -206,7 +206,7 @@ class ModulateNarrowbandDataset(ConcatDataset):
             random_data=random_data,
             **kwargs,
         )
-        cw_dataset = CarrierWaveSpikeDataset(            
+        cw_dataset = CWSpikeDataset(            
             num_iq_samples=num_iq_samples,
             num_samples_per_class=num_samples_per_class,
             random_data=random_data,
@@ -1671,7 +1671,7 @@ class LFMDataset(SyntheticDataset):
     
 
 #TODO: flesh out and test this
-class CarrierWaveSpikeDataset(SyntheticDataset):
+class CWSpikeDataset(SyntheticDataset):
     """Frequency Shift Carrier Wave Spike Modulated Dataset
 
     Args:
@@ -1705,7 +1705,7 @@ class CarrierWaveSpikeDataset(SyntheticDataset):
         bandwidth: float = 0.5,        
         **kwargs,
     ):
-        super(CarrierWaveSpikeDataset, self).__init__(**kwargs)
+        super(CWSpikeDataset, self).__init__(**kwargs)
         # self.symbol_map: Dict[str, np.ndarray] = self.get_symbol_map()
         self.CWs = (
             list(torchsig_signals.cw_signals) if CWs is None else CWs
@@ -1725,7 +1725,8 @@ class CarrierWaveSpikeDataset(SyntheticDataset):
                     class_name=const_name,
                     class_index=const_idx,
                     center_freq=center_freq,
-                    bandwidth=bandwidth
+                    bandwidth=bandwidth,
+                    snr=0.0
                 )
                 self.index.append(
                     (
@@ -1743,37 +1744,18 @@ class CarrierWaveSpikeDataset(SyntheticDataset):
     def __len__(self) -> int:
         return len(self.index)
     
-    #TODO: here is where the cw needs to be generated below:::: mode is for hopping ect...
-    def spike(self, t0, t1, f0, f1, duration = 1 , phi=0, mode=None) -> np.ndarray:
+    def spike(self, t0, t1, f0, f1, phi=0) -> np.ndarray:
         t = np.linspace(t0, t1, 2*self.iq_samples_per_symbol)
         b = (f1 - f0) / (t1 - t0)
-        # if mode == 'hopping':
-            # if f0 is None or hop_duration is None:
-            #     raise ValueError("frequencies and hop_duration must be provided for hopping CW signal")
-
-            # Generate the hopping CW signal TODO:
-            # hopping_signal = np.zeros(self.num_iq_samples, dtype=complex)
-            # num_hops = int(duration / hop_duration)
-
-            # for i in range(num_hops):
-            #     start_index =  int(i * hop_duration * sampling_rate)
-            #     end_index = int((i + 1) * hop_duration * sampling_rate)
-            #     # TODO: select some random frequencies here
-            #     if i < len(frequencies):
-            #         frequency = frequencies[i]
-            #     else:
-            #         frequency = frequencies[-1]  # Use the last frequency if not enough frequencies are provided
-            #     hopping_signal[start_index:end_index] = np.exp(2j * np.pi * frequency * t[start_index:end_index])
-            # signal = hopping_signal
-
-        # TODO: check this calc for cw # mode == 'static'
-        # phase = 2 * np.pi * (f0 * t + 0.5 * b * t * t) # Linear FM
-        phase = np.cos(2 * np.pi * f0 * t) + 1j * np.sin(2 * np.pi * f0 * t)
-        phi *= np.pi / 180
-        return np.exp(1j*(phase+phi))
+        signal = np.cos(2 * np.pi * f0 * t) + 1j * np.sin(2 * np.pi * f0 * t)
+        signal = signal/np.linalg.norm(signal)
+        random_amplify = np.random.uniform(0.0,10.0)
+        return signal * random_amplify
+        # phi *= np.pi / 180
+        # return np.exp(1j*(signal+phi))
 
     def _generate_samples(self, item: Tuple) -> np.ndarray:
-        print("CarrierWaveSpikeDataset._generate_samples called", flush=True)
+        print("CWSpikeDataset._generate_samples called", flush=True)
         class_name = item[0]
         index = item[1]
         metadata = item[2][0]
@@ -1783,51 +1765,32 @@ class CarrierWaveSpikeDataset(SyntheticDataset):
         orig_state = np.random.get_state()
         if not self.random_data:
             np.random.seed(index)
-
-        # symbol mapping and padding
-        # const = self.symbol_map[class_name] 
-        # symbol_nums = np.random.randint(
-        #     0, len(const), int(self.num_iq_samples / self.iq_samples_per_symbol)
-        # )
-        # symbols = const[symbol_nums]
-        modulated = np.zeros((self.num_iq_samples,), dtype=np.complex128)
         
         # construct template symbol
-        upspike = self.spike(0,self.iq_samples_per_symbol,-bandwidth,bandwidth)
-        double_upspike = np.concatenate((upspike, upspike), axis=0)
-
-        # modulated prob not needed for cw spike - mtt TODO:
-        # modulate 
-        # sym_start_index = 0
-        # M = const.size
-        # for s in symbols:
-        #     chirp_start_index = int((s/M)*self.iq_samples_per_symbol)
-        #     modulated[sym_start_index:(sym_start_index+self.iq_samples_per_symbol)] = \
-        #         double_upchirp[chirp_start_index:(chirp_start_index+self.iq_samples_per_symbol)] 
-        #     sym_start_index = sym_start_index + self.iq_samples_per_symbol # 100% duty cycle
-        # modulated = np.convolve(self.LPFWeights, modulated)
+        spike = self.spike(0,self.iq_samples_per_symbol,-bandwidth,bandwidth)
 
         # apply center frequency shifting
-        upspike *= np.exp(2j*np.pi*center_freq*np.arange(0,len(upspike)))
+        spike *= np.exp(2j*np.pi*center_freq*np.arange(0,len(spike)))
 
         # determine the boundaries for where the signal currently resides.
         # these values are used to determine if aliasing has occured
         upperSignalEdge = center_freq + (bandwidth/2)
         lowerSignalEdge = center_freq - (bandwidth/2)
+
         # TODO: this prob not needed but not sure
         # check to see if aliasing has occured due to upconversion. if so, then apply
         # a filter to minimize it
-        # if ( upperSignalEdge > 0.5 or lowerSignalEdge < -0.5):
+        if ( upperSignalEdge > 0.5 or lowerSignalEdge < -0.5):
 
-        #     # the signal has overlaped either the -fs/2 or +fs/2 boundary and therefore
-        #     # a BPF filter will be applied to attenuate the portion of the signal that
-        #     # is overlapping the -fs/2 or +fs/2 boundary to minimize aliasing
-        #     modulated = upconversionAntiAliasingFilter ( modulated, center_freq, bandwidth )
+            # the signal has overlaped either the -fs/2 or +fs/2 boundary and therefore
+            # a BPF filter will be applied to attenuate the portion of the signal that
+            # is overlapping the -fs/2 or +fs/2 boundary to minimize aliasing
+            spike = upconversionAntiAliasingFilter ( spike, center_freq, bandwidth )
 
         if not self.random_data:
             np.random.set_state(orig_state)  # return numpy back to its previous state
         print("SPIKEDataset", flush=True)
-        return upspike[:self.num_iq_samples]
+        return spike[:self.num_iq_samples]
 
 
 
