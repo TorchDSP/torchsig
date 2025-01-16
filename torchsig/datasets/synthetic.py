@@ -1765,16 +1765,21 @@ class CWSpikeDataset(SyntheticDataset):
         if not self.random_data:
             np.random.seed(index)
         
-        # construct template symbol
-        spike = self.spike(0,self.iq_samples_per_symbol,-bandwidth,bandwidth)
-
-        # apply center frequency shifting
-        spike *= np.exp(2j*np.pi*center_freq*np.arange(0,len(spike)))
-
-        # determine the boundaries for where the signal currently resides.
-        # these values are used to determine if aliasing has occured
         upperSignalEdge = center_freq + (bandwidth/2)
         lowerSignalEdge = center_freq - (bandwidth/2)
+
+        f0 = np.random.uniform(upperSignalEdge, lowerSignalEdge)  # Random frequency
+        f1 = f0 + np.random.uniform(0, bandwidth)  # Random bandwidth range
+        phi = np.random.uniform(0, 360)  # Random phase shift
+
+        # construct template symbol
+        spike = self.spike(t0=0,t1=self.iq_samples_per_symbol,f0=f0,f1=f1, phi=phi)
+
+        # # construct template symbol
+        # spike = self.spike(0,self.iq_samples_per_symbol,-bandwidth,bandwidth)
+
+        # # apply center frequency shifting
+        # spike *= np.exp(2j*np.pi*center_freq*np.arange(0,len(spike)))
 
         # TODO: this prob not needed but not sure
         # check to see if aliasing has occured due to upconversion. if so, then apply
