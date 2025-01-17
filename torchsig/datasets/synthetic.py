@@ -1755,7 +1755,6 @@ class CWSpikeDataset(SyntheticDataset):
         # return np.exp(1j*(signal+phi))
 
     def _generate_samples(self, item: Tuple) -> np.ndarray:
-        print("CWSpikeDataset._generate_samples called", flush=True)
         class_name = item[0]
         index = item[1]
         metadata = item[2][0]
