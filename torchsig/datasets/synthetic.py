@@ -1793,7 +1793,6 @@ class CWSpikeDataset(SyntheticDataset):
 
         if not self.random_data:
             np.random.set_state(orig_state)  # return numpy back to its previous state
-        print("SPIKEDataset", flush=True)
         return spike[:self.num_iq_samples]
 
 
