@@ -1699,7 +1699,7 @@ class CWSpikeDataset(SyntheticDataset):
         CWs: Optional[Union[List, Tuple]] = torchsig_signals.cw_signals,
         num_iq_samples : int = 10000,
         num_samples_per_class: int = 20,
-        iq_samples_per_symbol: int = 1000,
+        iq_samples_per_symbol: int = 1, #1000,
         random_data: bool = False,
         center_freq: float = 0.,
         bandwidth: float = 0.5,        
@@ -1712,7 +1712,7 @@ class CWSpikeDataset(SyntheticDataset):
         )
         self.num_iq_samples = num_iq_samples 
         self.num_samples_per_class = num_samples_per_class
-        self.iq_samples_per_symbol = iq_samples_per_symbol
+        self.iq_samples_per_symbol = 1 #iq_samples_per_symbol
         self.random_data = random_data
         self.index = []
 
@@ -1745,7 +1745,7 @@ class CWSpikeDataset(SyntheticDataset):
         return len(self.index)
     
     def spike(self, t0, t1, f0, f1, phi=0) -> np.ndarray:
-        t = np.linspace(t0, t1, 2*self.iq_samples_per_symbol)
+        t = np.linspace(t0, t1, 2*self.num_iq_samples)
         b = (f1 - f0) / (t1 - t0)
         signal = np.cos(2 * np.pi * f0 * t) + 1j * np.sin(2 * np.pi * f0 * t)
         signal = signal/np.linalg.norm(signal)
@@ -1773,7 +1773,7 @@ class CWSpikeDataset(SyntheticDataset):
         phi = np.random.uniform(0, 360)  # Random phase shift
 
         # construct template symbol
-        spike = self.spike(t0=0,t1=self.iq_samples_per_symbol,f0=f0,f1=f1, phi=phi)
+        spike = self.spike(t0=0,t1=self.num_iq_samples,f0=f0,f1=f1, phi=phi)
 
         # # construct template symbol
         # spike = self.spike(0,self.iq_samples_per_symbol,-bandwidth,bandwidth)
