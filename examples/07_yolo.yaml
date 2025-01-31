@@ -71,7 +71,7 @@ names:
   59: lfm_radar
   60: chirpss
 nc: 61
-num_samples: 530
+num_samples: 610
 overrides:
   batch: 32
   data: 07_yolo.yaml

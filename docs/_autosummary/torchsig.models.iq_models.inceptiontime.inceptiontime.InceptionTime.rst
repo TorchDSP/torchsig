@@ -52,6 +52,7 @@ torchsig.models.iq\_models.inceptiontime.inceptiontime.InceptionTime
       ~InceptionTime.lr_schedulers
       ~InceptionTime.manual_backward
       ~InceptionTime.modules
+      ~InceptionTime.mtia
       ~InceptionTime.named_buffers
       ~InceptionTime.named_children
       ~InceptionTime.named_modules
@@ -111,12 +112,15 @@ torchsig.models.iq\_models.inceptiontime.inceptiontime.InceptionTime
       ~InceptionTime.register_full_backward_hook
       ~InceptionTime.register_full_backward_pre_hook
       ~InceptionTime.register_load_state_dict_post_hook
+      ~InceptionTime.register_load_state_dict_pre_hook
       ~InceptionTime.register_module
       ~InceptionTime.register_parameter
+      ~InceptionTime.register_state_dict_post_hook
       ~InceptionTime.register_state_dict_pre_hook
       ~InceptionTime.requires_grad_
       ~InceptionTime.save_hyperparameters
       ~InceptionTime.set_extra_state
+      ~InceptionTime.set_submodule
       ~InceptionTime.setup
       ~InceptionTime.share_memory
       ~InceptionTime.state_dict

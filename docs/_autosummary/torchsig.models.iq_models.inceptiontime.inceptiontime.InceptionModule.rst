@@ -37,6 +37,7 @@ torchsig.models.iq\_models.inceptiontime.inceptiontime.InceptionModule
       ~InceptionModule.ipu
       ~InceptionModule.load_state_dict
       ~InceptionModule.modules
+      ~InceptionModule.mtia
       ~InceptionModule.named_buffers
       ~InceptionModule.named_children
       ~InceptionModule.named_modules
@@ -49,11 +50,14 @@ torchsig.models.iq\_models.inceptiontime.inceptiontime.InceptionModule
       ~InceptionModule.register_full_backward_hook
       ~InceptionModule.register_full_backward_pre_hook
       ~InceptionModule.register_load_state_dict_post_hook
+      ~InceptionModule.register_load_state_dict_pre_hook
       ~InceptionModule.register_module
       ~InceptionModule.register_parameter
+      ~InceptionModule.register_state_dict_post_hook
       ~InceptionModule.register_state_dict_pre_hook
       ~InceptionModule.requires_grad_
       ~InceptionModule.set_extra_state
+      ~InceptionModule.set_submodule
       ~InceptionModule.share_memory
       ~InceptionModule.state_dict
       ~InceptionModule.to

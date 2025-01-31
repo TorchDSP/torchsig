@@ -2232,11 +2232,11 @@ class IQImbalance(SignalTransform):
             * If list, iq_phase_imbalance is any element in the list
             * If tuple, iq_phase_imbalance is in range of (tuple[0], tuple[1])
 
-        iq_dc_offset_db (:py:class:`~Callable`, :obj:`int`, :obj:`float`, :obj:`list`, :obj:`tuple`):
+        iq_dc_offset (:py:class:`~Callable`, Union[Tuple[float, ...], List[Tuple[float, ...]]]):
             * If Callable, produces a sample by calling iq_dc_offset()
-            * If int or float, iq_dc_offset_db is fixed at the value provided
-            * If list, iq_dc_offset is any element in the list
-            * If tuple, iq_dc_offset is in range of (tuple[0], tuple[1])
+            * If Tuple[float, float], iq_dc_offset is fixed at the I/Q component values provided
+            * If List[Tuple[float, ...]], iq_dc_offset is any Tuple in the list
+            * If Tuple[Tuple[float, float], Tuple[float, float]], iq_dc_offset components are in range of tuples
 
     Note:
         For more information about IQ imbalance in RF systems, check out
@@ -2256,7 +2256,7 @@ class IQImbalance(SignalTransform):
             -np.pi * 1.0 / 180.0,
             np.pi * 1.0 / 180.0,
         ),
-        iq_dc_offset_db: NumericParameter = (-0.1, 0.1),
+        iq_dc_offset: NumericParameter = ((-0.1, 0.1),(-0.1, 0.1)),
     ) -> None:
         super(IQImbalance, self).__init__()
         self.amp_imbalance = to_distribution(
@@ -2265,23 +2265,24 @@ class IQImbalance(SignalTransform):
         self.phase_imbalance = to_distribution(
             iq_phase_imbalance, self.random_generator
         )
-        self.dc_offset = to_distribution(iq_dc_offset_db, self.random_generator)
+        self.i_dc_offset = to_distribution(iq_dc_offset[0], self.random_generator)
+        self.q_dc_offset = to_distribution(iq_dc_offset[1], self.random_generator)
         self.string = (
             self.__class__.__name__
             + "("
             + "amp_imbalance={}, ".format(iq_amplitude_imbalance_db)
             + "phase_imbalance={}, ".format(iq_phase_imbalance)
-            + "dc_offset={}".format(iq_dc_offset_db)
+            + "dc_offset={}".format(iq_dc_offset)
             + ")"
         )
 
     def parameters(self) -> tuple:
-        return (self.amp_imbalance(), self.phase_imbalance(), self.dc_offset())
+        return (self.amp_imbalance(), self.phase_imbalance(), self.i_dc_offset(), self.q_dc_offset())
 
     def transform_data(self, signal: Signal, params: tuple) -> Signal:
-        amp_imb, phase_imb, dc_offset = params
+        amp_imb, phase_imb, i_dc_offset, q_dc_offset = params
         signal["data"]["samples"] = F.iq_imbalance(
-            signal["data"]["samples"], amp_imb, phase_imb, dc_offset
+            signal["data"]["samples"], amp_imb, phase_imb, (i_dc_offset, q_dc_offset)
         )
         return signal
 

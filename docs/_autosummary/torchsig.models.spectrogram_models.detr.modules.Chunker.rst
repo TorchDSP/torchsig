@@ -37,6 +37,7 @@ torchsig.models.spectrogram\_models.detr.modules.Chunker
       ~Chunker.ipu
       ~Chunker.load_state_dict
       ~Chunker.modules
+      ~Chunker.mtia
       ~Chunker.named_buffers
       ~Chunker.named_children
       ~Chunker.named_modules
@@ -49,11 +50,14 @@ torchsig.models.spectrogram\_models.detr.modules.Chunker
       ~Chunker.register_full_backward_hook
       ~Chunker.register_full_backward_pre_hook
       ~Chunker.register_load_state_dict_post_hook
+      ~Chunker.register_load_state_dict_pre_hook
       ~Chunker.register_module
       ~Chunker.register_parameter
+      ~Chunker.register_state_dict_post_hook
       ~Chunker.register_state_dict_pre_hook
       ~Chunker.requires_grad_
       ~Chunker.set_extra_state
+      ~Chunker.set_submodule
       ~Chunker.share_memory
       ~Chunker.state_dict
       ~Chunker.to

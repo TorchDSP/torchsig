@@ -55,6 +55,7 @@ torchsig.transforms.target\_transforms
       DescToSignalInstMaskDict
       DescToWeightedCutMix
       DescToWeightedMixUp
+      DescToYOLO
       LabelSmoothing
       ListTupleToDesc
       ListTupleToYOLO

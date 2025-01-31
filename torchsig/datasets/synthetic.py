@@ -20,7 +20,6 @@ import numpy as np
 import itertools
 import pickle
 
-
 def remove_corners(const):
     spacing = 2.0 / (np.sqrt(len(const)) - 1)
     cutoff = spacing * (np.sqrt(len(const)) / 6 - 0.5)
@@ -179,6 +178,7 @@ class ModulateNarrowbandDataset(ConcatDataset):
         )
 
         fm_dataset = FMDataset(
+            modulations=fm_list,
             num_iq_samples=num_iq_samples,
             num_samples_per_class=num_samples_per_class,
             random_data=random_data,
@@ -186,6 +186,7 @@ class ModulateNarrowbandDataset(ConcatDataset):
         )
 
         am_dataset = AMDataset(
+            modulations=am_list,
             num_iq_samples=num_iq_samples,
             num_samples_per_class=num_samples_per_class,
             random_data=random_data,
@@ -193,6 +194,7 @@ class ModulateNarrowbandDataset(ConcatDataset):
         )
 
         lfm_dataset = LFMDataset(
+            modulations=lfm_list,
             num_iq_samples=num_iq_samples,
             num_samples_per_class=num_samples_per_class,
             random_data=random_data,
@@ -200,6 +202,7 @@ class ModulateNarrowbandDataset(ConcatDataset):
         )
 
         chirpss_dataset = ChirpSSDataset(
+            modulations=chirpss_list,
             num_iq_samples=num_iq_samples,
             num_samples_per_class=num_samples_per_class,
             random_data=random_data,
@@ -932,9 +935,6 @@ class FSKDataset(SyntheticDataset):
         bandwidth (:obj:`float`):
             bandwidth of the signal, will be resampled internally
 
-        transform (:obj:`Callable`, optional):
-            A function/transform that takes in an IQ vector and returns a transformed version.
-
     """
 
     def __init__(
@@ -1054,8 +1054,23 @@ class AMDataset(SyntheticDataset):
     """AM Dataset
 
     Args:
-        transform (:obj:`Callable`, optional):
-            A function/transform that takes in an IQ vector and returns a transformed version.
+        modulations (:obj:`list` or :obj:`tuple`):
+            Sequence of strings representing the modulations that should be included
+
+        num_iq_samples (:obj:`int`):
+            number of samples to read from each file in the database
+
+        num_samples_per_class (:obj:`int`):
+            number of samples to be kept for each class
+
+        random_data (:obj:`bool`):
+            whether the modulated binary utils should be random each time, or seeded by index
+
+        center_freq (:obj:`float`):
+            center frequency of the signal, will be upconverted internally
+
+        bandwidth (:obj:`float`):
+            bandwidth of the signal, will be resampled internally
 
     """
 
@@ -1072,6 +1087,7 @@ class AMDataset(SyntheticDataset):
         super(AMDataset, self).__init__(**kwargs)
         self.num_iq_samples = num_iq_samples
         self.num_samples_per_class = num_samples_per_class
+        self.classes = list(torchsig_signals.fm_signals) if modulations is None else modulations
         self.modulations = modulations
         self.random_data = random_data
         self.center_freq = center_freq
@@ -1203,13 +1219,32 @@ class FMDataset(SyntheticDataset):
     """FM Dataset
 
     Args:
-        transform (:obj:`Callable`, optional):
-            A function/transform that takes in an IQ vector and returns a transformed version.
+        modulations (:obj:`list` or :obj:`tuple`):
+            Sequence of strings representing the modulations that should be included
+
+        num_iq_samples (:obj:`int`):
+            number of samples to read from each file in the database
+
+        num_samples_per_class (:obj:`int`):
+            number of samples to be kept for each class
+
+        iq_samples_per_symbol (:obj:`int`):
+            number of IQ samples per symbol
+
+        random_data (:obj:`bool`):
+            whether the modulated binary utils should be random each time, or seeded by index
+
+        center_freq (:obj:`float`):
+            center frequency of the signal, will be upconverted internally
+
+        bandwidth (:obj:`float`):
+            bandwidth of the signal, will be resampled internally
 
     """
 
     def __init__(
         self,
+        modulations: Optional[Union[List, Tuple]] = torchsig_signals.fm_signals,
         num_iq_samples: int = 100,
         num_samples_per_class: int = 100,
         random_data: bool = False,
@@ -1220,7 +1255,7 @@ class FMDataset(SyntheticDataset):
         super(FMDataset, self).__init__(**kwargs)
         self.num_iq_samples = num_iq_samples
         self.num_samples_per_class = num_samples_per_class
-        self.classes = torchsig_signals.fm_signals
+        self.classes = list(torchsig_signals.fm_signals) if modulations is None else modulations
         self.random_data = random_data
         self.index = []
         self.center_freq = center_freq
@@ -1308,13 +1343,29 @@ class ToneDataset(SyntheticDataset):
     """Tone Dataset
 
     Args:
-        transform (:obj:`Callable`, optional):
-            A function/transform that takes in an IQ vector and returns a transformed version.
+        modulations (:obj:`list` or :obj:`tuple`):
+            Sequence of strings representing the modulations that should be included
+
+        num_iq_samples (:obj:`int`):
+            number of samples to read from each file in the database
+
+        num_samples_per_class (:obj:`int`):
+            number of samples to be kept for each class
+
+        random_data (:obj:`bool`):
+            whether the modulated binary utils should be random each time, or seeded by index
+
+        center_freq (:obj:`float`):
+            center frequency of the signal, will be upconverted internally
+
+        bandwidth (:obj:`float`):
+            bandwidth of the signal, will be resampled internally
 
     """
 
     def __init__(
         self,
+        modulations: Optional[Union[List, Tuple]] = ["tone"],
         num_iq_samples: int = 100,
         num_samples_per_class: int = 100,
         random_data: bool = False,
@@ -1325,7 +1376,7 @@ class ToneDataset(SyntheticDataset):
         super(ToneDataset, self).__init__(**kwargs)
         self.num_iq_samples = num_iq_samples
         self.num_samples_per_class = num_samples_per_class
-        self.classes = ["tone"]
+        self.classes = ["tone"] if modulations is None else modulations
         self.random_data = random_data
         self.index = []
         self.center_freq = center_freq
@@ -1386,6 +1437,9 @@ class ChirpSSDataset(SyntheticDataset):
     """Frequency Shift Chirp Spread Spectrum Modulated Dataset
 
     Args:
+        modulations (:obj:`list` or :obj:`tuple`):
+            Sequence of strings representing the modulations that should be included
+
         num_iq_samples (:obj:`int`):
             number of iq samples in record, pads record with trailing zeros
 
@@ -1408,7 +1462,7 @@ class ChirpSSDataset(SyntheticDataset):
 
     def __init__(
         self,
-        constellations: Optional[Union[List, Tuple]] = torchsig_signals.chirpss_signals,
+        modulations: Optional[Union[List, Tuple]] = torchsig_signals.chirpss_signals,
         num_iq_samples : int = 10000,
         num_samples_per_class: int = 20,
         iq_samples_per_symbol: int = 1000,
@@ -1419,8 +1473,8 @@ class ChirpSSDataset(SyntheticDataset):
     ):
         super(ChirpSSDataset, self).__init__(**kwargs)
         self.symbol_map: Dict[str, np.ndarray] = self.get_symbol_map()
-        self.constellations = (
-            list(torchsig_signals.constellation_signals) if constellations is None else constellations
+        self.modulations = (
+            list(torchsig_signals.chirpss_signals) if modulations is None else modulations
         )
         self.num_iq_samples = num_iq_samples 
         self.num_samples_per_class = num_samples_per_class
@@ -1428,7 +1482,7 @@ class ChirpSSDataset(SyntheticDataset):
         self.random_data = random_data
         self.index = []
 
-        for const_idx, const_name in enumerate(map(str.lower, self.constellations)):
+        for const_idx, const_name in enumerate(map(str.lower, self.modulations)):
             for idx in range(self.num_samples_per_class):
                 meta = create_modulated_rf_metadata(
                     num_samples=self.num_iq_samples,
@@ -1532,6 +1586,9 @@ class LFMDataset(SyntheticDataset):
     default provided constellation map 
 
     Args:
+        modulations (:obj:`list` or :obj:`tuple`):
+            Sequence of strings representing the modulations that should be included
+
         num_iq_samples (:obj:`int`):
             number of iq samples in record, pads record with trailing zeros 
 
@@ -1554,7 +1611,7 @@ class LFMDataset(SyntheticDataset):
 
     def __init__(
         self,
-        constellations: Optional[Union[List, Tuple]] = torchsig_signals.lfm_signals,
+        modulations: Optional[Union[List, Tuple]] = torchsig_signals.lfm_signals,
         num_iq_samples : int = 10000,
         num_samples_per_class: int = 20,
         iq_samples_per_symbol: int = 1000,
@@ -1566,8 +1623,8 @@ class LFMDataset(SyntheticDataset):
 
         super(LFMDataset, self).__init__(**kwargs)
         self.symbol_map: Dict[str, np.ndarray] = self.get_symbol_map()
-        self.constellations = (
-            list(torchsig_signals.constellation_signals) if constellations is None else constellations
+        self.modulations = (
+            list(torchsig_signals.lfm_signals) if modulations is None else modulations
         )
         self.num_iq_samples = num_iq_samples 
         self.num_samples_per_class = num_samples_per_class
@@ -1575,7 +1632,7 @@ class LFMDataset(SyntheticDataset):
         self.random_data = random_data
         self.index = []
 
-        for const_idx, const_name in enumerate(map(str.lower, self.constellations)):
+        for const_idx, const_name in enumerate(map(str.lower, self.modulations)):
             for idx in range(self.num_samples_per_class):
                 meta = create_modulated_rf_metadata(
                     num_samples=self.num_iq_samples,

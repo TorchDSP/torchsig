@@ -40,6 +40,7 @@ torchsig.models.spectrogram\_models.detr.criterion.SetCriterion
       ~SetCriterion.loss_labels
       ~SetCriterion.loss_masks
       ~SetCriterion.modules
+      ~SetCriterion.mtia
       ~SetCriterion.named_buffers
       ~SetCriterion.named_children
       ~SetCriterion.named_modules
@@ -52,11 +53,14 @@ torchsig.models.spectrogram\_models.detr.criterion.SetCriterion
       ~SetCriterion.register_full_backward_hook
       ~SetCriterion.register_full_backward_pre_hook
       ~SetCriterion.register_load_state_dict_post_hook
+      ~SetCriterion.register_load_state_dict_pre_hook
       ~SetCriterion.register_module
       ~SetCriterion.register_parameter
+      ~SetCriterion.register_state_dict_post_hook
       ~SetCriterion.register_state_dict_pre_hook
       ~SetCriterion.requires_grad_
       ~SetCriterion.set_extra_state
+      ~SetCriterion.set_submodule
       ~SetCriterion.share_memory
       ~SetCriterion.state_dict
       ~SetCriterion.to

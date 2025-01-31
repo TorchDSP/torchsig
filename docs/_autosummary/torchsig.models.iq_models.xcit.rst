@@ -26,6 +26,5 @@ torchsig.models.iq\_models.xcit
    :template: custom_module_template.rst
    :recursive:
 
-   xcit
    xcit1d
 
