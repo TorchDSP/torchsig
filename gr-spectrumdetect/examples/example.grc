@@ -73,7 +73,7 @@ blocks:
   id: variable
   parameters:
     comment: ''
-    value: '25000000'
+    value: '50000000'
   states:
     bus_sink: false
     bus_source: false
@@ -128,19 +128,28 @@ blocks:
   parameters:
     affinity: ''
     alias: ''
-    augment: 'False'
     center_frequency: centerFrequency
     comment: ''
-    debug_sigMF: 'False'
-    iou: '0.1'
-    max_det: '300'
+    detect_json: 'False'
+    gpu_device: '1'
+    gpu_half: 'True'
     maxoutbuf: '0'
     minoutbuf: '0'
     n_fft: nfft
     sample_rate: sampleRate
-    save: 'False'
-    trained_model: trainedModel
+    trained_narrowband_model: xcit.ckpt
+    trained_wideband_model: 11s.pt
     vector_size: vectorSize
+    wb_detect_only: 'True'
+    write_labeled_wb_images: 'False'
+    write_nb_iq_file: 'False'
+    write_wb_images: 'False'
+    write_wb_iq_file: 'False'
+    yolo_agnostic_nms: 'False'
+    yolo_augment: 'False'
+    yolo_conf: '0.25'
+    yolo_iou: '0.7'
+    yolo_max_det: '300'
   states:
     bus_sink: false
     bus_source: false
@@ -169,7 +178,7 @@ blocks:
   parameters:
     affinity: ''
     alias: ''
-    ant0: '"TX/RX"'
+    ant0: '"RX2"'
     ant1: '"RX2"'
     ant10: '"RX2"'
     ant11: '"RX2"'

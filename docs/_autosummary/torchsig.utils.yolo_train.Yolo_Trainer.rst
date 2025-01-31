@@ -17,6 +17,7 @@ torchsig.utils.yolo\_train.Yolo\_Trainer
       :nosignatures:
    
       ~Yolo_Trainer.add_callback
+      ~Yolo_Trainer.auto_batch
       ~Yolo_Trainer.build_dataset
       ~Yolo_Trainer.build_optimizer
       ~Yolo_Trainer.build_targets

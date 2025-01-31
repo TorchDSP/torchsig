@@ -21,8 +21,8 @@ dependencies = [
     "torch>=2.3.1",
     "torchvision",
     "tqdm",
-    "opencv-python==4.8.0.74",
-    "numpy==1.26.4",
+    "opencv-python",
+    "numpy",
     "scipy",
     "h5py",
     "matplotlib",
@@ -32,7 +32,6 @@ dependencies = [
     "pandas",
     "lmdb",
     "scikit-learn",
-    "gdown",
     "icecream",
     "torchaudio",
     "timm",
@@ -42,7 +41,10 @@ dependencies = [
     "click",
     "ultralytics",
     "optuna",
-    "jupyter_bbox_widget"
+    "jupyter_bbox_widget",
+    "torchaudio",
+    "torchinfo",
+    "sigmf"
 ]
 dynamic = ["version"]
 

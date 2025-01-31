@@ -26,6 +26,7 @@ torchsig.models.iq\_models
    :template: custom_module_template.rst
    :recursive:
 
+   convit
    densenet
    efficientnet
    inceptiontime

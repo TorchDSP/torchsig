@@ -1,4 +1,4 @@
-torchsig.models.iq\_models.xcit.xcit.ConvDownSampler
+﻿torchsig.models.iq\_models.xcit.xcit.ConvDownSampler
 ====================================================
 
 .. currentmodule:: torchsig.models.iq_models.xcit.xcit
@@ -37,6 +37,7 @@ torchsig.models.iq\_models.xcit.xcit.ConvDownSampler
       ~ConvDownSampler.ipu
       ~ConvDownSampler.load_state_dict
       ~ConvDownSampler.modules
+      ~ConvDownSampler.mtia
       ~ConvDownSampler.named_buffers
       ~ConvDownSampler.named_children
       ~ConvDownSampler.named_modules
@@ -49,11 +50,14 @@ torchsig.models.iq\_models.xcit.xcit.ConvDownSampler
       ~ConvDownSampler.register_full_backward_hook
       ~ConvDownSampler.register_full_backward_pre_hook
       ~ConvDownSampler.register_load_state_dict_post_hook
+      ~ConvDownSampler.register_load_state_dict_pre_hook
       ~ConvDownSampler.register_module
       ~ConvDownSampler.register_parameter
+      ~ConvDownSampler.register_state_dict_post_hook
       ~ConvDownSampler.register_state_dict_pre_hook
       ~ConvDownSampler.requires_grad_
       ~ConvDownSampler.set_extra_state
+      ~ConvDownSampler.set_submodule
       ~ConvDownSampler.share_memory
       ~ConvDownSampler.state_dict
       ~ConvDownSampler.to

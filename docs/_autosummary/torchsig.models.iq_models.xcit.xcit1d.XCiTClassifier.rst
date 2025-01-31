@@ -52,6 +52,7 @@ torchsig.models.iq\_models.xcit.xcit1d.XCiTClassifier
       ~XCiTClassifier.lr_schedulers
       ~XCiTClassifier.manual_backward
       ~XCiTClassifier.modules
+      ~XCiTClassifier.mtia
       ~XCiTClassifier.named_buffers
       ~XCiTClassifier.named_children
       ~XCiTClassifier.named_modules
@@ -111,12 +112,15 @@ torchsig.models.iq\_models.xcit.xcit1d.XCiTClassifier
       ~XCiTClassifier.register_full_backward_hook
       ~XCiTClassifier.register_full_backward_pre_hook
       ~XCiTClassifier.register_load_state_dict_post_hook
+      ~XCiTClassifier.register_load_state_dict_pre_hook
       ~XCiTClassifier.register_module
       ~XCiTClassifier.register_parameter
+      ~XCiTClassifier.register_state_dict_post_hook
       ~XCiTClassifier.register_state_dict_pre_hook
       ~XCiTClassifier.requires_grad_
       ~XCiTClassifier.save_hyperparameters
       ~XCiTClassifier.set_extra_state
+      ~XCiTClassifier.set_submodule
       ~XCiTClassifier.setup
       ~XCiTClassifier.share_memory
       ~XCiTClassifier.state_dict

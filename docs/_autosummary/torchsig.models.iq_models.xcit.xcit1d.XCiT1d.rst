@@ -37,6 +37,7 @@ torchsig.models.iq\_models.xcit.xcit1d.XCiT1d
       ~XCiT1d.ipu
       ~XCiT1d.load_state_dict
       ~XCiT1d.modules
+      ~XCiT1d.mtia
       ~XCiT1d.named_buffers
       ~XCiT1d.named_children
       ~XCiT1d.named_modules
@@ -49,11 +50,14 @@ torchsig.models.iq\_models.xcit.xcit1d.XCiT1d
       ~XCiT1d.register_full_backward_hook
       ~XCiT1d.register_full_backward_pre_hook
       ~XCiT1d.register_load_state_dict_post_hook
+      ~XCiT1d.register_load_state_dict_pre_hook
       ~XCiT1d.register_module
       ~XCiT1d.register_parameter
+      ~XCiT1d.register_state_dict_post_hook
       ~XCiT1d.register_state_dict_pre_hook
       ~XCiT1d.requires_grad_
       ~XCiT1d.set_extra_state
+      ~XCiT1d.set_submodule
       ~XCiT1d.share_memory
       ~XCiT1d.state_dict
       ~XCiT1d.to

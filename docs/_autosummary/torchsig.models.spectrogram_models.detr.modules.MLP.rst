@@ -37,6 +37,7 @@ torchsig.models.spectrogram\_models.detr.modules.MLP
       ~MLP.ipu
       ~MLP.load_state_dict
       ~MLP.modules
+      ~MLP.mtia
       ~MLP.named_buffers
       ~MLP.named_children
       ~MLP.named_modules
@@ -49,11 +50,14 @@ torchsig.models.spectrogram\_models.detr.modules.MLP
       ~MLP.register_full_backward_hook
       ~MLP.register_full_backward_pre_hook
       ~MLP.register_load_state_dict_post_hook
+      ~MLP.register_load_state_dict_pre_hook
       ~MLP.register_module
       ~MLP.register_parameter
+      ~MLP.register_state_dict_post_hook
       ~MLP.register_state_dict_pre_hook
       ~MLP.requires_grad_
       ~MLP.set_extra_state
+      ~MLP.set_submodule
       ~MLP.share_memory
       ~MLP.state_dict
       ~MLP.to

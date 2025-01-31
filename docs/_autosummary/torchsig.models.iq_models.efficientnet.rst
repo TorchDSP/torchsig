@@ -26,6 +26,5 @@ torchsig.models.iq\_models.efficientnet
    :template: custom_module_template.rst
    :recursive:
 
-   efficientnet
    efficientnet1d
 

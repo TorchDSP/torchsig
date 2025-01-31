@@ -773,7 +773,7 @@ class WidebandModulationsDataset(SignalDataset):
                             IQImbalance(
                                 (-3, 3),
                                 (-np.pi * 1.0 / 180.0, np.pi * 1.0 / 180.0),
-                                (-0.1, 0.1),
+                                ((-0.1,0.1), (-0.1,0.1)),
                             ),
                         ],
                         num_transforms=2,

@@ -853,7 +853,7 @@ def fractional_shift(
     return tensor
 
 
-def iq_imbalance(tensor: np.ndarray, iq_amplitude_imbalance_db: float, iq_phase_imbalance: float, iq_dc_offset_db: float) -> np.ndarray:
+def iq_imbalance(tensor: np.ndarray, iq_amplitude_imbalance_db: float, iq_phase_imbalance: float, iq_dc_offset: Tuple[float, ...]) -> np.ndarray:
     """Applies IQ imbalance to tensor
 
     Args:
@@ -866,8 +866,8 @@ def iq_imbalance(tensor: np.ndarray, iq_amplitude_imbalance_db: float, iq_phase_
         iq_phase_imbalance (:obj:`float` or :class:`numpy.ndarray`):
             IQ phase imbalance in radians [-pi, pi]
 
-        iq_dc_offset_db (:obj:`float` or :class:`numpy.ndarray`):
-            IQ DC Offset in dB
+        iq_dc_offset ([Tuple[float, ...]): 
+            IQ DC Offset (linear): tuple comprised of (float In-phase component offset, float Quadrature component offset)
 
     Returns:
         transformed (:class:`numpy.ndarray`):
@@ -879,7 +879,8 @@ def iq_imbalance(tensor: np.ndarray, iq_amplitude_imbalance_db: float, iq_phase_
     # phase imbalance
     tensor = np.exp(-1j * iq_phase_imbalance / 2.0) * np.real(tensor) + np.exp(1j * (np.pi / 2.0 + iq_phase_imbalance / 2.0)) * np.imag(tensor)
 
-    tensor += 10 ** (iq_dc_offset_db / 10.0) * np.real(tensor) + 1j * 10 ** (iq_dc_offset_db / 10.0) * np.imag(tensor)
+    # DC offset
+    tensor = (iq_dc_offset[0] + np.real(tensor)) + 1j * (iq_dc_offset[1] + np.imag(tensor))
     return tensor
 
 

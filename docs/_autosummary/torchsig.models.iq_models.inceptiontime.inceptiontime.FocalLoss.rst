@@ -37,6 +37,7 @@ torchsig.models.iq\_models.inceptiontime.inceptiontime.FocalLoss
       ~FocalLoss.ipu
       ~FocalLoss.load_state_dict
       ~FocalLoss.modules
+      ~FocalLoss.mtia
       ~FocalLoss.named_buffers
       ~FocalLoss.named_children
       ~FocalLoss.named_modules
@@ -49,11 +50,14 @@ torchsig.models.iq\_models.inceptiontime.inceptiontime.FocalLoss
       ~FocalLoss.register_full_backward_hook
       ~FocalLoss.register_full_backward_pre_hook
       ~FocalLoss.register_load_state_dict_post_hook
+      ~FocalLoss.register_load_state_dict_pre_hook
       ~FocalLoss.register_module
       ~FocalLoss.register_parameter
+      ~FocalLoss.register_state_dict_post_hook
       ~FocalLoss.register_state_dict_pre_hook
       ~FocalLoss.requires_grad_
       ~FocalLoss.set_extra_state
+      ~FocalLoss.set_submodule
       ~FocalLoss.share_memory
       ~FocalLoss.state_dict
       ~FocalLoss.to

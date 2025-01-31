@@ -1,4 +1,4 @@
-torchsig.models.iq\_models.xcit.xcit.XCiT
+﻿torchsig.models.iq\_models.xcit.xcit.XCiT
 =========================================
 
 .. currentmodule:: torchsig.models.iq_models.xcit.xcit
@@ -37,6 +37,7 @@ torchsig.models.iq\_models.xcit.xcit.XCiT
       ~XCiT.ipu
       ~XCiT.load_state_dict
       ~XCiT.modules
+      ~XCiT.mtia
       ~XCiT.named_buffers
       ~XCiT.named_children
       ~XCiT.named_modules
@@ -49,11 +50,14 @@ torchsig.models.iq\_models.xcit.xcit.XCiT
       ~XCiT.register_full_backward_hook
       ~XCiT.register_full_backward_pre_hook
       ~XCiT.register_load_state_dict_post_hook
+      ~XCiT.register_load_state_dict_pre_hook
       ~XCiT.register_module
       ~XCiT.register_parameter
+      ~XCiT.register_state_dict_post_hook
       ~XCiT.register_state_dict_pre_hook
       ~XCiT.requires_grad_
       ~XCiT.set_extra_state
+      ~XCiT.set_submodule
       ~XCiT.share_memory
       ~XCiT.state_dict
       ~XCiT.to

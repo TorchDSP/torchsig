@@ -1,4 +1,4 @@
-torchsig.models.iq\_models.efficientnet.efficientnet.GBN
+﻿torchsig.models.iq\_models.efficientnet.efficientnet.GBN
 ========================================================
 
 .. currentmodule:: torchsig.models.iq_models.efficientnet.efficientnet
@@ -37,6 +37,7 @@ torchsig.models.iq\_models.efficientnet.efficientnet.GBN
       ~GBN.ipu
       ~GBN.load_state_dict
       ~GBN.modules
+      ~GBN.mtia
       ~GBN.named_buffers
       ~GBN.named_children
       ~GBN.named_modules
@@ -49,11 +50,14 @@ torchsig.models.iq\_models.efficientnet.efficientnet.GBN
       ~GBN.register_full_backward_hook
       ~GBN.register_full_backward_pre_hook
       ~GBN.register_load_state_dict_post_hook
+      ~GBN.register_load_state_dict_pre_hook
       ~GBN.register_module
       ~GBN.register_parameter
+      ~GBN.register_state_dict_post_hook
       ~GBN.register_state_dict_pre_hook
       ~GBN.requires_grad_
       ~GBN.set_extra_state
+      ~GBN.set_submodule
       ~GBN.share_memory
       ~GBN.state_dict
       ~GBN.to

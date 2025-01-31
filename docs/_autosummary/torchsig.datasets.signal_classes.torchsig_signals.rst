@@ -30,6 +30,7 @@ torchsig.datasets.signal\_classes.torchsig\_signals
       ~torchsig_signals.class_list
       ~torchsig_signals.constellation_signals
       ~torchsig_signals.family_dict
+      ~torchsig_signals.family_list
       ~torchsig_signals.fm_signals
       ~torchsig_signals.fsk_signals
       ~torchsig_signals.lfm_signals

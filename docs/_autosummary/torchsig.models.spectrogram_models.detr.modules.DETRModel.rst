@@ -37,6 +37,7 @@ torchsig.models.spectrogram\_models.detr.modules.DETRModel
       ~DETRModel.ipu
       ~DETRModel.load_state_dict
       ~DETRModel.modules
+      ~DETRModel.mtia
       ~DETRModel.named_buffers
       ~DETRModel.named_children
       ~DETRModel.named_modules
@@ -49,11 +50,14 @@ torchsig.models.spectrogram\_models.detr.modules.DETRModel
       ~DETRModel.register_full_backward_hook
       ~DETRModel.register_full_backward_pre_hook
       ~DETRModel.register_load_state_dict_post_hook
+      ~DETRModel.register_load_state_dict_pre_hook
       ~DETRModel.register_module
       ~DETRModel.register_parameter
+      ~DETRModel.register_state_dict_post_hook
       ~DETRModel.register_state_dict_pre_hook
       ~DETRModel.requires_grad_
       ~DETRModel.set_extra_state
+      ~DETRModel.set_submodule
       ~DETRModel.share_memory
       ~DETRModel.state_dict
       ~DETRModel.to

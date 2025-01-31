@@ -1,19 +1,24 @@
-import os
-os.environ["CUDA_VISIBLE_DEVICES"]="0"
-import torch
+
+# TorchSig
+from torchsig.datasets.torchsig_wideband import TorchSigWideband
+import torchsig.transforms.transforms as ST
+import torchsig.transforms.target_transforms as TT
+
+# Third Party
 import numpy as np
 from scipy import signal
 from glob import glob
 from tqdm import tqdm
+import torch
+import torchaudio
 import pytorch_lightning as pl
-from torchsig.datasets.torchsig_wideband import TorchSigWideband
-import torchsig.transforms.transforms as ST
-import torchsig.transforms.target_transforms as TT
 import pandas as pd
 import matplotlib.pyplot as plt
-import numpy as np
 import cv2
-import torchaudio
+
+# Built-In
+import os
+os.environ["CUDA_VISIBLE_DEVICES"]="0"
 
 root = '.'
 train = False
@@ -43,8 +48,8 @@ wideband_dataset = TorchSigWideband(
 output_dir_root = '.'
 lbl_dir = output_dir_root+'/datasets/impaired/labels/val'
 img_dir = output_dir_root+'/datasets/impaired/images/val'
-os.makedirs(lbl_dir)
-os.makedirs(img_dir)
+os.makedirs(lbl_dir, exist_ok=True)
+os.makedirs(img_dir, exist_ok=True)
 
 modulation_list = [
     "ook",

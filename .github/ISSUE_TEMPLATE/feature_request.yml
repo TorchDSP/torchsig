@@ -1,0 +1,24 @@
+name: Feature Request
+description: Suggest an idea for this project.
+title: "[Feature] "
+labels: ["feature"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to request this new feature!
+  - type: checkboxes
+    id: check-exist
+    attributes:
+      label: Is there an existing feature already?
+      description: Please search to see if this feature has already been requested.
+      options:
+      - label: Yes, I have checked the existing features.
+        required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: A clear and consise description of the problem and how this new feature is the solution.
+    validations:
+      required: true

@@ -2,17 +2,29 @@
 
 
 destination_path=detect.pt
+download_url=https://bucket.ltsnet.net/torchsig/models/detect.pt
 
-file_id=12e9PPgKc_-s1bFmdc9ybETdoo2OL90v7
-file_url="https://drive.usercontent.google.com/download?id=$file_id&export=download"
+curl -L -o "$destination_path" "$download_url"
 
-confirmation_page=$(curl -s -L "$file_url")
+if [ $? -eq 0 ]; then
+    echo "Download completed successfully."
+else
+    echo "Download failed."
+fi
 
-file_id=$(echo "$confirmation_page" | grep -oE "name=\"id\" value=\"[^\"]+" | sed 's/name="id" value="//')
-file_confirm=$(echo "$confirmation_page" | grep -oE "name=\"confirm\" value=\"[^\"]+" | sed 's/name="confirm" value="//')
-file_uuid=$(echo "$confirmation_page" | grep -oE "name=\"uuid\" value=\"[^\"]+" | sed 's/name="uuid" value="//')
+destination_path=11s.pt
+download_url=https://bucket.ltsnet.net/torchsig/models/11s.pt
 
-download_url="https://drive.usercontent.google.com/download?id=$file_id&export=download&confirm=$file_confirm&uuid=$file_uuid"
+curl -L -o "$destination_path" "$download_url"
+
+if [ $? -eq 0 ]; then
+    echo "Download completed successfully."
+else
+    echo "Download failed."
+fi
+
+destination_path=xcit.ckpt
+download_url=https://bucket.ltsnet.net/torchsig/models/xcit.ckpt
 
 curl -L -o "$destination_path" "$download_url"
 
