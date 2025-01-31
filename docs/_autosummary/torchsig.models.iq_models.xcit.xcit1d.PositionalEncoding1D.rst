@@ -37,6 +37,7 @@ torchsig.models.iq\_models.xcit.xcit1d.PositionalEncoding1D
       ~PositionalEncoding1D.ipu
       ~PositionalEncoding1D.load_state_dict
       ~PositionalEncoding1D.modules
+      ~PositionalEncoding1D.mtia
       ~PositionalEncoding1D.named_buffers
       ~PositionalEncoding1D.named_children
       ~PositionalEncoding1D.named_modules
@@ -49,11 +50,14 @@ torchsig.models.iq\_models.xcit.xcit1d.PositionalEncoding1D
       ~PositionalEncoding1D.register_full_backward_hook
       ~PositionalEncoding1D.register_full_backward_pre_hook
       ~PositionalEncoding1D.register_load_state_dict_post_hook
+      ~PositionalEncoding1D.register_load_state_dict_pre_hook
       ~PositionalEncoding1D.register_module
       ~PositionalEncoding1D.register_parameter
+      ~PositionalEncoding1D.register_state_dict_post_hook
       ~PositionalEncoding1D.register_state_dict_pre_hook
       ~PositionalEncoding1D.requires_grad_
       ~PositionalEncoding1D.set_extra_state
+      ~PositionalEncoding1D.set_submodule
       ~PositionalEncoding1D.share_memory
       ~PositionalEncoding1D.state_dict
       ~PositionalEncoding1D.to

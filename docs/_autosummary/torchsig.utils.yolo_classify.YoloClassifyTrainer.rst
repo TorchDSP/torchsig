@@ -17,6 +17,7 @@ torchsig.utils.yolo\_classify.YoloClassifyTrainer
       :nosignatures:
    
       ~YoloClassifyTrainer.add_callback
+      ~YoloClassifyTrainer.auto_batch
       ~YoloClassifyTrainer.build_dataset
       ~YoloClassifyTrainer.build_optimizer
       ~YoloClassifyTrainer.build_targets

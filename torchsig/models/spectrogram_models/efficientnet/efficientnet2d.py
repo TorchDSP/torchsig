@@ -33,13 +33,11 @@ def EfficientNet2d(
             Dropout rate for training
 
     """
-    #mdl = #convert_2d_model_to_1d(
     mdl = timm.create_model(
         "efficientnet_" + efficientnet_version,
         in_chans=input_channels,
         drop_path_rate=drop_path_rate,
         drop_rate=drop_rate,
     )
-    #)
     mdl.classifier = Linear(mdl.classifier.in_features, n_features)
     return mdl

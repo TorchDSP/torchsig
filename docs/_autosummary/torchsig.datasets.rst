@@ -32,6 +32,7 @@ torchsig.datasets
    modulations
    radioml
    sig53
+   sigmf_datasets
    signal_classes
    synthetic
    torchsig_narrowband
