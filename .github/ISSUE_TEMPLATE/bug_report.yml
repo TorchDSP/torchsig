@@ -1,0 +1,43 @@
+name: Bug Report
+description: File a bug report.
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to fill out this bug report!
+  - type: checkboxes
+    id: check-exist
+    attributes:
+      label: Is there an existing bug report already?
+      description: Please search to see if this bug has already been reported.
+      options:
+      - label: Yes, I have checked the exisitng bug reports.
+        required: true
+  - type: dropdown
+    id: version
+    attributes:
+      label: Version
+      description: What version of TorchSig? Note that any bugs before 0.5.1 are not prioritized.
+      options:
+        - 0.6.1 (Default)
+        - 0.6.0
+        - 0.5.3
+        - 0.5.1
+        - Other
+      default: 0
+    validations:
+      required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: Describe concisely what you expected to happen, what happened, and anything else.
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: How to Reproduce the Bug
+      description: Describe how to reproduce this bug.
+    validations:
+      required: true

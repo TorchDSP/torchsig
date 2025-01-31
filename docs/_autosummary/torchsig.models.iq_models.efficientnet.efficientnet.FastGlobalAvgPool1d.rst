@@ -1,4 +1,4 @@
-torchsig.models.iq\_models.efficientnet.efficientnet.FastGlobalAvgPool1d
+﻿torchsig.models.iq\_models.efficientnet.efficientnet.FastGlobalAvgPool1d
 ========================================================================
 
 .. currentmodule:: torchsig.models.iq_models.efficientnet.efficientnet
@@ -37,6 +37,7 @@ torchsig.models.iq\_models.efficientnet.efficientnet.FastGlobalAvgPool1d
       ~FastGlobalAvgPool1d.ipu
       ~FastGlobalAvgPool1d.load_state_dict
       ~FastGlobalAvgPool1d.modules
+      ~FastGlobalAvgPool1d.mtia
       ~FastGlobalAvgPool1d.named_buffers
       ~FastGlobalAvgPool1d.named_children
       ~FastGlobalAvgPool1d.named_modules
@@ -49,11 +50,14 @@ torchsig.models.iq\_models.efficientnet.efficientnet.FastGlobalAvgPool1d
       ~FastGlobalAvgPool1d.register_full_backward_hook
       ~FastGlobalAvgPool1d.register_full_backward_pre_hook
       ~FastGlobalAvgPool1d.register_load_state_dict_post_hook
+      ~FastGlobalAvgPool1d.register_load_state_dict_pre_hook
       ~FastGlobalAvgPool1d.register_module
       ~FastGlobalAvgPool1d.register_parameter
+      ~FastGlobalAvgPool1d.register_state_dict_post_hook
       ~FastGlobalAvgPool1d.register_state_dict_pre_hook
       ~FastGlobalAvgPool1d.requires_grad_
       ~FastGlobalAvgPool1d.set_extra_state
+      ~FastGlobalAvgPool1d.set_submodule
       ~FastGlobalAvgPool1d.share_memory
       ~FastGlobalAvgPool1d.state_dict
       ~FastGlobalAvgPool1d.to

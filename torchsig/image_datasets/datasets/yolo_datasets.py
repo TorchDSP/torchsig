@@ -265,10 +265,10 @@ def yolo_to_pixels_on_image(img, box):
     """
     cx, cy, width, height = box
     img_width, img_height = img.shape[1:]
-    x_start = int((cx - width) * img_width)
-    x_end = int((cx + width) * img_width)
-    y_start = int((cy - height) * img_height)
-    y_end = int((cy + height) * img_height)
+    x_start = int((cx - width/2.0) * img_width)
+    x_end = int((cx + width/2.0) * img_width)
+    y_start = int((cy - height/2.0) * img_height)
+    y_end = int((cy + height/2.0) * img_height)
     return (x_start, y_start, x_end, y_end)
 def yolo_box_on_image(img, box):
     """

@@ -37,6 +37,7 @@ torchsig.models.spectrogram\_models.detr.modules.HungarianMatcher
       ~HungarianMatcher.ipu
       ~HungarianMatcher.load_state_dict
       ~HungarianMatcher.modules
+      ~HungarianMatcher.mtia
       ~HungarianMatcher.named_buffers
       ~HungarianMatcher.named_children
       ~HungarianMatcher.named_modules
@@ -49,11 +50,14 @@ torchsig.models.spectrogram\_models.detr.modules.HungarianMatcher
       ~HungarianMatcher.register_full_backward_hook
       ~HungarianMatcher.register_full_backward_pre_hook
       ~HungarianMatcher.register_load_state_dict_post_hook
+      ~HungarianMatcher.register_load_state_dict_pre_hook
       ~HungarianMatcher.register_module
       ~HungarianMatcher.register_parameter
+      ~HungarianMatcher.register_state_dict_post_hook
       ~HungarianMatcher.register_state_dict_pre_hook
       ~HungarianMatcher.requires_grad_
       ~HungarianMatcher.set_extra_state
+      ~HungarianMatcher.set_submodule
       ~HungarianMatcher.share_memory
       ~HungarianMatcher.state_dict
       ~HungarianMatcher.to

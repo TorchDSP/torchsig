@@ -16,8 +16,9 @@
 - Hard drive storage with:
   - &ge; 500 GB for Narrowband
   - &ge; 10 TB for Wideband
+- &ge; 32 GB RAM
 - CPU with &ge; 4 cores
-- GPU with &ge; 16 GB storage (reccomended)
+- GPU with &ge; 16 GB storage (recommended)
 - Python &ge; 3.9
 
 We highly reccomend Ubuntu or using a Docker container.
@@ -29,6 +30,11 @@ git clone https://github.com/TorchDSP/torchsig.git
 cd torchsig
 pip install .
 ```
+
+# Examples and Tutorials
+
+TorchSig has a series of Jupyter notebooks in the `examples/` directory. View the README inside `examples/` to learn more.
+
 
 # Usage
 

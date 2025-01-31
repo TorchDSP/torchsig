@@ -170,6 +170,7 @@ class torchsig_signals():
             >>> torchsig_signals.family_dict
     """
     class_list: ClassVar[list[str]] = SIGNALS_SHARED_LIST
+    family_list: ClassVar[list[str]] = FAMILY_SHARED_LIST
     family_dict: ClassVar[Dict[str, str]] = CLASS_FAMILY_DICT
 
     fsk_signals = []

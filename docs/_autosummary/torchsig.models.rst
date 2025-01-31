@@ -27,5 +27,6 @@ torchsig.models
    :recursive:
 
    iq_models
+   model_utils
    spectrogram_models
 

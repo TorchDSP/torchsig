@@ -1,4 +1,4 @@
-torchsig.models.iq\_models.efficientnet.efficientnet.SqueezeExcite
+﻿torchsig.models.iq\_models.efficientnet.efficientnet.SqueezeExcite
 ==================================================================
 
 .. currentmodule:: torchsig.models.iq_models.efficientnet.efficientnet
@@ -37,6 +37,7 @@ torchsig.models.iq\_models.efficientnet.efficientnet.SqueezeExcite
       ~SqueezeExcite.ipu
       ~SqueezeExcite.load_state_dict
       ~SqueezeExcite.modules
+      ~SqueezeExcite.mtia
       ~SqueezeExcite.named_buffers
       ~SqueezeExcite.named_children
       ~SqueezeExcite.named_modules
@@ -49,11 +50,14 @@ torchsig.models.iq\_models.efficientnet.efficientnet.SqueezeExcite
       ~SqueezeExcite.register_full_backward_hook
       ~SqueezeExcite.register_full_backward_pre_hook
       ~SqueezeExcite.register_load_state_dict_post_hook
+      ~SqueezeExcite.register_load_state_dict_pre_hook
       ~SqueezeExcite.register_module
       ~SqueezeExcite.register_parameter
+      ~SqueezeExcite.register_state_dict_post_hook
       ~SqueezeExcite.register_state_dict_pre_hook
       ~SqueezeExcite.requires_grad_
       ~SqueezeExcite.set_extra_state
+      ~SqueezeExcite.set_submodule
       ~SqueezeExcite.share_memory
       ~SqueezeExcite.state_dict
       ~SqueezeExcite.to

@@ -1438,3 +1438,40 @@ class ListTupleToYOLO(Transform):
             output.append(t)
             
         return output
+
+class DescToYOLO(Transform):
+    """Transform to transform SignalMetadata into YOLO format containing class and bounding box information.
+
+    (class: int, x: float, y: float, width: int, height: int)
+
+    See Ultralytics for more information: 
+        https://docs.ultralytics.com/yolov5/tutorials/train_custom_data/#22-create-labels
+
+    Args:
+        precision (np.dtype, optional): 
+        Specify the data type precision for the tuple's information. Defaults to np.dtype(np.float64).
+    """
+    def __init__(self) -> None:
+        super().__init__()
+
+    def __call__(
+        self, metadata: List[SignalMetadata]
+    ) -> List[Tuple[int, float, float, float, float]]:
+
+        output: List[Tuple[int, float, float, float, float]] = []
+        # Loop through SignalMetadata's, converting values of interest to tuples
+        for meta in metadata:
+            if not is_rf_modulated_metadata(meta):
+                continue
+
+            class_index = meta["class_index"]
+            width = meta["duration"]
+            height = meta["bandwidth"]
+            x_center = meta["start"] + (width / 2.0)
+            y_center = meta["center_freq"]
+
+            tup = (class_index, x_center, y_center, width, height)
+
+            output.append(tup)
+            
+        return output
