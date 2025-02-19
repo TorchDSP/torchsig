@@ -36,9 +36,6 @@ class DropChannel(Module):
         return x[:,:-1,:,:]
     
 class LSTMImageReader(Module):
-    """
-    TODO add some real documentation here
-    """
     def __init__(self, input_width, lstm_width, img_shape, num_layers=2):
         super().__init__()
         self.img_shape = img_shape

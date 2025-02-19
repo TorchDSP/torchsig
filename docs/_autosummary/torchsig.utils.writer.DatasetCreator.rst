@@ -7,7 +7,7 @@ torchsig.utils.writer.DatasetCreator
    :members:
    :show-inheritance:
    :inherited-members:
-   :special-members: __call__, __add__, __mul__
+   :special-members: __call__, __repr__, __str__, __init__
 
    
    
@@ -16,7 +16,9 @@ torchsig.utils.writer.DatasetCreator
    .. autosummary::
       :nosignatures:
    
+      ~DatasetCreator.check_yamls
       ~DatasetCreator.create
+      ~DatasetCreator.get_writing_info_dict
    
    
 

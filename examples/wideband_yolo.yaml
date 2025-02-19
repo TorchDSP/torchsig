@@ -1,0 +1,62 @@
+names:
+  0: ook
+  1: bpsk
+  2: 4ask
+  3: qpsk
+  4: 8ask
+  5: 8psk
+  6: 16qam
+  7: 16ask
+  8: 16psk
+  9: 32qam
+  10: 32qam_cross
+  11: 32ask
+  12: 32psk
+  13: 64qam
+  14: 64ask
+  15: 64psk
+  16: 128qam_cross
+  17: 256qam
+  18: 512qam_cross
+  19: 1024qam
+  20: 2fsk
+  21: 2gfsk
+  22: 2msk
+  23: 2gmsk
+  24: 4fsk
+  25: 4gfsk
+  26: 4msk
+  27: 4gmsk
+  28: 8fsk
+  29: 8gfsk
+  30: 8msk
+  31: 8gmsk
+  32: 16fsk
+  33: 16gfsk
+  34: 16msk
+  35: 16gmsk
+  36: ofdm-64
+  37: ofdm-72
+  38: ofdm-128
+  39: ofdm-180
+  40: ofdm-256
+  41: ofdm-300
+  42: ofdm-512
+  43: ofdm-600
+  44: ofdm-900
+  45: ofdm-1024
+  46: ofdm-1200
+  47: ofdm-2048
+  48: fm
+  49: am-dsb-sc
+  50: am-dsb
+  51: am-lsb
+  52: am-usb
+  53: lfm_data
+  54: lfm_radar
+  55: chirpss
+  56: tone
+nc: 57
+path: wideband_classifier_example
+train: images/train
+val: images/val

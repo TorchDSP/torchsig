@@ -1,39 +1,48 @@
 name: Bug Report
 description: File a bug report.
 title: "[Bug] "
-labels: ["type: bug"]
+labels:
+  - "type: bug"
+
 body:
   - type: markdown
     attributes:
       value: |
         Thanks for taking the time to fill out this bug report!
-  - type: checkboxes
-    id: check-exist
-    attributes:
-      label: Is there an existing bug report already?
-      description: Please search to see if this bug has already been reported.
-      options:
-      - label: Yes, I have checked the exisitng bug reports.
-        required: true
+        Before you open an issue, be sure to check the following:
+        [Issues](https://github.com/TorchDSP/torchsig/issues)
+        [TorchSig Docs](https://torchsig.readthedocs.io/en/latest/index.html)
+        [TorchSig Wiki](https://github.com/TorchDSP/torchsig/wiki)
+
+        **Please only report bugs for the codebase. Use our [Discussions](https://github.com/TorchDSP/torchsig/discussions) page for questions about usage or installation.**
   - type: dropdown
     id: version
     attributes:
       label: Version
-      description: What version of TorchSig? Note that any bugs before 0.5.1 are not prioritized.
+      description: What version of TorchSig? Note that any bugs before 1.0.0 are not prioritized.
       options:
-        - 0.6.1 (Default)
+        - 1.0.0 (Default)
+        - 0.6.1
         - 0.6.0
-        - 0.5.3
-        - 0.5.1
         - Other
       default: 0
     validations:
       required: true
   - type: textarea
+    id: os-system
+    attributes:
+      label: System Information
+      description: Include any relevent information about OS, environment, etc.
+      value: |
+        OS: (Linux Distro, Mac, Windows)
+        Environment: (Docker, venv, conda, etc)
+  - type: textarea
     id: description
     attributes:
       label: Description
       description: Describe concisely what you expected to happen, what happened, and anything else.
+    validations:
+      required: true
   - type: textarea
     id: reproduce
     attributes:

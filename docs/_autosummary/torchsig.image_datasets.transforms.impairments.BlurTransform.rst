@@ -7,7 +7,7 @@ torchsig.image\_datasets.transforms.impairments.BlurTransform
    :members:
    :show-inheritance:
    :inherited-members:
-   :special-members: __call__, __add__, __mul__
+   :special-members: __call__, __repr__, __str__, __init__
 
    
    
@@ -16,6 +16,11 @@ torchsig.image\_datasets.transforms.impairments.BlurTransform
    .. autosummary::
       :nosignatures:
    
+      ~BlurTransform.add_parent
+      ~BlurTransform.get_second_seed
+      ~BlurTransform.seed
+      ~BlurTransform.setup_rngs
+      ~BlurTransform.update_from_parent
    
    
 
