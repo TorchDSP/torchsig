@@ -9,14 +9,6 @@ torchsig.transforms.target\_transforms
 
    
    
-   .. rubric:: Functions
-
-   .. autosummary::
-      :toctree:
-      :nosignatures:
-   
-      generate_mask
-   
    
 
    
@@ -28,37 +20,29 @@ torchsig.transforms.target\_transforms
       :template: custom_class_template.rst
       :nosignatures:
    
-      DescPassThrough
-      DescToAnchorBoxes
-      DescToBBox
-      DescToBBoxDict
-      DescToBBoxFamilyDict
-      DescToBBoxSignalDict
-      DescToBBoxYoloDict
-      DescToBBoxYoloSignalDict
-      DescToBinary
-      DescToClassEncoding
-      DescToClassIndex
-      DescToClassIndexSNR
-      DescToClassName
-      DescToClassNameSNR
-      DescToCustom
-      DescToFamilyName
-      DescToInstMaskDict
-      DescToListTuple
-      DescToMask
-      DescToMaskClass
-      DescToMaskFamily
-      DescToMaskSignal
-      DescToSemanticClass
-      DescToSignalFamilyInstMaskDict
-      DescToSignalInstMaskDict
-      DescToWeightedCutMix
-      DescToWeightedMixUp
-      DescToYOLO
-      LabelSmoothing
-      ListTupleToDesc
-      ListTupleToYOLO
+      Bandwidth
+      CenterFreq
+      ClassIndex
+      ClassName
+      CustomLabel
+      Duration
+      DurationInSamples
+      FamilyIndex
+      FamilyName
+      LowerFreq
+      NumSamples
+      OversamplingRate
+      PassThrough
+      SNR
+      SampleRate
+      SamplesPerBaud
+      Start
+      StartInSamples
+      Stop
+      StopInSamples
+      TargetTransform
+      UpperFreq
+      YOLOLabel
    
    
 

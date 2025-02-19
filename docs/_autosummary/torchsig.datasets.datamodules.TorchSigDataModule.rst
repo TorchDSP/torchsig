@@ -7,7 +7,7 @@ torchsig.datasets.datamodules.TorchSigDataModule
    :members:
    :show-inheritance:
    :inherited-members:
-   :special-members: __call__, __add__, __mul__
+   :special-members: __call__, __repr__, __str__, __init__
 
    
    
@@ -47,13 +47,5 @@ torchsig.datasets.datamodules.TorchSigDataModule
       ~TorchSigDataModule.hparams
       ~TorchSigDataModule.hparams_initial
       ~TorchSigDataModule.name
-      ~TorchSigDataModule.clean
-      ~TorchSigDataModule.train_config
-      ~TorchSigDataModule.val_config
-      ~TorchSigDataModule.train
-      ~TorchSigDataModule.val
-      ~TorchSigDataModule.data_path
-      ~TorchSigDataModule.train_path
-      ~TorchSigDataModule.val_path
    
    

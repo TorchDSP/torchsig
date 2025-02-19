@@ -7,7 +7,7 @@ torchsig.image\_datasets.transforms.impairments.ScaleTransform
    :members:
    :show-inheritance:
    :inherited-members:
-   :special-members: __call__, __add__, __mul__
+   :special-members: __call__, __repr__, __str__, __init__
 
    
    
@@ -16,6 +16,11 @@ torchsig.image\_datasets.transforms.impairments.ScaleTransform
    .. autosummary::
       :nosignatures:
    
+      ~ScaleTransform.add_parent
+      ~ScaleTransform.get_second_seed
+      ~ScaleTransform.seed
+      ~ScaleTransform.setup_rngs
+      ~ScaleTransform.update_from_parent
    
    
 

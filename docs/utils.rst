@@ -1,93 +1,81 @@
-Signal Data Utilities
+Utilities
 ======================
 
-Modeled after the torch.utils.data module, this module contains the Data classes including Dataset abstract class
-and the DataLoader class which combines a dataset and a sampler, and provides single- or multi-process iterators 
-over the dataset. This module may also include other utilities for sampling or combining Dataset objects.
+Extra utilities such as writing and reading to disk or type checking are included in the `torchsig/utils` folder.
 
 The following utilities are available:
 
-.. contents:: Data Utilities
+.. contents:: Utilities
     :local:
+
+
+Digital Signal Processing Utils
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.. automodule:: torchsig.utils.dsp
+    :members:
+    :undoc-members:
+    :show-inheritance:
 
 
 Dataset Utils
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-.. automodule:: torchsig.utils.dataset
+.. automodule:: torchsig.utils.generate
     :members:
     :undoc-members:
     :show-inheritance:
 
+
+Reading/Writing Utils
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Writer
+-------------------------------------
 .. automodule:: torchsig.utils.writer
     :members:
     :undoc-members:
     :show-inheritance:
 
-.. automodule:: torchsig.utils.reader
+YAML Utils
+-------------------------------------
+.. automodule:: torchsig.utils.yaml
     :members:
     :undoc-members:
     :show-inheritance:
 
-.. automodule:: torchsig.utils.index
+File Handlers
+-------------------------------------
+.. automodule:: torchsig.utils.file_handlers.base_handler
     :members:
     :undoc-members:
     :show-inheritance:
 
+.. automodule:: torchsig.utils.file_handlers.zarr
+    :members:
+    :undoc-members:
+    :show-inheritance:
 
-Signal Types
+Variable and Data Verification Utils
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-.. automodule:: torchsig.utils.types
+.. automodule:: torchsig.utils.verify
     :members:
     :undoc-members:
     :show-inheritance:
 
-YOLO Utils
+Printing Utils
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-.. automodule:: torchsig.utils.yolo_classify
+.. automodule:: torchsig.utils.printing
     :members:
     :undoc-members:
     :show-inheritance:
 
-.. automodule:: torchsig.utils.yolo_train
-    :members:
-    :undoc-members:
-    :show-inheritance:
 
-.. automodule:: torchsig.utils.yolo_val
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
-.. automodule:: torchsig.utils.yolo_validator
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
-.. automodule:: torchsig.utils.narrowband_trainer
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
-Signal Visualizers/Plotters
+Randomization Utils
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-.. automodule:: torchsig.utils.visualize
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
-.. automodule:: torchsig.utils.cm_plotter
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
-Miscellaneous
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-.. automodule:: torchsig.utils.dsp
+.. automodule:: torchsig.utils.random
     :members:
     :undoc-members:
     :show-inheritance:

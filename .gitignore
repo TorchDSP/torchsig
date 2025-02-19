@@ -9,20 +9,60 @@ dist/
 **.pytest_cache
 *.benchmarks/
 
+*.env
 **.pyc
 **.mdb
-**.lmdb
+**.pkl
+**.np
+**.npz
 **.swp
+**.p
 **.png
 **.txt
 **.npy
 **.jpg
 **.pt*
 **.pth
+**.ipynb_checkpoints*
+*.benchmarks/
+**.pytest_cache
+**.zarr
+**.yaml
 
 # TorchSig
 torchsig.egg-info
-examples/runs
+!torchsig/datasets/default_consfigs
+!torchsig/datasets/default_configs/*
+# keep license docs
+!**LICENSE.txt
+
+# Docs
+docs/_static
+docs/src
+
+# Tests
+tests/datasets/*
+
+# Examples
+examples/*
 examples/datasets
-examples/yolo
-examples/plots
+!examples/old_examples
+!examples/*.ipynb
+!examples/*.py
+!examples/*.yaml
+!examples/diagrams
+!examples/diagrams/*
+
+# Tools
+# Tools
+tools/examples/datasets/*
+tools/examples/datasets/yolo_annotation_data/annotated_yolo_sample_images
+!tools/examples/datasets
+!tools/examples/datasets/yolo_annotation_data
+!tools/examples/datasets/yolo_annotation_data/sample_images
+!tools/examples/datasets/yolo_annotation_data/sample_images/*
+
+# Pytest Files
+**.coverage
+**coverage.xml
+**report.xml

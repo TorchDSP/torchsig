@@ -7,7 +7,7 @@ torchsig.datasets.datamodules.NarrowbandDataModule
    :members:
    :show-inheritance:
    :inherited-members:
-   :special-members: __call__, __add__, __mul__
+   :special-members: __call__, __repr__, __str__, __init__
 
    
    
@@ -44,17 +44,8 @@ torchsig.datasets.datamodules.NarrowbandDataModule
       ~NarrowbandDataModule.CHECKPOINT_HYPER_PARAMS_KEY
       ~NarrowbandDataModule.CHECKPOINT_HYPER_PARAMS_NAME
       ~NarrowbandDataModule.CHECKPOINT_HYPER_PARAMS_TYPE
-      ~NarrowbandDataModule.class_list
       ~NarrowbandDataModule.hparams
       ~NarrowbandDataModule.hparams_initial
       ~NarrowbandDataModule.name
-      ~NarrowbandDataModule.clean
-      ~NarrowbandDataModule.train_config
-      ~NarrowbandDataModule.val_config
-      ~NarrowbandDataModule.train
-      ~NarrowbandDataModule.val
-      ~NarrowbandDataModule.data_path
-      ~NarrowbandDataModule.train_path
-      ~NarrowbandDataModule.val_path
    
    

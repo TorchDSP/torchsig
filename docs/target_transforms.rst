@@ -3,10 +3,8 @@ Target Transforms
 
 .. currentmodule:: torchsig.transforms.target_transforms
 
-Target transforms are common signal transformations. They can be chained together using :class:`Compose`.
-Additionally, there is the :mod:`torchsig.transforms.target_transforms` module.
-Functional transforms give fine-grained control over the transformations.
-This is useful if you have to build a more complex transformation pipeline
+Target Transforms are used to alter the output of the datasets which can be certain labels, class names, or bounding box information.
+They only read and add the signal metadata, and do not change the signal data.
 
 .. contents:: Target Transforms
     :local:

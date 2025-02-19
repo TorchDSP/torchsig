@@ -7,7 +7,7 @@ torchsig.image\_datasets.transforms.impairments.RandomImageResizeTransform
    :members:
    :show-inheritance:
    :inherited-members:
-   :special-members: __call__, __add__, __mul__
+   :special-members: __call__, __repr__, __str__, __init__
 
    
    
@@ -16,6 +16,11 @@ torchsig.image\_datasets.transforms.impairments.RandomImageResizeTransform
    .. autosummary::
       :nosignatures:
    
+      ~RandomImageResizeTransform.add_parent
+      ~RandomImageResizeTransform.get_second_seed
+      ~RandomImageResizeTransform.seed
+      ~RandomImageResizeTransform.setup_rngs
+      ~RandomImageResizeTransform.update_from_parent
    
    
 

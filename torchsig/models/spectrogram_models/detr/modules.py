@@ -132,7 +132,7 @@ class DETRModel(torch.nn.Module):
         self,
         backbone: torch.nn.Module,
         transformer: torch.nn.Module,
-        num_classes: int = 53,
+        num_classes: int = 61,
         num_objects: int = 50,
         hidden_dim: int = 256,
     ):
@@ -480,7 +480,7 @@ class HungarianMatcher(nn.Module):
 def create_detr(
     backbone: str = "efficientnet_b0",
     transformer: str = "xcit-nano",
-    num_classes: int = 53,
+    num_classes: int = 61,
     num_objects: int = 50,
     hidden_dim: int = 256,
     drop_rate_backbone: float = 0.2,

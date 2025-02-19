@@ -7,7 +7,7 @@ torchsig.datasets.datamodules.WidebandDataModule
    :members:
    :show-inheritance:
    :inherited-members:
-   :special-members: __call__, __add__, __mul__
+   :special-members: __call__, __repr__, __str__, __init__
 
    
    
@@ -47,13 +47,5 @@ torchsig.datasets.datamodules.WidebandDataModule
       ~WidebandDataModule.hparams
       ~WidebandDataModule.hparams_initial
       ~WidebandDataModule.name
-      ~WidebandDataModule.clean
-      ~WidebandDataModule.train_config
-      ~WidebandDataModule.val_config
-      ~WidebandDataModule.train
-      ~WidebandDataModule.val
-      ~WidebandDataModule.data_path
-      ~WidebandDataModule.train_path
-      ~WidebandDataModule.val_path
    
    
