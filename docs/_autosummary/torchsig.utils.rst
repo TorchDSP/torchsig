@@ -26,18 +26,12 @@ torchsig.utils
    :template: custom_module_template.rst
    :recursive:
 
-   classify_transforms
-   cm_plotter
-   dataset
    dsp
-   index
-   narrowband_trainer
-   reader
-   types
-   visualize
+   file_handlers
+   generate
+   printing
+   random
+   verify
    writer
-   yolo_classify
-   yolo_train
-   yolo_val
-   yolo_validator
+   yaml
 

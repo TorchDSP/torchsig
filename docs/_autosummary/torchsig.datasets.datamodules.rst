@@ -21,6 +21,9 @@ torchsig.datasets.datamodules
       :nosignatures:
    
       NarrowbandDataModule
+      OfficialNarrowbandDataModule
+      OfficialTorchSigDataModdule
+      OfficialWidebandDataModule
       TorchSigDataModule
       WidebandDataModule
    

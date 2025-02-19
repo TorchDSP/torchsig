@@ -2,6 +2,8 @@ import torch
 import numpy as np
 import cv2
 
+from torchsig.utils.random import Seedable
+
 from torchsig.image_datasets.transforms.denoising import normalize_image
 
 def pad_border(image, to_pad):
@@ -34,12 +36,13 @@ Inputs:
     mean: the mean of the noise distribution; defaults to 0
     std: the standard deviation of the noise distribution; defaults to 0.2
 """
-class GaussianNoiseTransform():
-    def __init__(self, mean: float=0, std: float=0.2):
+class GaussianNoiseTransform(Seedable):
+    def __init__(self, mean: float=0, std: float=0.2, **kwargs):
+        super().__init__(**kwargs)
         self.mean = mean
         self.std = std
     def __call__(self, image):
-        noise = torch.normal(self.mean, self.std, image.shape)
+        noise = torch.normal(self.mean, self.std, image.shape, generator = self.torch_rng)
         return normalize_image(image + noise)
 
 """
@@ -47,8 +50,9 @@ A class for scaling things
 Inputs:
     scale: the scale factor to apply
 """
-class ScaleTransform():
-    def __init__(self, scale: float):
+class ScaleTransform(Seedable):
+    def __init__(self, scale: float, **kwargs):
+        super().__init__(**kwargs)
         self.scale = scale
     def __call__(self, image):
         return image * self.scale
@@ -59,13 +63,14 @@ Inputs:
     mean: the mean of the noise distribution; defaults to 0
     range: the range of standard deviations to use for the noise distribution; defaults to (0.01, 0.5)
 """
-class RandomGaussianNoiseTransform():
-    def __init__(self, mean: float=0, range = (0.01, 0.5)):
+class RandomGaussianNoiseTransform(Seedable):
+    def __init__(self, mean: float=0, range = (0.01, 0.5), **kwargs):
+        super().__init__(**kwargs)
         self.mean = mean
         self.range = range
     def __call__(self, image):
-        std = np.random.uniform(self.range[0], self.range[1])
-        noise = torch.normal(self.mean, std, image.shape)
+        std = self.np_rng.uniform(self.range[0], self.range[1])
+        noise = torch.normal(self.mean, std, image.shape, generator = self.torch_rng)
         return normalize_image(image + noise)
 
 
@@ -75,8 +80,9 @@ Inputs:
     strength: the strength of the operation; new_image = (1 - strength)*old_image + (strength)*modified_image;
     num_emitors: the number of simulated emitors to use
 """
-class RippleNoiseTransform():
-    def __init__(self, strength, num_emitors = 30, image_shape = None, a = 1E-6, b = 1E-10, base_freq=100):
+class RippleNoiseTransform(Seedable):
+    def __init__(self, strength, num_emitors = 30, image_shape = None, a = 1E-6, b = 1E-10, base_freq=100, **kwargs):
+        super().__init__(**kwargs)
         self.num_emitors = num_emitors
         self.base_freq = base_freq
         self.a = torch.tensor([a])
@@ -107,8 +113,8 @@ class RippleNoiseTransform():
         if self.image_shape == None:
             self.update_mesh_spacing(image.shape)
         
-        alphas = torch.exp(torch.log(self.a) * (torch.rand(len(self.thetas)) - torch.log(self.b)))
-        freqs = self.base_freq * (torch.rand(len(self.thetas)) - 1.)
+        alphas = torch.exp(torch.log(self.a) * (torch.rand(len(self.thetas), generator = self.torch_rng) - torch.log(self.b)))
+        freqs = self.base_freq * (torch.rand(len(self.thetas), generator = self.torch_rng) - 1.)
         freqs = self.freq_exp**freqs
         
         amps = torch.exp(-alphas * self.r)
@@ -124,13 +130,14 @@ Inputs:
     range: the strength range of the operation in the form (min_strength, max_strength); strength will be selected uniformly on this range
     num_emitors: the number of simulated emitors to use
 """
-class RandomRippleNoiseTransform():
-    def __init__(self, range, num_emitors = 30, image_shape = None, a=1E-6, b=1E-10, base_freq = 100):
+class RandomRippleNoiseTransform(Seedable):
+    def __init__(self, range, num_emitors = 30, image_shape = None, a=1E-6, b=1E-10, base_freq = 100, **kwargs):
+        super().__init__(**kwargs)
         self.num_emitors = num_emitors
         self.range = range
         self.ripple_transform = RippleNoiseTransform(0.1, num_emitors=self.num_emitors, image_shape=image_shape, a=a, b=b, base_freq=base_freq)
     def __call__(self, image):
-        self.ripple_transform.strength = np.random.uniform(self.range[0],self.range[1])
+        self.ripple_transform.strength = self.np_rng.uniform(self.range[0],self.range[1])
         return self.ripple_transform(image)
 
 
@@ -140,8 +147,9 @@ Inputs:
     strength: the strength of the operation; new_image = (1 - strength)*old_image + (strength)*modified_image; defaults to 1
     blur_shape: the size of the kernel over which to blur; either an tuple (x,y), or an int (in which case (x,x) is assumed); a larger kernel will blur more; defaults to 5
 """
-class BlurTransform():
-    def __init__(self, strength: float=1, blur_shape=5):
+class BlurTransform(Seedable):
+    def __init__(self, strength: float=1, blur_shape=5, **kwargs):
+        super().__init__(**kwargs)
         self.strength = strength
         self.blur_shape = blur_shape
         if type(blur_shape) == int:
@@ -168,8 +176,9 @@ Inputs:
     scale: a tuple of (minimum_x_scale_factor, maximum_x_scale_factor)
     y_scale: a tuple of (minimum_y_scale_factor, maximum_y_scale_factor); if None is provided, defaults to match scale
 """
-class RandomImageResizeTransform():
-    def __init__(self, scale, y_scale=None):
+class RandomImageResizeTransform(Seedable):
+    def __init__(self, scale, y_scale=None, **kwargs):
+        super().__init__(**kwargs)
         self.min_x = float(scale[0])
         self.max_x = float(scale[1])
         if y_scale:
@@ -180,8 +189,8 @@ class RandomImageResizeTransform():
             self.max_y = self.max_x
     def __call__(self, image):
         image = image.numpy().transpose(1,2,0)
-        x_scale = np.random.uniform(self.min_x, self.max_x)
-        y_scale = np.random.uniform(self.min_y, self.max_y)
+        x_scale = self.np_rng.uniform(self.min_x, self.max_x)
+        y_scale = self.np_rng.uniform(self.min_y, self.max_y)
         new_size = (int(image.shape[1]*x_scale), int(image.shape[0]*y_scale))
         img = cv2.resize(image, new_size, interpolation=cv2.INTER_LINEAR)
         if len(img.shape) < 3:

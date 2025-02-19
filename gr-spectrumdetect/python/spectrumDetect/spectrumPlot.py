@@ -75,13 +75,8 @@ class spectrumPlot(gr.sync_block, QWidget):
                 path = Path(verts, self.codes)
                 patch = PathPatch(path, facecolor='none', lw=2, edgecolor='red', alpha=.3)
                 self.ax.add_patch(patch)
-                self.ax.text(plot_box_xyxy[0],plot_box_xyxy[1], 'st: '+str(detect_boxes['boxes_pmt'][str(cnt)]['start_time'])+'(ns)', color='cyan',fontsize=10)
-                self.ax.text(plot_box_xyxy[0],plot_box_xyxy[1]+(0.5*plot_box_xywh[3]), 'fc: '+'%.6s' % str(detect_boxes['boxes_pmt'][str(cnt)]['center_freq']/1e6)+'(MHz)', color='yellow',fontsize=10)
-                if str(detect_boxes['boxes_pmt'][str(cnt)]['wideband_modulation']) != 'signal':
-                    self.ax.text(plot_box_xyxy[0],plot_box_xyxy[1]+(0.7*plot_box_xywh[3]), 'wb_mod: '+ str(detect_boxes['boxes_pmt'][str(cnt)]['wideband_modulation']), color='chartreuse',fontsize=10)
-                if str(detect_boxes['boxes_pmt'][str(cnt)]['narrowband_modulation']) != 'signal':    
-                    self.ax.text(plot_box_xyxy[0],plot_box_xyxy[1]+(0.9*plot_box_xywh[3]), 'nb_mod: '+ str(detect_boxes['boxes_pmt'][str(cnt)]['narrowband_modulation']), color='lawngreen',fontsize=10)
-
+                self.ax.text(plot_box_xyxy[0],plot_box_xyxy[1], 'st: '+str(detect_boxes['boxes_pmt'][str(cnt)]['start_time'])+'(ns)', color='cyan')
+                self.ax.text(plot_box_xyxy[0],plot_box_xyxy[1]+(0.5*plot_box_xywh[3]), 'fc: '+'%.6s' % str(detect_boxes['boxes_pmt'][str(cnt)]['center_freq']/1e6)+'(MHz)', color='yellow')
        
                
         self.ax.imshow(plot_img)

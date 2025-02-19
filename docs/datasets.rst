@@ -1,90 +1,62 @@
 Datasets
 ====================
 
-All generic datasets are subclasses of :class:`torchsig.data.SignalDataset`
-i.e, they have ``__getitem__`` and ``__len__`` methods implemented.
-Hence, they can all be passed to a :class:`torch.data.DataLoader`
-which can load multiple samples parallelly using multiprocessing workers.
-For example: ::
+There are two main types of datasets: :class:`torchsig.datasets.datasets.NewDataset` and :class:`torchsig.datasets.datasets.StaticDataset`.
 
-    signal_data = torchsig.datasets.ModulationsDataset()
-    data_loader = torch.data.DataLoader(signal_data, batch_size=4,shuffle=True)
+`NewDataset` and its counterparts :class:`torchsig.datasets.narrowband.NewDataset` and :class:`torchsig.datasets.wideband.NewWideband` are for generating synthetic data in memory (infinitely).
+Samples are not saved after being returned, and previous samples are inaccesible. 
 
-The following datasets are available:
+To then save a dataset to disk, use a :class:`torchsig.utils.writer.DatasetCreator` which accepts a `NewDataset`` object.
 
-.. contents:: SignalDatasets
+`StaticDataset` (:class:`torchsig.datasets.narrowband.StaticNarrowband` and :class:`torchsig.datasets.wideband.StaticWideband`) are for loading a saved dataset to disk.
+Samples can be accessed in any order and previously generated samples are accesible.
+
+Note: If a `NewDataset` is written to disk with no transforms and target transforms, it is considered `raw`. 
+Otherwise, it is considered to `processed`.
+`raw` means when the dataset is loaded back in using a `StaticDataset` object, users can define transforms and target transforms to be applied.
+When a `processed` dataset is loaded back in, users cannot define any transforms and target transform to be applied.
+
+
+.. contents:: Datasets
     :local:
 
-All the datasets have almost similar API. They all have a common argument:
-``transform`` to transform the input data.
 
+Base Classes
+---------------------
 
-TorchSigNarrowband
-----------------
-.. automodule:: torchsig.datasets.torchsig_narrowband
+TorchSig Datasets
+**********************
+.. automodule:: torchsig.datasets.datasets
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+Dataset Metadata
+**********************
+.. automodule:: torchsig.datasets.dataset_metadata
     :members:
     :undoc-members:
     :show-inheritance:
 
 
-TorchSigWideband
-----------------
-.. automodule:: torchsig.datasets.torchsig_wideband
+Narrowband
+---------------------
+.. automodule:: torchsig.datasets.narrowband
     :members:
     :undoc-members:
     :show-inheritance:
 
 
-
-
-Modulations Dataset
-------------------
-.. automodule:: torchsig.datasets.modulations
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
-
-
-Wideband Datasets
-------------------
+Wideband
+---------------------
 .. automodule:: torchsig.datasets.wideband
     :members:
     :undoc-members:
     :show-inheritance:
 
-
-Synthetic Datasets
-------------------
-.. automodule:: torchsig.datasets.synthetic
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
-
-
-Radio ML Datasets
-------------------
-.. currentmodule:: torchsig.datasets.radioml
-Radio ML 2016
-~~~~~~~~~~~~~~
-.. autoclass:: RadioML2016
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
-Radio ML 2018
-~~~~~~~~~~~~~~
-.. autoclass:: RadioML2018
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
-
-
-File Datasets
----------------
-.. automodule:: torchsig.datasets.file_datasets
+Datamodules
+---------------------
+.. automodule:: torchsig.datasets.datamodules
     :members:
     :undoc-members:
     :show-inheritance:

@@ -1,1 +1,0 @@
-from .convit1d import ConVit1D, ConVit1DLightning

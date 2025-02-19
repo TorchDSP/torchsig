@@ -18,6 +18,7 @@ TorchSig
 
     datasets
     image_datasets
+    signals
     transforms
     target_transforms
     models
@@ -32,4 +33,3 @@ Indices and tables
 
 * :ref:`genindex`
 * :ref:`modindex`
-

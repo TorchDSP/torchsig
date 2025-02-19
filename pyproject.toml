@@ -9,7 +9,7 @@ authors = [
     {name = "TorchSig Team"},
 ]
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 license = {text = "MIT"}
 classifiers = [
     "License :: OSI Approved :: MIT License",
@@ -26,31 +26,42 @@ dependencies = [
     "scipy",
     "h5py",
     "matplotlib",
-    "numba",
-    "ipdb",
     "PyWavelets",
     "pandas",
-    "lmdb",
     "scikit-learn",
-    "icecream",
     "torchaudio",
     "timm",
     "pytorch_lightning",
-    "sympy",
-    "torchmetrics",
-    "click",
     "ultralytics",
-    "optuna",
     "jupyter_bbox_widget",
-    "torchaudio",
     "torchinfo",
-    "sigmf"
+    "sigmf",
+    "pytest",
+    "zarr",
+    "pylint",
+    "pytest-cov",
 ]
 dynamic = ["version"]
 
 [tool.setuptools.dynamic]
 version = {attr = "torchsig.__version__"}
 
-# [project.optional-dependencies]
-# pdf = ["ReportLab>=1.2", "RXP"]
-# rest = ["docutils>=0.3", "pack ==1.1, ==1.3"]
+
+[tool.coverage.run]
+branch = true
+source = ["torchsig"]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = true
+omit = [
+    "torchsig/image_datasets/*",
+    "torchsig/models/*"
+]
+
+[tool.pytest.ini_options]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+]
+addopts = "-m 'not slow' --cov=torchsig --cov-report=xml --cov-report=term --junitxml=report.xml"
+testpaths = ["tests"]
