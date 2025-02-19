@@ -5,13 +5,13 @@ import os
 from torchsig.image_datasets.datasets.file_loading_datasets import load_image_grey
 from torchsig.image_datasets.transforms.denoising import normalize_image, isolate_foreground_signal
 
-"""
-A class for wrapping YOLO data; contains a single datum for a YOLO dataset, with image and label data together.
-This class can be treated as a tuple of (image_data, labels/class_id), and can be returned in datasets.
-If no labels are provided, a class_id can be supplied, and the datum will be represented as (image_data, class_id), otherwise it will be (image_data, labels).
-A YOLODatum with a class_id and no labels is assumed to have one label at [class_id, 0.5, 0.5, 1, 1].
-"""
 class YOLODatum():
+    """
+    A class for wrapping YOLO data; contains a single datum for a YOLO dataset, with image and label data together.
+    This class can be treated as a tuple of (image_data, labels/class_id), and can be returned in datasets.
+    If no labels are provided, a class_id can be supplied, and the datum will be represented as (image_data, class_id), otherwise it will be (image_data, labels).
+    A YOLODatum with a class_id and no labels is assumed to have one label at [class_id, 0.5, 0.5, 1, 1].
+    """
     def __init__(self, img=None, labels=[]):
         self.img = img
         self._labels = labels
@@ -49,12 +49,13 @@ class YOLODatum():
     @property
     def shape(self):
         return self.img.shape
-    """
-    adds new labels to the list of labels;
-    Inputs:
-        new_labels: either a list of tuples to add, a single tuple of (class_id, cx, cy, width, height), or an int class_id, in which case (class_id, 0.5, 0.5, 1.0, 1.0) will be added
-    """
+    
     def append_labels(self, new_labels):
+        """
+        adds new labels to the list of labels;
+        Inputs:
+            new_labels: either a list of tuples to add, a single tuple of (class_id, cx, cy, width, height), or an int class_id, in which case (class_id, 0.5, 0.5, 1.0, 1.0) will be added
+        """
         if type(new_labels) is int:
             self._labels += [(new_labels, 0.5, 0.5, 1.0, 1.0)]
         elif type(new_labels) is list:
@@ -62,15 +63,15 @@ class YOLODatum():
         elif type(new_labels) is tuple:
             self._labels += [new_labels]
 
-    """
-    A function for transposing YOLO labels for boxes in one image to the appropriate labels for the same boxes in a larger composite image containing the smaller image;
-    Inputs:
-        yolo_datum: the pair (img1, old_labels), where img1 is the smaller image on which old_labels are accurate as a torch [n_channels, height, width] tensor
-        top_left: the coordinates of the top left corner of img1 within self.img, as (x,y). such that self.img[:,y,x] is the top left corner of img1
-    Outputs:
-        new_labels: the new YOLO labels which describe the boxes from old_labels in self.img
-    """
     def transpose_yolo_labels(self, yolo_datum, top_left):
+        """
+        A function for transposing YOLO labels for boxes in one image to the appropriate labels for the same boxes in a larger composite image containing the smaller image;
+        Inputs:
+            yolo_datum: the pair (img1, old_labels), where img1 is the smaller image on which old_labels are accurate as a torch [n_channels, height, width] tensor
+            top_left: the coordinates of the top left corner of img1 within self.img, as (x,y). such that self.img[:,y,x] is the top left corner of img1
+        Outputs:
+            new_labels: the new YOLO labels which describe the boxes from old_labels in self.img
+        """
         img1, old_labels = yolo_datum
         img2 = self.img
         new_labels = []
@@ -96,26 +97,26 @@ class YOLODatum():
             new_labels += [(class_id, new_cx, new_cy, new_width, new_height)]
         return new_labels
 
-    """
-    A function for adding YOLO labels for boxes in one image to the appropriate labels for the same boxes in a larger composite image containing the smaller image;
-    automatically deletes labels for boxes which do not fall entirely inside of the larger image.
-    this object will be modified to contain the labels from yolo_datum, trasposed appropriately.
-    Inputs:
-        yolo_datum: the pair (img1, old_labels), where img1 is the smaller image on which old_labels are accurate as a torch [n_channels, height, width] tensor
-        top_left: the coordinates of the top left corner of img1 within img2, as (y,x). such that img2[:,y,x] is the top left corner of img1
-    """
     def append_yolo_labels(self, yolo_datum, top_left):
+        """
+        A function for adding YOLO labels for boxes in one image to the appropriate labels for the same boxes in a larger composite image containing the smaller image;
+        automatically deletes labels for boxes which do not fall entirely inside of the larger image.
+        this object will be modified to contain the labels from yolo_datum, trasposed appropriately.
+        Inputs:
+            yolo_datum: the pair (img1, old_labels), where img1 is the smaller image on which old_labels are accurate as a torch [n_channels, height, width] tensor
+            top_left: the coordinates of the top left corner of img1 within img2, as (y,x). such that img2[:,y,x] is the top left corner of img1
+        """
         self.append_labels(self.transpose_yolo_labels(yolo_datum, top_left))
 
-    """
-    A function for composing this YOLODatum with another YOLODatum, such that the resulting image composes the two image with yolo_datum.img starting at top_left in self.img, 
-        and the resulting labels contain labels from both YOLODatum objects
-    Inputs:
-        yolo_datum: the datum to compose into this datum
-        top_left: the top left corner as (x,y) in which to append yolo_datum.img
-        image_composition_mode: a string denoting the mode in which to compose the image data from the two images; either 'replace', 'max', or 'add'; 'add' by default;
-    """
     def compose_yolo_data(self, yolo_datum, top_left, image_composition_mode = "add"):
+        """
+        A function for composing this YOLODatum with another YOLODatum, such that the resulting image composes the two image with yolo_datum.img starting at top_left in self.img, 
+            and the resulting labels contain labels from both YOLODatum objects
+        Inputs:
+            yolo_datum: the datum to compose into this datum
+            top_left: the top left corner as (x,y) in which to append yolo_datum.img
+            image_composition_mode: a string denoting the mode in which to compose the image data from the two images; either 'replace', 'max', or 'add'; 'add' by default;
+        """
         self.append_yolo_labels(yolo_datum, top_left)
         start_x, start_y = top_left
         width = min(self.img.size(2), yolo_datum.img.size(2))
@@ -129,11 +130,11 @@ class YOLODatum():
         else:
             raise Exception("invalid image composition mode; must be 'max', 'add', or 'replace'")
 
-"""
-A class for adapting generic image datasets to YOLO image datasets. Expects a dataset which returns only image tensors, and a class label to apply to the dataset.
-All returned data will be of the form (image_data, [(class_id, 0.5, 0.5, 1.0 1.0)]), or (image_data, []) if class_id = None
-"""
 class YOLODatasetAdapter(Dataset):
+    """
+    A class for adapting generic image datasets to YOLO image datasets. Expects a dataset which returns only image tensors, and a class label to apply to the dataset.
+    All returned data will be of the form (image_data, [(class_id, 0.5, 0.5, 1.0 1.0)]), or (image_data, []) if class_id = None
+    """
     def __init__(self, dataset: Dataset, class_id: int = None):
         self.dataset = dataset
         self.class_id = class_id
@@ -144,19 +145,19 @@ class YOLODatasetAdapter(Dataset):
             return YOLODatum(self.dataset[idx], [])
         return YOLODatum(self.dataset[idx], self.class_id)
 
-"""
-Defines a component of a composite dataset; this will contain any information the composites should use to place instances of this component in the composites, such as how many instances should be place
-Inputs:
-    component_dataset: a Dataset object which contains instances of this component, represented as (image_component: ndarray(c,height,width), class_id: int)
-    min_to_add: the fewest instances of this component type to be placed in each composite
-    max_to_add: the most instances of this type to be placed in each composite; the number of instances will be selected unifomly from min_to_add to max_to_add
-    class_id: the int id to use for labeling data; 
-            if provided, all returned data will be of the form (component_dataset[n], (class_id, 0.5, 0.5, 1.0, 1.0)) representing a single box taking up the full image component of class class_id
-    use_source_yolo_labels: if true, load YOLO labels from the component_dataset; otherwise component_dataset is assumed to return only image tensors;
-
-    If neither class_id nor use_source_yolo_labels is provided, all data will be assumed to have no labels, and (component_dataset[n], []) will be returned
-"""
 class YOLOImageCompositeDatasetComponent(Dataset):
+    """
+    Defines a component of a composite dataset; this will contain any information the composites should use to place instances of this component in the composites, such as how many instances should be place
+    Inputs:
+        component_dataset: a Dataset object which contains instances of this component, represented as (image_component: ndarray(c,height,width), class_id: int)
+        min_to_add: the fewest instances of this component type to be placed in each composite
+        max_to_add: the most instances of this type to be placed in each composite; the number of instances will be selected unifomly from min_to_add to max_to_add
+        class_id: the int id to use for labeling data; 
+                if provided, all returned data will be of the form (component_dataset[n], (class_id, 0.5, 0.5, 1.0, 1.0)) representing a single box taking up the full image component of class class_id
+        use_source_yolo_labels: if true, load YOLO labels from the component_dataset; otherwise component_dataset is assumed to return only image tensors;
+    
+        If neither class_id nor use_source_yolo_labels is provided, all data will be assumed to have no labels, and (component_dataset[n], []) will be returned
+    """
     def __init__(self, component_dataset, min_to_add=0, max_to_add=1, class_id=None, use_source_yolo_labels=False):
         self.component_dataset = component_dataset
         self.min_to_add = min_to_add
@@ -180,16 +181,16 @@ class YOLOImageCompositeDatasetComponent(Dataset):
             to_add += [self.next()]
         return to_add
 
-"""
-A Dataset class generating synthetic composite images in yolo format from other image datasets
-Inputs:
-    composite_scale: a tuple of the form (height, width, num_channels) specifying the scale of the image compisites to be generated; (if a 2d tuple is passed in, it will work in greyscale)
-    transforms: either a single function or list of functions from images to images to be applied to each SOI; used for adding noise and impairments to data; defaults to None
-    
-    <NOTE>: The dataset will not have any components to add to the composite at initialization; these must be added by calling my_instance.add_component(image_dataset_to_add)
-    All components should be torch datasets which output an image in the form of an ndarray and an integer class id label as: (image_height, image_width, ?image_depth), class_id
-"""
 class YOLOImageCompositeDataset(Dataset):
+    """
+    A Dataset class generating synthetic composite images in yolo format from other image datasets
+    Inputs:
+        composite_scale: a tuple of the form (height, width, num_channels) specifying the scale of the image compisites to be generated; (if a 2d tuple is passed in, it will work in greyscale)
+        transforms: either a single function or list of functions from images to images to be applied to each SOI; used for adding noise and impairments to data; defaults to None
+        
+        <NOTE>: The dataset will not have any components to add to the composite at initialization; these must be added by calling my_instance.add_component(image_dataset_to_add)
+        All components should be torch datasets which output an image in the form of an ndarray and an integer class id label as: (image_height, image_width, ?image_depth), class_id
+    """
     def __init__(self, composite_scale, transforms=None, components = [], dataset_size = 10, max_add = False):
         self.composite_scale = composite_scale
         self.transforms = transforms

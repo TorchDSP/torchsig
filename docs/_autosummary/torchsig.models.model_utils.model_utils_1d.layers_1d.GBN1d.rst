@@ -7,7 +7,7 @@ torchsig.models.model\_utils.model\_utils\_1d.layers\_1d.GBN1d
    :members:
    :show-inheritance:
    :inherited-members:
-   :special-members: __call__, __add__, __mul__
+   :special-members: __call__, __repr__, __str__, __init__
 
    
    

@@ -29,6 +29,7 @@
    datasets
    image_datasets
    models
+   signals
    transforms
    utils
 

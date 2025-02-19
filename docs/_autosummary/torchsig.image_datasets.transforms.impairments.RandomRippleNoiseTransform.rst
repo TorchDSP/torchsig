@@ -7,7 +7,7 @@ torchsig.image\_datasets.transforms.impairments.RandomRippleNoiseTransform
    :members:
    :show-inheritance:
    :inherited-members:
-   :special-members: __call__, __add__, __mul__
+   :special-members: __call__, __repr__, __str__, __init__
 
    
    
@@ -16,6 +16,11 @@ torchsig.image\_datasets.transforms.impairments.RandomRippleNoiseTransform
    .. autosummary::
       :nosignatures:
    
+      ~RandomRippleNoiseTransform.add_parent
+      ~RandomRippleNoiseTransform.get_second_seed
+      ~RandomRippleNoiseTransform.seed
+      ~RandomRippleNoiseTransform.setup_rngs
+      ~RandomRippleNoiseTransform.update_from_parent
    
    
 

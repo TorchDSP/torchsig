@@ -13,4 +13,3 @@ make html
 ```
 
 Navigate to `build/html/index.html` for the generated HTML documenation.
-

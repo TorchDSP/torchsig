@@ -1,1 +1,1 @@
-from . import densenet, efficientnet, xcit, inceptiontime, convit
+from . import xcit

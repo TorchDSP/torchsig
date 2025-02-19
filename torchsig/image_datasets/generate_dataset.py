@@ -112,7 +112,7 @@ def main():
 
     mod_ds = ModulationsDataset(
                 level=0, 
-                num_samples=53000,
+                num_samples=61000,
                 num_iq_samples=2*128**2,
                 use_class_idx=True,
                 include_snr=False,

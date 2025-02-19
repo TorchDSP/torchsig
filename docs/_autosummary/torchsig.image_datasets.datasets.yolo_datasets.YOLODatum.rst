@@ -7,7 +7,7 @@ torchsig.image\_datasets.datasets.yolo\_datasets.YOLODatum
    :members:
    :show-inheritance:
    :inherited-members:
-   :special-members: __call__, __add__, __mul__
+   :special-members: __call__, __repr__, __str__, __init__
 
    
    
