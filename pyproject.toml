@@ -18,7 +18,7 @@ classifiers = [
 ]
 keywords = ["signal processing", "machine learning"]
 dependencies = [
-    "torch>=2.3.1",
+    "torch",
     "torchvision",
     "tqdm",
     "opencv-python",
@@ -37,7 +37,7 @@ dependencies = [
     "torchinfo",
     "sigmf",
     "pytest",
-    "zarr",
+    "zarr"==2.18.3,
     "pylint",
     "pytest-cov",
 ]
