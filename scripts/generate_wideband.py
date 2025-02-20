@@ -25,13 +25,14 @@ def main():
     parser = argparse.ArgumentParser()
 
     parser.add_argument("root", type=str, help="Path to generate Wideband dataset.")
-    parser.add_argument("--num_signals", type=int, default=3, help="Number of signals per sample. Defaults to 3.")
+    parser.add_argument("--num_signals", type=int, default=3, help="Maximum number of signals per sample. Defaults to 3.")
     parser.add_argument("--num_samples", type=int, default=100, help= "Dataset size. Defaults to 100")
     parser.add_argument("--num_iq_samples", type=int, default=100, help="Nmber of IQ samples per sample. Defaults to 100")
     parser.add_argument("--fft_size", type=int, default=-1, help="FFT Size. Defaults to sqrt(num_iq_samples)")
     parser.add_argument("--impaired", action="store_true", help="Generate impaired dataset.")
     parser.add_argument("--batch_size", type=int, default = 32, help="Batch size. Defaults to 32.")
     parser.add_argument("--num_workers", type=int, default=os.cpu_count() // 3, help="Number of workers to generate dataset. Defaults to a third of available CPU cores.")
+    parser.add_argument("--min_signals", type=int, default=None, help="Minimum number of signals per sample. Defaults to num_signals.")
 
     # Parse the arguments
     args = parser.parse_args()
@@ -43,6 +44,7 @@ def main():
         num_iq_samples_dataset=args.num_iq_samples,
         fft_size= int(math.sqrt(args.num_iq_samples)) if args.fft_size == -1 else args.fft_size,
         impairment_level= 2 if args.impaired else 0,
+        num_signals_min= args.num_signals if args.min_signals is None else args.min_signals,
     )
 
     generate(
