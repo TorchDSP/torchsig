@@ -31,6 +31,7 @@ def main():
     parser.add_argument("--impaired", action="store_true", help="Generate impaired dataset.")
     parser.add_argument("--batch_size", type=int, default = 32, help="Batch size. Defaults to 32.")
     parser.add_argument("--num_workers", type=int, default=os.cpu_count() // 3, help="Number of workers to generate dataset. Defaults to a third of available CPU cores.")
+    parser.add_argument("--min_signals", type=int, default=1, help="Minimum number of signals per sample. Must be 0 or 1. Defaults to 1.")
 
     # Parse the arguments
     args = parser.parse_args()
@@ -41,6 +42,7 @@ def main():
         num_iq_samples_dataset=args.num_iq_samples,
         fft_size= int(math.sqrt(args.num_iq_samples)) if args.fft_size == -1 else args.fft_size,
         impairment_level= 2 if args.impaired else 0,
+        num_signals_min = args.min_signals
     )
 
     generate(
