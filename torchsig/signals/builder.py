@@ -48,7 +48,6 @@ class Builder(ABC):
         """Initialize builder, reset.
         """
         self.name = name
-        self.reset()
 
     @abstractmethod
     def build(self) -> Signal:
@@ -91,12 +90,13 @@ class SignalBuilder(Builder, Seedable):
         Raises:
             ValueError: Signal builder does not support class_name signal.
         """
+        self.class_name = class_name
+        Builder.__init__(self, name=f" {self.class_name} Signal Builder")
+        
         Seedable.__init__(self, **kwargs)
         # retains dataset metadata info
         self.dataset_metadata = dataset_metadata
-        self.class_name = class_name
-
-        Builder.__init__(self, name=f" {self.class_name} Signal Builder")
+        
 
         if not self.class_name in self.supported_classes:
             raise ValueError(f"{self.class_name} + ' not supported by {self.__class__.__name__}. List of supported waveforms: {self.supported_classes}")
@@ -145,21 +145,26 @@ class SignalBuilder(Builder, Seedable):
         power of the signal based on the PSD estimate to have the appropriate
         SNR and then estimates the total occupied bandwidth of the signal,
         including sidelobes, to develop a more accurate bounding box.
-        `.verify()` ensures that the metadata values are withing the appropriate
+        `.verify()` ensures that the metadata values are within the appropriate
         bounds. The Signal() object is then stored for the return call, and
         `reset()` is called to reset the signal metadata fields to their dataset
         metadata defaults.
 
         In order, calls:
+        - `reset()`
         - `_update_metadata()`
         - `_update_data()`
         - `_correct_bandwidth_and_snr()`
         - `_signal.verify()`
-        - `reset()`
+
 
         Returns:
             Signal: Signal being built.
         """
+
+        # performs a reset of the signal metadata to default values as defined
+        # by dataset metadata, as was done in the Builder() parent class __init__
+        self.reset()
 
         # the __init__ within the parent class Builder() has called .reset()
         # to establish the signal metadata according to the dataset metadata
@@ -182,10 +187,6 @@ class SignalBuilder(Builder, Seedable):
 
         # ensures IQ data is in complex64
         new_signal.data = new_signal.data.astype(np.complex64)
-
-        # performs a reset of the signal metadata to default values as defined
-        # by dataset metadata, as was done in the Builder() parent class __init__
-        self.reset()
 
         return new_signal
     
@@ -291,7 +292,7 @@ class SignalBuilder(Builder, Seedable):
 
         # convert correction value to linear
         correction = 10**(correction_db/10)
-
+        
         # apply correction value to signal
         self._signal.data *= np.sqrt(correction)
 
