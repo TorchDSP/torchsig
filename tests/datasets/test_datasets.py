@@ -17,11 +17,16 @@ from torchsig.transforms.target_transforms import (
     FamilyName,
 )
 from torchsig.transforms.dataset_transforms import Spectrogram
+from torchsig.utils.dsp import (
+    torchsig_complex_data_type,
+    torchsig_float_data_type
+)
 
 # Third Party
 import numpy as np
 import matplotlib.pyplot as plt
 from tqdm import tqdm
+from copy import deepcopy
 from pathlib import Path
 import os
 import shutil
@@ -31,6 +36,8 @@ from typing import List, Any
 from collections.abc import Iterable
 import itertools
 
+
+RTOL = 1E-6
 
 nb_data_dir =  Path.joinpath(Path(__file__).parent,'data/narrowband_data')
 nb_image_dir = Path.joinpath(Path(__file__).parent,'data/narrowband_images')
@@ -273,9 +280,6 @@ def test_StaticDataset_getitem(dataset_type: str, target_transforms: List[Target
     
 
 
-
-    
-
 # @pytest.mark.skip(reason="ere")
 @pytest.mark.parametrize("params, is_error", [
     (
@@ -284,7 +288,7 @@ def test_StaticDataset_getitem(dataset_type: str, target_transforms: List[Target
     )
 ])
 def test_NarrowbandDatasets(params: dict, is_error: bool) -> None:
-    """Test Narrowband datasets with pytest - NewNarrowband and StaticNarrowband.
+    """Test Narrowband datasets for repeatability with pytest - NewNarrowband and StaticNarrowband.
 
     Args:
         is_error (bool): Is a test error expected.
@@ -329,7 +333,7 @@ def test_NarrowbandDatasets(params: dict, is_error: bool) -> None:
     signal_duration_percent_min = 80
     
     # define transforms
-    transforms = [Spectrogram(fft_size=fft_size)]
+    transforms = [Spectrogram(fft_size=fft_size)] # spectrogram (float data)
     target_transform = [
         ClassName(),
         Start(),
@@ -373,11 +377,12 @@ def test_NarrowbandDatasets(params: dict, is_error: bool) -> None:
             )
     else:
         # create the narrowband object, derived from the metadata object
-        NB = NewNarrowband(dataset_metadata=md)
-
+        NB0 = NewNarrowband(dataset_metadata=deepcopy(md), seed=seed)
+        NB1 = NewNarrowband(dataset_metadata=deepcopy(md), seed=seed)
+        
         # save dataset to disk
         dc = DatasetCreator(
-            NB,
+            NB0,
             root = nb_data_dir,
             overwrite = True,
             batch_size=2,
@@ -385,55 +390,73 @@ def test_NarrowbandDatasets(params: dict, is_error: bool) -> None:
         dc.create()
 
         # load dataset from disk
-        NBS = StaticNarrowband(
+        NBS0 = StaticNarrowband(
             root = nb_data_dir,
             impaired = impairment_level,
         )
-    
-        # inspect and save save_num_signals as images
-        for i in tqdm(range(save_num_signals), desc = "Saving as Images"):
-            data, targets = NBS[i] # runs narrowband's __getitem__
 
-            fig = plt.figure(figsize=(18,12))
-            ax = fig.add_subplot(1,1,1)
-            xmin = 0
-            xmax = 1
-            ymin = -sample_rate / 2
-            ymax = sample_rate / 2
-
-            pos = ax.imshow(data,extent=[xmin,xmax,ymin,ymax],aspect='auto',cmap='Wistia',vmin=md.noise_power_db)
-            fig.colorbar(pos, ax=ax)
-
-            # for t in targets:
-            classname, start, stop, lower, upper, snr = targets
-            ax.plot([start,start],[lower,upper],'b',alpha=0.5)
-            ax.plot([stop, stop],[lower,upper],'b',alpha=0.5)
-            ax.plot([start,stop],[lower,lower],'b',alpha=0.5)
-            ax.plot([start,stop],[upper,upper],'b',alpha=0.5)
-            textDisplay = str(classname) + ', SNR = ' + str(snr) + ' dB'
-            ax.text(start,lower,textDisplay, bbox=dict(facecolor='w', alpha=0.5, linewidth=0))
-            ax.set_xlim([0,1])
-            ax.set_ylim([-sample_rate/2,sample_rate/2])
-            fig.suptitle(f"class: {classname}", fontsize=16)
-
-            plt.ylabel("Frequency (Hz)")
-            plt.xlabel("Time")
-            plt.savefig(f"{nb_image_dir}/{i}")            
-            plt.close()
+        NBS1 = StaticNarrowband(
+            root = nb_data_dir,
+            impaired = impairment_level,
+        )
         
-        data, meta = NB[0]
-        assert isinstance(NB, NewNarrowband)
-        assert len(NB) == num_samples
-        assert type(data) == np.ndarray
-        assert data.dtype == np.float32
-        assert type(meta) == tuple
+        # # inspect and save save_num_signals as images
+        # for i in tqdm(range(save_num_signals), desc = "Saving as Images"):
+        #     data, targets = NBS[i] # runs narrowband's __getitem__
 
-        data, meta = NBS[0]
-        assert isinstance(NBS, StaticNarrowband)
-        assert len(NBS) == num_samples
-        assert type(data) == np.ndarray
-        assert data.dtype == np.float32
-        assert type(meta) == tuple        
+        #     fig = plt.figure(figsize=(18,12))
+        #     ax = fig.add_subplot(1,1,1)
+        #     xmin = 0
+        #     xmax = 1
+        #     ymin = -sample_rate / 2
+        #     ymax = sample_rate / 2
+
+        #     pos = ax.imshow(data,extent=[xmin,xmax,ymin,ymax],aspect='auto',cmap='Wistia',vmin=md.noise_power_db)
+        #     fig.colorbar(pos, ax=ax)
+
+        #     # for t in targets:
+        #     classname, start, stop, lower, upper, snr = targets
+        #     ax.plot([start,start],[lower,upper],'b',alpha=0.5)
+        #     ax.plot([stop, stop],[lower,upper],'b',alpha=0.5)
+        #     ax.plot([start,stop],[lower,lower],'b',alpha=0.5)
+        #     ax.plot([start,stop],[upper,upper],'b',alpha=0.5)
+        #     textDisplay = str(classname) + ', SNR = ' + str(snr) + ' dB'
+        #     ax.text(start,lower,textDisplay, bbox=dict(facecolor='w', alpha=0.5, linewidth=0))
+        #     ax.set_xlim([0,1])
+        #     ax.set_ylim([-sample_rate/2,sample_rate/2])
+        #     fig.suptitle(f"class: {classname}", fontsize=16)
+
+        #     plt.ylabel("Frequency (Hz)")
+        #     plt.xlabel("Time")
+        #     plt.savefig(f"{nb_image_dir}/{i}")            
+        #     plt.close()
+
+        # narrowband dataset
+        assert isinstance(NB0, NewNarrowband)
+        assert len(NB0) == num_samples
+        for i in range(num_samples):
+            data0, meta0 = NB0[i]
+            data1, meta1 = NB1[i] # reproducible copy
+
+            assert type(data0) == np.ndarray
+            assert data0.dtype == torchsig_float_data_type
+            assert type(meta0) == tuple
+            assert meta0 == meta1
+            assert np.allclose(data0, data1, RTOL)
+
+        # static narrowband dataset
+        assert isinstance(NBS0, StaticNarrowband)
+        assert len(NBS0) == num_samples       
+        for i in range(num_samples):
+            data0, meta0 = NBS0[i]
+            data1, meta1 = NBS1[i] # reproducible copy
+
+            assert type(data0) == np.ndarray
+            assert data0.dtype == torchsig_float_data_type
+            assert type(meta0) == tuple
+            assert meta0 == meta1
+            assert np.allclose(data0, data1, RTOL)
+            
 
 # @pytest.mark.skip(reason="ere")
 @pytest.mark.parametrize("params, is_error", [
@@ -541,68 +564,50 @@ def test_WidebandDatasets(params: dict, is_error: bool) -> None:
             )
     else:
         # create the wideband object, derived from the metadata object
-        WB = NewWideband(dataset_metadata=md)
+        WB0 = NewWideband(dataset_metadata=deepcopy(md), seed=seed)
+        WB1 = NewWideband(dataset_metadata=deepcopy(md), seed=seed) # reproducible copy
 
         # save dataset to disk
         dc = DatasetCreator(
-            WB,
+            WB0,
             root = wb_data_dir,
             overwrite = True
         )
         dc.create()
 
         # load dataset from disk
-        WBS = StaticWideband(
+        WBS0 = StaticWideband(
             root = wb_data_dir,
             impaired = impairment_level,
         )
-    
-        # inspect and save save_num_signals as images
-        for i in tqdm(range(save_num_signals), desc = "Saving as Images"):
-            data, targets = WBS[i] # (data, List[dict])
+        WBS1 = StaticWideband(
+            root = wb_data_dir,
+            impaired = impairment_level,
+        )
+            
+        # wideband dataset
+        assert isinstance(WB0, NewWideband)
+        assert len(WB0) == num_samples
+        for i in range(num_samples):
+            data0, meta0 = WB0[i]
+            data1, meta1 = WB1[i] # reproducible copy
+            
+            assert type(data0) == np.ndarray
+            assert data0.dtype == torchsig_float_data_type
+            assert type(meta0) == list
+            assert meta0 == meta1
+            assert np.allclose(data0, data1, RTOL)
 
-            fig = plt.figure(figsize=(18,12))
-            ax = fig.add_subplot(1,1,1)
-            xmin = 0
-            xmax = 1
-            ymin = -sample_rate / 2
-            ymax = sample_rate / 2
-
-            pos = ax.imshow(data,extent=[xmin,xmax,ymin,ymax],aspect='auto',cmap='Wistia',vmin=md.noise_power_db)
-            fig.colorbar(pos, ax=ax)
-
-            title = "labels: "
-
-            for t in targets:
-                
-                classname, start, stop, lower, upper, snr = t
-                ax.plot([start,start],[lower,upper],'b',alpha=0.5)
-                ax.plot([stop, stop],[lower,upper],'b',alpha=0.5)
-                ax.plot([start,stop],[lower,lower],'b',alpha=0.5)
-                ax.plot([start,stop],[upper,upper],'b',alpha=0.5)
-                textDisplay = str(classname) + ', SNR = ' + str(snr) + ' dB'
-                ax.text(start,lower,textDisplay, bbox=dict(facecolor='w', alpha=0.5, linewidth=0))
-                ax.set_xlim([0,1])
-                ax.set_ylim([-sample_rate/2,sample_rate/2])
-                title = f"{title}{classname} "
-
-            fig.suptitle(title, fontsize=16)
-            plt.ylabel("Frequency (Hz)")
-            plt.xlabel("Time")
-            plt.savefig(f"{wb_image_dir}/{i}")            
-            plt.close()
-
-
-        data, meta = WB[0]
-        assert isinstance(WB, NewWideband)
-        assert len(WB) == num_samples
-        assert type(data) == np.ndarray
-        assert data.dtype == np.float32
-        assert type(meta) == list
-
-        data, meta = WBS[0]
-        assert isinstance(WBS, StaticWideband)
-        assert len(WBS) == num_samples
-        assert type(data) == np.ndarray
-        assert data.dtype == np.float32
-        assert type(meta) == list
+        # static wideband dataset
+        assert isinstance(WBS0, StaticWideband)
+        assert len(WBS0) == num_samples
+        for i in range(num_samples):
+            data0, meta0 = WBS0[i]
+            data1, meta1 = WBS1[i] # reproducible copy
+            
+            assert type(data0) == np.ndarray
+            assert data0.dtype == torchsig_float_data_type
+            assert type(meta0) == list
+            assert meta0 == meta1
+            assert np.allclose(data0, data1, RTOL)
+        

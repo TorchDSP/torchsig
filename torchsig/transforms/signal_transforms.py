@@ -27,7 +27,6 @@ from torchsig.signals.signal_types import Signal
 import torchsig.transforms.functional as F
 from torchsig.utils.dsp import torchsig_complex_data_type
 from torchsig.transforms.transform_utils import (
-    get_distribution,
     FloatParameter,
     NumericParameter
 )
@@ -94,7 +93,7 @@ class CarrierPhaseOffsetSignalTransform(SignalTransform):
         super().__init__(**kwargs)
         self.phase_offset_range = phase_offset_range
 
-        self.phase_offset_distribution = get_distribution(self.phase_offset_range, self.random_generator)
+        self.phase_offset_distribution = self.get_distribution(self.phase_offset_range)
         
     
     def __call__(self, signal: Signal) -> Signal:
@@ -137,7 +136,7 @@ class Fading(SignalTransform): # slow, fast, block fading
         self.coherence_bandwidth = coherence_bandwidth
         self.power_delay_profile = np.asarray(power_delay_profile)
 
-        self.coherence_bandwidth_distribution = get_distribution(self.coherence_bandwidth, self.random_generator)
+        self.coherence_bandwidth_distribution = self.get_distribution(self.coherence_bandwidth)
         
         
 
@@ -180,9 +179,9 @@ class IQImbalanceSignalTransform(SignalTransform):
         self.phase_imbalance = phase_imbalance
         self.dc_offset = dc_offset 
         
-        self.amplitude_imbalance_distribution = get_distribution(self.amplitude_imbalance, self.random_generator)
-        self.phase_imbalance_distribution = get_distribution(self.phase_imbalance, self.random_generator)
-        self.dc_offset_distribution = get_distribution(self.dc_offset, self.random_generator)
+        self.amplitude_imbalance_distribution = self.get_distribution(self.amplitude_imbalance)
+        self.phase_imbalance_distribution = self.get_distribution(self.phase_imbalance)
+        self.dc_offset_distribution = self.get_distribution(self.dc_offset)
         
     def __call__(self, signal: Signal) -> Signal:
         amplitude_imbalance = self.amplitude_imbalance_distribution()

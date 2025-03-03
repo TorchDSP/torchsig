@@ -63,7 +63,7 @@ def generate_repr_str(class_object: Any, exclude_params: List[str] = []) -> str:
             class_dict.pop(r)
         
         # add back in (last)
-        class_dict['seed'] = class_object.rng_seed
+        #class_dict['seed'] = class_object.rng_seed
         # class_dict['parent'] = class_object.parent.__repr__()
 
     params = [f"{k}={v}" for k,v in class_dict.items()]
@@ -182,7 +182,7 @@ def dataset_metadata_str(
         f"{'target_transforms':<29} {target_transform_str}\n" 
         f"{'class_list':<29} {class_list_str}\n" 
         f"{'class_distribution':<29} {class_distribution_str}\n" 
-        f"{'seed':<29} {dataset_metadata.rng_seed}\n"   
+        ####f"{'seed':<29} {dataset_metadata.rng_seed}\n"   
     )
 
 def dataset_metadata_repr(
