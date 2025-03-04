@@ -180,6 +180,8 @@ class RandomApply(Transform):
         super().__init__(**kwargs)
         self.transform = transform
         self.probability = probability
+        if isinstance(self.transform, Seedable):
+            self.transform.add_parent(self)
 
     def __call__(self, signal: Signal | DatasetSignal) -> Signal | DatasetSignal:
         if self.random_generator.random() < self.probability:
@@ -208,6 +210,9 @@ class RandAugment(Transform):
     ):
         super().__init__(seed=seed, **kwargs)
         self.transforms = transforms
+        for transform in self.transforms:
+            if isinstance(transform, Seedable):
+                transform.add_parent(self)
         self.choose = choose
         self.replace = replace
 

@@ -42,6 +42,8 @@ docs/src
 
 # Tests
 tests/datasets/*
+!tests/datasets/*.py
+!tests/datasets/*.yaml
 
 # Examples
 examples/*

@@ -456,10 +456,52 @@ def mag_rescale(
     return data.astype(torchsig_complex_data_type)
 
 
-def nonlinear_amplifier():
-    """Unimplemented Functional for memoryless nonlinear amplifier response.
-    """     
+def nonlinear_amplifier(
+    data: np.ndarray,
+    Pin: np.ndarray =  10**((np.array([-100., -20., -10.,  0.,  5., 10. ]) / 10)),
+    Pout: np.ndarray = 10**((np.array([ -90., -10.,   0.,  9., 9.9, 10. ]) / 10)),
+    Phi: np.ndarray = np.deg2rad(np.array([0., -2.,  -4.,  7., 12., 23.]))
+) -> np.ndarray:
+    """A nonlinear amplifier (AM/AM, AM/PM) memoryless model that distorts an input
+    complex signal to simulate an amplifier response, based on interpolating a table of
+    provided power input, power output, and phase change data points. 
 
+        Default very small model parameters depict a 10 dB gain amplifier with P1dB = 9.0 dBW.
+            Pin =  10**((np.array([-100., -20., -10.,  0.,  5., 10. ]) / 10))
+            Pout = 10**((np.array([ -90., -10.,   0.,  9., 9.9, 10. ]) / 10))
+            Phi = np.deg2rad(np.array([0., -2., -4., 7., 12., 23.]))
+
+    Args:
+        data (np.ndarray): Complex valued IQ data samples.
+        Pin (np.ndarray): Model signal power input points. Assumes sorted ascending linear values (Watts).
+        Pout (np.ndarray): Model power out corresponding to Pin points (Watts).
+        Phi (np.ndarray): Model output phase shift values (radians) corresponding to Pin points.
+
+    Raises:
+        ValueError: If model array arguments are not the same size.
+            
+    Returns:
+        np.ndarray: Nonlinearly distorted IQ data.
+        
+    """
+    if (len(Pin) != len(Pout)) or (len(Pin) != len(Phi)):
+        raise ValueError('Model array arguments are not the same size.')
+
+    magnitude = np.abs(data)
+    phase = np.angle(data)
+    
+    # amplitude-to-amplitude modulation (AM/AM)
+    in_power = magnitude**2
+    out_power = np.interp(in_power, Pin, Pout)
+    out_magnitude = out_power**0.5
+    
+    # amplitude-to-phase modulation (AM/PM)
+    out_phase_shift_rad = np.interp(in_power, Pin, Phi)
+
+    data = out_magnitude * np.exp(1j * (phase + out_phase_shift_rad))
+    
+    return data
+     
 
 def normalize(
     data: np.ndarray,
