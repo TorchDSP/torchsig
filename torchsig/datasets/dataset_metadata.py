@@ -73,6 +73,8 @@ class DatasetMetadata(Seedable):
         snr_db_max: float = 50.0,
         signal_duration_percent_min: float = 0.0,
         signal_duration_percent_max: float = 100.0,
+        signal_bandwidth_min: float = 10e3,
+        signal_bandwidth_max: float = 100e3,
         transforms: list = [],
         target_transforms: list = [],
         class_list: List[str] = None,
@@ -96,6 +98,8 @@ class DatasetMetadata(Seedable):
             snr_db_max (float, optional): Maximum SNR of signals to generate. Defaults to 50.0.
             signal_duration_percent_min (float, optional): Minimum duration of signal in percentage. Defaults to 0.0.
             signal_duration_percent_max (float, optional): Maximum duration of signal in percentage. Defaults to 100.0.
+            signal_bandwidth_min (float, optional): Minimum bandwidth of the signal. Defaults to 10e3.
+            signal_bandwidth_max (float, optional): Maximum bandwidth of the signal. Defaults to 100e3.
             transforms (list): Transforms to apply. Defaults to [].
             target_transforms (list): List of Target Transforms to apply. Defaults to [].
             class_list (List[str], optional): Signal class name list. Defaults to TorchSigSignalLists.all_signals.
@@ -125,18 +129,20 @@ class DatasetMetadata(Seedable):
         self._class_distribution = class_distribution
 
         self._dataset_type = dataset_type
-        
-        
         self._num_samples = num_samples
 
-        # provide a noise power reference in dB
-        self._noise_power_db = 0
-        # minimum and maximum SNRs for signals
+
         self._snr_db_max = snr_db_max
         self._snr_db_min = snr_db_min
 
         self._signal_duration_percent_max = signal_duration_percent_max
         self._signal_duration_percent_min = signal_duration_percent_min
+
+        self._signal_bandwidth_min = signal_bandwidth_min
+        self._signal_bandwidth_max = signal_bandwidth_max
+
+        # provide a noise power reference in dB
+        self._noise_power_db = 0
 
         # run _verify() to ensure metadata is valid
         self._verify()
@@ -312,6 +318,13 @@ class DatasetMetadata(Seedable):
             exclude_low = True
         )
 
+        # verify that the minimum and maximum signal bandwidth is not smaller than what is possible to generate
+        if (self.signal_bandwidth_min < self.dataset_bandwidth_min):
+            raise ValueError(f'Signal bandwidth minimum {self.signal_bandwidth_min} cannot be less than {self.dataset_bandwidth_min}')
+
+        if (self.signal_bandwidth_max > self.dataset_bandwidth_max):
+            raise ValueError(f'Signal bandwidth maximum {self.signal_bandwidth_max} cannot be greater than {self.dataset_bandwidth_max}')
+
 
     def _initialize_impairments(self) -> Impairments:
         """Initializes the dataset impairments (not implemented).
@@ -379,7 +392,7 @@ class DatasetMetadata(Seedable):
             'transforms': [str(tranform) for tranform in self._transforms],
             'target_transforms': [str(target_transform) for target_transform in self._target_transforms],
         }
-        # signal genration
+        # signal generation
         signal_gen = {
             'num_signals_min': self._num_signals_min,
             'num_signals_max': self._num_signals_max,
@@ -391,8 +404,8 @@ class DatasetMetadata(Seedable):
             'signal_duration_percent_max': self._signal_duration_percent_max,
             'center_freq_min': self.center_freq_min,
             'center_freq_max': self.center_freq_max,
-            'bandwidth_min': self.bandwidth_min,
-            'bandwidth_max': self.bandwidth_max,
+            'signal_bandwidth_min': self._signal_bandwidth_min,
+            'signal_bandwidth_max': self._signal_bandwidth_max,
             'fft_size': self._fft_size,
             'fft_frequency_resolution': self.fft_frequency_resolution,
             'fft_frequency_min': self.fft_frequency_min,
@@ -442,22 +455,47 @@ class DatasetMetadata(Seedable):
         raise NotImplementedError(".center_freq_max not implemented.")
 
     @property
-    def bandwidth_min(self) -> None:
-        """Defines the minimum bandwidth for a signal
+    def signal_bandwidth_min(self) -> float:
+        """Defines the minimum bandwidth for a signal in the dataset
 
-        Raises:
-            NotImplementedError: Inherited classes must implement this method.
-        """        
-        raise NotImplementedError(".bandwidth_min not implemented.")
+        Returns:
+            float: minimum bandwidth for a signal
+        """
+        return self._signal_bandwidth_min
 
     @property
-    def bandwidth_max(self) -> None:
-        """Defines the maximum bandwidth for a signal
+    def signal_bandwidth_max(self) -> float:
+        """Defines the maximum bandwidth for a signal in the dataset
 
-        Raises:
-            NotImplementedError: Inherited classes must implement this method.
-        """        
-        raise NotImplementedError(".bandwidth_max not implemented.")
+        Returns:
+            float: maximumum bandwidth for a signal
+        """
+        return self._signal_bandwidth_max
+
+    @property
+    def dataset_bandwidth_min(self) -> float:
+        """The minimum possible bandwidth for a signal
+
+        Provides a boundary for the minimum bandwidth of a signal, which
+        is the bandwidth of a tone, which is sample rate / number of samples.
+
+        Returns:
+            float: the minimum bandwidth for a signal
+        """
+        return self.sample_rate / self.num_iq_samples_dataset
+
+    @property
+    def dataset_bandwidth_max(self) -> float:
+        """The maximum possible bandwidth for a signal
+
+        Provides a boundary for the maximum bandwidth of a signal, which
+        is the sampling rate.
+
+        Returns:
+            float: the maximum bandwidth for a signal
+        """
+        return self.sample_rate
+
 
     ## Read-Only Dataset Metadata fields
     @property
@@ -836,6 +874,8 @@ class NarrowbandMetadata(DatasetMetadata):
         snr_db_max: float = 50.0,
         signal_duration_percent_min: float = 80.0,
         signal_duration_percent_max: float = 100.0,
+        signal_bandwidth_min: float = 1e6,
+        signal_bandwidth_max: float = 5e6,
         transforms: list = [],
         target_transforms: list = [],
         class_list: List[str] = TorchSigSignalLists.all_signals,
@@ -877,6 +917,8 @@ class NarrowbandMetadata(DatasetMetadata):
             snr_db_max=snr_db_max,
             signal_duration_percent_min=signal_duration_percent_min,
             signal_duration_percent_max=signal_duration_percent_max,
+            signal_bandwidth_min=signal_bandwidth_min,
+            signal_bandwidth_max=signal_bandwidth_max,
             transforms=transforms, 
             target_transforms=target_transforms, 
             class_list=class_list,
@@ -885,14 +927,6 @@ class NarrowbandMetadata(DatasetMetadata):
             dataset_type="narrowband",
             **kwargs
         )
-
-
-        # oversampling rate range will be used to derive bandwidth limits. the
-        # oversampling rate is always greater than 1 such that there will be 
-        # some proportion of the receive spectrum which is unoccupied, ex: the
-        # noise floor will be visible
-        self._oversampling_min = 1.25
-        self._oversampling_max = 8
 
         # limits the range for center frequency as a proportion of the receiver
         # bandwidth. the center DatasetImpairmentsfrequency offset (CFO) represents the distance
@@ -939,33 +973,6 @@ class NarrowbandMetadata(DatasetMetadata):
         """
         return self.sample_rate * (self._cfo_percentage_error / 100)
 
-    @property
-    def bandwidth_max(self) -> float:
-        """The maximum bandwith for a signal
-
-        Provides a boundary for the maximum bandwidth of a signal.
-        The minimum signal bandwidth comes from the maximum oversampling
-        rate.
-
-        Returns:
-            float: the maximum bandwidth for a signal
-        """
-        return self.sample_rate/self._oversampling_min
-
-    @property
-    def bandwidth_min(self) -> float:
-        """The minimum bandwith for a signal
-
-        Provides a boundary for the minimum bandwidth of a signal.
-        The maximum signal bandwidth comes from the minimum oversampling
-        rate.
-
-        Returns:
-            float: the minimum bandwidth for a signal
-        """
-        return self.sample_rate/self._oversampling_max
-
-
 
 
 ### Wideband Metadata
@@ -1003,6 +1010,8 @@ class WidebandMetadata(DatasetMetadata):
         snr_db_max: float = 50.0,
         signal_duration_percent_min: float = 0.0,
         signal_duration_percent_max: float = 100.0,
+        signal_bandwidth_min: float = 10e3,
+        signal_bandwidth_max: float = 100e3,
         transforms: list = [],
         target_transforms: list = [],
         class_list: List[str] = TorchSigSignalLists.all_signals,
@@ -1025,6 +1034,8 @@ class WidebandMetadata(DatasetMetadata):
             snr_db_max (float, optional): Maximum SNR of signals (default is 50.0).
             signal_duration_percent_min (float, optional): Minimum signal duration percentage (default is 0.0).
             signal_duration_percent_max (float, optional): Maximum signal duration percentage (default is 100.0).
+            signal_bandwidth_min (float, optional): Minimum signal bandwidth (default is 10e3).
+            signal_bandwidth_max (float, optional): Maximum signal bandwidth (default is 100e3).
             transforms (list): Transforms applied to the dataset (default in []).
             target_transforms (list, optional): Target transforms applied (default is []).
             class_list (List[str], optional): List of signal class names (default is `TorchSigSignalLists.all_signals`).
@@ -1046,6 +1057,8 @@ class WidebandMetadata(DatasetMetadata):
             snr_db_min=snr_db_min,
             signal_duration_percent_max=signal_duration_percent_max,
             signal_duration_percent_min=signal_duration_percent_min,
+            signal_bandwidth_min=signal_bandwidth_min,
+            signal_bandwidth_max=signal_bandwidth_max,
             transforms=transforms, 
             target_transforms=target_transforms, 
             class_list=class_list,
@@ -1111,26 +1124,3 @@ class WidebandMetadata(DatasetMetadata):
         epsilon = 1e-10
         return (self.sample_rate/2)*(1-epsilon)
 
-    @property
-    def bandwidth_max(self) -> float:
-        """The maximum bandwith for a signal
-
-        Provides a boundary for the maximum bandwidth of a signal, which
-        is the sampling rate.
-
-        Returns:
-            float: the maximum bandwidth for a signal
-        """
-        return self.sample_rate
-
-    @property
-    def bandwidth_min(self) -> float:
-        """The minimum bandwith for a signal
-
-        Provides a boundary for the minimum bandwidth of a signal, which
-        is the bandwidth of a tone, which is sample rate / number of samples.
-
-        Returns:
-            float: the minimum bandwidth for a signal
-        """
-        return self.sample_rate / self.num_iq_samples_dataset
