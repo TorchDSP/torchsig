@@ -39,12 +39,6 @@ from torchsig.transforms.base_transforms import Transform
 from torchsig.signals.signal_types import DatasetSignal, SignalMetadata
 import torchsig.transforms.functional as F
 from torchsig.utils.dsp import torchsig_complex_data_type, torchsig_float_data_type
-from torchsig.transforms.transform_utils import (
-    get_distribution,
-    FloatParameter,
-    IntParameter,
-    NumericParameter
-)
 
 # Third Party
 import numpy as np
@@ -94,7 +88,7 @@ class AGC(DatasetTransform):
     """Automatic Gain Control performing sample-by-sample AGC algorithm.
 
     Attributes:
-        rand_scale (Tuple): FloatParameter setting the random scaling bounds for each sample update. 
+        rand_scale (Tuple): setting the random scaling bounds for each sample update. 
         rand_scale_distribution (Callable[[], float]): Random draw from rand_scale distribution.
         initial_gain_db (float): Inital gain value in dB.
         alpha_smooth (float): Alpha for avergaing the measure signal level `level_n = level_n * alpha + level_n-1(1-alpha)`
@@ -109,7 +103,7 @@ class AGC(DatasetTransform):
     """
     def __init__(
         self,
-        rand_scale: FloatParameter = (1.0, 10.0),
+        rand_scale = (1.0, 10.0),
         initial_gain_db: float = 0.0,
         alpha_smooth: float = 0.00004,
         alpha_track: float = 0.0004,
@@ -133,7 +127,7 @@ class AGC(DatasetTransform):
         self.low_level_db = low_level_db
         self.high_level_db = high_level_db
 
-        self.rand_scale_distribution = get_distribution(self.rand_scale, self.random_generator)
+        self.rand_scale_distribution = self.get_distribution(self.rand_scale )
         
 
     def __call__(self, signal: DatasetSignal) -> DatasetSignal:
@@ -230,7 +224,7 @@ class BlockAGC(DatasetTransform):
         super().__init__(**kwargs)
         # define the range (min,max) for possible change in gain (assume range is symmetric)
         self.gain_change_db_range = (-max_gain_change_db,max_gain_change_db)
-        self.gain_change_db_distribution = get_distribution(self.gain_change_db_range, self.random_generator)
+        self.gain_change_db_distribution = self.get_distribution(self.gain_change_db_range )
         
     def __call__(self, signal: DatasetSignal) -> DatasetSignal:
         # select a gain value change from distribution
@@ -264,7 +258,7 @@ class CarrierPhaseOffsetDatasetTransform(DatasetTransform):
         super().__init__(**kwargs)
         # by default, randomizes the phase across the 0 to 2pi radians range
         self.phase_offset_range = phase_offset_range
-        self.phase_offset_distribution = get_distribution(self.phase_offset_range, self.random_generator)
+        self.phase_offset_distribution = self.get_distribution(self.phase_offset_range )
         
     def __call__(self, signal: DatasetSignal) -> DatasetSignal:
         phase_offset = self.phase_offset_distribution()
@@ -296,28 +290,28 @@ class IQImbalanceDatasetTransform(DatasetTransform):
     """Applies a set of IQImbalance effects to a Signal: amplitude, phase, and DC offset.
 
     Attributes:
-        amplitude_imbalance (NumericParameter, optional): Range bounds of IQ amplitude imbalance (dB).    
+        amplitude_imbalance (optional): Range bounds of IQ amplitude imbalance (dB).    
         amplitude_imbalance_distribution (Callable[[], float]): Random draw from amplitude imbalance distribution.
-        phase_imbalance (NumericParameter, optional): Range bounds of IQ phase imbalance (radians).        
+        phase_imbalance (optional): Range bounds of IQ phase imbalance (radians).        
         phase_imbalance (Callable[[], float]): Random draw from phase imbalance distribution.
-        dc_offset (Tuple, optional): Range bounds for I and Q component DC offsets (NumericParameters).
+        dc_offset (Tuple, optional): Range bounds for I and Q component DC offsets.
         dc_offset (Callable[[], (float, float)]): Random draw from dc_offset distribution.
         
     """
     def __init__(
         self,
-        amplitude_imbalance: NumericParameter = (-1., 1.),
-        phase_imbalance: NumericParameter = (-5.0 * np.pi / 180.0, 5.0 * np.pi / 180.0),
-        dc_offset: NumericParameter = (-0.1, 0.1),
+        amplitude_imbalance = (-1., 1.),
+        phase_imbalance = (-5.0 * np.pi / 180.0, 5.0 * np.pi / 180.0),
+        dc_offset = (-0.1, 0.1),
         **kwargs
     ): 
         super().__init__(**kwargs)
         self.amplitude_imbalance = amplitude_imbalance
         self.phase_imbalance = phase_imbalance
         self.dc_offset = dc_offset #dc_offset, both I/Q components
-        self.amplitude_imbalance_distribution = get_distribution(self.amplitude_imbalance, self.random_generator)
-        self.phase_imbalance_distribution = get_distribution(self.phase_imbalance, self.random_generator)
-        self.dc_offset_distribution = get_distribution(self.dc_offset, self.random_generator)
+        self.amplitude_imbalance_distribution = self.get_distribution(self.amplitude_imbalance )
+        self.phase_imbalance_distribution = self.get_distribution(self.phase_imbalance )
+        self.dc_offset_distribution = self.get_distribution(self.dc_offset )
         
     def __call__(self, signal: DatasetSignal) -> DatasetSignal:
         amplitude_imbalance = self.amplitude_imbalance_distribution()
@@ -355,7 +349,7 @@ class Quantize(DatasetTransform):
     """Quantize signal I/Q samples into specified levels with a rounding method.
 
     Attributes:
-        num_levels (NumericParameter): Number of quantization levels.
+        num_levels: Number of quantization levels.
         num_levels_distribution (Callable[[], int]): Random draw from num_levels distribution.
         round_type (str, List[str]): Quantization rounding method. Must be 'floor', 
                 'nearest' or 'ceiling'. Defaults to 'ceiling'.
@@ -364,7 +358,7 @@ class Quantize(DatasetTransform):
     """
     def __init__(
         self,
-        num_levels: NumericParameter = ([16, 24, 32, 40, 48, 56, 64]),
+        num_levels = ([16, 24, 32, 40, 48, 56, 64]),
         round_type: List[str] = (["floor", "middle", "ceiling"]),
         **kwargs
     ):
@@ -372,8 +366,8 @@ class Quantize(DatasetTransform):
         self.num_levels = num_levels
         self.round_type = round_type
 
-        self.num_levels_distribution = get_distribution(self.num_levels, self.random_generator)
-        self.round_type_distribution = get_distribution(self.round_type, self.random_generator)
+        self.num_levels_distribution = self.get_distribution(self.num_levels )
+        self.round_type_distribution = self.get_distribution(self.round_type )
         
     def __call__(self, signal: DatasetSignal) -> DatasetSignal:
         num_levels = self.num_levels_distribution()
@@ -406,11 +400,11 @@ class TimeVaryingNoise(DatasetTransform):
     """Add time-varying noise to DatasetSignal regions.
 
     Attributes:
-        noise_power_low (NumericParameter): Range bounds for minimum noise power in dB.
+        noise_power_low: Range bounds for minimum noise power in dB.
         noise_power_low_distribution (Callable[[], float]): Random draw from noise_power_low distribution.
-        noise_power_high (NumericParameter): Range bounds for maximum noise power in dB.
+        noise_power_high: Range bounds for maximum noise power in dB.
         noise_power_high_distribution (Callable[[], float]): Random draw from noise_power_high distribution.
-        inflections (IntParameter): Number of inflection points over IQ data.
+        inflections: Number of inflection points over IQ data.
         inflections_distribution (Callable[[], float]): Random draw from inflections distribution.
         random_regions (List | bool): Inflections points spread randomly (True) or not (False).
         random_regions_distribution (Callable[[], bool]): Random draw from random_regions distribution.
@@ -418,9 +412,9 @@ class TimeVaryingNoise(DatasetTransform):
     """
     def __init__(
         self, 
-        noise_power_low: NumericParameter = (-80., -60.),
-        noise_power_high: NumericParameter = (-40., -20.),
-        inflections: IntParameter = [int(0), int(10)],
+        noise_power_low = (-80., -60.),
+        noise_power_high = (-40., -20.),
+        inflections = [int(0), int(10)],
         random_regions: List | bool = True,
         **kwargs
     ):
@@ -430,10 +424,10 @@ class TimeVaryingNoise(DatasetTransform):
         self.inflections = inflections
         self.random_regions = random_regions
 
-        self.noise_power_low_distribution = get_distribution(self.noise_power_low, self.random_generator)
-        self.noise_power_high_distribution = get_distribution(self.noise_power_high, self.random_generator)
-        self.inflections_distribution = get_distribution(self.inflections, self.random_generator)
-        self.random_regions_distribution = get_distribution(self.random_regions, self.random_generator)
+        self.noise_power_low_distribution = self.get_distribution(self.noise_power_low )
+        self.noise_power_high_distribution = self.get_distribution(self.noise_power_high )
+        self.inflections_distribution = self.get_distribution(self.inflections )
+        self.random_regions_distribution = self.get_distribution(self.random_regions )
         
     def __call__(self, signal: DatasetSignal) -> DatasetSignal:
         noise_power_low = self.noise_power_low_distribution()
@@ -518,7 +512,7 @@ class CutOut(DatasetTransform):
     """
     def __init__(
         self,
-        duration: NumericParameter = (0.01, 0.2),
+        duration = (0.01, 0.2),
         cut_type: List[str] = (["zeros", "ones", "low_noise", "avg_noise", "high_noise"]),
         **kwargs
     ):
@@ -526,8 +520,8 @@ class CutOut(DatasetTransform):
         self.duration = duration
         self.cut_type = cut_type
 
-        self.duration_distribution = get_distribution(self.duration, self.random_generator)
-        self.cut_type_distribution = get_distribution(self.cut_type, self.random_generator)
+        self.duration_distribution = self.get_distribution(self.duration )
+        self.cut_type_distribution = self.get_distribution(self.cut_type )
         
         
 
@@ -558,7 +552,7 @@ class CutOut(DatasetTransform):
         cut_type = self.cut_type_distribution()
         cut_start = self.random_generator.uniform(low = 0.0, high = 1.0 - cut_duration)
 
-        signal.data = F.cut_out(signal.data, cut_start, cut_duration, cut_type, self.random_generator)
+        signal.data = F.cut_out(signal.data, cut_start, cut_duration, cut_type )
         signal.data = signal.data.astype(torchsig_complex_data_type)
 
         # metadata 
@@ -617,16 +611,16 @@ class PatchShuffle(DatasetTransform):
 
     def __init__(
         self,
-        patch_size: NumericParameter = (3, 10),
-        shuffle_ratio: FloatParameter = (0.01, 0.05),
+        patch_size = (3, 10),
+        shuffle_ratio = (0.01, 0.05),
         **kwargs
 
     ) -> None:
         super().__init__(**kwargs)
         self.patch_size = patch_size
         self.shuffle_ratio = shuffle_ratio
-        self.patch_size_distribution = get_distribution(self.patch_size, self.random_generator)
-        self.shuffle_ratio_distribution = get_distribution(self.shuffle_ratio, self.random_generator)
+        self.patch_size_distribution = self.get_distribution(self.patch_size )
+        self.shuffle_ratio_distribution = self.get_distribution(self.shuffle_ratio )
         
     def __call__(self, signal: DatasetSignal) -> DatasetSignal:
         patch_size = self.patch_size_distribution()
@@ -689,8 +683,8 @@ class RandomDropSamples(DatasetTransform):
 
     def __init__(
         self,
-        drop_rate: NumericParameter = (0.01, 0.05),
-        size: NumericParameter = (1, 10),
+        drop_rate = (0.01, 0.05),
+        size = (1, 10),
         fill: List[str] = (["ffill", "bfill", "mean", "zero"]),
         **kwargs
     ) -> None:
@@ -699,9 +693,9 @@ class RandomDropSamples(DatasetTransform):
         self.size = size
         self.fill = fill
 
-        self.drop_rate_distribution = get_distribution(self.drop_rate, self.random_generator)
-        self.size_distribution = get_distribution(self.size, self.random_generator)
-        self.fill_distribution = get_distribution(self.fill, self.random_generator)
+        self.drop_rate_distribution = self.get_distribution(self.drop_rate )
+        self.size_distribution = self.get_distribution(self.size )
+        self.fill_distribution = self.get_distribution(self.fill )
         
     def __call__(self, signal: DatasetSignal) -> DatasetSignal:
         drop_rate = self.drop_rate_distribution()
@@ -744,16 +738,16 @@ class RandomMagRescale(DatasetTransform):
 
     def __init__(
         self,
-        start: NumericParameter = (0.0, 0.9),
-        scale: NumericParameter = (-4.0, 4.0),
+        start = (0.0, 0.9),
+        scale = (-4.0, 4.0),
         **kwargs
     ) -> None:
         super().__init__(**kwargs)
         self.start = start
         self.scale = scale
 
-        self.start_distribution = get_distribution(self.start, self.random_generator)
-        self.scale_distribution = get_distribution(self.scale, self.random_generator)
+        self.start_distribution = self.get_distribution(self.start )
+        self.scale_distribution = self.get_distribution(self.scale )
 
     def __call__(self, signal: DatasetSignal) -> DatasetSignal:
         start = self.start_distribution()
@@ -830,8 +824,8 @@ class SpectrogramDropSamples(DatasetTransform):
 
     def __init__(
         self,
-        drop_rate: NumericParameter = (0.001, 0.005),
-        size: NumericParameter = (1, 10),
+        drop_rate = (0.001, 0.005),
+        size = (1, 10),
         fill: List[str] = (
             ["ffill", "bfill", "mean", "zero", "low", "min", "max", "ones"]
         ),
@@ -842,9 +836,9 @@ class SpectrogramDropSamples(DatasetTransform):
         self.size = size
         self.fill = fill
 
-        self.drop_rate_distribution = get_distribution(self.drop_rate, self.random_generator)
-        self.size_distribution = get_distribution(self.size, self.random_generator)
-        self.fill_distribution = get_distribution(self.fill, self.random_generator)
+        self.drop_rate_distribution = self.get_distribution(self.drop_rate )
+        self.size_distribution = self.get_distribution(self.size )
+        self.fill_distribution = self.get_distribution(self.fill )
         
     def __call__(self, signal: DatasetSignal) -> DatasetSignal:
         drop_rate = self.drop_rate_distribution()

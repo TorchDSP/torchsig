@@ -45,5 +45,7 @@ class Impairments(Transform):
 
         self.level = verify_impairment_level(level)
 
-        self.signal_transforms = Compose(transforms = all_levels_signal_transforms[self.level], parent = self)
-        self.dataset_transforms = Compose(transforms = all_levels_dataset_transforms[self.level], parent = self)
+        self.signal_transforms = Compose(transforms = all_levels_signal_transforms[self.level])
+        self.signal_transforms.add_parent(self)
+        self.dataset_transforms = Compose(transforms = all_levels_dataset_transforms[self.level])
+        self.dataset_transforms.add_parent(self)
