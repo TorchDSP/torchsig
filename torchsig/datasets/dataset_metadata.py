@@ -73,8 +73,8 @@ class DatasetMetadata(Seedable):
         snr_db_max: float = 50.0,
         signal_duration_percent_min: float = 0.0,
         signal_duration_percent_max: float = 100.0,
-        signal_bandwidth_min: float = 10e3,
-        signal_bandwidth_max: float = 100e3,
+        signal_bandwidth_min: float = 1e6,
+        signal_bandwidth_max: float = 4e6,
         transforms: list = [],
         target_transforms: list = [],
         class_list: List[str] = None,
@@ -87,7 +87,7 @@ class DatasetMetadata(Seedable):
 
         Args:
             num_iq_samples_dataset (int): Length of I/Q array in dataset.
-            sample_rate (float): Sample rate for dataset.
+            sample_rate (float, optional): Sample rate for dataset. Defaults to 10e6.
             fft_size (int): Size of FFT (number of bins) to be used in spectrogram.
             impairment_level (int): Signal impairment level.
             num_signals_max (int): Maximum number of signals per sample in dataset.
@@ -98,8 +98,8 @@ class DatasetMetadata(Seedable):
             snr_db_max (float, optional): Maximum SNR of signals to generate. Defaults to 50.0.
             signal_duration_percent_min (float, optional): Minimum duration of signal in percentage. Defaults to 0.0.
             signal_duration_percent_max (float, optional): Maximum duration of signal in percentage. Defaults to 100.0.
-            signal_bandwidth_min (float, optional): Minimum bandwidth of the signal. Defaults to 10e3.
-            signal_bandwidth_max (float, optional): Maximum bandwidth of the signal. Defaults to 100e3.
+            signal_bandwidth_min (float, optional): Minimum bandwidth of the signal. Defaults to 1e6.
+            signal_bandwidth_max (float, optional): Maximum bandwidth of the signal. Defaults to 4e6.
             transforms (list): Transforms to apply. Defaults to [].
             target_transforms (list): List of Target Transforms to apply. Defaults to [].
             class_list (List[str], optional): Signal class name list. Defaults to TorchSigSignalLists.all_signals.
@@ -850,8 +850,6 @@ class NarrowbandMetadata(DatasetMetadata):
 
     Attributes:
         minimum_params (List[str]): List of minimum required parameters for the narrowband dataset. 
-        _oversampling_min (float): Minimum oversampling rate.
-        _oversampling_max (float): Maximum oversampling rate.
         _cfo_percentage_error (float): Allowed center frequency offset error as a percentage.
 
     """
@@ -875,7 +873,7 @@ class NarrowbandMetadata(DatasetMetadata):
         signal_duration_percent_min: float = 80.0,
         signal_duration_percent_max: float = 100.0,
         signal_bandwidth_min: float = 1e6,
-        signal_bandwidth_max: float = 5e6,
+        signal_bandwidth_max: float = 4e6,
         transforms: list = [],
         target_transforms: list = [],
         class_list: List[str] = TorchSigSignalLists.all_signals,
@@ -1003,15 +1001,15 @@ class WidebandMetadata(DatasetMetadata):
         fft_size: int,
         impairment_level: int,
         num_signals_max: int, 
-        sample_rate: float = 10e6, 
+        sample_rate: float = 100e6, 
         num_signals_min: int = None,
         num_signals_distribution: np.ndarray | List[float]= None,
         snr_db_min: float = 0.0,
         snr_db_max: float = 50.0,
         signal_duration_percent_min: float = 0.0,
         signal_duration_percent_max: float = 100.0,
-        signal_bandwidth_min: float = 10e3,
-        signal_bandwidth_max: float = 100e3,
+        signal_bandwidth_min: float = 1e6,
+        signal_bandwidth_max: float = 4e6,
         transforms: list = [],
         target_transforms: list = [],
         class_list: List[str] = TorchSigSignalLists.all_signals,
@@ -1034,8 +1032,8 @@ class WidebandMetadata(DatasetMetadata):
             snr_db_max (float, optional): Maximum SNR of signals (default is 50.0).
             signal_duration_percent_min (float, optional): Minimum signal duration percentage (default is 0.0).
             signal_duration_percent_max (float, optional): Maximum signal duration percentage (default is 100.0).
-            signal_bandwidth_min (float, optional): Minimum signal bandwidth (default is 10e3).
-            signal_bandwidth_max (float, optional): Maximum signal bandwidth (default is 100e3).
+            signal_bandwidth_min (float, optional): Minimum signal bandwidth (default is 1e6).
+            signal_bandwidth_max (float, optional): Maximum signal bandwidth (default is 4e6).
             transforms (list): Transforms applied to the dataset (default in []).
             target_transforms (list, optional): Target transforms applied (default is []).
             class_list (List[str], optional): List of signal class names (default is `TorchSigSignalLists.all_signals`).

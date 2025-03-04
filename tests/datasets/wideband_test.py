@@ -43,7 +43,7 @@ num_iq_samples_dataset = fft_size**2
 num_iq_samples_dataset += np.random.randint(0,fft_size) # test cases in which data length is not integer multiple of FFT size
 
 # works for variable sample rates
-sample_rate = 10e6
+sample_rate = 100e6
 
 # minimum and maximum SNR for signals
 snr_db_max = 50
@@ -54,8 +54,8 @@ signal_duration_percent_max = 100
 signal_duration_percent_min = 0
 
 # min and max bandwidth for signals
-signal_bandwidth_min = sample_rate/20
-signal_bandwidth_max = sample_rate/10
+signal_bandwidth_min = 100e3
+signal_bandwidth_max = 1e6
 
 # define impairment level
 impairment_level = 2
