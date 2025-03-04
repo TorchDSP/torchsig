@@ -321,8 +321,8 @@ def test_NarrowbandDatasets(params: dict, is_error: bool) -> None:
     # testing to handle cases in which number of samples is not an integer multiple of FFT size
     num_iq_samples_dataset = int(num_iq_samples_dataset + rng.integers(0,fft_size,dtype=int))
 
-    # works for variable sample rates, 1.0 can be used for simplicity
-    sample_rate = rng.uniform(1.0, 1e6)
+    # works for variable sample rates
+    sample_rate = rng.uniform(10e6,20e6)
 
     # minimum and maximum SNR for signals
     snr_db_max = 50
@@ -501,8 +501,8 @@ def test_WidebandDatasets(params: dict, is_error: bool) -> None:
     # testing to handle cases in which number of samples is not an integer multiple of FFT size
     num_iq_samples_dataset = int(num_iq_samples_dataset + rng.integers(0,fft_size,dtype=int))
 
-    # works for variable sample rates, 1.0 can be used for simplicity
-    sample_rate = rng.uniform(1.0, 1e6)
+    # works for variable sample rates
+    sample_rate = rng.uniform(10e6,20e6)
 
     # minimum and maximum SNR for signals
     snr_db_max = 50

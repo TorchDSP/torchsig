@@ -23,7 +23,7 @@ for i in range(3):
         num_iq_samples_dataset = 64,
         fft_size = 4,
         impairment_level = 0,
-        sample_rate = 1.0,
+        sample_rate = 10e6,
         num_signals_min = 1,
         num_signals_distribution = [1.0],
         snr_db_min = 100.0,

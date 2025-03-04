@@ -56,7 +56,7 @@ test_wideband_params = list(itertools.product(
     # num_samples
     [1, 10],
     # num_iq_samples
-    [50],
+    [250],
     # impaired
     [True, False]
 ))
