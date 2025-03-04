@@ -39,11 +39,6 @@ from torchsig.transforms.base_transforms import Transform
 from torchsig.signals.signal_types import DatasetSignal, SignalMetadata
 import torchsig.transforms.functional as F
 from torchsig.utils.dsp import torchsig_complex_data_type, torchsig_float_data_type
-from torchsig.transforms.transform_utils import (
-    FloatParameter,
-    IntParameter,
-    NumericParameter
-)
 
 # Third Party
 import numpy as np
@@ -93,7 +88,7 @@ class AGC(DatasetTransform):
     """Automatic Gain Control performing sample-by-sample AGC algorithm.
 
     Attributes:
-        rand_scale (Tuple): FloatParameter setting the random scaling bounds for each sample update. 
+        rand_scale (Tuple): setting the random scaling bounds for each sample update. 
         rand_scale_distribution (Callable[[], float]): Random draw from rand_scale distribution.
         initial_gain_db (float): Inital gain value in dB.
         alpha_smooth (float): Alpha for avergaing the measure signal level `level_n = level_n * alpha + level_n-1(1-alpha)`
@@ -108,7 +103,7 @@ class AGC(DatasetTransform):
     """
     def __init__(
         self,
-        rand_scale: FloatParameter = (1.0, 10.0),
+        rand_scale = (1.0, 10.0),
         initial_gain_db: float = 0.0,
         alpha_smooth: float = 0.00004,
         alpha_track: float = 0.0004,
@@ -295,19 +290,19 @@ class IQImbalanceDatasetTransform(DatasetTransform):
     """Applies a set of IQImbalance effects to a Signal: amplitude, phase, and DC offset.
 
     Attributes:
-        amplitude_imbalance (NumericParameter, optional): Range bounds of IQ amplitude imbalance (dB).    
+        amplitude_imbalance (optional): Range bounds of IQ amplitude imbalance (dB).    
         amplitude_imbalance_distribution (Callable[[], float]): Random draw from amplitude imbalance distribution.
-        phase_imbalance (NumericParameter, optional): Range bounds of IQ phase imbalance (radians).        
+        phase_imbalance (optional): Range bounds of IQ phase imbalance (radians).        
         phase_imbalance (Callable[[], float]): Random draw from phase imbalance distribution.
-        dc_offset (Tuple, optional): Range bounds for I and Q component DC offsets (NumericParameters).
+        dc_offset (Tuple, optional): Range bounds for I and Q component DC offsets.
         dc_offset (Callable[[], (float, float)]): Random draw from dc_offset distribution.
         
     """
     def __init__(
         self,
-        amplitude_imbalance: NumericParameter = (-1., 1.),
-        phase_imbalance: NumericParameter = (-5.0 * np.pi / 180.0, 5.0 * np.pi / 180.0),
-        dc_offset: NumericParameter = (-0.1, 0.1),
+        amplitude_imbalance = (-1., 1.),
+        phase_imbalance = (-5.0 * np.pi / 180.0, 5.0 * np.pi / 180.0),
+        dc_offset = (-0.1, 0.1),
         **kwargs
     ): 
         super().__init__(**kwargs)
@@ -354,7 +349,7 @@ class Quantize(DatasetTransform):
     """Quantize signal I/Q samples into specified levels with a rounding method.
 
     Attributes:
-        num_levels (NumericParameter): Number of quantization levels.
+        num_levels: Number of quantization levels.
         num_levels_distribution (Callable[[], int]): Random draw from num_levels distribution.
         round_type (str, List[str]): Quantization rounding method. Must be 'floor', 
                 'nearest' or 'ceiling'. Defaults to 'ceiling'.
@@ -363,7 +358,7 @@ class Quantize(DatasetTransform):
     """
     def __init__(
         self,
-        num_levels: NumericParameter = ([16, 24, 32, 40, 48, 56, 64]),
+        num_levels = ([16, 24, 32, 40, 48, 56, 64]),
         round_type: List[str] = (["floor", "middle", "ceiling"]),
         **kwargs
     ):
@@ -405,11 +400,11 @@ class TimeVaryingNoise(DatasetTransform):
     """Add time-varying noise to DatasetSignal regions.
 
     Attributes:
-        noise_power_low (NumericParameter): Range bounds for minimum noise power in dB.
+        noise_power_low: Range bounds for minimum noise power in dB.
         noise_power_low_distribution (Callable[[], float]): Random draw from noise_power_low distribution.
-        noise_power_high (NumericParameter): Range bounds for maximum noise power in dB.
+        noise_power_high: Range bounds for maximum noise power in dB.
         noise_power_high_distribution (Callable[[], float]): Random draw from noise_power_high distribution.
-        inflections (IntParameter): Number of inflection points over IQ data.
+        inflections: Number of inflection points over IQ data.
         inflections_distribution (Callable[[], float]): Random draw from inflections distribution.
         random_regions (List | bool): Inflections points spread randomly (True) or not (False).
         random_regions_distribution (Callable[[], bool]): Random draw from random_regions distribution.
@@ -417,9 +412,9 @@ class TimeVaryingNoise(DatasetTransform):
     """
     def __init__(
         self, 
-        noise_power_low: NumericParameter = (-80., -60.),
-        noise_power_high: NumericParameter = (-40., -20.),
-        inflections: IntParameter = [int(0), int(10)],
+        noise_power_low = (-80., -60.),
+        noise_power_high = (-40., -20.),
+        inflections = [int(0), int(10)],
         random_regions: List | bool = True,
         **kwargs
     ):
@@ -517,7 +512,7 @@ class CutOut(DatasetTransform):
     """
     def __init__(
         self,
-        duration: NumericParameter = (0.01, 0.2),
+        duration = (0.01, 0.2),
         cut_type: List[str] = (["zeros", "ones", "low_noise", "avg_noise", "high_noise"]),
         **kwargs
     ):
@@ -616,8 +611,8 @@ class PatchShuffle(DatasetTransform):
 
     def __init__(
         self,
-        patch_size: NumericParameter = (3, 10),
-        shuffle_ratio: FloatParameter = (0.01, 0.05),
+        patch_size = (3, 10),
+        shuffle_ratio = (0.01, 0.05),
         **kwargs
 
     ) -> None:
@@ -688,8 +683,8 @@ class RandomDropSamples(DatasetTransform):
 
     def __init__(
         self,
-        drop_rate: NumericParameter = (0.01, 0.05),
-        size: NumericParameter = (1, 10),
+        drop_rate = (0.01, 0.05),
+        size = (1, 10),
         fill: List[str] = (["ffill", "bfill", "mean", "zero"]),
         **kwargs
     ) -> None:
@@ -743,8 +738,8 @@ class RandomMagRescale(DatasetTransform):
 
     def __init__(
         self,
-        start: NumericParameter = (0.0, 0.9),
-        scale: NumericParameter = (-4.0, 4.0),
+        start = (0.0, 0.9),
+        scale = (-4.0, 4.0),
         **kwargs
     ) -> None:
         super().__init__(**kwargs)
@@ -829,8 +824,8 @@ class SpectrogramDropSamples(DatasetTransform):
 
     def __init__(
         self,
-        drop_rate: NumericParameter = (0.001, 0.005),
-        size: NumericParameter = (1, 10),
+        drop_rate = (0.001, 0.005),
+        size = (1, 10),
         fill: List[str] = (
             ["ffill", "bfill", "mean", "zero", "low", "min", "max", "ones"]
         ),

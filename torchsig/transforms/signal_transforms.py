@@ -26,10 +26,6 @@ from torchsig.transforms.base_transforms import Transform
 from torchsig.signals.signal_types import Signal
 import torchsig.transforms.functional as F
 from torchsig.utils.dsp import torchsig_complex_data_type
-from torchsig.transforms.transform_utils import (
-    FloatParameter,
-    NumericParameter
-)
 
 # Third Party
 import numpy as np
@@ -117,7 +113,7 @@ class Fading(SignalTransform): # slow, fast, block fading
         proportional to the maximum Doppler spread. This time variance is not included in this model.
     
     Attributes:
-        coherence_bandwidth (FloatParameter, optional): Coherence bandwidth sampling parameters. 
+        coherence_bandwidth (optional): Coherence bandwidth sampling parameters. 
                 Defaults to (0.01, 0.1).
         coherence_bandwidth_distribution (Callable[[], float]): Random draw from coherence bandwidth distribution.
         power_delay_profile (Tuple | List | np.ndarray, optional): A list of positive values 
@@ -128,7 +124,7 @@ class Fading(SignalTransform): # slow, fast, block fading
     """    
     def __init__(
         self, 
-        coherence_bandwidth: FloatParameter = (0.01, 0.1),
+        coherence_bandwidth = (0.01, 0.1),
         power_delay_profile: Tuple | List | np.ndarray = (1, 1),
         **kwargs
     ):
@@ -159,19 +155,19 @@ class IQImbalanceSignalTransform(SignalTransform):
     """Applies a set of IQImbalance effects to a Signal: amplitude, phase, and DC offset.
 
     Attributes:
-        amplitude_imbalance (NumericParameter, optional): Range bounds of IQ amplitude imbalance (dB).    
+        amplitude_imbalance (optional): Range bounds of IQ amplitude imbalance (dB).    
         amplitude_imbalance_distribution (Callable[[], float]): Random draw from amplitude imbalance distribution.
-        phase_imbalance (NumericParameter, optional): Range bounds of IQ phase imbalance (radians).        
+        phase_imbalance (optional): Range bounds of IQ phase imbalance (radians).        
         phase_imbalance (Callable[[], float]): Random draw from phase imbalance distribution.
-        dc_offset (Tuple, optional): Range bounds for I and Q component DC offsets (NumericParameters).
+        dc_offset (Tuple, optional): Range bounds for I and Q component DC offsets.
         dc_offset (Callable[[], (float, float)]): Random draw from dc_offset distribution.
         
     """
     def __init__(
         self,
-        amplitude_imbalance: NumericParameter = (-1., 1.),
-        phase_imbalance: NumericParameter = (-5.0 * np.pi / 180.0, 5.0 * np.pi / 180.0),
-        dc_offset: NumericParameter = ((-0.1, 0.1),(-0.1, 0.1)),
+        amplitude_imbalance = (-1., 1.),
+        phase_imbalance = (-5.0 * np.pi / 180.0, 5.0 * np.pi / 180.0),
+        dc_offset = ((-0.1, 0.1),(-0.1, 0.1)),
         **kwargs
     ):  
         super().__init__(**kwargs)
