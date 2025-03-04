@@ -58,7 +58,7 @@ class NewTorchSigDataset(Dataset, Seedable):
 
         self._dataset_metadata: DatasetMetadata = to_dataset_metadata(dataset_metadata)
         self._dataset_metadata.add_parent(self)
-
+        self.num_samples_generated = 0
         self.builders: Dict[str, SignalBuilder] = self._initialize_builders() # initialize builders
         self._current_idx: int = 0  # Internal counter for iterator usage
 
@@ -95,7 +95,8 @@ class NewTorchSigDataset(Dataset, Seedable):
             if len(matching_classes) > 0: # yes
                 for c in matching_classes:
                     # add builder
-                    builders[c] = builder(self._dataset_metadata, c, parent = self)
+                    builders[c] = builder(self._dataset_metadata, c,)
+                    builders[c].add_parent(self)
         return builders
     
     def __len__(self) -> int:
@@ -106,7 +107,7 @@ class NewTorchSigDataset(Dataset, Seedable):
         """
         # If infinite dataset, return how many samples have been generated
         if self.dataset_metadata.num_samples is None:
-            return self.dataset_metadata.num_samples_generated
+            return self.num_samples_generated
         # else:
         return self.dataset_metadata.num_samples
 
@@ -239,7 +240,7 @@ class NewTorchSigDataset(Dataset, Seedable):
         idx_in_bounds = idx >= 0
         if not is_infinite_dataset:
             idx_in_bounds = idx_in_bounds and idx < self.dataset_metadata.num_samples
-        sample_already_generated = idx < self.dataset_metadata.num_samples_generated
+        sample_already_generated = idx < self.num_samples_generated
         # idx_skipping = idx > self.dataset_metadata.num_samples_generated
         
 
@@ -282,7 +283,7 @@ class NewTorchSigDataset(Dataset, Seedable):
         # user requesting another sample at index +1 larger than current list of generates samples
         # generate new sample
         sample = self.__generate_new_signal__()
-
+        
         # apply dataset transforms
         sample = self.dataset_metadata.impairments.dataset_transforms(sample)
 
@@ -334,7 +335,7 @@ class NewTorchSigDataset(Dataset, Seedable):
             targets = [row[0] if len(row) == 1 else row for row in targets]
 
 
-        self.dataset_metadata.num_samples_generated += 1
+        self.num_samples_generated += 1
 
         return sample.data, targets
             
@@ -359,9 +360,6 @@ class NewTorchSigDataset(Dataset, Seedable):
             str: A signal class name from the available signal classes.
         """
         return self.random_generator.choice(self.dataset_metadata.class_list, p=self.dataset_metadata.class_distribution)
-
-
-
 
 
 class StaticTorchSigDataset(Dataset):

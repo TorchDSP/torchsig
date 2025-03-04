@@ -128,7 +128,6 @@ class DatasetMetadata(Seedable):
         
         
         self._num_samples = num_samples
-        self._num_samples_generated = 0
 
         # provide a noise power reference in dB
         self._noise_power_db = 0
@@ -365,19 +364,18 @@ class DatasetMetadata(Seedable):
             'signal_duration_percent_max': self._signal_duration_percent_max,
             'class_list': deepcopy(self._class_list),
             'class_distribution': "uniform" if self._class_distribution is None else self._class_distribution.tolist(),
-            'seed': self.rng_seed
+            #####'seed': self.rng_seed
         }
 
         # dataset information
         dataset_info = {
             'dataset_type': self._dataset_type,
             'num_samples': "infinite" if self._num_samples is None else self._num_samples,
-            'num_samples_generated': self.num_samples_generated,
             'num_iq_samples_dataset': self._num_iq_samples_dataset,
             'fft_size': self._fft_size,
             'sample_rate': self._sample_rate,
             'impairment_level': self._impairment_level,
-            'seed': self.rng_seed,
+            #####'seed': self.rng_seed,
             'transforms': [str(tranform) for tranform in self._transforms],
             'target_transforms': [str(target_transform) for target_transform in self._target_transforms],
         }
@@ -589,33 +587,6 @@ class DatasetMetadata(Seedable):
             int: The number of samples in the dataset, or a representation of infinite samples if set to `None`.
         """
         return self._num_samples
-
-    @property
-    def num_samples_generated(self) -> int:
-        """Getter for the number of samples that have been generated.
-
-        This property returns the count of how many samples have been generated so far from the dataset. This could be
-        used to track progress during data generation or when sampling data.
-
-        Returns:
-            int: The number of samples that have been generated.
-        """
-        return self._num_samples_generated
-
-    @num_samples_generated.setter
-    def num_samples_generated(self, new_num_samples_generated: int):
-        """Setter for the number of samples generated.
-
-        This setter updates the number of samples generated in the dataset. It assigns the provided value to the 
-        `_num_samples_generated` attribute.
-
-        Args:
-            new_num_samples_generated (int): The new value to set for the number of samples generated.
-
-        Raises:
-            ValueError: If the new number of generated samples is negative.
-        """
-        self._num_samples_generated = new_num_samples_generated
 
     @property
     def dataset_type(self) -> str:
@@ -941,7 +912,7 @@ class NarrowbandMetadata(DatasetMetadata):
             NarrowbandImpairments: A new instance of the `NarrowbandImpairments` class 
             initialized with the current `impairment_level` and parent dataset instance.
         """
-        return NarrowbandImpairments(self.impairment_level, parent = self)
+        return NarrowbandImpairments(self.impairment_level)
 
     ## Read-Only Properties
     @property
@@ -1109,7 +1080,7 @@ class WidebandMetadata(DatasetMetadata):
         Returns:
             WidebandImpairments: A new instance of the `WidebandImpairments` class.
         """
-        return WidebandImpairments(self.impairment_level, parent = self)
+        return WidebandImpairments(self.impairment_level)
 
     @property
     def center_freq_min(self) -> float:

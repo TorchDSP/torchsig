@@ -1,0 +1,18 @@
+required:
+  dataset_type: narrowband
+  num_iq_samples_dataset: 262144 # 512^2
+  impairment_level: 0
+  fft_size: 512
+
+overrides:
+  num_samples: 57000 # 57k
+  sample_rate: 1000000 # 10e6
+  num_signals_min: 1
+  num_signals_distribution: uniform
+  snr_db_min: 0.0
+  snr_db_max: 50.0
+  signal_duration_percent_min: 80.0
+  signal_duration_percent_max: 100.0
+  class_list: all
+  class_distribution: uniform
+  seed: 123456789
