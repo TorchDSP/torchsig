@@ -391,8 +391,6 @@ class DatasetMetadata(Seedable):
             'fft_size': self._fft_size
         }
 
-        
-
         overrides = {
             'num_samples': self._num_samples,
             'sample_rate': self._sample_rate,
@@ -404,7 +402,7 @@ class DatasetMetadata(Seedable):
             'signal_duration_percent_max': self._signal_duration_percent_max,
             'class_list': deepcopy(self._class_list),
             'class_distribution': "uniform" if self._class_distribution is None else self._class_distribution.tolist(),
-            #####'seed': self.rng_seed
+            'seed': self.rng_seed
         }
 
         # dataset information
@@ -415,7 +413,7 @@ class DatasetMetadata(Seedable):
             'fft_size': self._fft_size,
             'sample_rate': self._sample_rate,
             'impairment_level': self._impairment_level,
-            #####'seed': self.rng_seed,
+            'seed': self.rng_seed,
             'transforms': [str(tranform) for tranform in self._transforms],
             'target_transforms': [str(target_transform) for target_transform in self._target_transforms],
         }
