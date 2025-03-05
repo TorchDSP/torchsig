@@ -66,7 +66,7 @@ def verify_bounds(
         o1 = "<" if exclude_low else "<="
         o2 = "<" if exclude_high else "<="
         bounds = f"{'-inf' if low is None else low} {o1} {name} {o2} {'inf' if high is None else high}"
-        raise ValueError(f"{name} is out of bounds. Must be {bounds}")
+        raise ValueError(f"{name}={a} is out of bounds. Must be {bounds}")
     
     if too_low and clip_low:
         a = low
