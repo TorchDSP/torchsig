@@ -356,8 +356,8 @@ class SignalMetadata():
         self.center_freq = verify_float(
             self.center_freq,
             name = "center_freq",
-            low = self._dataset_metadata.center_freq_min,
-            high = self._dataset_metadata.center_freq_max,
+            low = self._dataset_metadata.signal_center_freq_min,
+            high = self._dataset_metadata.signal_center_freq_max,
             exclude_low = True
         )
 

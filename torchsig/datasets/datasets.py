@@ -216,8 +216,8 @@ class NewTorchSigDataset(Dataset, Seedable):
             # after signal transforms applied at complex baseband
             new_signal = frequency_shift_signal(
                 new_signal,
-                center_freq_min=self.dataset_metadata.center_freq_min,
-                center_freq_max=self.dataset_metadata.center_freq_max,
+                center_freq_min=self.dataset_metadata.signal_center_freq_min,
+                center_freq_max=self.dataset_metadata.signal_center_freq_max,
                 sample_rate=self.dataset_metadata.sample_rate,
                 frequency_max=self.dataset_metadata.frequency_max,
                 frequency_min=self.dataset_metadata.frequency_min,

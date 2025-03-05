@@ -331,7 +331,7 @@ def test_NarrowbandDatasets(params: dict, is_error: bool) -> None:
     # min and max signal duration percentages (w.r.t dataset length)
     signal_duration_percent_max = 100
     signal_duration_percent_min = 80
-    
+
     # define transforms
     transforms = [Spectrogram(fft_size=fft_size)] # spectrogram (float data)
     target_transform = [
@@ -502,7 +502,7 @@ def test_WidebandDatasets(params: dict, is_error: bool) -> None:
     num_iq_samples_dataset = int(num_iq_samples_dataset + rng.integers(0,fft_size,dtype=int))
 
     # works for variable sample rates
-    sample_rate = rng.uniform(10e6,20e6)
+    sample_rate = rng.uniform(100e6,200e6)
 
     # minimum and maximum SNR for signals
     snr_db_max = 50

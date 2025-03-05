@@ -54,15 +54,19 @@ signal_duration_percent_max = 100
 signal_duration_percent_min = 0
 
 # min and max bandwidth for signals
-signal_bandwidth_min = 100e3
-signal_bandwidth_max = 1e6
+signal_bandwidth_min = sample_rate/1000
+signal_bandwidth_max = sample_rate/100
+
+# min and max bandwidth for signals
+signal_center_freq_min = -sample_rate/2
+signal_center_freq_max = (sample_rate/2) - 0.1
 
 # define impairment level
 impairment_level = 2
 
 # define maximum number of signals to generate
 num_signals_min = 1
-num_signals_max = 2
+num_signals_max = 10
 
 # probability for each sample to contain N signals where N is the index,
 # for example, num_signals_dist = [0.15, 0.5, 0.35] is 25% probability to 
@@ -107,6 +111,8 @@ def main():
         signal_duration_percent_min=signal_duration_percent_min,
         signal_bandwidth_max=signal_bandwidth_max,
         signal_bandwidth_min=signal_bandwidth_min,
+        signal_center_freq_max=signal_center_freq_max,
+        signal_center_freq_min=signal_center_freq_min,
         transforms=transforms,
         target_transforms=target_transform,
         impairment_level=impairment_level,

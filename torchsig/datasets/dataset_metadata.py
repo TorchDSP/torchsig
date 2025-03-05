@@ -75,6 +75,8 @@ class DatasetMetadata(Seedable):
         signal_duration_percent_max: float = 100.0,
         signal_bandwidth_min: float = 1e6,
         signal_bandwidth_max: float = 4e6,
+        signal_center_freq_min: float = -500e3,
+        signal_center_freq_max: float = 500e3,
         transforms: list = [],
         target_transforms: list = [],
         class_list: List[str] = None,
@@ -100,6 +102,8 @@ class DatasetMetadata(Seedable):
             signal_duration_percent_max (float, optional): Maximum duration of signal in percentage. Defaults to 100.0.
             signal_bandwidth_min (float, optional): Minimum bandwidth of the signal. Defaults to 1e6.
             signal_bandwidth_max (float, optional): Maximum bandwidth of the signal. Defaults to 4e6.
+            signal_center_freq_min (float, optional): Minimum center frequency of the signal. Defaults to -500e3.
+            signal_center_freq_max (float, optional): Maximum center frequency of the signal. Defaults to 500e3.
             transforms (list): Transforms to apply. Defaults to [].
             target_transforms (list): List of Target Transforms to apply. Defaults to [].
             class_list (List[str], optional): Signal class name list. Defaults to TorchSigSignalLists.all_signals.
@@ -140,6 +144,9 @@ class DatasetMetadata(Seedable):
 
         self._signal_bandwidth_min = signal_bandwidth_min
         self._signal_bandwidth_max = signal_bandwidth_max
+
+        self._signal_center_freq_min = signal_center_freq_min
+        self._signal_center_freq_max = signal_center_freq_max
 
         # provide a noise power reference in dB
         self._noise_power_db = 0
@@ -284,6 +291,20 @@ class DatasetMetadata(Seedable):
             high = self.dataset_bandwidth_max
         )
 
+        self._signal_center_freq_min = verify_float(
+            self._signal_center_freq_min,
+            name = "signal_center_freq_min",
+            low = self.dataset_center_freq_min,
+            high = self.dataset_center_freq_max
+        )
+
+        self._signal_center_freq_max = verify_float(
+            self._signal_center_freq_max,
+            name = "signal_center_freq_max",
+            low = self.dataset_center_freq_min,
+            high = self.dataset_center_freq_max
+        )
+
         if self._num_samples is not None:
             self._num_samples = verify_int(
                 self._num_samples,
@@ -408,10 +429,12 @@ class DatasetMetadata(Seedable):
             'snr_db_max': self._snr_db_max,
             'signal_duration_percent_min': self._signal_duration_percent_min,
             'signal_duration_percent_max': self._signal_duration_percent_max,
-            'center_freq_min': self.center_freq_min,
-            'center_freq_max': self.center_freq_max,
+            'signal_center_freq_min': self._signal_center_freq_min,
+            'signal_center_freq_max': self._signal_center_freq_max,
             'signal_bandwidth_min': self._signal_bandwidth_min,
             'signal_bandwidth_max': self._signal_bandwidth_max,
+            'signal_center_freq_min': self._signal_center_freq_min,
+            'signal_center_freq_max': self._signal_center_freq_max,
             'fft_size': self._fft_size,
             'fft_frequency_resolution': self.fft_frequency_resolution,
             'fft_frequency_min': self.fft_frequency_min,
@@ -443,26 +466,59 @@ class DatasetMetadata(Seedable):
     # wideband datasets
 
     @property
-    def center_freq_min(self) -> None:
-        """Defines the minimum center frequency boundary for a signal
+    def dataset_center_freq_max(self) -> float:
+        """The maximum center frequency for a signal
 
-        Raises:
-            NotImplementedError: Inherited classes must implement this method.
-        """        
-        raise NotImplementedError(".center_freq_min not implemented.")
+        The maximum is a boundary condition such that the center frequency
+        will not alias across the upper sampling rate boundary.
+
+        The calculation includes a small epsilon such that the center_freq_max
+        is never equal to sample_rate/2 to avoid the aliasing condition because
+        -sample_rate/2 is equivalent to sample_rate/2.
+
+        Returns:
+            float: maximum center frequency boundary for signal
+        """
+        epsilon = 1e-10
+        return (self.sample_rate/2)*(1-epsilon)
 
     @property
-    def center_freq_max(self) -> None:
-        """Defines the minimum center frequency boundary for a signal
+    def dataset_center_freq_min(self) -> float:
+        """The minimum center frequency for a signal
 
-        Raises:
-            NotImplementedError: Inherited classes must implement this method.
+        The minimum is a boundary condition such that the center frequency
+        will not alias across the lower sampling rate boundary.
+
+        Returns:
+            float: minimum center frequency boundary for signal
+        """
+        return -self.sample_rate/2
+
+
+    @property
+    def signal_center_freq_min(self) -> None:
+        """Defines the minimum center frequency boundary for a signal.
+        Must be within the boundary provided by dataset_center_freq_min().
+
+        Returns:
+            float: minimum center frequency for signal
         """        
-        raise NotImplementedError(".center_freq_max not implemented.")
+        return self._signal_center_freq_min
+
+    @property
+    def signal_center_freq_max(self) -> None:
+        """Defines the maximum center frequency boundary for a signal.
+        Must be within the boundary provided by dataset_center_freq_max().
+
+        Returns:
+            float: maximum center frequency for signal
+        """        
+        return self._signal_center_freq_max
 
     @property
     def signal_bandwidth_min(self) -> float:
         """Defines the minimum bandwidth for a signal in the dataset
+        Must be within the boundary provided by dataset_bandwidth_min().
 
         Returns:
             float: minimum bandwidth for a signal
@@ -472,6 +528,7 @@ class DatasetMetadata(Seedable):
     @property
     def signal_bandwidth_max(self) -> float:
         """Defines the maximum bandwidth for a signal in the dataset
+        Must be within the boundary provided by dataset_bandwidth_max().
 
         Returns:
             float: maximumum bandwidth for a signal
@@ -856,7 +913,6 @@ class NarrowbandMetadata(DatasetMetadata):
 
     Attributes:
         minimum_params (List[str]): List of minimum required parameters for the narrowband dataset. 
-        _cfo_percentage_error (float): Allowed center frequency offset error as a percentage.
 
     """
 
@@ -880,6 +936,8 @@ class NarrowbandMetadata(DatasetMetadata):
         signal_duration_percent_max: float = 100.0,
         signal_bandwidth_min: float = 1e6,
         signal_bandwidth_max: float = 4e6,
+        signal_center_freq_min: float = -500e3,
+        signal_center_freq_max: float = 500e3,
         transforms: list = [],
         target_transforms: list = [],
         class_list: List[str] = TorchSigSignalLists.all_signals,
@@ -900,6 +958,10 @@ class NarrowbandMetadata(DatasetMetadata):
             snr_db_max (float, optional): Maximum SNR for the signals (default is 50.0).
             signal_duration_percent_min (float, optional): Minimum duration of a signal as a percentage of the total sample duration (default is 80.0%).
             signal_duration_percent_max (float, optional): Maximum duration of a signal as a percentage (default is 100.0%).
+            signal_bandwidth_min (float, optional): Minimum bandwidth of a signal. Default is 1e6.
+            signal_bandwidth_max (float, optional): Maximum bandwidth of a signal. Default is 4e6.
+            signal_center_freq_min (float, optional): Minimum center frequency of a signal. Default is -500e3.
+            signal_center_freq_max (float, optional): Maximum center frequency of a signal. Default is 500e3.
             transforms (list, optional): Transforms to apply on the dataset (default in []).
             target_transforms (list, optional): Transforms for targets (default is an empty list).
             impairment_level (int, optional): Level of signal impairment (default is 2).
@@ -923,6 +985,8 @@ class NarrowbandMetadata(DatasetMetadata):
             signal_duration_percent_max=signal_duration_percent_max,
             signal_bandwidth_min=signal_bandwidth_min,
             signal_bandwidth_max=signal_bandwidth_max,
+            signal_center_freq_min=signal_center_freq_min,
+            signal_center_freq_max=signal_center_freq_max,
             transforms=transforms, 
             target_transforms=target_transforms, 
             class_list=class_list,
@@ -931,11 +995,6 @@ class NarrowbandMetadata(DatasetMetadata):
             dataset_type="narrowband",
             **kwargs
         )
-
-        # limits the range for center frequency as a proportion of the receiver
-        # bandwidth. the center DatasetImpairmentsfrequency offset (CFO) represents the distance
-        # of the signal's center frequency from complex baseband
-        self._cfo_percentage_error = 10
 
     def _initialize_impairments(self) -> NarrowbandImpairments:
         """Initializes and returns an instance of the NarrowbandImpairments class.
@@ -952,30 +1011,6 @@ class NarrowbandMetadata(DatasetMetadata):
         """
         return NarrowbandImpairments(self.impairment_level)
 
-    ## Read-Only Properties
-    @property
-    def center_freq_min(self) -> float:
-        """The minimum center frequency for a signal
-
-        The minimum is a boundary condition such that the center frequency
-        will not alias across the lower sampling rate boundary.
-
-        Returns:
-            float: minimum center frequency boundary for signal
-        """
-        return -self.center_freq_max
-
-    @property
-    def center_freq_max(self) -> float:
-        """The maximum center frequency for a signal
-
-        The maximum is a boundary condition such that the center frequency
-        will not alias across the upper sampling rate boundary.
-
-        Returns:
-            float: maximum center frequency boundary for signal
-        """
-        return self.sample_rate * (self._cfo_percentage_error / 100)
 
 
 
@@ -1016,6 +1051,8 @@ class WidebandMetadata(DatasetMetadata):
         signal_duration_percent_max: float = 100.0,
         signal_bandwidth_min: float = 1e6,
         signal_bandwidth_max: float = 4e6,
+        signal_center_freq_min: float = -50e6,
+        signal_center_freq_max: float = 50e6-1,
         transforms: list = [],
         target_transforms: list = [],
         class_list: List[str] = TorchSigSignalLists.all_signals,
@@ -1040,6 +1077,8 @@ class WidebandMetadata(DatasetMetadata):
             signal_duration_percent_max (float, optional): Maximum signal duration percentage (default is 100.0).
             signal_bandwidth_min (float, optional): Minimum signal bandwidth (default is 1e6).
             signal_bandwidth_max (float, optional): Maximum signal bandwidth (default is 4e6).
+            signal_center_freq_min (float, optional): Minimum signal center frequency (default is -50e6).
+            signal_center_freq_max (float, optional): Maximum signal center frequency (default is 49.999999e6).
             transforms (list): Transforms applied to the dataset (default in []).
             target_transforms (list, optional): Target transforms applied (default is []).
             class_list (List[str], optional): List of signal class names (default is `TorchSigSignalLists.all_signals`).
@@ -1063,6 +1102,8 @@ class WidebandMetadata(DatasetMetadata):
             signal_duration_percent_min=signal_duration_percent_min,
             signal_bandwidth_min=signal_bandwidth_min,
             signal_bandwidth_max=signal_bandwidth_max,
+            signal_center_freq_min=signal_center_freq_min,
+            signal_center_freq_max=signal_center_freq_max,
             transforms=transforms, 
             target_transforms=target_transforms, 
             class_list=class_list,
@@ -1099,32 +1140,5 @@ class WidebandMetadata(DatasetMetadata):
         """
         return WidebandImpairments(self.impairment_level)
 
-    @property
-    def center_freq_min(self) -> float:
-        """The minimum center frequency for a signal
 
-        The minimum is a boundary condition such that the center frequency
-        will not alias across the lower sampling rate boundary.
-
-        Returns:
-            float: minimum center frequency boundary for signal
-        """
-        return -self.sample_rate/2
-
-    @property
-    def center_freq_max(self) -> float:
-        """The maximum center frequency for a signal
-
-        The maximum is a boundary condition such that the center frequency
-        will not alias across the upper sampling rate boundary.
-
-        The calculation includes a small epsilon such that the center_freq_max
-        is never equal to sample_rate/2 to avoid the aliasing condition because
-        -sample_rate/2 is equivalent to sample_rate/2.
-
-        Returns:
-            float: maximum center frequency boundary for signal
-        """
-        epsilon = 1e-10
-        return (self.sample_rate/2)*(1-epsilon)
 

@@ -39,6 +39,8 @@ snr_db_min = 0.0
 snr_db_max = 50.0
 signal_duration_percent_min = 0.0
 signal_duration_percent_max = 100.0
+signal_center_freq_min = -5e6
+signal_center_freq_max = 5e6-1
 
 def narrowband_metadata():
     from torchsig.datasets.dataset_metadata import NarrowbandMetadata
@@ -51,7 +53,9 @@ def narrowband_metadata():
         snr_db_max=snr_db_max,
         snr_db_min=snr_db_min,
         signal_duration_percent_min=signal_duration_percent_min,
-        signal_duration_percent_max=signal_duration_percent_max
+        signal_duration_percent_max=signal_duration_percent_max,
+        signal_center_freq_min=signal_center_freq_min,
+        signal_center_freq_max=signal_center_freq_max
     )
 
 def wideband_metadata():
@@ -66,7 +70,9 @@ def wideband_metadata():
         snr_db_max=snr_db_max,
         snr_db_min=snr_db_min,
         signal_duration_percent_min=signal_duration_percent_min,
-        signal_duration_percent_max=signal_duration_percent_max
+        signal_duration_percent_max=signal_duration_percent_max,
+        signal_center_freq_min=signal_center_freq_min,
+        signal_center_freq_max=signal_center_freq_max
     )
 
 
@@ -194,8 +200,8 @@ def test_valid_SignalMetadata(
     edge_cases = dict(
         # center_freq
         center_freq = [
-            dataset_metadata.center_freq_min + 1, 
-            dataset_metadata.center_freq_max
+            dataset_metadata.signal_center_freq_min + 1, 
+            dataset_metadata.signal_center_freq_max
         ],
         # bandwidth
         bandwidth = [
@@ -241,9 +247,9 @@ def test_invalid_SignalMetadata(
         dataset_metadata = [None],
         # center_freq
         center_freq = [
-            dataset_metadata.center_freq_min, 
+            dataset_metadata.signal_center_freq_min, 
             -99999, 
-            dataset_metadata.center_freq_max + 1
+            dataset_metadata.signal_center_freq_max + 1
         ],
         # bandwidth
         bandwidth = [
