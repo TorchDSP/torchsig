@@ -46,6 +46,8 @@ dynamic = ["version"]
 [tool.setuptools.dynamic]
 version = {attr = "torchsig.__version__"}
 
+[tool.setuptools.package-data]
+"torchsig.datasets.default_configs" = ["*.yaml"]
 
 [tool.coverage.run]
 branch = true
