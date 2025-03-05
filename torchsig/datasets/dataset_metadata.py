@@ -270,6 +270,20 @@ class DatasetMetadata(Seedable):
             high = self._signal_duration_percent_max
         )
 
+        self._signal_bandwidth_min = verify_float(
+            self._signal_bandwidth_min,
+            name = "signal_bandwidth_min",
+            low = self.dataset_bandwidth_min,
+            high = self.dataset_bandwidth_max
+        )
+
+        self._signal_bandwidth_max = verify_float(
+            self._signal_bandwidth_max,
+            name = "signal_bandwidth_max",
+            low = self.dataset_bandwidth_min,
+            high = self.dataset_bandwidth_max
+        )
+
         if self._num_samples is not None:
             self._num_samples = verify_int(
                 self._num_samples,
@@ -317,14 +331,6 @@ class DatasetMetadata(Seedable):
             high = self.duration_in_samples_max,
             exclude_low = True
         )
-
-        # verify that the minimum and maximum signal bandwidth is not smaller than what is possible to generate
-        if (self.signal_bandwidth_min < self.dataset_bandwidth_min):
-            raise ValueError(f'Signal bandwidth minimum {self.signal_bandwidth_min} cannot be less than {self.dataset_bandwidth_min}')
-
-        if (self.signal_bandwidth_max > self.dataset_bandwidth_max):
-            raise ValueError(f'Signal bandwidth maximum {self.signal_bandwidth_max} cannot be greater than {self.dataset_bandwidth_max}')
-
 
     def _initialize_impairments(self) -> Impairments:
         """Initializes the dataset impairments (not implemented).
