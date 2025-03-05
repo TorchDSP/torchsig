@@ -117,6 +117,10 @@ def dataset_metadata_str(
         snr_db_max                        30.0      
         signal_duration_percent_min       0.1       
         signal_duration_percent_max       0.9       
+        signal_bandwidth_min              10
+        signal_bandwidth_max              100
+        signal_center_freq_min            -10
+        signal_center_freq_max            10
         transforms                        [TransformA, TransformB]   
         target_transforms                 [TargetTransform1]       
         class_list                        [Class1, Class2, Class3]    
@@ -178,6 +182,10 @@ def dataset_metadata_str(
         f"{'snr_db_max':<29} {dataset_metadata.snr_db_max}\n" 
         f"{'signal_duration_percent_min':<29} {dataset_metadata.signal_duration_percent_min}\n" 
         f"{'signal_duration_percent_max':<29} {dataset_metadata.signal_duration_percent_max}\n" 
+        f"{'signal_bandwidth_min':<29} {dataset_metadata.signal_bandwidth_min}\n" 
+        f"{'signal_bandwidth_max':<29} {dataset_metadata.signal_bandwidth_max}\n" 
+        f"{'signal_center_freq_min':<29} {dataset_metadata.signal_center_freq_min}\n" 
+        f"{'signal_center_freq_max':<29} {dataset_metadata.signal_center_freq_max}\n" 
         f"{'transforms':<29} {transform_str}\n" 
         f"{'target_transforms':<29} {target_transform_str}\n" 
         f"{'class_list':<29} {class_list_str}\n" 
@@ -217,6 +225,10 @@ def dataset_metadata_repr(
             f"snr_db_max={dataset_metadata.snr_db_max}," 
             f"signal_duration_percent_min={dataset_metadata.signal_duration_percent_min}," 
             f"signal_duration_percent_max={dataset_metadata.signal_duration_percent_max}," 
+            f"signal_bandwidth_min={dataset_metadata.signal_bandwidth_min}," 
+            f"signal_bandwidth_max={dataset_metadata.signal_bandwidth_max}," 
+            f"signal_center_freq_min={dataset_metadata.signal_center_freq_min}," 
+            f"signal_center_freq_max={dataset_metadata.signal_center_freq_max}," 
             f"transforms={dataset_metadata.transforms}," 
             f"target_transforms={dataset_metadata.target_transforms}," 
             f"impairment_level={dataset_metadata.impairment_level}," 

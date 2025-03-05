@@ -13,6 +13,10 @@ overrides:
   snr_db_max: 50.0
   signal_duration_percent_min: 80.0
   signal_duration_percent_max: 100.0
+  signal_bandwidth_min: 1000000 # 1e6
+  signal_bandwidth_max: 4000000 # 4e6
+  signal_center_freq_min: -500000 # -0.5e6
+  signal_center_freq_max:  500000 # 0.5e6
   class_list: all
   class_distribution: uniform
   seed: 123456789
