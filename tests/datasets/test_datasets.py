@@ -262,13 +262,13 @@ def test_StaticDataset_getitem(dataset_type: str, target_transforms: List[Target
     if dataset_type == 'narrowband':
         static_dataset = StaticNarrowband(
             root = root,
-            impaired = impairment_level,
+            impairment_level = impairment_level,
             target_transforms=target_transforms,
         )
     else:
         static_dataset = StaticWideband(
             root = root,
-            impaired = impairment_level,
+            impairment_level = impairment_level,
             target_transforms=target_transforms,
         )
 
@@ -373,7 +373,7 @@ def test_NarrowbandDatasets(params: dict, is_error: bool) -> None:
             dc.create()
             NBS = StaticNarrowband(
                 root = nb_data_dir,
-                impaired = impairment_level,
+                impairment_level = impairment_level,
             )
     else:
         # create the narrowband object, derived from the metadata object
@@ -392,12 +392,12 @@ def test_NarrowbandDatasets(params: dict, is_error: bool) -> None:
         # load dataset from disk
         NBS0 = StaticNarrowband(
             root = nb_data_dir,
-            impaired = impairment_level,
+            impairment_level = impairment_level,
         )
 
         NBS1 = StaticNarrowband(
             root = nb_data_dir,
-            impaired = impairment_level,
+            impairment_level = impairment_level,
         )
         
         # # inspect and save save_num_signals as images
@@ -560,7 +560,7 @@ def test_WidebandDatasets(params: dict, is_error: bool) -> None:
             dc.create()
             WBS = StaticWideband(
                 root = wb_data_dir,
-                impaired = impairment_level,
+                impairment_level = impairment_level,
             )
     else:
         # create the wideband object, derived from the metadata object
@@ -578,11 +578,11 @@ def test_WidebandDatasets(params: dict, is_error: bool) -> None:
         # load dataset from disk
         WBS0 = StaticWideband(
             root = wb_data_dir,
-            impaired = impairment_level,
+            impairment_level = impairment_level,
         )
         WBS1 = StaticWideband(
             root = wb_data_dir,
-            impaired = impairment_level,
+            impairment_level = impairment_level,
         )
             
         # wideband dataset

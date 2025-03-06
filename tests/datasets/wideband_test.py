@@ -135,7 +135,7 @@ def main():
     # load dataset back in from disk
     WBS = StaticWideband(
         root=root,
-        impaired=impairment_level,
+        impairment_level=impairment_level,
     )
 
     # save as images

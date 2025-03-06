@@ -5,7 +5,6 @@
 from torchsig.transforms.base_transforms import Compose, Transform
 from torchsig.transforms.signal_transforms import SignalTransform
 from torchsig.transforms.dataset_transforms import DatasetTransform
-from torchsig.utils.verify import verify_impairment_level
 
 # Built-In
 from typing import List
@@ -43,7 +42,7 @@ class Impairments(Transform):
     ): 
         super().__init__(**kwargs)
 
-        self.level = verify_impairment_level(level)
+        self.level = level
 
         self.signal_transforms = Compose(transforms = all_levels_signal_transforms[self.level])
         self.signal_transforms.add_parent(self)

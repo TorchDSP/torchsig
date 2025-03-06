@@ -89,7 +89,7 @@ class TorchSigDataModule(pl.LightningDataModule):
         self.dataset = dataset
         self.train_metadata = to_dataset_metadata(train_metadata)
         self.val_metadata = to_dataset_metadata(val_metadata)
-        self.impaired = self.train_metadata.impairment_level > 0
+        self.impairment_level = self.train_metadata.impairment_level
 
         self.new_dataset_class = NewNarrowband if self.dataset == "narrowband" else NewWideband
         self.static_dataset_class = StaticNarrowband if self.dataset == "narrowband" else StaticWideband
@@ -160,14 +160,14 @@ class TorchSigDataModule(pl.LightningDataModule):
         """
         self.train = self.static_dataset_class(
             root = self.root,
-            impaired = self.impaired,
+            impairment_level = self.impairment_level,
             transforms = self.transforms,
             target_transforms = self.target_transforms,
             train = True,
         )
         self.val = self.static_dataset_class(
             root = self.root,
-            impaired = self.impaired,
+            impairment_level = self.impairment_level,
             transforms = self.transforms,
             target_transforms = self.target_transforms,
             train = False
@@ -427,7 +427,7 @@ class OfficialTorchSigDataModdule(TorchSigDataModule):
     Args:
         root (str): Root directory where the dataset is stored.
         dataset (str): Name of the dataset.
-        impaired (bool | int): Defines the impairment level of the dataset.
+        impairment_level (int): Defines the impairment level of the dataset.
         batch_size (int, optional): Batch size for the dataloaders. Default is 1.
         num_workers (int, optional): Number of workers for data loading. Default is 1.
         collate_fn (Callable, optional): Function to merge a list of samples into a batch. Default is None.
@@ -442,7 +442,7 @@ class OfficialTorchSigDataModdule(TorchSigDataModule):
         self,
         root: str,
         dataset: str,
-        impaired: bool | int,
+        impairment_level: int,
         # dataloader params
         batch_size: int = 1,
         num_workers: int = 1,
@@ -459,13 +459,13 @@ class OfficialTorchSigDataModdule(TorchSigDataModule):
 
         train_metadata = get_default_yaml_config(
             dataset_type = dataset,
-            impairment_level = impaired,
+            impairment_level = impairment_level,
             train = True
         )
 
         val_metadata = get_default_yaml_config(
             dataset_type = dataset,
-            impairment_level = impaired,
+            impairment_level = impairment_level,
             train = False
         )
 
@@ -495,7 +495,7 @@ class OfficialNarrowbandDataModule(OfficialTorchSigDataModdule):
 
     Args:
         root (str): Root directory where the dataset is stored.
-        impaired (bool | int): Defines the impairment level of the dataset.
+        impairment_level (int): Defines the impairment level of the dataset.
         batch_size (int, optional): Batch size for the dataloaders. Default is 1.
         num_workers (int, optional): Number of workers for data loading. Default is 1.
         collate_fn (Callable, optional): Function to merge a list of samples into a batch. Default is None.
@@ -508,7 +508,7 @@ class OfficialNarrowbandDataModule(OfficialTorchSigDataModdule):
     def __init__(
         self,
         root: str,
-        impaired: bool | int,
+        impairment_level: int,
         # dataloader params
         batch_size: int = 1,
         num_workers: int = 1,
@@ -526,7 +526,7 @@ class OfficialNarrowbandDataModule(OfficialTorchSigDataModdule):
         super().__init__(
             root = root,
             dataset = 'narrowband',
-            impaired = impaired,
+            impairment_level = impairment_level,
             batch_size = batch_size,
             num_workers = num_workers,
             collate_fn = collate_fn,
@@ -548,7 +548,7 @@ class OfficialWidebandDataModule(OfficialTorchSigDataModdule):
 
     Args:
         root (str): Root directory where the dataset is stored.
-        impaired (bool | int): Defines the impairment level of the dataset.
+        impairment_level (int): Defines the impairment level of the dataset.
         batch_size (int, optional): Batch size for the dataloaders. Default is 1.
         num_workers (int, optional): Number of workers for data loading. Default is 1.
         collate_fn (Callable, optional): Function to merge a list of samples into a batch. Default is None.
@@ -561,7 +561,7 @@ class OfficialWidebandDataModule(OfficialTorchSigDataModdule):
     def __init__(
         self,
         root: str,
-        impaired: bool | int,
+        impairment_level: int,
         # dataloader params
         batch_size: int = 1,
         num_workers: int = 1,
@@ -578,7 +578,7 @@ class OfficialWidebandDataModule(OfficialTorchSigDataModdule):
         super().__init__(
             root = root,
             dataset = 'wideband',
-            impaired = impaired,
+            impairment_level = impairment_level,
             batch_size = batch_size,
             num_workers = num_workers,
             collate_fn = collate_fn,
