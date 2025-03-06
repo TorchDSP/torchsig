@@ -133,7 +133,7 @@ def main():
     # load dataset from disk
     NBS = StaticNarrowband(
         root = root,
-        impaired = impairment_level,
+        impairment_level = impairment_level,
     )
 
     # inspect and save save_num_signals as images

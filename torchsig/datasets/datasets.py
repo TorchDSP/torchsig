@@ -15,7 +15,7 @@ from torchsig.datasets.dataset_utils import (
     dataset_full_path
 )
 from torchsig.utils.printing import generate_repr_str
-from torchsig.utils.verify import verify_impairment_level, verify_transforms, verify_target_transforms
+from torchsig.utils.verify import verify_transforms, verify_target_transforms
 
 # Third Party
 from torch.utils.data import Dataset
@@ -370,7 +370,7 @@ class StaticTorchSigDataset(Dataset):
     
     Args:
         root (str): The root directory where the dataset is stored.
-        impaired (bool): Whether the data is impaired (default: False).
+        impairment_level (int): Defines impairment level 0, 1, 2.
         dataset_type (str): Type of the dataset, either "narrowband" or "wideband".
         transforms (list, optional): Transforms to apply to the data (default: []).
         target_transforms (list, optional): Target transforms to apply (default: []).
@@ -380,7 +380,7 @@ class StaticTorchSigDataset(Dataset):
     def __init__(
         self,
         root: str,
-        impaired: bool | int,
+        impairment_level: int,
         dataset_type: str,
         transforms: list = [],
         target_transforms: list = [],
@@ -389,24 +389,18 @@ class StaticTorchSigDataset(Dataset):
         # **kwargs
     ):
         self.root = Path(root)
-        self.impaired = impaired
+        self.impairment_level = impairment_level
         self.dataset_type = dataset_type
         self.transforms = transforms
         self.target_transforms = target_transforms
         self.file_handler = file_handler_class
         self.train = train
 
-        # resolve impairment level filename
-        # impaired = True or 2 -> level 2
-        # impaired = False or 0 -> level 0
-        # impaired = 1 -> level 1
-        impairment_level = verify_impairment_level(impaired)
-
         # create filepath to saved dataset
         # e.g., root/torchsig_narrowband_clean/
         self.full_root = dataset_full_path(
             dataset_type = self.dataset_type,
-            impairment_level = impairment_level,
+            impairment_level = self.impairment_level,
             train = self.train
         )
         self.full_root = f"{self.root}/{self.full_root}"
@@ -533,7 +527,7 @@ class StaticTorchSigDataset(Dataset):
         return (
             f"{self.__class__.__name__}"
             f"(root={self.root}, "
-            f"impaired={self.impaired}, "
+            f"impairment_level={self.impairment_level}, "
             f"transforms={self.transforms.__repr__()}, "
             f"target_transforms={self.target_transforms.__repr__()}, "
             f"file_handler_class={self.file_handler}, "
