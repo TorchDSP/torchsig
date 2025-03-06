@@ -18,7 +18,6 @@ overrides:
   signal_bandwidth_max: 100000 # 100e3
   signal_center_freq_min: -500000 # 500e3
   signal_center_freq_max:  499999 # 4.99999e3
-  impairment_level: 0
   class_list: all
   class_distribution: uniform
   seed: 123456789
