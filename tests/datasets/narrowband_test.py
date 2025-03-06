@@ -51,8 +51,8 @@ num_iq_samples_dataset = fft_size*np.random.randint(128,1024)
 # testing to handle cases in which number of samples is not an integer multiple of FFT size
 num_iq_samples_dataset += np.random.randint(0,fft_size)
 
-# works for variable sample rates, 1.0 can be used for simplicity
-sample_rate = np.random.uniform(1.0, 1e6)
+# works for variable sample rates
+sample_rate = 10e6
 
 # minimum and maximum SNR for signals
 snr_db_max = 50
@@ -61,6 +61,14 @@ snr_db_min = 0
 # min and max signal duration percentages (w.r.t dataset length)
 signal_duration_percent_max = 100
 signal_duration_percent_min = 80
+
+# min and max bandwidth for signals
+signal_bandwidth_min = sample_rate/8
+signal_bandwidth_max = sample_rate/4
+
+# min and max center freq for signals
+signal_center_freq_min = -sample_rate/10
+signal_center_freq_max = sample_rate/10
 
 # define impairment level
 impairment_level = 2
@@ -96,6 +104,10 @@ def main():
         snr_db_min=snr_db_min,
         signal_duration_percent_max=signal_duration_percent_max,
         signal_duration_percent_min=signal_duration_percent_min,
+        signal_bandwidth_max=signal_bandwidth_max,
+        signal_bandwidth_min=signal_bandwidth_min,
+        signal_center_freq_max=signal_center_freq_max,
+        signal_center_freq_min=signal_center_freq_min,
         transforms=Spectrogram(fft_size=fft_size),
         target_transforms=target_transform,
         impairment_level=impairment_level,

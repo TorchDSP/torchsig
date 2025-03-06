@@ -93,7 +93,7 @@ class TorchSigDataModule(pl.LightningDataModule):
 
         self.new_dataset_class = NewNarrowband if self.dataset == "narrowband" else NewWideband
         self.static_dataset_class = StaticNarrowband if self.dataset == "narrowband" else StaticWideband
-     
+
         self.transforms = transforms
         self.target_transforms = target_transforms
 
@@ -259,6 +259,10 @@ class NarrowbandDataModule(TorchSigDataModule):
             snr_db_max = base.snr_db_max,
             signal_duration_percent_min = base.signal_duration_percent_min,
             signal_duration_percent_max = base.signal_duration_percent_max,
+            signal_bandwidth_min = base.signal_bandwidth_min,
+            signal_bandwidth_max = base.signal_bandwidth_max,
+            signal_center_freq_min = base.signal_center_freq_min,
+            signal_center_freq_max = base.signal_center_freq_max,
             transforms = base.transforms,
             target_transforms = base.target_transforms,
             class_list = base.class_list,
@@ -277,6 +281,10 @@ class NarrowbandDataModule(TorchSigDataModule):
             snr_db_max = base.snr_db_max,
             signal_duration_percent_min = base.signal_duration_percent_min,
             signal_duration_percent_max = base.signal_duration_percent_max,
+            signal_bandwidth_min = base.signal_bandwidth_min,
+            signal_bandwidth_max = base.signal_bandwidth_max,
+            signal_center_freq_min = base.signal_center_freq_min,
+            signal_center_freq_max = base.signal_center_freq_max,
             transforms = base.transforms,
             target_transforms = base.target_transforms,
             class_list = base.class_list,
@@ -353,6 +361,10 @@ class WidebandDataModule(TorchSigDataModule):
             snr_db_max = base.snr_db_max,
             signal_duration_percent_min = base.signal_duration_percent_min,
             signal_duration_percent_max = base.signal_duration_percent_max,
+            signal_bandwidth_min = base.signal_bandwidth_min,
+            signal_bandwidth_max = base.signal_bandwidth_max,
+            signal_center_freq_min = base.signal_center_freq_min,
+            signal_center_freq_max = base.signal_center_freq_max,
             transforms = base.transforms,
             target_transforms = base.target_transforms,
             class_list = base.class_list,
@@ -372,6 +384,10 @@ class WidebandDataModule(TorchSigDataModule):
             snr_db_max = base.snr_db_max,
             signal_duration_percent_min = base.signal_duration_percent_min,
             signal_duration_percent_max = base.signal_duration_percent_max,
+            signal_bandwidth_min = base.signal_bandwidth_min,
+            signal_bandwidth_max = base.signal_bandwidth_max,
+            signal_center_freq_min = base.signal_center_freq_min,
+            signal_center_freq_max = base.signal_center_freq_max,
             transforms = base.transforms,
             target_transforms = base.target_transforms,
             class_list = base.class_list,

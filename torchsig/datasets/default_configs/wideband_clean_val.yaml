@@ -7,13 +7,17 @@ required:
 
 overrides:
   num_samples: 5700 # 5.7k
-  sample_rate: 1000000 # 10e6
+  sample_rate: 100000000 # 100e6
   num_signals_min: 3
   num_signals_distribution: null
   snr_db_min: 0.0
   snr_db_max: 50.0
   signal_duration_percent_min: 0.0
   signal_duration_percent_max: 100.0
+  signal_bandwidth_min:  10000 # 10e3
+  signal_bandwidth_max: 100000 # 100e3
+  signal_center_freq_min: -50000000 # -50e6
+  signal_center_freq_max:  49999999 # 49.999999e6
   impairment_level: 0
   class_list: all
   class_distribution: uniform
