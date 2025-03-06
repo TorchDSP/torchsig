@@ -7,7 +7,7 @@ required:
 
 overrides:
   num_samples: 57000 # 57k
-  sample_rate: 10000000 # 100e6
+  sample_rate: 100000000 # 100e6
   num_signals_min: 3
   num_signals_distribution: null
   snr_db_min: 0.0
