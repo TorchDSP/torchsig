@@ -35,11 +35,15 @@ def test_generate_narrowband(
     fft_size: int = -1,
 ):
     print(num_samples, num_iq_samples, impaired)
+    sample_rate=10e6
     dataset_metadata = NarrowbandMetadata(
         num_samples = num_samples,
+        sample_rate=sample_rate,
         num_iq_samples_dataset=num_iq_samples,
         fft_size= int(math.sqrt(num_iq_samples)) if fft_size == -1 else fft_size,
         impairment_level= 2 if impaired else 0,
+        signal_duration_min=num_iq_samples/sample_rate,
+        signal_duration_max=num_iq_samples/sample_rate
     )
 
     run_generate(
@@ -70,12 +74,16 @@ def test_generate_wideband(
     fft_size: int = -1,
 ):
     print(num_signals, num_samples, num_iq_samples, impaired)
+    sample_rate=100e6
     dataset_metadata = WidebandMetadata(
         num_signals_max=num_signals,
+        sample_rate=sample_rate,
         num_samples = num_samples,
         num_iq_samples_dataset=num_iq_samples,
         fft_size= int(math.sqrt(num_iq_samples)) if fft_size == -1 else fft_size,
         impairment_level= 2 if impaired else 0,
+        signal_duration_min=num_iq_samples/sample_rate,
+        signal_duration_max=num_iq_samples/sample_rate
     )
 
     run_generate(

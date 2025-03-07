@@ -252,15 +252,15 @@ class ConstellationSignalBuilder(SignalBuilder):
         minimum_duration_for_one_symbol = np.clip(oversampling_rate*minimum_duration_in_symbols, a_min=None, a_max=self.dataset_metadata.num_iq_samples_dataset)
 
         # choose the larger of the two minimums
-        minimum_duration_in_samples = np.max((minimum_duration_for_one_symbol,self.dataset_metadata.duration_in_samples_min))
+        minimum_duration_in_samples = np.max((minimum_duration_for_one_symbol,self.dataset_metadata.signal_duration_in_samples_min))
 
         # is duration parameter to be randomized?
-        if minimum_duration_in_samples == self.dataset_metadata.duration_in_samples_max:
+        if minimum_duration_in_samples == self.dataset_metadata.signal_duration_in_samples_max:
             # the min and max fields are the same, so just use one of the fields
-            self._signal.metadata.duration_in_samples = copy(self.dataset_metadata.duration_in_samples_min)
+            self._signal.metadata.duration_in_samples = copy(self.dataset_metadata.signal_duration_in_samples_min)
         else:
             # randomize the duration
-            self._signal.metadata.duration_in_samples = self.random_generator.integers(low=minimum_duration_in_samples, high=self.dataset_metadata.duration_in_samples_max,dtype=int)
+            self._signal.metadata.duration_in_samples = self.random_generator.integers(low=minimum_duration_in_samples, high=self.dataset_metadata.signal_duration_in_samples_max,dtype=int)
 
         # is start parameter to be randomized?
         if self._signal.metadata.duration_in_samples == self.dataset_metadata.num_iq_samples_dataset:
