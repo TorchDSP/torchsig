@@ -109,9 +109,11 @@ class TorchSigDataModule(pl.LightningDataModule):
         self.file_handler = file_handler
 
         # to be initialized in setup()
-        self.train: DataLoader = None
-        self.val: DataLoader = None
-        self.test: DataLoader = None
+        self.train: Optional[self.static_dataset_class] = None
+        self.val: Optional[self.static_dataset_class] = None
+        self.test: Optional[self.static_dataset_class] = None
+
+
 
     def prepare_data(self) -> None:
         """
