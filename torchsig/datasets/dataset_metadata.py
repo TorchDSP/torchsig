@@ -71,8 +71,8 @@ class DatasetMetadata(Seedable):
         num_signals_distribution: np.ndarray | List[float]= None,
         snr_db_min: float = 0.0,
         snr_db_max: float = 50.0,
-        signal_duration_percent_min: float = 0.0,
-        signal_duration_percent_max: float = 100.0,
+        signal_duration_min: float = 0.001,
+        signal_duration_max: float = 0.010,
         signal_bandwidth_min: float = 1e6,
         signal_bandwidth_max: float = 4e6,
         signal_center_freq_min: float = -500e3,
@@ -98,8 +98,8 @@ class DatasetMetadata(Seedable):
                 for each value in `[num_signals_min, num_signals_max]`. Defaults to None (uniform).
             snr_db_min (float, optional): Minimum SNR of signals to generate. Defaults to 0.0.
             snr_db_max (float, optional): Maximum SNR of signals to generate. Defaults to 50.0.
-            signal_duration_percent_min (float, optional): Minimum duration of signal in percentage. Defaults to 0.0.
-            signal_duration_percent_max (float, optional): Maximum duration of signal in percentage. Defaults to 100.0.
+            signal_duration_min (float, optional): Minimum duration of signal. Defaults to 1e-3.
+            signal_duration_max (float, optional): Maximum duration of signal. Defaults to 10e-3.
             signal_bandwidth_min (float, optional): Minimum bandwidth of the signal. Defaults to 1e6.
             signal_bandwidth_max (float, optional): Maximum bandwidth of the signal. Defaults to 4e6.
             signal_center_freq_min (float, optional): Minimum center frequency of the signal. Defaults to -500e3.
@@ -139,8 +139,8 @@ class DatasetMetadata(Seedable):
         self._snr_db_max = snr_db_max
         self._snr_db_min = snr_db_min
 
-        self._signal_duration_percent_max = signal_duration_percent_max
-        self._signal_duration_percent_min = signal_duration_percent_min
+        self._signal_duration_max = signal_duration_max
+        self._signal_duration_min = signal_duration_min
 
         self._signal_bandwidth_min = signal_bandwidth_min
         self._signal_bandwidth_max = signal_bandwidth_max
@@ -263,18 +263,18 @@ class DatasetMetadata(Seedable):
             high = self._snr_db_max
         )
 
-        self._signal_duration_percent_max = verify_float(
-            self._signal_duration_percent_max,
-            name = "signal_duration_percent_max",
-            low = 0.0,
-            high = 100.0
+        self._signal_duration_max = verify_float(
+            self._signal_duration_max,
+            name = "signal_duration_max",
+            low = self.dataset_duration_min,
+            high = self.dataset_duration_max
         )
 
-        self._signal_duration_percent_min = verify_float(
-            self._signal_duration_percent_min,
-            name = "signal_duration_percent_min",
-            low = 0.0,
-            high = self._signal_duration_percent_max
+        self._signal_duration_min = verify_float(
+            self._signal_duration_min,
+            name = "signal_duration_min",
+            low = self.dataset_duration_min,
+            high = self.dataset_duration_max
         )
 
         self._signal_bandwidth_min = verify_float(
@@ -339,17 +339,17 @@ class DatasetMetadata(Seedable):
         )
 
         verify_int(
-            self.duration_in_samples_max,
-            name = "duration_in_samples_max",
-            low = 0,
+            self.signal_duration_in_samples_max,
+            name = "signal_duration_in_samples_max",
+            low = self.dataset_duration_in_samples_min,
             exclude_low = True
         )
 
         verify_int(
-            self.duration_in_samples_min,
-            name = "duration_in_samples_min",
+            self.signal_duration_in_samples_min,
+            name = "signal_duration_in_samples_min",
             low = 0,
-            high = self.duration_in_samples_max,
+            high = self.dataset_duration_in_samples_max,
             exclude_low = True
         )
 
@@ -398,8 +398,8 @@ class DatasetMetadata(Seedable):
             'num_signals_distribution': "uniform" if self._num_signals_distribution is None else self._num_signals_distribution.tolist(),
             'snr_db_min': self._snr_db_min,
             'snr_db_max': self.snr_db_max,
-            'signal_duration_percent_min': self._signal_duration_percent_min,
-            'signal_duration_percent_max': self._signal_duration_percent_max,
+            'signal_duration_min': self._signal_duration_min,
+            'signal_duration_max': self._signal_duration_max,
             'signal_bandwidth_min': self._signal_bandwidth_min,
             'signal_bandwidth_max': self._signal_bandwidth_max,
             'signal_center_freq_min': self._signal_center_freq_min,
@@ -429,8 +429,8 @@ class DatasetMetadata(Seedable):
             'num_signals_distribution': "uniform" if self._num_signals_distribution is None else self._num_signals_distribution.tolist(),
             'snr_db_min': self._snr_db_min,
             'snr_db_max': self._snr_db_max,
-            'signal_duration_percent_min': self._signal_duration_percent_min,
-            'signal_duration_percent_max': self._signal_duration_percent_max,
+            'signal_duration_min': self._signal_duration_min,
+            'signal_duration_max': self._signal_duration_max,
             'signal_bandwidth_min': self._signal_bandwidth_min,
             'signal_bandwidth_max': self._signal_bandwidth_max,
             'signal_center_freq_min': self._signal_center_freq_min,
@@ -441,8 +441,8 @@ class DatasetMetadata(Seedable):
             'fft_frequency_max': self.fft_frequency_max,
             'class_list': deepcopy(self._class_list),
             'class_distribution': "uniform" if self._class_distribution is None else self._class_distribution.tolist(),
-            'duration_in_samples_min': self.duration_in_samples_min,
-            'duration_in_samples_max': self.duration_in_samples_max,
+            'signal_duration_in_samples_min': self.signal_duration_in_samples_min,
+            'signal_duration_in_samples_max': self.signal_duration_in_samples_max,
         }
                
 
@@ -459,11 +459,6 @@ class DatasetMetadata(Seedable):
             'overrides': overrides,
             'read_only': read_only,
         }
-
-    # Functions that must be implemented by child classes. these
-    # define the range for bandwidth and center frequency on a per
-    # dataset basis due to differences between narrowband and
-    # wideband datasets
 
     @property
     def dataset_center_freq_max(self) -> float:
@@ -494,6 +489,91 @@ class DatasetMetadata(Seedable):
         """
         return -self.sample_rate/2
 
+    @property
+    def dataset_duration_max(self) -> float:
+        """The maximum duration possible within the dataset
+
+        The maximum is a boundary condition such that the signal duration
+        will not exceed the total time duration of the dataset.
+
+        Returns:
+            float: maximum duration for a signal
+        """
+        return self.num_iq_samples_dataset/self.sample_rate
+
+    @property
+    def dataset_duration_min(self) -> float:
+        """The minimum duration possible within the dataset
+
+        The minimum is a boundary condition such that the signal duration
+        will not be less than a specified minimum.
+
+        Returns:
+            float: minimum duration for a signal
+        """
+        return (self.fft_size/2)*(1/self.sample_rate)
+
+    @property
+    def dataset_duration_in_samples_max(self) -> float:
+        """The maximum duration in samples possible within the dataset
+
+        The maximum is a boundary condition such that the signal duration
+        in number of samples will not exceed the total number of samples
+        within the dataset.
+
+        Returns:
+            float: maximum duration for a signal in number of samples
+        """
+        return int(self.dataset_duration_max*self.sample_rate)
+
+    @property
+    def dataset_duration_in_samples_min(self) -> float:
+        """The minimum duration in samples possible within the dataset
+
+        The minimum is a boundary condition such that the signal duration
+        in number of samples will not exceed the total number of samples
+        within the dataset.
+
+        Returns:
+            float: minimum duration for a signal in number of samples
+        """
+        return int(self.dataset_duration_min*self.sample_rate)
+
+    @property
+    def dataset_center_freq_min(self) -> float:
+        """The minimum center frequency for a signal
+
+        The minimum is a boundary condition such that the center frequency
+        will not alias across the lower sampling rate boundary.
+
+        Returns:
+            float: minimum center frequency boundary for signal
+        """
+        return -self.sample_rate/2
+
+    @property
+    def dataset_bandwidth_min(self) -> float:
+        """The minimum possible bandwidth for a signal
+
+        Provides a boundary for the minimum bandwidth of a signal, which
+        is the bandwidth of a tone, which is sample rate / number of samples.
+
+        Returns:
+            float: the minimum bandwidth for a signal
+        """
+        return self.sample_rate / self.num_iq_samples_dataset
+
+    @property
+    def dataset_bandwidth_max(self) -> float:
+        """The maximum possible bandwidth for a signal
+
+        Provides a boundary for the maximum bandwidth of a signal, which
+        is the sampling rate.
+
+        Returns:
+            float: the maximum bandwidth for a signal
+        """
+        return self.sample_rate
 
     @property
     def signal_center_freq_min(self) -> None:
@@ -535,30 +615,28 @@ class DatasetMetadata(Seedable):
         """
         return self._signal_bandwidth_max
 
-    @property
-    def dataset_bandwidth_min(self) -> float:
-        """The minimum possible bandwidth for a signal
-
-        Provides a boundary for the minimum bandwidth of a signal, which
-        is the bandwidth of a tone, which is sample rate / number of samples.
-
-        Returns:
-            float: the minimum bandwidth for a signal
-        """
-        return self.sample_rate / self.num_iq_samples_dataset
 
     @property
-    def dataset_bandwidth_max(self) -> float:
-        """The maximum possible bandwidth for a signal
+    def signal_duration_in_samples_max(self) -> int:
+        """The maximum duration in samples for a signal
 
-        Provides a boundary for the maximum bandwidth of a signal, which
-        is the sampling rate.
+        Provides a maximum duration for a signal in number of samples.
 
         Returns:
-            float: the maximum bandwidth for a signal
+            float: the maximum duration in samples for a signal
         """
-        return self.sample_rate
+        return int(self._signal_duration_max*self.sample_rate)
 
+    @property
+    def signal_duration_in_samples_min(self) -> int:
+        """The minimum duration in samples for a signal
+
+        Provides a minimum duration for a signal in number of samples.
+
+        Returns:
+            float: the minimum duration in samples for a signal
+        """
+        return int(self._signal_duration_min*self.sample_rate)
 
     ## Read-Only Dataset Metadata fields
     @property
@@ -741,30 +819,22 @@ class DatasetMetadata(Seedable):
         return self._snr_db_max
 
     @property
-    def signal_duration_percent_max(self) -> float:
-        """Getter for the maximum signal duration percentage.
-
-        This property returns the maximum percentage of the total signal duration that is allowed or configured
-        for the dataset. The duration percentage is typically used in signal generation or processing to specify 
-        the maximum duration of individual signals relative to the total dataset duration.
+    def signal_duration_max(self) -> float:
+        """Getter for the maximum signal duration.
 
         Returns:
-            float: The maximum allowed percentage of the signal duration.
+            float: The maximum of the signal duration.
         """
-        return self._signal_duration_percent_max
+        return self._signal_duration_max
     
     @property
-    def signal_duration_percent_min(self) -> float:
-        """Getter for the minimum signal duration percentage.
-
-        This property returns the minimum percentage of the total signal duration that is allowed or configured
-        for the dataset. The duration percentage is used in signal generation or processing to specify 
-        the minimum duration of individual signals relative to the total dataset duration.
+    def signal_duration_min(self) -> float:
+        """Getter for the minimum signal duration.
 
         Returns:
-            float: The minimum allowed percentage of the signal duration.
+            float: The minimum of the signal duration.
         """
-        return self._signal_duration_percent_min
+        return self._signal_duration_min
 
     @property
     def fft_size(self) -> int:
@@ -863,40 +933,6 @@ class DatasetMetadata(Seedable):
         epsilon = 1e-10
         return (self.sample_rate/2)*(1-epsilon)
 
-    @property
-    def duration_in_samples_max(self) -> int:
-        """The maximum duration in samples for a signal
-
-        Provides a maximum duration for a signal in number of samples.
-
-        Returns:
-            float: the maximum duration in samples for a signal
-        """
-        return int(self.num_iq_samples_dataset*self._signal_duration_percent_max/100)
-
-    @property
-    def duration_in_samples_min(self) -> int:
-        """The minimum duration in samples for a signal
-
-        Provides a minimum duration for a signal in number of samples.
-
-        Returns:
-            float: the minimum duration in samples for a signal
-        """
-        # translate the minimum percentage into number of samples
-        duration_percentage_based = int(self.num_iq_samples_dataset*self._signal_duration_percent_min/100)
-
-        # define secondary minimum duration
-        duration_fft_based = int(np.round(self.fft_size/2))
-
-        # select the larger of the two
-        duration = np.max((duration_percentage_based,duration_fft_based))
-
-        # convert data type
-        duration = int(duration) 
-
-        return duration
-
 
 
 ### Narrowband Metadata
@@ -932,8 +968,8 @@ class NarrowbandMetadata(DatasetMetadata):
         num_signals_distribution: np.ndarray | List[float]= None,
         snr_db_min: float = 0.0,
         snr_db_max: float = 50.0,
-        signal_duration_percent_min: float = 80.0,
-        signal_duration_percent_max: float = 100.0,
+        signal_duration_min: float = 0.001,
+        signal_duration_max: float = 0.010,
         signal_bandwidth_min: float = 1e6,
         signal_bandwidth_max: float = 4e6,
         signal_center_freq_min: float = -500e3,
@@ -956,8 +992,8 @@ class NarrowbandMetadata(DatasetMetadata):
                 for generating samples with a specific number of signals. Defaults to uniform distribution if None.
             snr_db_min (float, optional): Minimum SNR (Signal-to-Noise Ratio) for the signals (default is 0.0).
             snr_db_max (float, optional): Maximum SNR for the signals (default is 50.0).
-            signal_duration_percent_min (float, optional): Minimum duration of a signal as a percentage of the total sample duration (default is 80.0%).
-            signal_duration_percent_max (float, optional): Maximum duration of a signal as a percentage (default is 100.0%).
+            signal_duration_min (float, optional): Minimum duration of a signal (Default is 1e-3).
+            signal_duration_max (float, optional): Maximum duration of a signal (Default is 10e-3).
             signal_bandwidth_min (float, optional): Minimum bandwidth of a signal. Default is 1e6.
             signal_bandwidth_max (float, optional): Maximum bandwidth of a signal. Default is 4e6.
             signal_center_freq_min (float, optional): Minimum center frequency of a signal. Default is -500e3.
@@ -981,8 +1017,8 @@ class NarrowbandMetadata(DatasetMetadata):
             num_signals_distribution=num_signals_distribution,
             snr_db_min=snr_db_min,
             snr_db_max=snr_db_max,
-            signal_duration_percent_min=signal_duration_percent_min,
-            signal_duration_percent_max=signal_duration_percent_max,
+            signal_duration_min=signal_duration_min,
+            signal_duration_max=signal_duration_max,
             signal_bandwidth_min=signal_bandwidth_min,
             signal_bandwidth_max=signal_bandwidth_max,
             signal_center_freq_min=signal_center_freq_min,
@@ -1047,8 +1083,8 @@ class WidebandMetadata(DatasetMetadata):
         num_signals_distribution: np.ndarray | List[float]= None,
         snr_db_min: float = 0.0,
         snr_db_max: float = 50.0,
-        signal_duration_percent_min: float = 0.0,
-        signal_duration_percent_max: float = 100.0,
+        signal_duration_min: float = 0.001,
+        signal_duration_max: float = 0.010,
         signal_bandwidth_min: float = 1e6,
         signal_bandwidth_max: float = 4e6,
         signal_center_freq_min: float = -50e6,
@@ -1073,8 +1109,8 @@ class WidebandMetadata(DatasetMetadata):
                 in `[num_signals_min, num_signals_max]`. Defaults to None (uniform).
             snr_db_min (float, optional): Minimum SNR of signals (default is 0.0).
             snr_db_max (float, optional): Maximum SNR of signals (default is 50.0).
-            signal_duration_percent_min (float, optional): Minimum signal duration percentage (default is 0.0).
-            signal_duration_percent_max (float, optional): Maximum signal duration percentage (default is 100.0).
+            signal_duration_min (float, optional): Minimum signal duration (default is 1e-3).
+            signal_duration_max (float, optional): Maximum signal duration (default is 10e-3).
             signal_bandwidth_min (float, optional): Minimum signal bandwidth (default is 1e6).
             signal_bandwidth_max (float, optional): Maximum signal bandwidth (default is 4e6).
             signal_center_freq_min (float, optional): Minimum signal center frequency (default is -50e6).
@@ -1098,8 +1134,8 @@ class WidebandMetadata(DatasetMetadata):
             num_signals_distribution=num_signals_distribution,
             snr_db_max=snr_db_max,
             snr_db_min=snr_db_min,
-            signal_duration_percent_max=signal_duration_percent_max,
-            signal_duration_percent_min=signal_duration_percent_min,
+            signal_duration_max=signal_duration_max,
+            signal_duration_min=signal_duration_min,
             signal_bandwidth_min=signal_bandwidth_min,
             signal_bandwidth_max=signal_bandwidth_max,
             signal_center_freq_min=signal_center_freq_min,

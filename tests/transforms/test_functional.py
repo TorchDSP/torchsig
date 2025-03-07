@@ -164,9 +164,9 @@ def test_agc(
             low_level_db    = params['low_level_db'],
             high_level_db   = params['high_level_db'],
         )    
-        mean_power_est = np.round(np.mean(np.abs(data[-128:])))
+        mean_level_est = np.round(np.mean(np.abs(data[-128:])))
 
-        assert (abs(mean_power_est - reference_level) < 1E-1) == expected
+        assert (abs(mean_level_est - reference_level) < 1E-1) == expected
         assert (type(data) == data_type) == expected
         assert (data.dtype == torchsig_complex_data_type) == expected
 
