@@ -50,8 +50,8 @@ snr_db_max = 50
 snr_db_min = 0
 
 # min and max signal duration percentages (w.r.t dataset length)
-signal_duration_min = 2e-5
-signal_duration_max = 2e-3
+signal_duration_min = 0.01*(num_iq_samples_dataset/sample_rate)
+signal_duration_max = 0.2*(num_iq_samples_dataset/sample_rate)
 
 # min and max bandwidth for signals
 signal_bandwidth_min = sample_rate/1000
