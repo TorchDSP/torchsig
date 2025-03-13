@@ -99,8 +99,7 @@ def verify_getitem_targets(dataset_type: str, target_transforms: List[TargetTran
             "stop_in_samples",
             "upper_freq",
             "lower_freq",
-            "oversampling_rate",
-            "samples_per_baud"
+            "oversampling_rate"
         ]
         assert isinstance(targets, list)
         for t in targets:

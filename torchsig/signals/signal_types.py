@@ -58,8 +58,7 @@ signal_metadata_dict_types = {
     'stop_in_samples':int,
     'upper_freq':float,
     'lower_freq':float,
-    'oversampling_rate':float,
-    'samples_per_baud':float,
+    'oversampling_rate':float
 }
 keys_types_list = [list(item)for item in list(zip(*signal_metadata_dict_types.items()))]
 
@@ -294,21 +293,6 @@ class SignalMetadata():
         """
         return self.sample_rate/self.bandwidth
 
-    @property
-    def samples_per_baud(self) -> float:
-        """Calculates the samples per baud for a signal
-
-        Calculates the samples per baud for some signals. Samples per baud
-        is not universal but is accurate for QAM and PSK modulation familes.
-        If the signal's bandwidth is 1/2 the sampling rate then the 
-        samples per baud is 2.
-
-        Returns:
-            float: samples per baud
-        
-        """
-        return self.oversampling_rate
-
 
     def to_dict(self) -> dict:
         """Returns SignalMetadata as a full dictionary
@@ -330,7 +314,6 @@ class SignalMetadata():
             'upper_freq':self.upper_freq,
             'lower_freq':self.lower_freq,
             'oversampling_rate':self.oversampling_rate,
-            'samples_per_baud':self.samples_per_baud,
         }
 
     def deepcopy(self) -> SignalMetadata:
