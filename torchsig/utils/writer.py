@@ -232,7 +232,7 @@ class DatasetCreator:
         # estimate size per sample
         dataset_size_per_sample_gigabytes = dataset_size_current_gigabytes/(batch_idx+1)
         # number of samples left
-        num_samples_remaining = len(self.dataloader)-batch_idx+1
+        num_samples_remaining = len(self.dataloader)-(batch_idx+1)
         # project estimated size
         dataset_size_remaining_gigabytes = np.round(dataset_size_per_sample_gigabytes*num_samples_remaining,2)
 
