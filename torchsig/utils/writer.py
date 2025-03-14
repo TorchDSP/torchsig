@@ -15,12 +15,15 @@ from torchsig.utils.yaml import write_dict_to_yaml
 
 # Third Party
 from tqdm import tqdm
+import yaml
+import numpy as np
 
 # Built-In
 from typing import Callable, Dict, Any, List, Tuple
 from pathlib import Path
 import os
-import yaml
+from shutil import disk_usage
+
 
 class DatasetCreator:
     """Class for creating a dataset and saving it to disk in batches.
@@ -101,6 +104,9 @@ class DatasetCreator:
         ) else "processed"
 
         self.tqdm_desc = f"Generating {self.dataloader.dataset.dataset_metadata.dataset_type.title()}" if tqdm_desc is None else tqdm_desc
+
+        # limit in gigabytes for remaining space on disk for which writer stops writing
+        self.minimum_remaining_disk_gb = 1
 
     
     def get_writing_info_dict(self) -> Dict[str, Any]:
@@ -190,6 +196,49 @@ class DatasetCreator:
         write_dict_to_yaml(f"{self.writer.root}/{dataset_yaml_name}", self.dataloader.dataset.dataset_metadata.to_dict())
         write_dict_to_yaml(f"{self.writer.root}/{writer_yaml_name}", self.get_writing_info_dict())
 
-        
-        for batch_idx, batch in tqdm(enumerate(self.dataloader), total = len(self.dataloader), desc = self.tqdm_desc):
+        # get reference to tqdm progress bar object
+        pbar = tqdm()
+
+        # update progress bar message
+        self._update_tqdm_message(pbar)
+
+        for batch_idx, batch in tqdm(enumerate(self.dataloader), total = len(self.dataloader)):
+
+            # write to disk
             self.writer.write(batch_idx, batch)
+
+            # update progress bar message
+            self._update_tqdm_message(pbar)
+ 
+
+    def _update_tqdm_message( self, pbar ):
+        """Updates the tqdm progress bar with remaining disk space
+
+        Informs the user how much remaining space left (in gigabytes) is
+        on their disk. Includes a check to stop writing to disk in case
+        the disk is at risk of being completely filled.
+   
+        Raises:
+            ValueError: If the disk space remaining is below a threshold
+        """
+
+        # get the amount of disk space remaining
+        size_B = disk_usage(self.writer.root)[2]
+        # convert to GB and round to two decimal places
+        size_GB = np.round(size_B/(1024**3),2)
+        # concatenate disk size for progress bar message
+        updated_tqdm_desc = f'{self.tqdm_desc}, remaining disk = {size_GB} GB'
+
+        # avoid crashing by stopping write process
+        if (size_GB < self.minimum_remaining_disk_gb):
+            raise ValueError(f'Disk nearly full! Remaining space is {size_GB} GB. Please make space before continuing.')
+
+        # set the progress bar message
+        pbar.set_description(updated_tqdm_desc)
+
+        return updated_tqdm_desc
+
+
+
+
+
