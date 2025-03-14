@@ -73,8 +73,8 @@ class DatasetMetadata(Seedable):
         snr_db_max: float = 50.0,
         signal_duration_min: float = None,
         signal_duration_max: float = None,
-        signal_bandwidth_min: float = 1e6,
-        signal_bandwidth_max: float = 4e6,
+        signal_bandwidth_min: float = None,
+        signal_bandwidth_max: float = None,
         signal_center_freq_min: float = -500e3,
         signal_center_freq_max: float = 500e3,
         transforms: list = [],
@@ -100,8 +100,8 @@ class DatasetMetadata(Seedable):
             snr_db_max (float, optional): Maximum SNR of signals to generate. Defaults to 50.0.
             signal_duration_min (float, optional): Minimum duration of signal. Defaults to None.
             signal_duration_max (float, optional): Maximum duration of signal. Defaults to None.
-            signal_bandwidth_min (float, optional): Minimum bandwidth of the signal. Defaults to 1e6.
-            signal_bandwidth_max (float, optional): Maximum bandwidth of the signal. Defaults to 4e6.
+            signal_bandwidth_min (float, optional): Minimum bandwidth of the signal. Defaults to None.
+            signal_bandwidth_max (float, optional): Maximum bandwidth of the signal. Defaults to None.
             signal_center_freq_min (float, optional): Minimum center frequency of the signal. Defaults to -500e3.
             signal_center_freq_max (float, optional): Maximum center frequency of the signal. Defaults to 500e3.
             transforms (list): Transforms to apply. Defaults to [].
@@ -970,8 +970,8 @@ class NarrowbandMetadata(DatasetMetadata):
         snr_db_max: float = 50.0,
         signal_duration_min: float = None,
         signal_duration_max: float = None,
-        signal_bandwidth_min: float = 1e6,
-        signal_bandwidth_max: float = 4e6,
+        signal_bandwidth_min: float = None,
+        signal_bandwidth_max: float = None,
         signal_center_freq_min: float = -500e3,
         signal_center_freq_max: float = 500e3,
         transforms: list = [],
@@ -994,8 +994,8 @@ class NarrowbandMetadata(DatasetMetadata):
             snr_db_max (float, optional): Maximum SNR for the signals (default is 50.0).
             signal_duration_min (float, optional): Minimum duration of a signal (Default is None).
             signal_duration_max (float, optional): Maximum duration of a signal (Default is None).
-            signal_bandwidth_min (float, optional): Minimum bandwidth of a signal. Default is 1e6.
-            signal_bandwidth_max (float, optional): Maximum bandwidth of a signal. Default is 4e6.
+            signal_bandwidth_min (float, optional): Minimum bandwidth of a signal. Default is None.
+            signal_bandwidth_max (float, optional): Maximum bandwidth of a signal. Default is None.
             signal_center_freq_min (float, optional): Minimum center frequency of a signal. Default is -500e3.
             signal_center_freq_max (float, optional): Maximum center frequency of a signal. Default is 500e3.
             transforms (list, optional): Transforms to apply on the dataset (default in []).
@@ -1013,6 +1013,12 @@ class NarrowbandMetadata(DatasetMetadata):
 
         if (signal_duration_max == None):
             signal_duration_max = 1.00*num_iq_samples_dataset/sample_rate
+
+        if (signal_bandwidth_min == None):
+            signal_bandwidth_min = sample_rate/8
+
+        if (signal_bandwidth_max == None):
+            signal_bandwidth_max = sample_rate/4
 
 
         super().__init__(
@@ -1093,8 +1099,8 @@ class WidebandMetadata(DatasetMetadata):
         snr_db_max: float = 50.0,
         signal_duration_min: float = None,
         signal_duration_max: float = None,
-        signal_bandwidth_min: float = 1e6,
-        signal_bandwidth_max: float = 4e6,
+        signal_bandwidth_min: float = None,
+        signal_bandwidth_max: float = None,
         signal_center_freq_min: float = -50e6,
         signal_center_freq_max: float = 50e6-1,
         transforms: list = [],
@@ -1119,8 +1125,8 @@ class WidebandMetadata(DatasetMetadata):
             snr_db_max (float, optional): Maximum SNR of signals (default is 50.0).
             signal_duration_min (float, optional): Minimum signal duration (default is None).
             signal_duration_max (float, optional): Maximum signal duration (default is None).
-            signal_bandwidth_min (float, optional): Minimum signal bandwidth (default is 1e6).
-            signal_bandwidth_max (float, optional): Maximum signal bandwidth (default is 4e6).
+            signal_bandwidth_min (float, optional): Minimum signal bandwidth (default is None).
+            signal_bandwidth_max (float, optional): Maximum signal bandwidth (default is None).
             signal_center_freq_min (float, optional): Minimum signal center frequency (default is -50e6).
             signal_center_freq_max (float, optional): Maximum signal center frequency (default is 49.999999e6).
             transforms (list): Transforms applied to the dataset (default in []).
@@ -1138,6 +1144,12 @@ class WidebandMetadata(DatasetMetadata):
 
         if (signal_duration_max == None):
             signal_duration_max = 0.20*num_iq_samples_dataset/sample_rate
+
+        if (signal_bandwidth_min == None):
+            signal_bandwidth_min = sample_rate/20
+
+        if (signal_bandwidth_max == None):
+            signal_bandwidth_max = sample_rate/10
 
 
         super().__init__(
