@@ -11,8 +11,6 @@ overrides:
   num_signals_distribution: uniform
   snr_db_min: 0.0
   snr_db_max: 50.0
-  signal_center_freq_min: -500000 # -0.5e6
-  signal_center_freq_max:  500000 # 0.5e6
   class_list: all
   class_distribution: uniform
   seed: 123456789
