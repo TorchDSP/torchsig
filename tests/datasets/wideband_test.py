@@ -49,10 +49,6 @@ sample_rate = 100e6
 snr_db_max = 50
 snr_db_min = 0
 
-# min and max bandwidth for signals
-signal_center_freq_min = -sample_rate/2
-signal_center_freq_max = (sample_rate/2) - 0.1
-
 # define impairment level
 impairment_level = 2
 
@@ -99,8 +95,6 @@ def main():
         num_signals_distribution=num_signals_dist,
         snr_db_max=snr_db_max,
         snr_db_min=snr_db_min,
-        signal_center_freq_max=signal_center_freq_max,
-        signal_center_freq_min=signal_center_freq_min,
         transforms=transforms,
         target_transforms=target_transform,
         impairment_level=impairment_level,

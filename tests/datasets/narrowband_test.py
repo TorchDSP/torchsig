@@ -58,10 +58,6 @@ sample_rate = 10e6
 snr_db_max = 50
 snr_db_min = 0
 
-# min and max center freq for signals
-signal_center_freq_min = -sample_rate/10
-signal_center_freq_max = sample_rate/10
-
 # define impairment level
 impairment_level = 2
 
@@ -94,8 +90,6 @@ def main():
         num_signals_min=num_signals_min,
         snr_db_max=snr_db_max,
         snr_db_min=snr_db_min,
-        signal_center_freq_max=signal_center_freq_max,
-        signal_center_freq_min=signal_center_freq_min,
         transforms=Spectrogram(fft_size=fft_size),
         target_transforms=target_transform,
         impairment_level=impairment_level,

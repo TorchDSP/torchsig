@@ -75,8 +75,8 @@ class DatasetMetadata(Seedable):
         signal_duration_max: float = None,
         signal_bandwidth_min: float = None,
         signal_bandwidth_max: float = None,
-        signal_center_freq_min: float = -500e3,
-        signal_center_freq_max: float = 500e3,
+        signal_center_freq_min: float = None,
+        signal_center_freq_max: float = None,
         transforms: list = [],
         target_transforms: list = [],
         class_list: List[str] = None,
@@ -102,8 +102,8 @@ class DatasetMetadata(Seedable):
             signal_duration_max (float, optional): Maximum duration of signal. Defaults to None.
             signal_bandwidth_min (float, optional): Minimum bandwidth of the signal. Defaults to None.
             signal_bandwidth_max (float, optional): Maximum bandwidth of the signal. Defaults to None.
-            signal_center_freq_min (float, optional): Minimum center frequency of the signal. Defaults to -500e3.
-            signal_center_freq_max (float, optional): Maximum center frequency of the signal. Defaults to 500e3.
+            signal_center_freq_min (float, optional): Minimum center frequency of the signal. Defaults to None.
+            signal_center_freq_max (float, optional): Maximum center frequency of the signal. Defaults to None.
             transforms (list): Transforms to apply. Defaults to [].
             target_transforms (list): List of Target Transforms to apply. Defaults to [].
             class_list (List[str], optional): Signal class name list. Defaults to TorchSigSignalLists.all_signals.
@@ -972,8 +972,8 @@ class NarrowbandMetadata(DatasetMetadata):
         signal_duration_max: float = None,
         signal_bandwidth_min: float = None,
         signal_bandwidth_max: float = None,
-        signal_center_freq_min: float = -500e3,
-        signal_center_freq_max: float = 500e3,
+        signal_center_freq_min: float = None,
+        signal_center_freq_max: float = None,
         transforms: list = [],
         target_transforms: list = [],
         class_list: List[str] = TorchSigSignalLists.all_signals,
@@ -996,8 +996,8 @@ class NarrowbandMetadata(DatasetMetadata):
             signal_duration_max (float, optional): Maximum duration of a signal (Default is None).
             signal_bandwidth_min (float, optional): Minimum bandwidth of a signal. Default is None.
             signal_bandwidth_max (float, optional): Maximum bandwidth of a signal. Default is None.
-            signal_center_freq_min (float, optional): Minimum center frequency of a signal. Default is -500e3.
-            signal_center_freq_max (float, optional): Maximum center frequency of a signal. Default is 500e3.
+            signal_center_freq_min (float, optional): Minimum center frequency of a signal. Default is None.
+            signal_center_freq_max (float, optional): Maximum center frequency of a signal. Default is None.
             transforms (list, optional): Transforms to apply on the dataset (default in []).
             target_transforms (list, optional): Transforms for targets (default is an empty list).
             impairment_level (int, optional): Level of signal impairment (default is 2).
@@ -1019,6 +1019,12 @@ class NarrowbandMetadata(DatasetMetadata):
 
         if (signal_bandwidth_max == None):
             signal_bandwidth_max = sample_rate/4
+
+        if (signal_center_freq_min == None):
+            signal_center_freq_min = -0.1*sample_rate
+
+        if (signal_center_freq_max == None):
+            signal_center_freq_max = 0.1*sample_rate
 
 
         super().__init__(
@@ -1101,8 +1107,8 @@ class WidebandMetadata(DatasetMetadata):
         signal_duration_max: float = None,
         signal_bandwidth_min: float = None,
         signal_bandwidth_max: float = None,
-        signal_center_freq_min: float = -50e6,
-        signal_center_freq_max: float = 50e6-1,
+        signal_center_freq_min: float = None,
+        signal_center_freq_max: float = None,
         transforms: list = [],
         target_transforms: list = [],
         class_list: List[str] = TorchSigSignalLists.all_signals,
@@ -1127,8 +1133,8 @@ class WidebandMetadata(DatasetMetadata):
             signal_duration_max (float, optional): Maximum signal duration (default is None).
             signal_bandwidth_min (float, optional): Minimum signal bandwidth (default is None).
             signal_bandwidth_max (float, optional): Maximum signal bandwidth (default is None).
-            signal_center_freq_min (float, optional): Minimum signal center frequency (default is -50e6).
-            signal_center_freq_max (float, optional): Maximum signal center frequency (default is 49.999999e6).
+            signal_center_freq_min (float, optional): Minimum signal center frequency (default is None).
+            signal_center_freq_max (float, optional): Maximum signal center frequency (default is None).
             transforms (list): Transforms applied to the dataset (default in []).
             target_transforms (list, optional): Target transforms applied (default is []).
             class_list (List[str], optional): List of signal class names (default is `TorchSigSignalLists.all_signals`).
@@ -1150,6 +1156,12 @@ class WidebandMetadata(DatasetMetadata):
 
         if (signal_bandwidth_max == None):
             signal_bandwidth_max = sample_rate/10
+
+        if (signal_center_freq_min == None):
+            signal_center_freq_min = -sample_rate/2
+
+        if (signal_center_freq_max == None):
+            signal_center_freq_max = (sample_rate/2)-1
 
 
         super().__init__(
