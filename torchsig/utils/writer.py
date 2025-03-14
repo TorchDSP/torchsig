@@ -15,12 +15,15 @@ from torchsig.utils.yaml import write_dict_to_yaml
 
 # Third Party
 from tqdm import tqdm
+import yaml
+import numpy as np
 
 # Built-In
 from typing import Callable, Dict, Any, List, Tuple
 from pathlib import Path
 import os
-import yaml
+from shutil import disk_usage
+
 
 class DatasetCreator:
     """Class for creating a dataset and saving it to disk in batches.
@@ -101,6 +104,9 @@ class DatasetCreator:
         ) else "processed"
 
         self.tqdm_desc = f"Generating {self.dataloader.dataset.dataset_metadata.dataset_type.title()}" if tqdm_desc is None else tqdm_desc
+
+        # limit in gigabytes for remaining space on disk for which writer stops writing
+        self.minimum_remaining_disk_gigabytes = 1
 
     
     def get_writing_info_dict(self) -> Dict[str, Any]:
@@ -190,6 +196,72 @@ class DatasetCreator:
         write_dict_to_yaml(f"{self.writer.root}/{dataset_yaml_name}", self.dataloader.dataset.dataset_metadata.to_dict())
         write_dict_to_yaml(f"{self.writer.root}/{writer_yaml_name}", self.get_writing_info_dict())
 
-        
-        for batch_idx, batch in tqdm(enumerate(self.dataloader), total = len(self.dataloader), desc = self.tqdm_desc):
+        # get reference to tqdm progress bar object
+        pbar = tqdm()
+
+        # update progress bar message
+        self._update_tqdm_message(pbar)
+
+        for batch_idx, batch in tqdm(enumerate(self.dataloader), total = len(self.dataloader)):
+
+            # write to disk
             self.writer.write(batch_idx, batch)
+
+            # update progress bar message
+            self._update_tqdm_message(pbar,batch_idx)
+
+
+    def _update_tqdm_message( self, pbar=tqdm(), batch_idx:int = 0 ):
+        """Updates the tqdm progress bar with remaining disk space
+
+        Informs the user how much remaining space left (in gigabytes) is
+        on their disk. Includes a check to stop writing to disk in case
+        the disk is at risk of being completely filled.
+   
+        Raises:
+            ValueError: If the disk space remaining is below a threshold
+        """
+
+        # get the amount of disk space remaining
+        disk_size_available_bytes = disk_usage(self.writer.root)[2]
+        # convert to GB and round to two decimal places
+        disk_size_available_gigabytes = np.round(disk_size_available_bytes/(1024**3),2)
+
+        # get size of dataset written so far
+        dataset_size_current_gigabytes = self._get_directory_size_gigabytes(self.writer.root)
+        # estimate size per sample
+        dataset_size_per_sample_gigabytes = dataset_size_current_gigabytes/(batch_idx+1)
+        # number of samples left
+        num_samples_remaining = len(self.dataloader)-(batch_idx+1)
+        # project estimated size
+        dataset_size_remaining_gigabytes = np.round(dataset_size_per_sample_gigabytes*num_samples_remaining,2)
+
+        # concatenate disk size for progress bar message
+        updated_tqdm_desc = f'{self.tqdm_desc}, dataset remaining to create = {dataset_size_remaining_gigabytes} GB, remaining disk = {disk_size_available_gigabytes} GB'
+
+        # avoid crashing by stopping write process
+        if (disk_size_available_gigabytes < self.minimum_remaining_disk_gigabytes):
+            # remaining disk size is below a hard cutoff value to avoid crashing operating system
+            raise ValueError(f'Disk nearly full! Remaining space is {disk_size_available_gigabytes} GB. Please make space before continuing.')
+        elif (dataset_size_remaining_gigabytes > disk_size_available_gigabytes):
+            # projected size of dataset too large for available disk space
+            raise ValueError(f'Not enough disk space. Projected dataset size is {dataset_size_remaining_gigabytes}. Remaining space is {disk_size_available_gigabytes} GB. Please reduce dataset size or make space before continuing.')
+
+        # set the progress bar message
+        pbar.set_description(updated_tqdm_desc)
+
+
+    def _get_directory_size_gigabytes ( self, start_path ):
+        """
+        Returns total size of a directory (including subdirs) in gigabytes
+        """
+        total_size = 0
+        for path, dirs, files in os.walk(start_path):
+           for f in files:
+              fp = os.path.join(path, f)
+              total_size += os.path.getsize(fp)
+        
+        total_size_GB = total_size/(1024**3)
+        return total_size_GB
+
+
