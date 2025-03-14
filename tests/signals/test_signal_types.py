@@ -37,8 +37,6 @@ num_iq_samples_dataset = fft_size ** 2
 sample_rate = 10e6
 snr_db_min = 0.0
 snr_db_max = 50.0
-signal_duration_min = 4e-6
-signal_duration_max = 40e-6
 signal_center_freq_min = -5e6
 signal_center_freq_max = 5e6-1
 
@@ -52,8 +50,6 @@ def narrowband_metadata():
         sample_rate=sample_rate,
         snr_db_max=snr_db_max,
         snr_db_min=snr_db_min,
-        signal_duration_min=signal_duration_min,
-        signal_duration_max=signal_duration_max,
         signal_center_freq_min=signal_center_freq_min,
         signal_center_freq_max=signal_center_freq_max
     )
@@ -69,8 +65,6 @@ def wideband_metadata():
         sample_rate=sample_rate,
         snr_db_max=snr_db_max,
         snr_db_min=snr_db_min,
-        signal_duration_min=signal_duration_min,
-        signal_duration_max=signal_duration_max,
         signal_center_freq_min=signal_center_freq_min,
         signal_center_freq_max=signal_center_freq_max
     )

@@ -11,8 +11,6 @@ overrides:
   num_signals_distribution: uniform
   snr_db_min: 0.0
   snr_db_max: 50.0
-  signal_duration_min: 0.001 # 1e-3
-  signal_duration_max: 0.010 # 10e-3
   signal_bandwidth_min: 1000000 # 1e6
   signal_bandwidth_max: 4000000 # 4e6
   signal_center_freq_min: -500000 # -0.5e6

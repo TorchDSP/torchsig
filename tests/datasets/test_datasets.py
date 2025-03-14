@@ -189,17 +189,13 @@ def test_NewDataset_getitem(dataset_type: str, target_transforms: List[TargetTra
     print(f"\n{dataset_type}, {target_transforms}, level {impairment_level}")
     dataset = None
     fft_size = 64
-    signal_duration_min=4e-6
-    signal_duration_max=4e-6
 
     if dataset_type == 'narrowband':
         dm = NarrowbandMetadata(
             num_iq_samples_dataset=fft_size**2,
             fft_size=fft_size,
             impairment_level=impairment_level,
-            target_transforms=target_transforms,
-            signal_duration_min=signal_duration_min,
-            signal_duration_max=signal_duration_max
+            target_transforms=target_transforms
         )
         dataset = NewNarrowband(dataset_metadata=dm)
     else:
@@ -208,9 +204,7 @@ def test_NewDataset_getitem(dataset_type: str, target_transforms: List[TargetTra
             fft_size=fft_size,
             impairment_level=impairment_level,
             num_signals_max=3,
-            target_transforms=target_transforms,
-            signal_duration_min=signal_duration_min,
-            signal_duration_max=signal_duration_max
+            target_transforms=target_transforms
         )
         dataset = NewWideband(dataset_metadata=dm)
 
@@ -235,17 +229,13 @@ def test_StaticDataset_getitem(dataset_type: str, target_transforms: List[Target
     fft_size = 64
     root = getitem_dir
     num_generate = num_check * 2
-    signal_duration_min = 4e-6
-    signal_duration_max = 4e-6
 
     if dataset_type == 'narrowband':
         dm = NarrowbandMetadata(
             num_iq_samples_dataset=fft_size**2,
             fft_size=fft_size,
             impairment_level=impairment_level,
-            num_samples=num_generate,
-            signal_duration_min=signal_duration_min,
-            signal_duration_max=signal_duration_max
+            num_samples=num_generate
         )
         new_dataset = NewNarrowband(dataset_metadata=dm)
     else:
@@ -254,9 +244,7 @@ def test_StaticDataset_getitem(dataset_type: str, target_transforms: List[Target
             fft_size=fft_size,
             impairment_level=impairment_level,
             num_signals_max=3,
-            num_samples=num_generate,
-            signal_duration_min=signal_duration_min,
-            signal_duration_max=signal_duration_max
+            num_samples=num_generate
         )
         new_dataset = NewWideband(dataset_metadata=dm)
 
@@ -339,10 +327,6 @@ def test_NarrowbandDatasets(params: dict, is_error: bool) -> None:
     snr_db_max = 50
     snr_db_min = 0
 
-    # min and max signal duration percentages (w.r.t dataset length)
-    signal_duration_min = 3e-5
-    signal_duration_max = 30e-5
-
     # define transforms
     transforms = [Spectrogram(fft_size=fft_size)] # spectrogram (float data)
     target_transform = [
@@ -363,8 +347,6 @@ def test_NarrowbandDatasets(params: dict, is_error: bool) -> None:
         num_signals_min=num_signals_min,
         snr_db_max=snr_db_max,
         snr_db_min=snr_db_min,
-        signal_duration_max=signal_duration_max,
-        signal_duration_min=signal_duration_min,
         transforms=transforms,
         target_transforms=target_transform,
         impairment_level=impairment_level,
@@ -519,10 +501,6 @@ def test_WidebandDatasets(params: dict, is_error: bool) -> None:
     snr_db_max = 50
     snr_db_min = 0
 
-    # min and max signal duration percentages (w.r.t dataset length)
-    signal_duration_min = 3e-5
-    signal_duration_max = 30e-5
-
     # probability for each sample to contain N signals where N is the index,
     # for example, num_signals_dist = [0.15, 0.5, 0.35] is 25% probability to 
     # generate 0 signals, 50% probability to generate 1 signal, 35% 
@@ -551,8 +529,6 @@ def test_WidebandDatasets(params: dict, is_error: bool) -> None:
         num_signals_distribution=num_signals_dist,
         snr_db_max=snr_db_max,
         snr_db_min=snr_db_min,
-        signal_duration_max=signal_duration_max,
-        signal_duration_min=signal_duration_min,
         transforms=transforms,
         target_transforms=target_transform,
         impairment_level=impairment_level,

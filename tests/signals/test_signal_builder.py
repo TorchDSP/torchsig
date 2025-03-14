@@ -28,8 +28,6 @@ for i in range(3):
         num_signals_distribution = [1.0],
         snr_db_min = 100.0,
         snr_db_max = 100.0,       
-        signal_duration_min = 2e-7,
-        signal_duration_max = 6e-6,
         transforms = [],
         target_transforms = [],
         class_list = ['qpsk'],

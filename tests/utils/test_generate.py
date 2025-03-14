@@ -41,9 +41,7 @@ def test_generate_narrowband(
         sample_rate=sample_rate,
         num_iq_samples_dataset=num_iq_samples,
         fft_size= int(math.sqrt(num_iq_samples)) if fft_size == -1 else fft_size,
-        impairment_level= 2 if impaired else 0,
-        signal_duration_min=num_iq_samples/sample_rate,
-        signal_duration_max=num_iq_samples/sample_rate
+        impairment_level= 2 if impaired else 0
     )
 
     run_generate(

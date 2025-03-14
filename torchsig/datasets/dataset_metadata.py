@@ -71,8 +71,8 @@ class DatasetMetadata(Seedable):
         num_signals_distribution: np.ndarray | List[float]= None,
         snr_db_min: float = 0.0,
         snr_db_max: float = 50.0,
-        signal_duration_min: float = 0.001,
-        signal_duration_max: float = 0.010,
+        signal_duration_min: float = None,
+        signal_duration_max: float = None,
         signal_bandwidth_min: float = 1e6,
         signal_bandwidth_max: float = 4e6,
         signal_center_freq_min: float = -500e3,
@@ -98,8 +98,8 @@ class DatasetMetadata(Seedable):
                 for each value in `[num_signals_min, num_signals_max]`. Defaults to None (uniform).
             snr_db_min (float, optional): Minimum SNR of signals to generate. Defaults to 0.0.
             snr_db_max (float, optional): Maximum SNR of signals to generate. Defaults to 50.0.
-            signal_duration_min (float, optional): Minimum duration of signal. Defaults to 1e-3.
-            signal_duration_max (float, optional): Maximum duration of signal. Defaults to 10e-3.
+            signal_duration_min (float, optional): Minimum duration of signal. Defaults to None.
+            signal_duration_max (float, optional): Maximum duration of signal. Defaults to None.
             signal_bandwidth_min (float, optional): Minimum bandwidth of the signal. Defaults to 1e6.
             signal_bandwidth_max (float, optional): Maximum bandwidth of the signal. Defaults to 4e6.
             signal_center_freq_min (float, optional): Minimum center frequency of the signal. Defaults to -500e3.
@@ -139,8 +139,8 @@ class DatasetMetadata(Seedable):
         self._snr_db_max = snr_db_max
         self._snr_db_min = snr_db_min
 
-        self._signal_duration_max = signal_duration_max
         self._signal_duration_min = signal_duration_min
+        self._signal_duration_max = signal_duration_max
 
         self._signal_bandwidth_min = signal_bandwidth_min
         self._signal_bandwidth_max = signal_bandwidth_max
@@ -511,7 +511,7 @@ class DatasetMetadata(Seedable):
         Returns:
             float: minimum duration for a signal
         """
-        return (self.fft_size/2)*(1/self.sample_rate)
+        return (self.fft_size/16)*(1/self.sample_rate)
 
     @property
     def dataset_duration_in_samples_max(self) -> float:
@@ -968,8 +968,8 @@ class NarrowbandMetadata(DatasetMetadata):
         num_signals_distribution: np.ndarray | List[float]= None,
         snr_db_min: float = 0.0,
         snr_db_max: float = 50.0,
-        signal_duration_min: float = 0.001,
-        signal_duration_max: float = 0.010,
+        signal_duration_min: float = None,
+        signal_duration_max: float = None,
         signal_bandwidth_min: float = 1e6,
         signal_bandwidth_max: float = 4e6,
         signal_center_freq_min: float = -500e3,
@@ -992,8 +992,8 @@ class NarrowbandMetadata(DatasetMetadata):
                 for generating samples with a specific number of signals. Defaults to uniform distribution if None.
             snr_db_min (float, optional): Minimum SNR (Signal-to-Noise Ratio) for the signals (default is 0.0).
             snr_db_max (float, optional): Maximum SNR for the signals (default is 50.0).
-            signal_duration_min (float, optional): Minimum duration of a signal (Default is 1e-3).
-            signal_duration_max (float, optional): Maximum duration of a signal (Default is 10e-3).
+            signal_duration_min (float, optional): Minimum duration of a signal (Default is None).
+            signal_duration_max (float, optional): Maximum duration of a signal (Default is None).
             signal_bandwidth_min (float, optional): Minimum bandwidth of a signal. Default is 1e6.
             signal_bandwidth_max (float, optional): Maximum bandwidth of a signal. Default is 4e6.
             signal_center_freq_min (float, optional): Minimum center frequency of a signal. Default is -500e3.
@@ -1007,6 +1007,14 @@ class NarrowbandMetadata(DatasetMetadata):
 
             
         """
+
+        if (signal_duration_min == None):
+            signal_duration_min = 0.80*num_iq_samples_dataset/sample_rate
+
+        if (signal_duration_max == None):
+            signal_duration_max = 1.00*num_iq_samples_dataset/sample_rate
+
+
         super().__init__(
             num_iq_samples_dataset=num_iq_samples_dataset, 
             sample_rate=sample_rate,
@@ -1083,8 +1091,8 @@ class WidebandMetadata(DatasetMetadata):
         num_signals_distribution: np.ndarray | List[float]= None,
         snr_db_min: float = 0.0,
         snr_db_max: float = 50.0,
-        signal_duration_min: float = 0.001,
-        signal_duration_max: float = 0.010,
+        signal_duration_min: float = None,
+        signal_duration_max: float = None,
         signal_bandwidth_min: float = 1e6,
         signal_bandwidth_max: float = 4e6,
         signal_center_freq_min: float = -50e6,
@@ -1109,8 +1117,8 @@ class WidebandMetadata(DatasetMetadata):
                 in `[num_signals_min, num_signals_max]`. Defaults to None (uniform).
             snr_db_min (float, optional): Minimum SNR of signals (default is 0.0).
             snr_db_max (float, optional): Maximum SNR of signals (default is 50.0).
-            signal_duration_min (float, optional): Minimum signal duration (default is 1e-3).
-            signal_duration_max (float, optional): Maximum signal duration (default is 10e-3).
+            signal_duration_min (float, optional): Minimum signal duration (default is None).
+            signal_duration_max (float, optional): Maximum signal duration (default is None).
             signal_bandwidth_min (float, optional): Minimum signal bandwidth (default is 1e6).
             signal_bandwidth_max (float, optional): Maximum signal bandwidth (default is 4e6).
             signal_center_freq_min (float, optional): Minimum signal center frequency (default is -50e6).
@@ -1124,6 +1132,14 @@ class WidebandMetadata(DatasetMetadata):
             num_samples (int, optional): Number of samples in the dataset (default is None, infinite dataset).
             **kwargs: Additional parameters to pass to the parent class.
         """  
+
+        if (signal_duration_min == None):
+            signal_duration_min = 0.10*num_iq_samples_dataset/sample_rate
+
+        if (signal_duration_max == None):
+            signal_duration_max = 0.20*num_iq_samples_dataset/sample_rate
+
+
         super().__init__(
             num_iq_samples_dataset=num_iq_samples_dataset, 
             sample_rate=sample_rate, 

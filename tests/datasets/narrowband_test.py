@@ -58,10 +58,6 @@ sample_rate = 10e6
 snr_db_max = 50
 snr_db_min = 0
 
-# min and max signal duration percentages (w.r.t dataset length)
-signal_duration_min = 0.80*(num_iq_samples_dataset/sample_rate)
-signal_duration_max = 0.99*(num_iq_samples_dataset/sample_rate)
-
 # min and max bandwidth for signals
 signal_bandwidth_min = sample_rate/8
 signal_bandwidth_max = sample_rate/4
@@ -102,8 +98,6 @@ def main():
         num_signals_min=num_signals_min,
         snr_db_max=snr_db_max,
         snr_db_min=snr_db_min,
-        signal_duration_max=signal_duration_max,
-        signal_duration_min=signal_duration_min,
         signal_bandwidth_max=signal_bandwidth_max,
         signal_bandwidth_min=signal_bandwidth_min,
         signal_center_freq_max=signal_center_freq_max,

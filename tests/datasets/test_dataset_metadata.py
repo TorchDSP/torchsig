@@ -59,8 +59,6 @@ def test_WidebandMetadata():
         sample_rate=wideband_sample_rate,
         fft_size=fft_size,
         num_signals_max=5,
-        impairment_level=0,
-        signal_duration_min=3e-6,
-        signal_duration_max=3e-6
+        impairment_level=0
     )
     md.to_dict()

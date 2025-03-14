@@ -26,9 +26,7 @@ def test_wideband_datamodule(tmpdir):
         num_iq_samples_dataset = 64 ** 2,
         fft_size = 64,
         impairment_level = 2,
-        num_signals_max=3,
-        signal_duration_min = 3e-5,
-        signal_duration_max = 3e-5
+        num_signals_max=3
     )
 
     dm = WidebandDataModule(
@@ -46,9 +44,7 @@ def test_narrowband_datamodule(tmpdir):
     NM = NarrowbandMetadata(
         num_iq_samples_dataset=64 ** 2,
         fft_size = 64,
-        impairment_level=2,
-        signal_duration_min = 5e-6,
-        signal_duration_max = 5e-6
+        impairment_level=2
     )
 
     dm = NarrowbandDataModule(
