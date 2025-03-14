@@ -247,11 +247,8 @@ class DatasetCreator:
             # projected size of dataset too large for available disk space
             raise ValueError(f'Not enough disk space. Projected dataset size is {dataset_size_remaining_gigabytes}. Remaining space is {disk_size_available_gigabytes} GB. Please reduce dataset size or make space before continuing.')
 
-
         # set the progress bar message
         pbar.set_description(updated_tqdm_desc)
-
-        return updated_tqdm_desc
 
 
     def _get_directory_size_gigabytes ( self, start_path ):
