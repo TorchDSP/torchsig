@@ -222,33 +222,36 @@ class DatasetCreator:
             ValueError: If the disk space remaining is below a threshold
         """
 
-        # get the amount of disk space remaining
-        disk_size_available_bytes = disk_usage(self.writer.root)[2]
-        # convert to GB and round to two decimal places
-        disk_size_available_gigabytes = np.round(disk_size_available_bytes/(1024**3),2)
+        # run periodically
+        if (np.mod(batch_idx,10) == 0):
 
-        # get size of dataset written so far
-        dataset_size_current_gigabytes = self._get_directory_size_gigabytes(self.writer.root)
-        # estimate size per sample
-        dataset_size_per_sample_gigabytes = dataset_size_current_gigabytes/(batch_idx+1)
-        # number of samples left
-        num_samples_remaining = len(self.dataloader)-(batch_idx+1)
-        # project estimated size
-        dataset_size_remaining_gigabytes = np.round(dataset_size_per_sample_gigabytes*num_samples_remaining,2)
+            # get the amount of disk space remaining
+            disk_size_available_bytes = disk_usage(self.writer.root)[2]
+            # convert to GB and round to two decimal places
+            disk_size_available_gigabytes = np.round(disk_size_available_bytes/(1024**3),2)
 
-        # concatenate disk size for progress bar message
-        updated_tqdm_desc = f'{self.tqdm_desc}, dataset remaining to create = {dataset_size_remaining_gigabytes} GB, remaining disk = {disk_size_available_gigabytes} GB'
+            # get size of dataset written so far
+            dataset_size_current_gigabytes = self._get_directory_size_gigabytes(self.writer.root)
+            # estimate size per sample
+            dataset_size_per_sample_gigabytes = dataset_size_current_gigabytes/(batch_idx+1)
+            # number of samples left
+            num_samples_remaining = len(self.dataloader)-(batch_idx+1)
+            # project estimated size
+            dataset_size_remaining_gigabytes = np.round(dataset_size_per_sample_gigabytes*num_samples_remaining,2)
 
-        # avoid crashing by stopping write process
-        if (disk_size_available_gigabytes < self.minimum_remaining_disk_gigabytes):
-            # remaining disk size is below a hard cutoff value to avoid crashing operating system
-            raise ValueError(f'Disk nearly full! Remaining space is {disk_size_available_gigabytes} GB. Please make space before continuing.')
-        elif (dataset_size_remaining_gigabytes > disk_size_available_gigabytes):
-            # projected size of dataset too large for available disk space
-            raise ValueError(f'Not enough disk space. Projected dataset size is {dataset_size_remaining_gigabytes} GB. Remaining space is {disk_size_available_gigabytes} GB. Please reduce dataset size or make space before continuing.')
+            # concatenate disk size for progress bar message
+            updated_tqdm_desc = f'{self.tqdm_desc}, dataset remaining to create = {dataset_size_remaining_gigabytes} GB, remaining disk = {disk_size_available_gigabytes} GB'
 
-        # set the progress bar message
-        pbar.set_description(updated_tqdm_desc)
+            # avoid crashing by stopping write process
+            if (disk_size_available_gigabytes < self.minimum_remaining_disk_gigabytes):
+                # remaining disk size is below a hard cutoff value to avoid crashing operating system
+                raise ValueError(f'Disk nearly full! Remaining space is {disk_size_available_gigabytes} GB. Please make space before continuing.')
+            elif (dataset_size_remaining_gigabytes > disk_size_available_gigabytes):
+                # projected size of dataset too large for available disk space
+                raise ValueError(f'Not enough disk space. Projected dataset size is {dataset_size_remaining_gigabytes} GB. Remaining space is {disk_size_available_gigabytes} GB. Please reduce dataset size or make space before continuing.')
+
+            # set the progress bar message
+            pbar.set_description(updated_tqdm_desc)
 
 
     def _get_directory_size_gigabytes ( self, start_path ):
