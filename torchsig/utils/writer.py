@@ -245,7 +245,7 @@ class DatasetCreator:
             raise ValueError(f'Disk nearly full! Remaining space is {disk_size_available_gigabytes} GB. Please make space before continuing.')
         elif (dataset_size_remaining_gigabytes > disk_size_available_gigabytes):
             # projected size of dataset too large for available disk space
-            raise ValueError(f'Not enough disk space. Projected dataset size is {dataset_size_remaining_gigabytes}. Remaining space is {disk_size_available_gigabytes} GB. Please reduce dataset size or make space before continuing.')
+            raise ValueError(f'Not enough disk space. Projected dataset size is {dataset_size_remaining_gigabytes} GB. Remaining space is {disk_size_available_gigabytes} GB. Please reduce dataset size or make space before continuing.')
 
         # set the progress bar message
         pbar.set_description(updated_tqdm_desc)
