@@ -6,17 +6,17 @@ required:
 
 overrides:
   num_samples: 10
-  sample_rate: 1000000 # 1e6
+  sample_rate: 10000000 # 10 MHz
   num_signals_min: 1
   num_signals_distribution: null
   snr_db_min: 0.0
   snr_db_max: 50.0
-  signal_duration_min: 0.001 # 1e-3
-  signal_duration_max: 0.010 # 10e-3
-  signal_bandwidth_min: 100000 # 100e3
-  signal_bandwidth_max: 400000 # 400e3
-  signal_center_freq_min: -100000 # -100e3
-  signal_center_freq_max:  100000 #  100e3
+  signal_duration_min: 0.0001 # 0.1 ms
+  signal_duration_max: 0.0004 # 0.4 ms
+  signal_bandwidth_min: 1000000 # 1 MHz
+  signal_bandwidth_max: 5000000 # 5 MHz
+  signal_center_freq_min: -1000000 # -1 MHz
+  signal_center_freq_max:  1000000 #  1 MHz
   class_list: all
   class_distribution: uniform
   seed: 123456789
