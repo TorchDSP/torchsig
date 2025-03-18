@@ -57,7 +57,7 @@ RUN pip install torchaudio -U
 
 RUN pip install pybombs
 
-RUN pybombs config makewidth 56
+RUN pybombs config makewidth 4
 
 RUN pybombs recipes add gr-recipes https://github.com/gnuradio/gr-recipes.git
 
