@@ -1,4 +1,4 @@
-## GR-Spectrumdetect Overview
+## gr-spectrumdetect Overview
 ---
 gr-spectrumdetect is an open-source example of using a trained model from TorchSig Wideband with GNU Radio for RF energy detection. 
 
@@ -38,11 +38,11 @@ $ bash build_docker.sh
 $ xhost +
 $ bash run_docker.sh
 ```
-You are now running inside the docker:
+Now running inside the docker:
 ```
 # source  /opt/gnuradio/v3.10/setup_env.sh
-cd /build/gr-spectrumdetect/examples/
-gnuradio-companion example.grc &
+# cd /build/gr-spectrumdetect/examples/
+# gnuradio-companion example.grc &
 ```
 
 ## Installation without Docker
