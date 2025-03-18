@@ -27,17 +27,22 @@ yolo detect train data=wideband_yolo.yaml model=yolov8x pretrained=yolov8x.pt de
 
 ## Installation with Docker
 ---
-Clone the `torchsig` repository and install using the following commands:
+The following command downloads a couple files needed to run the GNU Radio block:
 ```
-git clone https://github.com/TorchDSP/torchsig.git
-cd torchsig
-pip install .
-cd gr-spectrumdetect
-bash build_docker.sh
-bash run_docker.sh
+$ cd torchsig/gr-spectrumdetect/examples
+$ bash trained_model_download.sh
+```
+Now move back to the `gr-spectrumdetect` directory, then install and run the docker container:
+```
+$ cd ../gr-spectrumdetect
+$ bash build_docker.sh
+$ xhost +
+$ bash run_docker.sh
+```
+You are now running inside the docker:
+```
+# source  /opt/gnuradio/v3.10/setup_env.sh
 cd /build/gr-spectrumdetect/examples/
-source  /opt/gnuradio/v3.10/setup_env.sh
-bash trained_model_download.sh
 gnuradio-companion example.grc &
 ```
 
