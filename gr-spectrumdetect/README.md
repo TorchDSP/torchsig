@@ -3,7 +3,6 @@
 gr-spectrumdetect is an open-source example of using a trained model from TorchSig Wideband with GNU Radio for RF energy detection. 
 
 `detect.pt` can be downloaded with the bash `trained_model_download.sh` script in `gr-spectrumdetect/examples/`.
-- If `trained_model_download.sh` does not work, try using `trained_model_download_github.sh` (Downloads the model from [TorchSig's Github v0.6.0 Release Notes](https://github.com/TorchDSP/torchsig/releases/tag/v0.6.0))
 
 `detect.pt` is a YOLOv8x model trained for detection with the following settings:
 - single_cls=True
