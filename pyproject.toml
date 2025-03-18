@@ -37,7 +37,7 @@ dependencies = [
     "torchinfo",
     "sigmf",
     "pytest",
-    "zarr==2.18.3",
+    "zarr==2.18.4",
     "pylint",
     "pytest-cov",
 ]
