@@ -33,7 +33,7 @@ $ bash trained_model_download.sh
 ```
 Now move back to the `gr-spectrumdetect` directory, then install and run the docker container:
 ```
-$ cd ../gr-spectrumdetect
+$ cd ..
 $ bash build_docker.sh
 $ xhost +
 $ bash run_docker.sh
