@@ -8,8 +8,7 @@ gr-spectrumdetect is an open-source example of using a trained model from TorchS
 - single_cls=True
 - 1024x1024 spectrograms
 - gray scale black hot images
-- Wideband with level 2 impairments with no signal overlap 
-    - `torchsig/datasets/conf.py` -> `WidebandImpairedTrainConfig` -> `overlap_prob = 0.0`
+- Wideband with level 2 impairments
 
 ### Notes     
 - The first class of `wideband_yolo.yaml` has been modified to say `signal` because this training method is detection only. 
