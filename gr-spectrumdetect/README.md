@@ -34,7 +34,6 @@ Now move back to the `gr-spectrumdetect` directory, then install and run the doc
 ```
 $ cd ..
 $ bash build_docker.sh
-$ xhost +
 $ bash run_docker.sh
 ```
 Now running inside the docker:
