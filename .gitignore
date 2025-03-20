@@ -33,6 +33,8 @@ dist/
 torchsig.egg-info
 !torchsig/datasets/default_consfigs
 !torchsig/datasets/default_configs/*
+!requirements.txt
+
 # keep license docs
 !**LICENSE.txt
 
