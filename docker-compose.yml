@@ -11,13 +11,8 @@ services:
         ports:
             - '${JUP_PORT}:${JUP_PORT}'
         environment:
+            - JUP_PORT=${JUP_PORT}
             - NVIDIA_VISIBLE_DEVICES=all
             - NVIDIA_DRIVER_CAPABILITIES=all
         command: jupyter lab --allow-root --ip=0.0.0.0 --no-browser --port ${JUP_PORT} --NotebookApp.token=''
         shm_size: 512GB
-        deploy:
-            resources:
-                reservations:
-                    devices:
-                        - capabilities: [gpu]
-                          driver: nvidia

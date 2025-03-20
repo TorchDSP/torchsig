@@ -35,6 +35,7 @@ torchsig.egg-info
 !torchsig/datasets/default_configs/*
 # keep license docs
 !**LICENSE.txt
+!requirements.txt
 
 # Docs
 docs/_static

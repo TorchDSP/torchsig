@@ -40,6 +40,7 @@ dependencies = [
     "zarr==2.18.3",
     "pylint",
     "pytest-cov",
+    "numcodecs"
 ]
 dynamic = ["version"]
 

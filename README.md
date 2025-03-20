@@ -29,7 +29,7 @@ git clone https://github.com/TorchDSP/torchsig.git
 cd torchsig
 pip install -e .
 ```
- 
+
 # Examples and Tutorials
 
 TorchSig has a series of Jupyter notebooks in the `examples/` directory. View the README inside `examples/` to learn more.
@@ -64,16 +64,15 @@ To create the wideband dataset with the Docker container:
 docker run -u $(id -u ${USER}):$(id -g ${USER}) -v `pwd`:/workspace/code/torchsig torchsig python3 torchsig/scripts/generate_wideband.py <path to root> --num_signals=3 --num_samples=10 --num_iq_samples=100 --impaired
 ```
 
-## Jupyter Notebook Examples with Docker and GPUs
-The example jupyter notebooks can be run within Docker with GPU support, try the command:
+## Jupyter Notebook Examples with Docker
+The example jupyter notebooks can be run within Docker with CPU/GPU support, try the command:
 
+### Docker Compose
 ```
-docker build -t torchsig -f Dockerfile .
-docker run -d --rm --network=host --shm-size=32g --gpus all --name torchsig_workspace torchsig tail -f /dev/null
-docker exec torchsig_workspace jupyter notebook --allow-root --ip=0.0.0.0 --no-browser
+docker compose up
 ```
 
-Then use the URL in the output in your browser to run the examples and notebooks.
+Then navigate to http://localhost:PORT, where port defaults to 8888 unless changed.
 
 
 # Key Features
