@@ -10,11 +10,11 @@ __all__ = [
     # "ClockSignalTransform",   
     # "DopplerSignalTransform",
     "Fading",
-    # "IntermodulationProductsSignalTransform",
+    "IntermodulationProducts",
     "IQImbalanceSignalTransform",
     # "LocalOscillatorPhaseNoiseSignalTransform",
     # "LocalOscillatorFrequencyDriftSignalTransform",
-    # "NonlinearAmplifierSignalTransform",
+    "NonlinearAmplifierSignalTransform",
     # "PassbandRippleSignalTransform",    
     # "ShadowingSignalTransform",
     "SpectralInversionSignalTransform",
@@ -88,9 +88,7 @@ class CarrierPhaseOffsetSignalTransform(SignalTransform):
     ):
         super().__init__(**kwargs)
         self.phase_offset_range = phase_offset_range
-
         self.phase_offset_distribution = self.get_distribution(self.phase_offset_range)
-        
     
     def __call__(self, signal: Signal) -> Signal:
         phase_offset = self.phase_offset_distribution()
@@ -131,9 +129,7 @@ class Fading(SignalTransform): # slow, fast, block fading
         super().__init__(**kwargs)
         self.coherence_bandwidth = coherence_bandwidth
         self.power_delay_profile = np.asarray(power_delay_profile)
-
         self.coherence_bandwidth_distribution = self.get_distribution(self.coherence_bandwidth)
-        
         
 
     def __call__(self, signal: Signal) -> Signal:
@@ -146,6 +142,45 @@ class Fading(SignalTransform): # slow, fast, block fading
             self.random_generator
         )
 
+        signal.data = signal.data.astype(torchsig_complex_data_type)
+        self.update(signal)
+        return signal
+
+
+class IntermodulationProducts(SignalTransform):
+    """Applies simulated intermodulation products to a Signal.
+
+    Attributes:    
+        model_order_range (Tuple[float, float]): Range bounds for intermodulation model size.
+            Defaults to (0, 5).        
+        model_order_distribution (int): Random draw of model size.
+        coeffs_range (Tuple[float, float]): Range bounds for each intermodulation coefficient. 
+            Defaults to (0., 1.).
+        coeffs_distribution (float): Random draw of a coefficient.
+        
+    """
+    def __init__(
+        self,
+        model_order_range = (0, 5),
+        coeffs_range = (0., 1.),
+        **kwargs
+    ):  
+        super().__init__(**kwargs)
+        self.model_order_range = model_order_range
+        self.model_order_distribution = self.get_distribution(self.model_order_range)
+        self.coeffs_range = coeffs_range
+        self.coeffs_distribution = self.get_distribution(self.coeffs_range)
+    
+    def __call__(self, signal: Signal) -> Signal:
+        model_order = np.round(self.model_order_distribution()).astype(int)
+        coeffs = np.zeros((model_order,))
+        for i in range(model_order):
+            coeffs[i] = self.coeffs_distribution()
+        
+        signal.data = F.intermodulation_products(
+            data = signal.data,
+            coeffs = coeffs      
+        )
         signal.data = signal.data.astype(torchsig_complex_data_type)
         self.update(signal)
         return signal
@@ -186,6 +221,40 @@ class IQImbalanceSignalTransform(SignalTransform):
 
         signal.data = F.iq_imbalance(signal.data, amplitude_imbalance, phase_imbalance, dc_offset)
 
+        signal.data = signal.data.astype(torchsig_complex_data_type)
+        self.update(signal)
+        return signal
+
+
+class NonlinearAmplifierSignalTransform(SignalTransform):
+    """Applies a specified, fixed memoryless nonlinear amplifier (AM/AM, AM/PM) model response to a Signal.
+
+    Attributes:    
+        Pin (np.ndarray): Model signal power input points. Assumes sorted ascending linear values (Watts).
+        Pout (np.ndarray): Model power out corresponding to Pin points (Watts).
+        Phi (np.ndarray): Model output phase shift values (radians) corresponding to Pin points.
+        
+    """
+    def __init__(
+        self,
+        Pin: np.ndarray =  10**((np.array([-100., -20., -10.,  0.,  5., 10. ]) / 10)),
+        Pout: np.ndarray = 10**((np.array([ -90., -10.,   0.,  9., 9.9, 10. ]) / 10)),
+        Phi: np.ndarray = np.deg2rad(np.array([0., -2.,  -4.,  7., 12., 23.])),
+        **kwargs
+    ):  
+        super().__init__(**kwargs)
+        # note: amplifier model values are fixed to reflect a desired response, not randomized
+        self.Pin = Pin
+        self.Pout = Pout
+        self.Phi = Phi 
+    
+    def __call__(self, signal: Signal) -> Signal:
+        signal.data = F.nonlinear_amplifier(
+            data = signal.data,
+            Pin  = self.Pin,
+            Pout = self.Pout,
+            Phi  = self.Phi            
+        )
         signal.data = signal.data.astype(torchsig_complex_data_type)
         self.update(signal)
         return signal
@@ -234,11 +303,6 @@ class DopplerSignalTransform(SignalTransform):
     """    
 
 
-class IntermodulationProductsSignalTransform(SignalTransform):
-    """Unimplemented SignalTransform for modeling IntermodulationProducts in and near baseband.
-    """       
-
-
 # TODO: rename to CarrierFrequencyDrift()
 # a slow, random walk over the carrier frequency. the center frequency would 
 # be modeled as CF + gaussian RV with mean = 0 and some non-zero variance. but 
@@ -260,11 +324,6 @@ class LocalOscillatorFrequencyDriftSignalTransform(SignalTransform):
 class LocalOscillatorPhaseNoiseSignalTransform(SignalTransform):
     """Unimplemented SignalTransform for modeling Local Oscillator phase noise.
     """          
-
-
-class NonlinearAmplifierSignalTransform(SignalTransform):
-    """Unimplemented SignalTransform for memoryless nonlinear amplifier response.
-    """        
 
 
 class PassbandRippleSignalTransform(SignalTransform):

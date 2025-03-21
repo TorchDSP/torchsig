@@ -9,11 +9,11 @@ from torchsig.transforms.signal_transforms import (
     # Clock,   
     # Doppler,
     Fading,
-    # IntermodulationProducts,
+    IntermodulationProducts,
     IQImbalanceSignalTransform,
     # LocalOscillatorPhaseNoiseSignalTransform,
     # LocalOscillatorFrequencyDriftSignalTransform,
-    # NonlinearAmplifierSignalTransform,
+    NonlinearAmplifierSignalTransform,
     # PassbandRippleSignalTransform,  
     # Shadowing,
     SpectralInversionSignalTransform
@@ -28,7 +28,6 @@ from test_transforms_utils import (
 from copy import deepcopy
 import numpy as np
 import pytest
-
 
 RTOL = 1E-6
 TEST_SIGNAL = generate_test_signal(num_iq_samples = 64, scale = 1.0)
@@ -159,6 +158,61 @@ def test_Fading(
 
 
 @pytest.mark.parametrize("signal, params, is_error", [
+    (deepcopy(TEST_SIGNAL), 
+        {
+            'model_order_range': (0, 5), 
+            'coeffs_range': (0., 1.),
+        },
+        False
+    ) 
+])
+def test_IntermodulationProducts(
+    signal: Signal,
+    params: dict, 
+    is_error: bool
+) -> None:
+    """Test IntermodulationProducts with pytest.
+
+    Args:
+        signal (Signal): Input signal to transform.
+        params (dict): Transform call parameters (see description).
+        is_error (bool): Is a test error expected.
+
+    Raises:
+        AssertionError: If unexpected test outcome.
+
+    """      
+    model_order_range = params['model_order_range']
+    coeffs_range = params['coeffs_range']
+
+    if is_error:
+        with pytest.raises(Exception, match=r".*"):
+                T = IntermodulationProducts(
+                    model_order_range = model_order_range,
+                    coeffs_range = coeffs_range,
+                    seed = 42
+                )
+                signal = T(signal)
+    else:
+        signal_test = deepcopy(signal)
+
+        T = IntermodulationProducts(
+            model_order_range = model_order_range,
+            coeffs_range = coeffs_range,
+            seed = 42
+        )
+        signal = T(signal)
+
+        assert isinstance(T, IntermodulationProducts)
+        assert isinstance(T.model_order_distribution(), float)
+        assert isinstance(T.coeffs_distribution(), float)
+        assert isinstance(signal, Signal)
+        assert type(signal.data) == type(signal_test.data)
+        assert signal.data.dtype == torchsig_complex_data_type
+        # no metadata impacts
+
+
+@pytest.mark.parametrize("signal, params, is_error", [
     (
         deepcopy(TEST_SIGNAL), 
         {
@@ -225,6 +279,76 @@ def test_IQImbalanceSignalTransform(
         assert isinstance(signal, Signal)
         assert type(signal.data) == type(signal_test.data)
         assert signal.data.dtype == torchsig_complex_data_type
+        # no metadata impacts
+
+
+@pytest.mark.parametrize("signal, params, expected, is_error", [
+    (
+        deepcopy(TEST_SIGNAL), 
+        {
+            'Pin': np.zeros((1,)),
+            'Pout': np.zeros((2,)),
+            'Phi': np.zeros((3,))
+        },
+        ValueError,
+        True
+    ),
+    (
+        deepcopy(TEST_SIGNAL), 
+        {
+            'Pin': 10**((np.array([-100., -20., -10.,  0.,  5., 10. ]) / 10)),
+            'Pout': 10**((np.array([ -90., -10.,   0.,  9., 9.9, 10. ]) / 10)),
+            'Phi': np.deg2rad(np.array([0., -2.,  -4.,  7., 12., 23.]))
+        },
+        True,
+        False
+    )    
+])
+def test_NonlinearAmplifierSignalTransform(signal: Signal,
+    params: dict, 
+    expected: bool | ValueError, 
+    is_error: bool
+) -> None:
+    """Test NonlinearAmplifierSignalTransform with pytest.
+
+    Args:
+        signal (Signal): Input signal to transform.
+        params (dict): Transform call parameters (see description).
+        expected (bool | ValueError): Expected test result.
+        is_error (bool): Is a test error expected.
+
+    Raises:
+        AssertionError: If unexpected test outcome.
+
+    """      
+    Pin = params['Pin']
+    Pout = params['Pout']
+    Phi = params['Phi']
+    
+    if is_error:
+        with pytest.raises(Exception, match=r".*"):
+                T = NonlinearAmplifierSignalTransform(
+                    Pin  = Pin,
+                    Pout = Pout,
+                    Phi  = Phi,
+                    seed = 42
+                )
+                signal = T(signal)
+    else:
+        T = NonlinearAmplifierSignalTransform(
+            Pin  = Pin,
+            Pout = Pout,
+            Phi  = Phi,
+            seed = 42
+        )
+        signal = T(signal)
+
+        assert isinstance(T, NonlinearAmplifierSignalTransform) == expected
+        assert isinstance(T.Pin, np.ndarray) == expected
+        assert isinstance(T.Pout, np.ndarray) == expected
+        assert isinstance(T.Phi, np.ndarray) == expected
+        assert isinstance(signal, Signal) == expected
+        assert (signal.data.dtype == torchsig_complex_data_type) == expected
         # no metadata impacts
 
 

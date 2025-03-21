@@ -1,4 +1,7 @@
+"""Zarr Writing Utils
 
+zarr==2.18.4
+"""
 from __future__ import annotations
 
 # TorchSig
@@ -8,6 +11,7 @@ from torchsig.datasets.dataset_metadata import DatasetMetadata
 # Third Party
 import zarr
 import numpy as np
+from numcodecs import blosc
 
 # Built-In
 from typing import TYPE_CHECKING, Tuple, List, Dict, Any
@@ -28,7 +32,6 @@ class ZarrFileHandler(TorchSigFileHandler):
     """
 
     datapath_filename = "data.zarr"
-    chunk_size = (100, )
 
     def __init__(
         self,
@@ -36,6 +39,7 @@ class ZarrFileHandler(TorchSigFileHandler):
         dataset_metadata: DatasetMetadata,
         batch_size: int,
         train: bool = None,
+        enable_compression: bool = True,
     ):
         """Initializes the ZarrFileHandler with dataset metadata and write type.
 
@@ -50,16 +54,24 @@ class ZarrFileHandler(TorchSigFileHandler):
             dataset_metadata = dataset_metadata,
             batch_size = batch_size,
             train = train,
+            enable_compression = enable_compression
         )
 
         self.datapath = f"{self.root}/{ZarrFileHandler.datapath_filename}"
 
         self.data_shape = (self.dataset_metadata.num_samples, self.dataset_metadata.num_iq_samples_dataset)
         self.data_type = float
+        self.chunk_size = (1,) + self.data_shape[1:]
         # check data type and shape upon first batch
-        self.zarr_updated = False 
+        self.zarr_updated = False
 
         self.zarr_array = None
+        self.compressor = zarr.Blosc(
+                cname = 'zstd', # type
+                clevel = 4, # compression level
+                shuffle = 2 # use bit shuffle
+            ) if self.enable_compression else None
+        blosc.use_threads = False
 
     def exists(self) -> bool:
         """Checks if the Zarr file exists at the specified path.
@@ -83,26 +95,27 @@ class ZarrFileHandler(TorchSigFileHandler):
             mode = 'w', # create or overwrite if exists
             # array will be shape (num samples, num iq samples)
             shape = self.data_shape,
-            # chunk array every 1000 elements
-            chunks = ZarrFileHandler.chunk_size,
+            # chunk array per sample
+            chunks = self.chunk_size,
             # IQ data type
             dtype = self.data_type,
             # compression
-            compressor = zarr.Blosc(
-                cname = 'zstd', # type
-                clevel = 4, # compression level
-                shuffle = 2 # use bit shuffle
-            )
+            compressor = self.compressor,
         )
 
     def _update_zarr(self, data: Any) -> None:
+        """Update the initialized zarr array to match dataset samples
+
+        Args:
+            data (Any): first batch of dataset
+        """        
         # first batch to be writtern
         # check and update zarr array data shape and type
         if self.data_shape[1:] != data[0].shape:
+            # data is (batch, H, W, C, etc)
             # data is >1D, update data shape
-            # print(f"current shape: {self.data_shape}, new shape: {data[0].shape}")
             self.data_shape = (self.data_shape[0],) + data[0].shape
-            # print(self.data_shape)
+            self.chunk_size = (1,) + self.data_shape[1:]
 
         if self.data_type != data[0].dtype:
             self.data_type = data[0].dtype
@@ -141,14 +154,20 @@ class ZarrFileHandler(TorchSigFileHandler):
             print(v)
             raise MemoryError(f"Data too large to write to zarr array. Try a smaller batch size or smaller chunk size (ZarrFileHandler.chunk_size).")
 
-        # add targets to zarr array attributes
-        for tidx, target in enumerate(targets):
-            # target index is start sample index + target index
-            kidx = start_idx + tidx
-            self.zarr_array.attrs[str(kidx)] = target
+        attrs_dict = {str(start_idx + tidx): target for tidx, target in enumerate(targets)}
+        # Bulk update
+        self.zarr_array.attrs.update(attrs_dict) 
 
     @staticmethod
     def size(dataset_path: str) -> int:
+        """Calculates size of dataset for zarr
+
+        Args:
+            dataset_path (str): path to dataset
+
+        Returns:
+            int: size of dataset
+        """        
         zarr_arr = zarr.open(f"{dataset_path}/{ZarrFileHandler.datapath_filename}", mode = 'r')
 
         return zarr_arr.shape[0]

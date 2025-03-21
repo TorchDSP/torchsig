@@ -20,6 +20,7 @@ __all__ = [
     "cut_out",
     "drop_samples",
     "fading",
+    "intermodulation_products",
     "iq_imbalance",
     "local_oscillator_frequency_drift",
     "local_oscillator_phase_noise",
@@ -393,6 +394,36 @@ def fading(
     return data.astype(torchsig_complex_data_type)
 
 
+def intermodulation_products(
+    data: np.ndarray,
+    coeffs: np.ndarray = np.array([1.0, 1.0, 1.0])
+) -> np.ndarray:
+    """Pass IQ data through an optimized memoryless nonlinear response model
+    that creates local intermodulation distortion (IMD) products. Note that
+    since only odd-order IMD products effectively fall in spectrum near the
+    first-order (original) signal, only these are calculated.
+    
+    Args:
+        data (np.ndarray): Complex valued IQ data samples.
+        coeffs (np.ndarray): coefficients of memoryless IMD response such that
+            y(t) = coeffs[0]*x(t) + coeffs[1]*(x(t)**2) + coeffs[2]*(x(t)**3) + ...
+            Defaults to a third-order model: np.array([1.0, 1.0, 1.0]).
+            
+    Returns:
+        np.ndarray: IQ data with local IMD products.
+        
+    """
+    model_order = coeffs.size
+    distorted_data = coeffs[0] * data
+    
+    # only odd-order distortion products are relevant local contributors
+    for i in range(2, model_order, 2):
+        i_order_distortion = (np.abs(data) ** (i)) * data
+        distorted_data += coeffs[i] * i_order_distortion
+    
+    return distorted_data.astype(torchsig_complex_data_type)
+
+
 def iq_imbalance(
     data: np.ndarray, 
     amplitude_imbalance: float, 
@@ -500,7 +531,7 @@ def nonlinear_amplifier(
 
     data = out_magnitude * np.exp(1j * (phase + out_phase_shift_rad))
     
-    return data
+    return data.astype(torchsig_complex_data_type)
      
 
 def normalize(

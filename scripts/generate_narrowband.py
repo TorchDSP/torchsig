@@ -16,13 +16,8 @@ from torchsig.datasets.dataset_metadata import NarrowbandMetadata
 import os
 import argparse
 import math
-import subprocess
-import sys
 
 def main():
-    subprocess.check_call([sys.executable, "-m", "pip", "install", "zarr"])
-    from torchsig.utils.generate import generate
-    parser = argparse.ArgumentParser()
 
     parser.add_argument("root", type=str, help="Path to generate Narrowband dataset.")
     parser.add_argument("--num_samples", type=int, default=100, help= "Dataset size. Defaults to 100")

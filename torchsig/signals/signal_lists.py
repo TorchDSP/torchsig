@@ -70,65 +70,7 @@ CLASS_FAMILY_DICT: Dict[str, str] = {
     "tone": "tone"
 }
 
-SIGNALS_SHARED_LIST: list = [
-        "ook",
-        "bpsk",
-        "4ask",
-        "qpsk",
-        "8ask",
-        "8psk",
-        "16qam",
-        "16ask",
-        "16psk",
-        "32qam",
-        "32qam_cross",
-        "32ask",
-        "32psk",
-        "64qam",
-        "64ask",
-        "64psk",
-        "128qam_cross",
-        "256qam",
-        "512qam_cross",
-        "1024qam",
-        "2fsk",
-        "2gfsk",
-        "2msk",
-        "2gmsk",
-        "4fsk",
-        "4gfsk",
-        "4msk",
-        "4gmsk",
-        "8fsk",
-        "8gfsk",
-        "8msk",
-        "8gmsk",
-        "16fsk",
-        "16gfsk",
-        "16msk",
-        "16gmsk",
-        "ofdm-64",
-        "ofdm-72",
-        "ofdm-128",
-        "ofdm-180",
-        "ofdm-256",
-        "ofdm-300",
-        "ofdm-512",
-        "ofdm-600",
-        "ofdm-900",
-        "ofdm-1024",
-        "ofdm-1200",
-        "ofdm-2048",
-        "fm",
-        "am-dsb-sc",
-        "am-dsb",
-        "am-lsb",
-        "am-usb",
-        "lfm_data",
-        "lfm_radar",
-        "chirpss",
-        "tone",
-    ]
+SIGNALS_SHARED_LIST: list = list(CLASS_FAMILY_DICT.keys())
 
 FAMILY_SHARED_LIST: list = sorted(list(set(CLASS_FAMILY_DICT.values())))
 
@@ -201,7 +143,7 @@ class TorchSigSignalLists():
     fsk_names = ['fsk', 'msk']
     ofdm_names = ['ofdm']
     constellation_names = ['ask', 'qam', 'psk', 'ook']
-    am_names = ['am-dsb', 'am-lsb', 'am-usb']
+    am_names = ['am-']
     lfm_names = ['lfm_']
     
     # automatic grouping of each signal into a specific class

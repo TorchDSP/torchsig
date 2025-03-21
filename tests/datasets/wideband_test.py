@@ -42,23 +42,19 @@ num_iq_samples_dataset = fft_size**2
 # testing to handle cases in which number of samples is not an integer multiple of FFT size
 num_iq_samples_dataset += np.random.randint(0,fft_size) # test cases in which data length is not integer multiple of FFT size
 
-# works for variable sample rates, 1.0 can be used for simplicity
-sample_rate = np.random.uniform(1.0, 1e6)
+# works for variable sample rates
+sample_rate = 100e6
 
 # minimum and maximum SNR for signals
 snr_db_max = 50
 snr_db_min = 0
-
-# min and max signal duration percentages (w.r.t dataset length)
-signal_duration_percent_max = 100
-signal_duration_percent_min = 0
 
 # define impairment level
 impairment_level = 2
 
 # define maximum number of signals to generate
 num_signals_min = 1
-num_signals_max = 2
+num_signals_max = 10
 
 # probability for each sample to contain N signals where N is the index,
 # for example, num_signals_dist = [0.15, 0.5, 0.35] is 25% probability to 
@@ -99,8 +95,6 @@ def main():
         num_signals_distribution=num_signals_dist,
         snr_db_max=snr_db_max,
         snr_db_min=snr_db_min,
-        signal_duration_percent_max=signal_duration_percent_max,
-        signal_duration_percent_min=signal_duration_percent_min,
         transforms=transforms,
         target_transforms=target_transform,
         impairment_level=impairment_level,
@@ -123,7 +117,7 @@ def main():
     # load dataset back in from disk
     WBS = StaticWideband(
         root=root,
-        impaired=impairment_level,
+        impairment_level=impairment_level,
     )
 
     # save as images

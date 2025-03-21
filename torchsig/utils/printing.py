@@ -115,8 +115,12 @@ def dataset_metadata_str(
         num_signals_distribution          [0.2, 0.3, 0.5]       
         snr_db_min                        5.0       
         snr_db_max                        30.0      
-        signal_duration_percent_min       0.1       
-        signal_duration_percent_max       0.9       
+        signal_duration_min               0.001
+        signal_duration_max               0.01
+        signal_bandwidth_min              10
+        signal_bandwidth_max              100
+        signal_center_freq_min            -10
+        signal_center_freq_max            10
         transforms                        [TransformA, TransformB]   
         target_transforms                 [TargetTransform1]       
         class_list                        [Class1, Class2, Class3]    
@@ -176,8 +180,12 @@ def dataset_metadata_str(
         f"{'num_signals_distribution':<29} {num_signals_distribution_str}\n" 
         f"{'snr_db_min':<29} {dataset_metadata.snr_db_min}\n" 
         f"{'snr_db_max':<29} {dataset_metadata.snr_db_max}\n" 
-        f"{'signal_duration_percent_min':<29} {dataset_metadata.signal_duration_percent_min}\n" 
-        f"{'signal_duration_percent_max':<29} {dataset_metadata.signal_duration_percent_max}\n" 
+        f"{'signal_duration_min':<29} {dataset_metadata.signal_duration_min}\n" 
+        f"{'signal_duration_max':<29} {dataset_metadata.signal_duration_max}\n" 
+        f"{'signal_bandwidth_min':<29} {dataset_metadata.signal_bandwidth_min}\n" 
+        f"{'signal_bandwidth_max':<29} {dataset_metadata.signal_bandwidth_max}\n" 
+        f"{'signal_center_freq_min':<29} {dataset_metadata.signal_center_freq_min}\n" 
+        f"{'signal_center_freq_max':<29} {dataset_metadata.signal_center_freq_max}\n" 
         f"{'transforms':<29} {transform_str}\n" 
         f"{'target_transforms':<29} {target_transform_str}\n" 
         f"{'class_list':<29} {class_list_str}\n" 
@@ -215,8 +223,12 @@ def dataset_metadata_repr(
             f"num_signals_distribution={None if dataset_metadata.num_signals_distribution is None else dataset_metadata.num_signals_distribution.tolist()}," 
             f"snr_db_min={dataset_metadata.snr_db_min}," 
             f"snr_db_max={dataset_metadata.snr_db_max}," 
-            f"signal_duration_percent_min={dataset_metadata.signal_duration_percent_min}," 
-            f"signal_duration_percent_max={dataset_metadata.signal_duration_percent_max}," 
+            f"signal_duration_min={dataset_metadata.signal_duration_min}," 
+            f"signal_duration_max={dataset_metadata.signal_duration_max}," 
+            f"signal_bandwidth_min={dataset_metadata.signal_bandwidth_min}," 
+            f"signal_bandwidth_max={dataset_metadata.signal_bandwidth_max}," 
+            f"signal_center_freq_min={dataset_metadata.signal_center_freq_min}," 
+            f"signal_center_freq_max={dataset_metadata.signal_center_freq_max}," 
             f"transforms={dataset_metadata.transforms}," 
             f"target_transforms={dataset_metadata.target_transforms}," 
             f"impairment_level={dataset_metadata.impairment_level}," 
