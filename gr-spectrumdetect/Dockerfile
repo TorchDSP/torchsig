@@ -9,6 +9,7 @@ RUN apt-get update && apt-get install -y \
     python3 \
     python3-dev \
     python3-numpy \
+    python3-apt \
     pip \
     gcc \
     g++ \
@@ -57,7 +58,7 @@ RUN pip install torchaudio -U
 
 RUN pip install pybombs
 
-RUN pybombs config makewidth 56
+RUN pybombs config makewidth 4
 
 RUN pybombs recipes add gr-recipes https://github.com/gnuradio/gr-recipes.git
 
