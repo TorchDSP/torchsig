@@ -36,13 +36,11 @@ def generate_test_dataset_signal(num_iq_samples: int = 64, scale: float = 1.0) -
         num_iq_samples_dataset = num_iq_samples,
         fft_size = 4,
         impairment_level = 0,
-        sample_rate = 1.0,
+        sample_rate = 10e6,
         num_signals_min = 1,
         num_signals_distribution = [1.0],
         snr_db_min = 100.0,
         snr_db_max = 100.0,       
-        signal_duration_percent_min = 100.0,
-        signal_duration_percent_max = 100.0,
         transforms = [],
         target_transforms = [],
         class_list = ['qpsk'],
@@ -62,13 +60,11 @@ def generate_test_dataset_signal(num_iq_samples: int = 64, scale: float = 1.0) -
         num_iq_samples_dataset = num_iq_samples,
         fft_size = 4,
         impairment_level = 0,
-        sample_rate = 1.0,
+        sample_rate = 10e6,
         num_signals_min = 1,
         num_signals_distribution = [1.0],
         snr_db_min = 100.0,
         snr_db_max = 100.0,
-        signal_duration_percent_min = 100.0,
-        signal_duration_percent_max = 100.0,
         class_list = ['bpsk'],
         class_distribution = [1.0],
         seed = 5678
@@ -123,17 +119,16 @@ def generate_test_signal(num_iq_samples: int = 10, scale: float = 1.0) -> Signal
             signal: generated Signal.
 
     """
+    sample_rate = 10e6
     md = NarrowbandMetadata(
         num_iq_samples_dataset = num_iq_samples,
         fft_size = 4,
         impairment_level = 0,
-        sample_rate = 1.0,
+        sample_rate = sample_rate,
         num_signals_min = 1,
         num_signals_distribution = [1.0],
         snr_db_min = 100.0,
         snr_db_max = 100.0,
-        signal_duration_percent_min = 100.0,
-        signal_duration_percent_max = 100.0,
         class_list = ['qpsk'],
         class_distribution = [1.0]
     )

@@ -210,12 +210,12 @@ class SignalBuilder(Builder, Seedable):
         """
 
         # is duration parameter to be randomized?
-        if self.dataset_metadata.duration_in_samples_min == self.dataset_metadata.duration_in_samples_max:
+        if self.dataset_metadata.signal_duration_in_samples_min == self.dataset_metadata.signal_duration_in_samples_max:
             # the min and max fields are the same, so just use one of the fields
-            duration = copy(self.dataset_metadata.duration_in_samples_min)
+            duration = copy(self.dataset_metadata.signal_duration_in_samples_min)
         else:
             # sets duration randomly between min duration and max duration as defined by dataset metadata
-            duration = self.random_generator.integers(low=self.dataset_metadata.duration_in_samples_min, high=self.dataset_metadata.duration_in_samples_max,dtype=int)
+            duration = self.random_generator.integers(low=self.dataset_metadata.signal_duration_in_samples_min, high=self.dataset_metadata.signal_duration_in_samples_max,dtype=int)
 
         # is start parameter to be randomized?
         if duration == self.dataset_metadata.num_iq_samples_dataset:
@@ -226,7 +226,7 @@ class SignalBuilder(Builder, Seedable):
             start = self.random_generator.integers(low=0, high=self.dataset_metadata.num_iq_samples_dataset-duration,dtype=int)
 
         # randomly set bandwidth between a minimum and max
-        bw = self.random_generator.uniform(self.dataset_metadata.bandwidth_min,self.dataset_metadata.bandwidth_max)
+        bw = self.random_generator.uniform(self.dataset_metadata.signal_bandwidth_min,self.dataset_metadata.signal_bandwidth_max)
         # center frequency always zero, will be randomized within the Narrowband() or Wideband() datasets themselves
         # due to the need to apply impairments at complex baseband first before upconversion to the IF
         center_freq = 0

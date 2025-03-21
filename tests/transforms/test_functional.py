@@ -10,8 +10,10 @@ from torchsig.transforms.functional import (
     cut_out,
     drop_samples,
     fading,
+    intermodulation_products,
     iq_imbalance,
     mag_rescale,
+    nonlinear_amplifier,
     normalize,
     patch_shuffle,
     phase_offset,
@@ -162,9 +164,9 @@ def test_agc(
             low_level_db    = params['low_level_db'],
             high_level_db   = params['high_level_db'],
         )    
-        mean_power_est = np.round(np.mean(np.abs(data[-128:])))
+        mean_level_est = np.round(np.mean(np.abs(data[-128:])))
 
-        assert (abs(mean_power_est - reference_level) < 1E-1) == expected
+        assert (abs(mean_level_est - reference_level) < 1E-1) == expected
         assert (type(data) == data_type) == expected
         assert (data.dtype == torchsig_complex_data_type) == expected
 
@@ -542,6 +544,48 @@ def test_fading(
 
 
 @pytest.mark.parametrize("data, params, expected, is_error", [
+    (deepcopy(TEST_DATA), {'coeffs': np.array([])}, IndexError, True),
+    (deepcopy(TEST_DATA), {'coeffs': np.array([0.5])}, True, False),
+    (deepcopy(TEST_DATA), {'coeffs': np.array([0.2, 1.0, 0.1])}, True, False)
+])
+def test_intermodulation_products(
+    data: Any, 
+    params: dict, 
+    expected: bool | IndexError, 
+    is_error: bool
+    ) -> None:
+    """Test the intermodulation_products functional with pytest.
+
+    Args:
+        data (Any): Data input, nominally np.ndarray.
+        params (dict): Function call parameters (see description).
+        expected (bool | IndexError): Expected test result.
+        is_error (bool): Is a test error expected.
+
+    Raises:
+        AssertionError: If unexpected test outcome.
+
+    """
+    coeffs = params['coeffs']
+    
+    if is_error:
+        with pytest.raises(expected): 
+            data = intermodulation_products(data = data, coeffs = coeffs)
+    else:
+        data_test = deepcopy(data)
+        data = intermodulation_products(data = data, coeffs = coeffs)
+
+        if len(coeffs) < 3:
+            assert np.allclose(data, coeffs[0]*data_test, RTOL) == expected
+        else: # assume first-order and third-order products dominate
+            distorted_data = coeffs[0]*data_test + coeffs[2]*((np.abs(data_test) ** (2)) * data_test)
+            assert np.allclose(data, distorted_data, RTOL) == expected
+        
+        assert (type(data) == type(data_test)) == expected
+        assert (data.dtype == torchsig_complex_data_type) == expected        
+
+        
+@pytest.mark.parametrize("data, params, expected, is_error", [
     (
         generate_test_signal(num_iq_samples = 1024, scale = 1.0).data,
         {
@@ -675,6 +719,85 @@ def test_mag_rescale(
 
         start_ind = int(data.shape[0] * start)
         assert (np.allclose(data[start_ind:], scale * data_test[start_ind:], RTOL)) == expected
+        assert (type(data) == type(data_test)) == expected
+        assert (data.dtype == torchsig_complex_data_type) == expected
+
+
+@pytest.mark.parametrize("data, params, expected, is_error", [
+    (
+        np.zeros((2,)), 
+        {
+            'Pin': np.zeros((3,)), 
+            'Pout': np.zeros((4,)), 
+            'Phi': np.zeros((5,)),
+            'p_ratio': 0.,
+            'phase_shift': 0.
+        }, 
+        ValueError, 
+        True
+    ),
+    (
+        deepcopy(TEST_DATA),
+        {
+            'Pin':     10**((np.array([-100., -50.,  0., 50.])) / 10), 
+            'Pout':    10**((np.array([ -97., -47.,  3., 53.])) / 10), 
+            'Phi': np.deg2rad(np.array([ 0.1,  0.1, 0.1, 0.1])),
+            'p_ratio': 10**(3./10),
+            'phase_shift': np.deg2rad(0.1)
+        }, 
+        True, 
+        False
+    ),
+])
+def test_nonlinear_amplifier(
+    data: Any, 
+    params: dict, 
+    expected: bool | ValueError, 
+    is_error: bool
+    ) -> None:
+    """Test the nonlinear_amplifier functional with pytest.
+
+    Args:
+        data (Any): Data input, nominally np.ndarray.
+        params (dict): Function call parameters (see description).
+        expected (bool | ValueError): Expected test result.
+        is_error (bool): Is a test error expected.
+
+    Raises:
+        AssertionError: If unexpected test outcome.
+
+    """
+    Pin = params['Pin']
+    Pout = params['Pout']
+    Phi = params['Phi']
+    p_ratio = params['p_ratio']
+    phase_shift = params['phase_shift']
+    
+    if is_error:
+        with pytest.raises(expected): 
+            data = nonlinear_amplifier(
+                data = data,
+                Pin  = Pin,
+                Pout = Pout,
+                Phi  = Phi
+            )
+    else:
+        data_test = deepcopy(data)
+
+        data = nonlinear_amplifier(
+            data = data,
+            Pin  = Pin,
+            Pout = Pout,
+            Phi  = Phi
+        )
+
+        input_power = np.mean(np.abs(data_test)**2)
+        input_phase_rad = np.angle(data_test)
+        output_power = np.mean(np.abs(data)**2)
+        output_phase_rad = np.angle(data)
+
+        assert (abs(output_power/input_power - p_ratio) < RTOL) == expected
+        assert (abs(np.mean(np.unwrap(output_phase_rad - input_phase_rad)) - phase_shift) < RTOL) == expected
         assert (type(data) == type(data_test)) == expected
         assert (data.dtype == torchsig_complex_data_type) == expected
 

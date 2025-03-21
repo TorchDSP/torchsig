@@ -39,7 +39,7 @@ class StaticWideband(StaticTorchSigDataset):
 
     Args:
         root (str): The root directory where the dataset is stored.
-        impaired (bool): Whether the dataset contains impaired signals. Defaults to False.
+        impairment_level (int): Defines impairment level 0, 1, 2.
         transforms (list, optional): A transformation to apply to the data. Defaults to [].
         target_transforms (list, optional): A transformation to apply to the targets. Defaults to [].
         file_handler_class (TorchSigFileHandler, optional): The file handler class for reading the dataset. 
@@ -49,7 +49,7 @@ class StaticWideband(StaticTorchSigDataset):
     def __init__(
         self,
         root: str,
-        impaired: bool,
+        impairment_level: int,
         transforms: list = [],
         target_transforms: list = [],
         file_handler_class: TorchSigFileHandler = ZarrFileHandler,
@@ -60,7 +60,7 @@ class StaticWideband(StaticTorchSigDataset):
 
         Args:
             root (str): The root directory where the dataset is stored.
-            impaired (bool): Whether the dataset is impaired or not.
+            impairment_level (int): Defines impairment level 0, 1, 2.
             transforms (list, optional): Transforms to apply to the data.
             target_transforms (list, optional): Target Transforms to apply.
             file_handler_class (TorchSigFileHandler, optional): The file handler class for reading the dataset.
@@ -68,7 +68,7 @@ class StaticWideband(StaticTorchSigDataset):
         """
         super().__init__(
             root = root,
-            impaired = impaired,
+            impairment_level = impairment_level,
             dataset_type = "wideband",
             transforms = transforms,
             target_transforms = target_transforms,
