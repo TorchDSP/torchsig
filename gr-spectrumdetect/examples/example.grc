@@ -131,7 +131,7 @@ blocks:
     center_frequency: centerFrequency
     comment: ''
     detect_json: 'False'
-    gpu_device: '1'
+    gpu_device: '0'
     gpu_half: 'True'
     maxoutbuf: '0'
     minoutbuf: '0'
