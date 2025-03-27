@@ -123,7 +123,7 @@ def narrowband_writing(transforms = []):
     print(f"IQ Array Size: {num_iq_samples_dataset}")
     print(f"Impairment Level: {impairment_level}")
     print(f"Num Signals: {num_signals_min} - {num_signals_max}")
-    print(f"Profiling narrowband for {num_test} samples...")
+    print(f"Profiling narrowband for {num_test_write} samples...")
     profiler.enable()
 
     dc.create()
@@ -141,8 +141,8 @@ def narrowband_writing(transforms = []):
     # print(zarr_arr.info_complete())
 
 def main():
-    # wideband()
-    # narrowband()
+    # wideband_generation()
+    # narrowband_generation()
     # 6.98
     # narrowband_writing()
     # 9.74
