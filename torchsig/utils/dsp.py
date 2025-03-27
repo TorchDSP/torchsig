@@ -568,20 +568,23 @@ def prototype_polyphase_filter (num_branches:int, attenuation_db:float=120) -> n
     # formating for the weights filename
     pfb_weights_filename = f'pfb_weights_num_branches_{num_branches}_attenuation_db_{attenuation_db:0.0f}.pkl'
 
+    # find location of this file
+    path_to_file = Path(__file__).parent.absolute().joinpath(pfb_weights_filename)
+
     # if weights file exists, load it
-    if (Path(pfb_weights_filename).is_file()):
-        with open(pfb_weights_filename, 'rb') as handle:
+    if (Path(path_to_file).is_file()):
+        with open(path_to_file, 'rb') as handle:
             filter_weights = pickle.load(handle)
-        #print('loading file = ' + str(pfb_weights_filename))
+        #print('loading file = ' + str(path_to_file))
 
     else: # otherwise, must create weights then save to file
         # design prototype filter weights
         filter_weights = low_pass_iterative_design(cutoff,transition_bandwidth,sample_rate,attenuation_db)
         # write weights to file for later
-        with open(pfb_weights_filename, 'wb') as handle:
+        with open(path_to_file, 'wb') as handle:
             pickle.dump(filter_weights, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
-        #print('writing file = ' + str(pfb_weights_filename))
+        #print('writing file = ' + str(path_to_file))
 
 
 
