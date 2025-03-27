@@ -141,11 +141,8 @@ def narrowband_writing(transforms = []):
     # print(zarr_arr.info_complete())
 
 def main():
-    # wideband_generation()
-    # narrowband_generation()
-    # 6.98
-    # narrowband_writing()
-    # 9.74
+    wideband_generation()
+    narrowband_generation()
     narrowband_writing(transforms = Spectrogram(fft_size=fft_size))
 
 
