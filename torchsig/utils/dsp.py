@@ -7,6 +7,8 @@ import numpy as np
 from copy import copy
 import torchaudio
 import torch
+from pathlib import Path
+import pickle
 
 # common reference for the complex data type to allow for
 # standardization across the different algorithms
@@ -547,7 +549,7 @@ def prototype_polyphase_filter_decimation (num_branches:int, attenuation_db=120)
     weights /= num_branches
     return weights
 
-def prototype_polyphase_filter (num_branches:int, attenuation_db=120) -> np.ndarray:
+def prototype_polyphase_filter (num_branches:int, attenuation_db:float=120) -> np.ndarray:
     """Designs the prototype filter for a polyphase filter bank
 
     Args:
@@ -563,8 +565,28 @@ def prototype_polyphase_filter (num_branches:int, attenuation_db=120) -> np.ndar
     cutoff = sample_rate/(2*num_branches)
     transition_bandwidth = sample_rate/(2*num_branches)
 
-    # design prototype filter weights
-    filter_weights = low_pass_iterative_design(cutoff,transition_bandwidth,sample_rate,attenuation_db)
+    # formating for the weights filename
+    pfb_weights_filename = f'pfb_weights_num_branches_{num_branches}_attenuation_db_{attenuation_db:0.0f}.pkl'
+
+    # if weights file exists, load it
+    if (Path(pfb_weights_filename).is_file()):
+        with open(pfb_weights_filename, 'rb') as handle:
+            filter_weights = pickle.load(handle)
+        #print('loading file = ' + str(pfb_weights_filename))
+
+    else: # otherwise, must create weights then save to file
+        # design prototype filter weights
+        filter_weights = low_pass_iterative_design(cutoff,transition_bandwidth,sample_rate,attenuation_db)
+        # write weights to file for later
+        with open(pfb_weights_filename, 'wb') as handle:
+            pickle.dump(filter_weights, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
+        #print('writing file = ' + str(pfb_weights_filename))
+
+
+
+
+
 
     return filter_weights
 
