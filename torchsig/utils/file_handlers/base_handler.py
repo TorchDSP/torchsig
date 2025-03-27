@@ -86,11 +86,9 @@ class TorchSigFileHandler(BaseFileHandler):
         dataset_metadata: DatasetMetadata,
         batch_size: int,
         train: bool = None,
-        enable_compression: bool = True,
     ):
         self.dataset_metadata = dataset_metadata
         self.batch_size = batch_size
-        self.enable_compression = enable_compression
 
         # e.g., root/torchsig_narrowband_clean
         full_root = dataset_full_path(
