@@ -830,7 +830,7 @@ def compute_spectrogram(
         iq_samples_formatted = copy(iq_samples)
 
     # get reference to spectrogram function
-    spectrogram_function = torchaudio.transforms.Spectrogram(n_fft=fft_size, win_length=fft_size, hop_length=fft_stride, normalized=True, center=False, onesided=False, power=True)
+    spectrogram_function = torchaudio.transforms.Spectrogram(n_fft=fft_size, win_length=fft_size, hop_length=fft_stride, normalized=True, center=False, onesided=False, power=2)
 
     # compute the spectrogram in linear units
     spectrogram_linear = spectrogram_function(torch.from_numpy(iq_samples_formatted))
@@ -849,7 +849,7 @@ def compute_spectrogram(
     spectrogram_linear_numpy[zero_ind_rows,zero_ind_cols] = epsilon
 
     # convert to dB
-    spectrogram_db = 20*np.log10(spectrogram_linear_numpy)
+    spectrogram_db = 10*np.log10(spectrogram_linear_numpy)
 
     # reverse bins order of FFT bins
     spectrogram_db = spectrogram_db[::-1,:]
