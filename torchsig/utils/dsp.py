@@ -575,7 +575,6 @@ def prototype_polyphase_filter (num_branches:int, attenuation_db:float=120) -> n
     if (Path(path_to_file).is_file()):
         with open(path_to_file, 'rb') as handle:
             filter_weights = pickle.load(handle)
-        #print('loading file = ' + str(path_to_file))
 
     else: # otherwise, must create weights then save to file
         # design prototype filter weights
@@ -583,13 +582,6 @@ def prototype_polyphase_filter (num_branches:int, attenuation_db:float=120) -> n
         # write weights to file for later
         with open(path_to_file, 'wb') as handle:
             pickle.dump(filter_weights, handle, protocol=pickle.HIGHEST_PROTOCOL)
-
-        #print('writing file = ' + str(path_to_file))
-
-
-
-
-
 
     return filter_weights
 
