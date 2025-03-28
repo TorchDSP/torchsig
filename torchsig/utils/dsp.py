@@ -568,7 +568,7 @@ def prototype_polyphase_filter (num_branches:int, attenuation_db:float=120) -> n
     # formating for the weights filename
     pfb_weights_filename = f'torchsig_{torchsig_version}_pfb_weights_num_branches_{num_branches}_attenuation_db_{attenuation_db:0.0f}.pkl'
 
-    # find location of this file
+    # create path to weights file
     path_to_file = Path(__file__).parent.absolute().joinpath(pfb_weights_filename)
 
     # if weights file exists, load it
