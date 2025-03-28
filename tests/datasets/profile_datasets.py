@@ -31,7 +31,7 @@ root = Path.joinpath(Path(__file__).parent,'profile')
 batch_size = 1
 num_workers = 2
 
-def wideband_generation():
+def wideband_generation(transforms = []):
 
     print(f"IQ Array Size: {num_iq_samples_dataset}")
     print(f"Impairment Level: {impairment_level}")
@@ -49,6 +49,7 @@ def wideband_generation():
         impairment_level=impairment_level,
         num_signals_max=num_signals_max,
         num_signals_min=num_signals_min,
+        transforms=transforms
     )
 
     wideband = NewWideband(dataset_metadata=md)
@@ -64,7 +65,7 @@ def wideband_generation():
     stats.sort_stats('cumtime')
     stats.print_stats(20)
 
-def narrowband_generation():
+def narrowband_generation(transforms = []):
 
     print(f"IQ Array Size: {num_iq_samples_dataset}")
     print(f"Impairment Level: {impairment_level}")
@@ -79,6 +80,7 @@ def narrowband_generation():
         num_iq_samples_dataset=num_iq_samples_dataset,
         fft_size=fft_size,
         impairment_level=impairment_level,
+        transforms=transforms
     )
 
     narrowband = NewNarrowband(dataset_metadata=md)
@@ -193,8 +195,8 @@ def wideband_writing(transforms = []):
     # print(zarr_arr.info_complete())
 
 def main():
-    wideband_generation()
-    narrowband_generation()
+    wideband_generation(transforms = Spectrogram(fft_size=fft_size))
+    narrowband_generation(transforms = Spectrogram(fft_size=fft_size))
     wideband_writing(transforms = Spectrogram(fft_size=fft_size))
     narrowband_writing(transforms = Spectrogram(fft_size=fft_size))
 
