@@ -95,7 +95,6 @@ def narrowband_infinite_generation(transforms = []):
     stats.print_stats(20)
 
 
-# Profiling dataset writing to disk
 
 def narrowband_finite_writing(transforms = []):
 
