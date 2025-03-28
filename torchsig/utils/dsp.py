@@ -573,18 +573,23 @@ def prototype_polyphase_filter (num_branches:int, attenuation_db:float=120) -> n
 
     # if weights file exists, load it
     if (Path(path_to_file).is_file()):
-        with open(path_to_file, 'rb') as handle:
-            filter_weights = pickle.load(handle)
-
-    else: # otherwise, must create weights then save to file
+        filter_weights = read_pickle(path_to_file)
+    else: # file does not yet exist
         # design prototype filter weights
         filter_weights = low_pass_iterative_design(cutoff,transition_bandwidth,sample_rate,attenuation_db)
         # write weights to file for later
-        with open(path_to_file, 'wb') as handle:
-            pickle.dump(filter_weights, handle, protocol=pickle.HIGHEST_PROTOCOL)
+        filter_weights = write_pickle(path_to_file)
 
     return filter_weights
 
+def read_pickle ( path_to_file ):
+    with open(path_to_file, 'rb') as handle:
+        from_pickle = pickle.load(handle)
+    return from_pickle
+
+def write_pickle ( path_to_file ):
+    with open(path_to_file, 'wb') as handle:
+        pickle.dump(filter_weights, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
 def polyphase_integer_interpolator (input_signal:np.ndarray, interpolation_rate:int) -> np.ndarray:
     """Integer-rate polyphase filterbank-based interpolation
