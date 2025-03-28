@@ -566,7 +566,7 @@ def prototype_polyphase_filter (num_branches:int, attenuation_db:float=120) -> n
     transition_bandwidth = sample_rate/(2*num_branches)
 
     # formating for the weights filename
-    pfb_weights_filename = f'pfb_weights_num_branches_{num_branches}_attenuation_db_{attenuation_db:0.0f}.pkl'
+    pfb_weights_filename = f'torchsig_pfb_weights_num_branches_{num_branches}_attenuation_db_{attenuation_db:0.0f}.pkl'
 
     # find location of this file
     path_to_file = Path(__file__).parent.absolute().joinpath(pfb_weights_filename)
