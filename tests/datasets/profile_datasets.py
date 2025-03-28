@@ -23,7 +23,7 @@ impairment_level = 2
 num_signals_max = 5
 num_signals_min = 5
 
-num_test = 100
+num_samples = 100
 
 enable_tqdm = True
 
@@ -50,9 +50,9 @@ def wideband_generation():
     print(f"IQ Array Size: {num_iq_samples_dataset}")
     print(f"Impairment Level: {impairment_level}")
     print(f"Num Signals: {num_signals_min} - {num_signals_max}")
-    print(f"Profiling wideband for {num_test} samples...")
+    print(f"Profiling wideband for {num_samples} samples...")
     profiler.enable()
-    for i in tqdm(range(num_test), disable = not enable_tqdm):
+    for i in tqdm(range(num_samples), disable = not enable_tqdm):
         data, targets = wideband[i]
     profiler.disable()
     print("Profile done.")
@@ -78,9 +78,9 @@ def narrowband_generation():
     # profile sample generation
     print(f"IQ Array Size: {num_iq_samples_dataset}")
     print(f"Impairment Level: {impairment_level}")
-    print(f"Profiling narrowband for {num_test} samples...")
+    print(f"Profiling narrowband for {num_samples} samples...")
     profiler.enable()
-    for i in tqdm(range(num_test), disable = not enable_tqdm):
+    for i in tqdm(range(num_samples), disable = not enable_tqdm):
         data, targets = narrowband[i]
     profiler.disable()
     print("Profile done.")
@@ -100,7 +100,7 @@ def narrowband_writing(transforms = []):
         num_iq_samples_dataset=num_iq_samples_dataset,
         fft_size=fft_size,
         impairment_level=impairment_level,
-        num_samples=num_test,
+        num_samples=num_samples,
         transforms = transforms,
     )
 
@@ -120,7 +120,7 @@ def narrowband_writing(transforms = []):
     # profile sample generation
     print(f"IQ Array Size: {num_iq_samples_dataset}")
     print(f"Impairment Level: {impairment_level}")
-    print(f"Profiling narrowband for {num_test} samples...")
+    print(f"Profiling narrowband for {num_samples} samples...")
     profiler.enable()
 
     dc.create()
@@ -148,7 +148,7 @@ def wideband_writing(transforms = []):
         impairment_level=impairment_level,
         num_signals_max=num_signals_max,
         num_signals_min=num_signals_min,
-        num_samples=num_test,
+        num_samples=num_samples,
         transforms = transforms,
     )
 
@@ -169,7 +169,7 @@ def wideband_writing(transforms = []):
     print(f"IQ Array Size: {num_iq_samples_dataset}")
     print(f"Impairment Level: {impairment_level}")
     print(f"Num Signals: {num_signals_min} - {num_signals_max}")
-    print(f"Profiling wideband for {num_test} samples...")
+    print(f"Profiling wideband for {num_samples} samples...")
     profiler.enable()
 
     dc.create()
