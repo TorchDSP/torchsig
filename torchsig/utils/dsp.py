@@ -1,12 +1,14 @@
 """Digital Signal Processing (DSP) Utils
 """
 
-
+from torchsig import __version__ as torchsig_version
 from scipy import signal as sp
 import numpy as np
 from copy import copy
 import torchaudio
 import torch
+from pathlib import Path
+import pickle
 
 # common reference for the complex data type to allow for
 # standardization across the different algorithms
@@ -547,7 +549,7 @@ def prototype_polyphase_filter_decimation (num_branches:int, attenuation_db=120)
     weights /= num_branches
     return weights
 
-def prototype_polyphase_filter (num_branches:int, attenuation_db=120) -> np.ndarray:
+def prototype_polyphase_filter (num_branches:int, attenuation_db:float=120) -> np.ndarray:
     """Designs the prototype filter for a polyphase filter bank
 
     Args:
@@ -563,10 +565,32 @@ def prototype_polyphase_filter (num_branches:int, attenuation_db=120) -> np.ndar
     cutoff = sample_rate/(2*num_branches)
     transition_bandwidth = sample_rate/(2*num_branches)
 
-    # design prototype filter weights
-    filter_weights = low_pass_iterative_design(cutoff,transition_bandwidth,sample_rate,attenuation_db)
+    # formating for the weights filename
+    pfb_weights_filename = f'torchsig_{torchsig_version}_pfb_weights_num_branches_{num_branches}_attenuation_db_{attenuation_db:0.0f}.pkl'
+
+    # create path to weights file
+    path_to_file = Path(__file__).parent.absolute().joinpath(pfb_weights_filename)
+
+    # if weights file exists, load it
+    if (Path(path_to_file).is_file()):
+        filter_weights = read_pickle ( path_to_file )
+    else: # file does not yet exist
+        # design prototype filter weights
+        filter_weights = low_pass_iterative_design(cutoff,transition_bandwidth,sample_rate,attenuation_db)
+        # write weights to file for later
+        write_pickle ( filter_weights, path_to_file )
 
     return filter_weights
+
+def read_pickle ( path_to_file ):
+    with open(path_to_file, 'rb') as handle:
+        obj = pickle.load(handle)
+    return obj
+
+def write_pickle ( obj, path_to_file ):
+    with open(path_to_file, 'wb') as handle:
+        pickle.dump(obj, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
 
 
 def polyphase_integer_interpolator (input_signal:np.ndarray, interpolation_rate:int) -> np.ndarray:
