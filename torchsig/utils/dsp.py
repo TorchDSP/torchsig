@@ -578,8 +578,7 @@ def prototype_polyphase_filter (num_branches:int, attenuation_db:float=120) -> n
         # design prototype filter weights
         filter_weights = low_pass_iterative_design(cutoff,transition_bandwidth,sample_rate,attenuation_db)
         # write weights to file for later
-        with open(path_to_file, 'wb') as handle:
-            pickle.dump(filter_weights, handle, protocol=pickle.HIGHEST_PROTOCOL)
+        write_pickle ( filter_weights, path_to_file )
 
     return filter_weights
 
@@ -587,6 +586,10 @@ def read_pickle ( path_to_file ):
     with open(path_to_file, 'rb') as handle:
         obj = pickle.load(handle)
     return obj
+
+def write_pickle ( obj, path_to_file ):
+    with open(path_to_file, 'wb') as handle:
+        pickle.dump(obj, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
 
 
