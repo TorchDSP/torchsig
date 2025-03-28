@@ -54,7 +54,6 @@ def wideband_infinite_generation(transforms = []):
 
     wideband = NewWideband(dataset_metadata=md)
     
-    # profile sample generation
     for i in tqdm(range(num_samples), disable = not enable_tqdm):
         data, targets = wideband[i]
     profiler.disable()
@@ -85,7 +84,6 @@ def narrowband_infinite_generation(transforms = []):
 
     narrowband = NewNarrowband(dataset_metadata=md)
 
-    # profile sample generation
     for i in tqdm(range(num_samples), disable = not enable_tqdm):
         data, targets = narrowband[i]
     profiler.disable()
@@ -128,7 +126,6 @@ def narrowband_finite_writing(transforms = []):
         num_workers=num_workers
     )
 
-    # profile sample generation
     dc.create()
 
     profiler.disable()
@@ -177,7 +174,6 @@ def wideband_finite_writing(transforms = []):
         num_workers=num_workers
     )
     
-    # profile sample generation
     dc.create()
 
     profiler.disable()
@@ -196,8 +192,9 @@ def wideband_finite_writing(transforms = []):
 
 def main():
     wideband_infinite_generation(transforms = Spectrogram(fft_size=fft_size))
-    narrowband_infinite_generation(transforms = Spectrogram(fft_size=fft_size))
     wideband_finite_writing(transforms = Spectrogram(fft_size=fft_size))
+
+    narrowband_infinite_generation(transforms = Spectrogram(fft_size=fft_size))
     narrowband_finite_writing(transforms = Spectrogram(fft_size=fft_size))
 
 
