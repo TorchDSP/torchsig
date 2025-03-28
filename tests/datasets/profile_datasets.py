@@ -31,7 +31,7 @@ root = Path.joinpath(Path(__file__).parent,'profile')
 batch_size = 1
 num_workers = 2
 
-def wideband_generation(transforms = []):
+def wideband_infinite_generation(transforms = []):
 
     print(f"IQ Array Size: {num_iq_samples_dataset}")
     print(f"Impairment Level: {impairment_level}")
@@ -65,7 +65,7 @@ def wideband_generation(transforms = []):
     stats.sort_stats('cumtime')
     stats.print_stats(20)
 
-def narrowband_generation(transforms = []):
+def narrowband_infinite_generation(transforms = []):
 
     print(f"IQ Array Size: {num_iq_samples_dataset}")
     print(f"Impairment Level: {impairment_level}")
@@ -99,7 +99,7 @@ def narrowband_generation(transforms = []):
 
 # Profiling dataset writing to disk
 
-def narrowband_writing(transforms = []):
+def narrowband_finite_writing(transforms = []):
 
     print(f"IQ Array Size: {num_iq_samples_dataset}")
     print(f"Impairment Level: {impairment_level}")
@@ -145,7 +145,7 @@ def narrowband_writing(transforms = []):
     zarr_arr = zarr.open(path_to_zarr_file, mode = 'r')
     # print(zarr_arr.info_complete())
 
-def wideband_writing(transforms = []):
+def wideband_finite_writing(transforms = []):
 
     print(f"IQ Array Size: {num_iq_samples_dataset}")
     print(f"Impairment Level: {impairment_level}")
@@ -195,10 +195,10 @@ def wideband_writing(transforms = []):
     # print(zarr_arr.info_complete())
 
 def main():
-    wideband_generation(transforms = Spectrogram(fft_size=fft_size))
-    narrowband_generation(transforms = Spectrogram(fft_size=fft_size))
-    wideband_writing(transforms = Spectrogram(fft_size=fft_size))
-    narrowband_writing(transforms = Spectrogram(fft_size=fft_size))
+    wideband_infinite_generation(transforms = Spectrogram(fft_size=fft_size))
+    narrowband_infinite_generation(transforms = Spectrogram(fft_size=fft_size))
+    wideband_finite_writing(transforms = Spectrogram(fft_size=fft_size))
+    narrowband_finite_writing(transforms = Spectrogram(fft_size=fft_size))
 
 
 if __name__ == "__main__":
