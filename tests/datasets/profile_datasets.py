@@ -79,7 +79,6 @@ def narrowband_generation():
     # profile sample generation
     print(f"IQ Array Size: {num_iq_samples_dataset}")
     print(f"Impairment Level: {impairment_level}")
-    print(f"Num Signals: {num_signals_min} - {num_signals_max}")
     print(f"Profiling narrowband for {num_test} samples...")
     profiler.enable()
     for i in tqdm(range(num_test), disable = not enable_tqdm):
@@ -122,7 +121,6 @@ def narrowband_writing(transforms = []):
     # profile sample generation
     print(f"IQ Array Size: {num_iq_samples_dataset}")
     print(f"Impairment Level: {impairment_level}")
-    print(f"Num Signals: {num_signals_min} - {num_signals_max}")
     print(f"Profiling narrowband for {num_test_write} samples...")
     profiler.enable()
 
@@ -142,9 +140,59 @@ def narrowband_writing(transforms = []):
     zarr_arr = zarr.open(path_to_zarr_file, mode = 'r')
     # print(zarr_arr.info_complete())
 
+def wideband_writing(transforms = []):
+
+    # Ininitialize dataset
+    md = WidebandMetadata(
+        num_iq_samples_dataset=num_iq_samples_dataset,
+        fft_size=fft_size,
+        impairment_level=impairment_level,
+        num_signals_max=num_signals_max,
+        num_signals_min=num_signals_min,
+        num_samples=num_test_write,
+        transforms = transforms,
+    )
+
+    wideband = NewWideband(dataset_metadata=md)
+
+    dc = DatasetCreator(
+        dataset = wideband,
+        root = root,
+        overwrite=True,
+        batch_size=batch_size,
+        num_workers=num_workers
+    )
+    
+    # initialize profiler
+    profiler = cProfile.Profile()
+
+    # profile sample generation
+    print(f"IQ Array Size: {num_iq_samples_dataset}")
+    print(f"Impairment Level: {impairment_level}")
+    print(f"Num Signals: {num_signals_min} - {num_signals_max}")
+    print(f"Profiling wideband for {num_test_write} samples...")
+    profiler.enable()
+
+    dc.create()
+
+    profiler.disable()
+    print("Profile done.")
+
+    stats = pstats.Stats(profiler)
+    stats.strip_dirs()
+
+    stats.sort_stats('cumtime')
+    stats.print_stats(20)
+
+    path_to_zarr_file = Path.joinpath(root,"torchsig_wideband_impaired/data.zarr")
+
+    zarr_arr = zarr.open(path_to_zarr_file, mode = 'r')
+    # print(zarr_arr.info_complete())
+
 def main():
     wideband_generation()
     narrowband_generation()
+    wideband_writing(transforms = Spectrogram(fft_size=fft_size))
     narrowband_writing(transforms = Spectrogram(fft_size=fft_size))
 
 
