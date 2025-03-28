@@ -29,14 +29,14 @@ enable_tqdm = True
 
 root = Path.joinpath(Path(__file__).parent,'profile')
 batch_size = 1
-num_workers = 2
+num_workers = 1
 
 def wideband_infinite_generation(transforms = []):
 
     print(f"IQ Array Size: {num_iq_samples_dataset}")
     print(f"Impairment Level: {impairment_level}")
     print(f"Num Signals: {num_signals_min} - {num_signals_max}")
-    print(f"Profiling wideband for {num_samples} samples...")
+    print(f"Profiling wideband infinite dataset for {num_samples} samples...")
 
     # initialize profiler
     profiler = cProfile.Profile()
@@ -68,7 +68,7 @@ def narrowband_infinite_generation(transforms = []):
 
     print(f"IQ Array Size: {num_iq_samples_dataset}")
     print(f"Impairment Level: {impairment_level}")
-    print(f"Profiling narrowband for {num_samples} samples...")
+    print(f"Profiling narrowband infinite dataset for {num_samples} samples...")
 
     # initialize profiler
     profiler = cProfile.Profile()
@@ -101,7 +101,7 @@ def narrowband_finite_writing(transforms = []):
 
     print(f"IQ Array Size: {num_iq_samples_dataset}")
     print(f"Impairment Level: {impairment_level}")
-    print(f"Profiling narrowband for {num_samples} samples...")
+    print(f"Profiling narrowband writing finite dataset for {num_samples} samples...")
 
     # initialize profiler
     profiler = cProfile.Profile()
@@ -147,7 +147,7 @@ def wideband_finite_writing(transforms = []):
     print(f"IQ Array Size: {num_iq_samples_dataset}")
     print(f"Impairment Level: {impairment_level}")
     print(f"Num Signals: {num_signals_min} - {num_signals_max}")
-    print(f"Profiling wideband for {num_samples} samples...")
+    print(f"Profiling wideband writing finite dataset for {num_samples} samples...")
 
     # initialize profiler
     profiler = cProfile.Profile()
