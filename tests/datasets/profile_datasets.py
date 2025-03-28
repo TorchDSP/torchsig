@@ -137,7 +137,9 @@ def narrowband_writing(transforms = []):
     stats.sort_stats('cumtime')
     stats.print_stats(20)
 
-    zarr_arr = zarr.open(f"profile/torchsig_narrowband_impaired/data.zarr", mode = 'r')
+    path_to_zarr_file = Path.joinpath(root,"torchsig_narrowband_impaired/data.zarr")
+
+    zarr_arr = zarr.open(path_to_zarr_file, mode = 'r')
     # print(zarr_arr.info_complete())
 
 def main():
