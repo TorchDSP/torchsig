@@ -3,10 +3,29 @@
 
 # TorchSig
 from torchsig.datasets.dataset_metadata import WidebandMetadata, NarrowbandMetadata
-from torchsig.datasets.wideband import NewWideband
-from torchsig.datasets.narrowband import NewNarrowband
+from torchsig.datasets.wideband import NewWideband, StaticWideband
+from torchsig.datasets.narrowband import NewNarrowband, StaticNarrowband
 from torchsig.utils.writer import DatasetCreator
 from torchsig.transforms.dataset_transforms import Spectrogram
+from torchsig.transforms.target_transforms import (
+    ClassName,
+    Start,
+    Stop,
+    LowerFreq,
+    UpperFreq,
+    SNR
+)
+
+target_transform = [
+    ClassName(),
+    Start(),
+    Stop(),
+    LowerFreq(),
+    UpperFreq(),
+    SNR()
+]
+
+
 
 # Third Party
 from tqdm import tqdm
@@ -189,12 +208,78 @@ def wideband_finite_writing(transforms = []):
     zarr_arr = zarr.open(path_to_zarr_file, mode = 'r')
     # print(zarr_arr.info_complete())
 
+
+def wideband_finite_reading(transforms = []):
+
+    print(f"IQ Array Size: {num_iq_samples_dataset}")
+    print(f"Impairment Level: {impairment_level}")
+    print(f"Num Signals: {num_signals_min} - {num_signals_max}")
+    print(f"Profiling wideband reading finite dataset for {num_samples} samples...")
+
+    # initialize profiler
+    profiler = cProfile.Profile()
+    profiler.enable()
+
+    # Ininitialize dataset
+    static_wideband = StaticWideband(
+        root = root,
+        impairment_level = impairment_level,
+        transforms = Spectrogram(fft_size = fft_size),
+        target_transforms = target_transform,
+    )
+
+    for i in tqdm(range(num_samples), disable = not enable_tqdm):
+        data, targets = static_wideband[i]
+
+    profiler.disable()
+    print("Profile done.")
+
+    stats = pstats.Stats(profiler)
+    stats.strip_dirs()
+
+    stats.sort_stats('cumtime')
+    stats.print_stats(20)
+
+def narrowband_finite_reading(transforms = []):
+
+    print(f"IQ Array Size: {num_iq_samples_dataset}")
+    print(f"Impairment Level: {impairment_level}")
+    print(f"Num Signals: {num_signals_min} - {num_signals_max}")
+    print(f"Profiling narrowband reading finite dataset for {num_samples} samples...")
+
+    # initialize profiler
+    profiler = cProfile.Profile()
+    profiler.enable()
+
+    # Ininitialize dataset
+    static_narrowband = StaticNarrowband(
+        root = root,
+        impairment_level = impairment_level,
+        transforms = Spectrogram(fft_size = fft_size),
+        target_transforms = target_transform,
+    )
+
+    for i in tqdm(range(num_samples), disable = not enable_tqdm):
+        data, targets = static_narrowband[i]
+
+    profiler.disable()
+    print("Profile done.")
+
+    stats = pstats.Stats(profiler)
+    stats.strip_dirs()
+
+    stats.sort_stats('cumtime')
+    stats.print_stats(20)
+
+
 def main():
     wideband_infinite_generation(transforms = Spectrogram(fft_size=fft_size))
     wideband_finite_writing(transforms = Spectrogram(fft_size=fft_size))
+    wideband_finite_reading(transforms = Spectrogram(fft_size=fft_size))
 
     narrowband_infinite_generation(transforms = Spectrogram(fft_size=fft_size))
     narrowband_finite_writing(transforms = Spectrogram(fft_size=fft_size))
+    narrowband_finite_reading(transforms = Spectrogram(fft_size=fft_size))
 
 
 if __name__ == "__main__":
