@@ -32,6 +32,16 @@ batch_size = 1
 num_workers = 2
 
 def wideband_generation():
+
+    print(f"IQ Array Size: {num_iq_samples_dataset}")
+    print(f"Impairment Level: {impairment_level}")
+    print(f"Num Signals: {num_signals_min} - {num_signals_max}")
+    print(f"Profiling wideband for {num_samples} samples...")
+
+    # initialize profiler
+    profiler = cProfile.Profile()
+    profiler.enable()
+
     # Ininitialize dataset
     md = WidebandMetadata(
         num_iq_samples_dataset=num_iq_samples_dataset,
@@ -43,15 +53,7 @@ def wideband_generation():
 
     wideband = NewWideband(dataset_metadata=md)
     
-    # initialize profiler
-    profiler = cProfile.Profile()
-
     # profile sample generation
-    print(f"IQ Array Size: {num_iq_samples_dataset}")
-    print(f"Impairment Level: {impairment_level}")
-    print(f"Num Signals: {num_signals_min} - {num_signals_max}")
-    print(f"Profiling wideband for {num_samples} samples...")
-    profiler.enable()
     for i in tqdm(range(num_samples), disable = not enable_tqdm):
         data, targets = wideband[i]
     profiler.disable()
@@ -63,6 +65,15 @@ def wideband_generation():
     stats.print_stats(20)
 
 def narrowband_generation():
+
+    print(f"IQ Array Size: {num_iq_samples_dataset}")
+    print(f"Impairment Level: {impairment_level}")
+    print(f"Profiling narrowband for {num_samples} samples...")
+
+    # initialize profiler
+    profiler = cProfile.Profile()
+    profiler.enable()
+
     # Ininitialize dataset
     md = NarrowbandMetadata(
         num_iq_samples_dataset=num_iq_samples_dataset,
@@ -71,15 +82,8 @@ def narrowband_generation():
     )
 
     narrowband = NewNarrowband(dataset_metadata=md)
-    
-    # initialize profiler
-    profiler = cProfile.Profile()
 
     # profile sample generation
-    print(f"IQ Array Size: {num_iq_samples_dataset}")
-    print(f"Impairment Level: {impairment_level}")
-    print(f"Profiling narrowband for {num_samples} samples...")
-    profiler.enable()
     for i in tqdm(range(num_samples), disable = not enable_tqdm):
         data, targets = narrowband[i]
     profiler.disable()
@@ -94,6 +98,14 @@ def narrowband_generation():
 # Profiling dataset writing to disk
 
 def narrowband_writing(transforms = []):
+
+    print(f"IQ Array Size: {num_iq_samples_dataset}")
+    print(f"Impairment Level: {impairment_level}")
+    print(f"Profiling narrowband for {num_samples} samples...")
+
+    # initialize profiler
+    profiler = cProfile.Profile()
+    profiler.enable()
 
     # Ininitialize dataset
     md = NarrowbandMetadata(
@@ -113,16 +125,8 @@ def narrowband_writing(transforms = []):
         batch_size=batch_size,
         num_workers=num_workers
     )
-    
-    # initialize profiler
-    profiler = cProfile.Profile()
 
     # profile sample generation
-    print(f"IQ Array Size: {num_iq_samples_dataset}")
-    print(f"Impairment Level: {impairment_level}")
-    print(f"Profiling narrowband for {num_samples} samples...")
-    profiler.enable()
-
     dc.create()
 
     profiler.disable()
@@ -140,6 +144,15 @@ def narrowband_writing(transforms = []):
     # print(zarr_arr.info_complete())
 
 def wideband_writing(transforms = []):
+
+    print(f"IQ Array Size: {num_iq_samples_dataset}")
+    print(f"Impairment Level: {impairment_level}")
+    print(f"Num Signals: {num_signals_min} - {num_signals_max}")
+    print(f"Profiling wideband for {num_samples} samples...")
+
+    # initialize profiler
+    profiler = cProfile.Profile()
+    profiler.enable()
 
     # Ininitialize dataset
     md = WidebandMetadata(
@@ -162,16 +175,7 @@ def wideband_writing(transforms = []):
         num_workers=num_workers
     )
     
-    # initialize profiler
-    profiler = cProfile.Profile()
-
     # profile sample generation
-    print(f"IQ Array Size: {num_iq_samples_dataset}")
-    print(f"Impairment Level: {impairment_level}")
-    print(f"Num Signals: {num_signals_min} - {num_signals_max}")
-    print(f"Profiling wideband for {num_samples} samples...")
-    profiler.enable()
-
     dc.create()
 
     profiler.disable()
