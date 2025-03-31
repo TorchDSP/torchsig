@@ -84,11 +84,9 @@ class TorchSigFileHandler(BaseFileHandler):
         self,
         root: str,
         dataset_metadata: DatasetMetadata,
-        batch_size: int,
         train: bool = None,
     ):
         self.dataset_metadata = dataset_metadata
-        self.batch_size = batch_size
 
         # e.g., root/torchsig_narrowband_clean
         full_root = dataset_full_path(
@@ -122,7 +120,7 @@ class TorchSigFileHandler(BaseFileHandler):
 
     def load(self, idx: int) -> Tuple[np.ndarray, List[Dict[str, Any]]]:
         # loads sample `idx` from disk into memory
-        raise NotImplementedError
+        return self.static_load(self.root, idx)
 
     def __str__(self) -> str:
         return f"{self.__class__.__name__}"

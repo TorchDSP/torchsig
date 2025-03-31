@@ -389,6 +389,8 @@ def verify_transforms(
         List[Transform | Callable]: The verified list of transforms.
     """
     from torchsig.transforms.base_transforms import Transform
+    if t is None:
+        return []
     # convert all transforms to list of transforms
     if isinstance(t, Transform):
         t = [t]
@@ -417,6 +419,9 @@ def verify_target_transforms(
         List[TargetTransform | Callable]: The verified list of target transforms.
     """
     from torchsig.transforms.target_transforms import TargetTransform
+
+    if tt is None:
+        return []
     # convert target transforms to list
     if isinstance(tt, TargetTransform):
         tt = [tt]
