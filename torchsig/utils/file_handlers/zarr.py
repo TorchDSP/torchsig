@@ -53,8 +53,6 @@ class ZarrFileHandler(TorchSigFileHandler):
             train = train
         )
 
-        self.enable_compression = enable_compression
-
         self.datapath = f"{self.root}/{ZarrFileHandler.datapath_filename}"
 
         self.data_shape = (self.dataset_metadata.num_samples, self.dataset_metadata.num_iq_samples_dataset)
