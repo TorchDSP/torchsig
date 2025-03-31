@@ -1,6 +1,6 @@
 """Zarr Writing Utils
 
-zarr==2.18.4
+zarr==2.18.3
 """
 from __future__ import annotations
 
@@ -37,7 +37,6 @@ class ZarrFileHandler(TorchSigFileHandler):
         self,
         root: str,
         dataset_metadata: DatasetMetadata,
-        batch_size: int,
         train: bool = None,
         enable_compression: bool = True,
     ):
@@ -52,10 +51,10 @@ class ZarrFileHandler(TorchSigFileHandler):
         super().__init__(
             root = root,
             dataset_metadata = dataset_metadata,
-            batch_size = batch_size,
-            train = train,
-            enable_compression = enable_compression
+            train = train
         )
+
+        self.enable_compression = enable_compression
 
         self.datapath = f"{self.root}/{ZarrFileHandler.datapath_filename}"
 
@@ -137,8 +136,12 @@ class ZarrFileHandler(TorchSigFileHandler):
             expanded to accommodate the new sample.
         """
 
-        start_idx = batch_idx * self.batch_size
+        start_idx = batch_idx * len(batch[0])
         stop_idx = start_idx + len(batch[0])
+
+        print(f"batch: {start_idx}, {stop_idx}")
+
+        # breakpoint()
 
         data, targets = batch
 

@@ -55,7 +55,8 @@ class DatasetCreator:
         tqdm_desc: str = None,
         file_handler: TorchSigFileHandler = ZarrFileHandler,
         train: bool = None,
-        enable_compression: bool = True
+        multithreading: bool = False,
+        **kwargs # any additional file handler args
     ):
         """Initializes the DatasetCreator.
 
@@ -69,7 +70,6 @@ class DatasetCreator:
             tqdm_desc (str): Description for the tqdm progress bar (optional).
             file_handler (TorchSigFileHandler): File handler for saving the dataset (default: ZarrFileHandler).
             train (bool): Whether the dataset is for training (optional).
-            enable_compression (bool): Enable compression in writer or not (default: True).
         
         Raises:
             ValueError: If the dataset does not specify `num_samples`.
@@ -78,6 +78,7 @@ class DatasetCreator:
         self.overwrite = overwrite
         self.batch_size = batch_size
         self.num_workers = num_workers
+        self.multithreading = multithreading
 
         if dataset.dataset_metadata.num_samples is None:
             raise ValueError("Must specify num_samples as an integer number. Cannot write infinite dataset to disk.")
@@ -88,12 +89,12 @@ class DatasetCreator:
             batch_size = batch_size,
             collate_fn = collate_fn
         )
+
         self.writer = file_handler(
             root = self.root,
             dataset_metadata = dataset.dataset_metadata,
-            batch_size = batch_size,
             train = train,
-            enable_compression = enable_compression,
+            **kwargs
         )
         # save_type (str): What kind of data was written to disk.
         # * "raw" means data and metadata after impairments are applied, but no other transforms and target transforms.
@@ -102,7 +103,7 @@ class DatasetCreator:
         # * "processed" means data and targets after all transforms and target transforms are applied.
         #     * When loaded back in, users cannot change the transforms or target transform already applied to data.
         #     * Choose this option if you want to lock in the transforms and target transform applied, or if you want maximum speed and/or minimal disk space used.
-        self.save_type = "raw" if save_type(
+        self.save_type = "raw" if save_type( 
             dataset.dataset_metadata.transforms,
             dataset.dataset_metadata.target_transforms
         ) else "processed"
@@ -173,7 +174,7 @@ class DatasetCreator:
         return complete, different_params
 
     def _write_batch(self, batch_idx: int, batch: Any, pbar):
-        """Multi-threaded writer batch
+        """write batch to disk and update TQDM
 
         Args:
             batch_idx (int): batch index
@@ -235,15 +236,20 @@ class DatasetCreator:
         # update progress bar message
         self._update_tqdm_message(pbar)
 
-        # write with thread per batch to disk
-        # num threads defaults to: min(32, os.cpu_count() + 4)
-        # https://docs.python.org/3/library/concurrent.futures.html#concurrent.futures.ThreadPoolExecutor
-        with concurrent.futures.ThreadPoolExecutor() as executor:
-            # Submit each batch write task to the executor
-            futures = [executor.submit(self._write_batch, batch_idx, batch, pbar) for batch_idx, batch in tqdm(enumerate(self.dataloader), total = len(self.dataloader))]
-            
-            # Wait for all futures to complete
-            concurrent.futures.wait(futures)
+        if self.multithreading:
+            # write with thread per batch to disk
+            # num threads defaults to: min(32, os.cpu_count() + 4)
+            # https://docs.python.org/3/library/concurrent.futures.html#concurrent.futures.ThreadPoolExecutor
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                # Submit each batch write task to the executor
+                futures = [executor.submit(self._write_batch, batch_idx, batch, pbar) for batch_idx, batch in tqdm(enumerate(self.dataloader), total = len(self.dataloader))]
+                
+                # Wait for all futures to complete
+                concurrent.futures.wait(futures)
+        else:
+            # do not multithread writes
+            for batch_idx, batch in tqdm(enumerate(self.dataloader), total = len(self.dataloader), desc = self.tqdm_desc):
+                self._write_batch(batch_idx, batch, pbar)
 
         # indicate writing was complete in writing dict yaml
         write_dict = self.get_writing_info_dict()
@@ -263,7 +269,7 @@ class DatasetCreator:
         """
 
         # run periodically
-        if (np.mod(batch_idx,10) == 0):
+        if np.mod(batch_idx,10) == 0:
 
             # get the amount of disk space remaining
             disk_size_available_bytes = disk_usage(self.writer.root)[2]
@@ -283,10 +289,10 @@ class DatasetCreator:
             updated_tqdm_desc = f'{self.tqdm_desc}, dataset remaining to create = {dataset_size_remaining_gigabytes} GB, remaining disk = {disk_size_available_gigabytes} GB'
 
             # avoid crashing by stopping write process
-            if (disk_size_available_gigabytes < self.minimum_remaining_disk_gigabytes):
+            if disk_size_available_gigabytes < self.minimum_remaining_disk_gigabytes:
                 # remaining disk size is below a hard cutoff value to avoid crashing operating system
                 raise ValueError(f'Disk nearly full! Remaining space is {disk_size_available_gigabytes} GB. Please make space before continuing.')
-            elif (dataset_size_remaining_gigabytes > disk_size_available_gigabytes):
+            elif dataset_size_remaining_gigabytes > disk_size_available_gigabytes:
                 # projected size of dataset too large for available disk space
                 raise ValueError(f'Not enough disk space. Projected dataset size is {dataset_size_remaining_gigabytes} GB. Remaining space is {disk_size_available_gigabytes} GB. Please reduce dataset size or make space before continuing.')
 
@@ -300,9 +306,9 @@ class DatasetCreator:
         """
         total_size = 0
         for path, dirs, files in os.walk(start_path):
-           for f in files:
-              fp = os.path.join(path, f)
-              total_size += os.path.getsize(fp)
+            for f in files:
+                fp = os.path.join(path, f)
+                total_size += os.path.getsize(fp)
         
         total_size_GB = total_size/(1024**3)
         return total_size_GB
