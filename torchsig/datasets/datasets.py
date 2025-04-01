@@ -1,6 +1,8 @@
 """Dataset Base Classes for creation and static loading.
 """
 
+from __future__ import annotations
+
 # TorchSig
 from torchsig.datasets.dataset_metadata import DatasetMetadata
 from torchsig.signals.signal_types import DatasetSignal, DatasetDict
@@ -8,7 +10,6 @@ from torchsig.signals.builder import SignalBuilder
 import torchsig.signals.builders as signal_builders
 from torchsig.utils.random import Seedable
 from torchsig.utils.dsp import compute_spectrogram
-from torchsig.utils.file_handlers.zarr import TorchSigFileHandler, ZarrFileHandler
 from torchsig.datasets.dataset_utils import (
     to_dataset_metadata, 
     frequency_shift_signal,
@@ -16,21 +17,20 @@ from torchsig.datasets.dataset_utils import (
 )
 from torchsig.utils.printing import generate_repr_str
 from torchsig.utils.verify import verify_transforms, verify_target_transforms
+from torchsig.utils.file_handlers.zarr import ZarrFileHandler
+from torchsig.datasets.dataset_utils import dataset_yaml_name, writer_yaml_name
 
 # Third Party
 from torch.utils.data import Dataset
 import numpy as np
 
 # Built-In
-from typing import Tuple, Dict
+from typing import Tuple, Dict, TYPE_CHECKING
 from pathlib import Path
 import yaml
 
-
-# name of yaml file where dataset information will be written
-dataset_yaml_name = "create_dataset_info.yaml"
-# name of yaml file where dataset writing information will be written
-writer_yaml_name = "writer_info.yaml"
+if TYPE_CHECKING:
+    from torchsig.utils.file_handlers.zarr import TorchSigFileHandler
 
 
 class NewTorchSigDataset(Dataset, Seedable):

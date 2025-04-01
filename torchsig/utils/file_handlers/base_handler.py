@@ -7,7 +7,7 @@ from __future__ import annotations
 
 # TorchSig
 from torchsig.datasets.dataset_metadata import DatasetMetadata
-from torchsig.datasets.dataset_utils import dataset_full_path
+from torchsig.datasets.dataset_utils import dataset_full_path, writer_yaml_name
 from torchsig.utils.printing import generate_repr_str
 
 # Third Party
@@ -17,6 +17,7 @@ import numpy as np
 from typing import Any, Tuple, List, Dict, TYPE_CHECKING
 import os
 import shutil
+import yaml
 
 # Imports for type checking
 if TYPE_CHECKING:
@@ -83,25 +84,13 @@ class TorchSigFileHandler(BaseFileHandler):
     def __init__(
         self,
         root: str,
-        dataset_metadata: DatasetMetadata,
-        train: bool = None,
         batch_size: int = 1
     ):
-        self.dataset_metadata = dataset_metadata
-        self.batch_size = batch_size
-
-        # e.g., root/torchsig_narrowband_clean
-        full_root = dataset_full_path(
-            dataset_type = self.dataset_metadata.dataset_type,
-            impairment_level = self.dataset_metadata.impairment_level,
-            train = train,
-        )
-        full_root = f"{root}/{full_root}"
-
-
         super().__init__(
-            root = full_root,
+            root = root,
         )
+
+        self.batch_size = batch_size
 
     def write(self, batch_idx: int, batch: Any) -> None:
         # writes a batch from dataset's __getitem__
@@ -122,6 +111,7 @@ class TorchSigFileHandler(BaseFileHandler):
 
     def load(self, idx: int) -> Tuple[np.ndarray, List[Dict[str, Any]]]:
         # loads sample `idx` from disk into memory
+        # uses instantiated class
         return self.static_load(self.root, idx)
 
     def __str__(self) -> str:
@@ -129,3 +119,14 @@ class TorchSigFileHandler(BaseFileHandler):
 
     def __repr__(self) -> str:
         return generate_repr_str(self)
+
+    @staticmethod
+    def _calculate_batch_size(root: str) -> int:
+
+        writer_yaml = f"{root}/{writer_yaml_name}"
+        with open(writer_yaml, 'r') as f:
+            writer_dict = yaml.load(f, Loader=yaml.FullLoader)
+            # extract batch size
+            batch_size = writer_dict['batch_size']
+
+        return batch_size

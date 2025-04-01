@@ -111,7 +111,8 @@ def main():
         dataset=WB,
         root=root,
         overwrite=True,
-        batch_size=8
+        batch_size=3,
+        num_workers=4
     )
     dc.create()
 

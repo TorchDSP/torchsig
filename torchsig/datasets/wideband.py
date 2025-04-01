@@ -1,11 +1,16 @@
 """WidebandMetadata and NewWideband Class
 """
 
+from __future__ import annotations
+
 # TorchSig
 from torchsig.datasets.datasets import NewTorchSigDataset, StaticTorchSigDataset
 from torchsig.datasets.dataset_metadata import DatasetMetadata
-from torchsig.utils.file_handlers.base_handler import TorchSigFileHandler
 from torchsig.utils.file_handlers.zarr import ZarrFileHandler
+from torchsig.utils.file_handlers.base_handler import TorchSigFileHandler
+
+
+from typing import TYPE_CHECKING
 
 
 class NewWideband(NewTorchSigDataset):
