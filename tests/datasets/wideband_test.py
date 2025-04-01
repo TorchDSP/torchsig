@@ -110,7 +110,8 @@ def main():
     dc = DatasetCreator(
         dataset=WB,
         root=root,
-        overwrite=True
+        overwrite=True,
+        batch_size=8
     )
     dc.create()
 

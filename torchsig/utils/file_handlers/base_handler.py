@@ -85,8 +85,10 @@ class TorchSigFileHandler(BaseFileHandler):
         root: str,
         dataset_metadata: DatasetMetadata,
         train: bool = None,
+        batch_size: int = 1
     ):
         self.dataset_metadata = dataset_metadata
+        self.batch_size = batch_size
 
         # e.g., root/torchsig_narrowband_clean
         full_root = dataset_full_path(

@@ -76,6 +76,7 @@ class DatasetCreator:
         self.overwrite = overwrite
         self.batch_size = batch_size
         self.num_workers = num_workers
+        self.batch_size = batch_size
 
         if dataset.dataset_metadata.num_samples is None:
             raise ValueError("Must specify num_samples as an integer number. Cannot write infinite dataset to disk.")
@@ -91,6 +92,7 @@ class DatasetCreator:
             root = self.root,
             dataset_metadata = dataset.dataset_metadata,
             train = train,
+            batch_size = self.batch_size,
             **kwargs
         )
         # save_type (str): What kind of data was written to disk.

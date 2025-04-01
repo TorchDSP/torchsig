@@ -38,6 +38,7 @@ class ZarrFileHandler(TorchSigFileHandler):
         root: str,
         dataset_metadata: DatasetMetadata,
         train: bool = None,
+        batch_size: int = 1,
     ):
         """Initializes the ZarrFileHandler with dataset metadata and write type.
 
@@ -50,7 +51,8 @@ class ZarrFileHandler(TorchSigFileHandler):
         super().__init__(
             root = root,
             dataset_metadata = dataset_metadata,
-            train = train
+            train = train,
+            batch_size = batch_size
         )
 
         self.datapath = f"{self.root}/{ZarrFileHandler.datapath_filename}"
@@ -125,16 +127,10 @@ class ZarrFileHandler(TorchSigFileHandler):
             expanded to accommodate the new sample.
         """
 
-        start_idx = batch_idx * len(batch[0])
+        start_idx = batch_idx * self.batch_size
         stop_idx = start_idx + len(batch[0])
 
-        print(f"batch: {start_idx}, {stop_idx}")
-
-        # breakpoint()
-
         data, targets = batch
-
-        # print(f"write: {targets}")
 
         if not self.zarr_updated:
             self._update_zarr(data)
