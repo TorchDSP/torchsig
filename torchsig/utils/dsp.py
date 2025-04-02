@@ -572,7 +572,7 @@ def prototype_polyphase_filter (num_branches:int, attenuation_db:float=120) -> n
     path_to_file = Path(__file__).parent.absolute().joinpath(pfb_weights_filename)
 
     # if weights file exists, load it
-    if (Path(path_to_file).is_file()):
+    if (path_to_file.is_file()):
         filter_weights = read_pickle ( path_to_file )
     else: # file does not yet exist
         # design prototype filter weights
