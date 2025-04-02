@@ -584,6 +584,8 @@ def prototype_polyphase_filter (num_branches:int, attenuation_db:float=120) -> n
             # overwrite the default value of boolean, no need to recompute
             design_weights_boolean = False
         except:
+            # do nothing here. design_weights_boolean already has the correct
+            # value and will be acted upon in next if() statement
             pass
 
     # design and save new weights if the file does not exist OR the file read failed
