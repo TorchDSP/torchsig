@@ -3,21 +3,29 @@
 
 from torchsig.transforms.functional import (
     add_slope,
+    additive_noise,
+    adjacent_channel_interference,
     agc,
     awgn,
     block_agc,
     channel_swap,
+    cochannel_interference,    
     cut_out,
+    doppler,    
     drop_samples,
     fading,
     intermodulation_products,
     iq_imbalance,
+    local_oscillator_frequency_drift,
+    local_oscillator_phase_noise,
     mag_rescale,
     nonlinear_amplifier,
     normalize,
+    passband_ripple,
     patch_shuffle,
     phase_offset,
     quantize,
+    shadowing,
     spectral_inversion,
     spectrogram,
     spectrogram_drop_samples,
@@ -25,8 +33,10 @@ from torchsig.transforms.functional import (
     time_varying_noise
 )
 from test_transforms_utils import (
-    generate_test_signal
+    generate_test_signal,
+    generate_tone_signal
 )
+import torchsig.utils.dsp as dsp
 from torchsig.utils.dsp import (
     torchsig_complex_data_type,
     compute_spectrogram,
@@ -35,6 +45,7 @@ from torchsig.utils.dsp import (
 # Third Party
 from typing import Any
 import numpy as np
+import scipy as sp
 from copy import deepcopy
 import pytest
 
@@ -77,7 +88,141 @@ def test_add_slope(
         assert np.allclose(data, data_test, RTOL) == expected
         assert (type(data) == type(data_test)) == expected
         assert (data.dtype == torchsig_complex_data_type) == expected
-    
+
+
+@pytest.mark.parametrize("data, params, expected, is_error", [
+    (deepcopy(TEST_DATA), {'noise_power': -42.0,'noise_color': 'white', 'continuous': False}, ValueError,True),
+    (deepcopy(TEST_DATA), {'noise_power': 1.0, 'noise_color': 'purple','continuous': False}, ValueError, True),
+    (deepcopy(TEST_DATA), {'noise_power': 42.4, 'noise_color': 'white', 'continuous': False}, True, False), 
+    (deepcopy(TEST_DATA), {'noise_power': 4.2, 'noise_color': 'white', 'continuous': True}, True, False),
+    (deepcopy(TEST_DATA), {'noise_power': 0.1, 'noise_color': 'pink','continuous': True}, True, False),
+    (deepcopy(TEST_DATA), {'noise_power': 3.14, 'noise_color': 'red','continuous': True}, True, False)
+])
+def test_additive_noise(
+    data: Any, 
+    params: dict,
+    expected: bool | AttributeError,
+    is_error: bool
+    ) -> None:
+    """Test the additive_noise functional with pytest.
+
+    Args:
+        data (Any): Data input, nominally np.ndarray.
+        params (dict): Function call parameters (see description).
+        expected (bool | AttributeError): Expected test result.
+        is_error (bool): Is a test error expected.
+
+    Raises:
+        AssertionError: If unexpected test outcome.
+
+    """     
+    rng = np.random.default_rng(42)
+
+    power = params['noise_power']
+    color = params['noise_color']
+    continuous = params['continuous']
+
+    if is_error:
+        with pytest.raises(expected):
+            data = additive_noise(
+                data  = data,
+                power = power, 
+                color = color,
+                continuous = continuous,
+                rng   = rng 
+            )
+    else:
+        data_test = deepcopy(data)
+        data = additive_noise(
+            data  = data,
+            power = power, 
+            color = color,
+            continuous = continuous,
+            rng   = rng 
+        )
+        
+        input_power = np.sum(np.abs(data_test)**2)/len(data_test)
+        output_power = np.sum(np.abs(data)**2)/len(data)
+        power_delta = output_power - input_power
+
+        assert (len(data) == len(data_test)) == expected
+        assert (np.abs(power_delta - power) < 10**(0.1/10)) == expected
+        assert (data.dtype == torchsig_complex_data_type) == expected
+
+
+@pytest.mark.parametrize("params, expected, is_error", [
+    ({'N': 8192, 'sample_rate': 4.0, 'power': 0.5, 'adj_fc': 0.2, 'tone_freq': 0.042, 'phase_sigma': 0.0, 'time_sigma': 0.0, 'filter_weights': dsp.low_pass(0.25, 0.25, 4.0)}, True, False),
+    ({'N': 16384, 'sample_rate': 2.5, 'power': 0.25, 'adj_fc': -0.12, 'tone_freq': 0.1, 'phase_sigma': 1.0, 'time_sigma': 4.0, 'filter_weights': dsp.low_pass(0.11, 0.18, 2.5)}, True, False),
+])
+def test_adjacent_channel_interference(
+    params: dict,
+    expected: bool,
+    is_error: bool
+    ) -> None:
+    """Test the adjacent_channel_interference functional with pytest.
+
+    Args:
+        params (dict): Function call parameters (see description).
+        expected (bool): Expected test result.
+        is_error (bool): Is a test error expected.
+
+    Raises:
+        AssertionError: If unexpected test outcome.
+
+    """     
+    rng = np.random.default_rng(42)
+
+    N = params['N']
+    sample_rate = params['sample_rate']
+    adj_power = params['power']
+    tone_freq = params['tone_freq']
+    center_frequency = params['adj_fc']
+    filter_weights = params['filter_weights']
+    phase_sigma = params['phase_sigma']
+
+    # tone signal: freq = tone_freq, power = 1.0 W
+    tone_baseband = generate_tone_signal(num_iq_samples = N, scale = 1.0).data
+    data = tone_baseband * np.exp(2j * np.pi * tone_freq * np.arange(N) / sample_rate) *np.sqrt(N)
+
+    if is_error:
+        with pytest.raises(expected):
+            data = adjacent_channel_interference(
+                data = data,
+                sample_rate = sample_rate,
+                power = adj_power,
+                center_frequency = center_frequency,
+                filter_weights = filter_weights,
+                phase_sigma = phase_sigma,
+                rng = rng
+            )
+    else:
+        data_test = deepcopy(data)
+        data = adjacent_channel_interference(
+            data = data,
+            sample_rate = sample_rate,
+            power = adj_power,
+            center_frequency = center_frequency,
+            filter_weights = filter_weights,
+            phase_sigma = phase_sigma,
+            rng = rng
+        )
+
+        est_power = np.sum(np.abs(data)**2)/len(data)
+
+        D = np.abs(np.fft.fft(data, norm='ortho'))
+        freqs = np.fft.fftfreq(N) * sample_rate
+        peaks, _ = sp.signal.find_peaks(D, height=1.0, distance=N/20)
+        top_two_indices = np.argsort(D[peaks])[-2:][::-1]
+        freqs0 = freqs[peaks[top_two_indices[0]]]
+        freqs1 = freqs[peaks[top_two_indices[1]]]
+
+        assert (np.abs(est_power - (adj_power + 1.0)) < 10**(0.1/10)) == expected
+        assert (np.abs(freqs0 - tone_freq) < (3/N)) == expected
+        assert (np.abs(freqs1 - (tone_freq + center_frequency)) < 0.01) == expected
+        assert (len(data) == len(data_test)) == expected
+        assert (type(data) == type(data_test)) == expected
+        assert (data.dtype == torchsig_complex_data_type) == expected
+
 
 @pytest.mark.parametrize("data, params, expected, is_error", [
     (
@@ -313,6 +458,73 @@ def test_channel_swap(
         assert (data.dtype == torchsig_complex_data_type) == expected
     
 
+@pytest.mark.parametrize("params, expected, is_error", [
+    ({'N': 8192, 'sample_rate': 4.0, 'power': 0.1, 'tone_freq': 0.2, 'filter_weights': dsp.low_pass(0.25, 0.25, 4.0), 'color': 'white', 'continuous': True}, True, False),
+    ({'N': 16384, 'sample_rate': 2.42, 'power': 0.01, 'tone_freq': -0.04, 'filter_weights': dsp.low_pass(0.1, 0.15, 2.42), 'color': 'white', 'continuous': True}, True, False),
+])
+def test_cochannel_interference(
+    params: dict,
+    expected: bool | AttributeError,
+    is_error: bool
+    ) -> None:
+    """Test the cochannel_interference functional with pytest.
+
+    Args:
+        params (dict): Function call parameters (see description).
+        expected (bool | AttributeError): Expected test result.
+        is_error (bool): Is a test error expected.
+
+    Raises:
+        AssertionError: If unexpected test outcome.
+
+    """     
+    rng = np.random.default_rng(42)
+
+    N = params['N']
+    sample_rate = params['sample_rate']
+    intf_power = params['power']
+    tone_freq = params['tone_freq']
+    filter_weights = params['filter_weights']
+    color = params['color']
+    continuous = params['continuous']
+
+    # tone signal: freq = tone_freq, power = 1.0 W
+    tone_baseband = generate_tone_signal(num_iq_samples = N, scale = 1.0).data
+    data = tone_baseband * np.exp(2j * np.pi * tone_freq * np.arange(N) / sample_rate) *np.sqrt(N)
+
+    if is_error:
+        with pytest.raises(expected):
+            data = cochannel_interference(
+                data = data,
+                power = intf_power,
+                filter_weights = filter_weights,
+                color = color,
+                continuous = continuous
+            )
+    else:
+        data_test = deepcopy(data)
+        data = cochannel_interference(
+            data = data,
+            power = intf_power,
+            filter_weights = filter_weights,
+            color = color,
+            continuous = continuous
+        )
+
+        est_power = np.sum(np.abs(data)**2)/len(data)
+        
+        D = np.abs(np.fft.fft(data, norm='ortho'))
+        freqs = np.fft.fftfreq(N) * sample_rate
+        peaks, _ = sp.signal.find_peaks(D, height=10.0, distance=N/2)
+        est_freq = freqs[peaks[0]]
+
+        assert (np.abs(est_power - (intf_power + 1.0)) < 10**(0.1/10)) == expected
+        assert (np.abs(est_freq - tone_freq) < (3/N)) == expected
+        assert (len(data) == len(data_test)) == expected
+        assert (type(data) == type(data_test)) == expected
+        assert (data.dtype == torchsig_complex_data_type) == expected
+
+
 @pytest.mark.parametrize("data, params, expected, is_error", [
     (
         0,
@@ -393,6 +605,65 @@ def test_cut_out(
         if np.any(cut_inds):
             assert duration_samples == cut_inds[-1] - cut_inds[0] + 1
 
+        assert (type(data) == type(data_test)) == expected
+        assert (data.dtype == torchsig_complex_data_type) == expected
+
+
+@pytest.mark.parametrize("params, expected, is_error", [
+    ({'N': 10000, 'sampling_rate': 4.0,'tone_freq': 0.2, 'velocity': 1e7}, True, False),
+    ({'N': 1000, 'sampling_rate': 2.0,'tone_freq': 0.42, 'velocity': 1e6}, True, False),
+])
+def test_doppler(
+    params: dict,
+    expected: bool | AttributeError,
+    is_error: bool
+    ) -> None:
+    """Test the doppler functional with pytest.
+
+    Args:
+        params (dict): Function call parameters (see description).
+        expected (bool | AttributeError): Expected test result.
+        is_error (bool): Is a test error expected.
+
+    Raises:
+        AssertionError: If unexpected test outcome.
+
+    """     
+    rng = np.random.default_rng(42)
+
+    N = params['N']
+    sampling_rate = params['sampling_rate']
+    tone_freq = params['tone_freq']
+    velocity = params['velocity']
+
+    tone_baseband = generate_tone_signal(num_iq_samples = N, scale = 1.0).data
+    data = tone_baseband * np.exp(2j * np.pi * tone_freq * np.arange(N) / sampling_rate)
+
+    if is_error:
+        with pytest.raises(expected):
+            data = doppler(
+                data = data,
+                velocity = velocity,
+                propagation_speed = 2.9979e8,
+                sampling_rate = sampling_rate
+            )
+    else:
+        data_test = deepcopy(data)
+        data = doppler(
+            data = data,
+            velocity = velocity,
+            propagation_speed = 2.9979e8,
+            sampling_rate = sampling_rate
+        )
+
+        alpha = 2.9979e8 / (2.9979e8 - velocity) # scaling factor
+        D = np.abs(np.fft.fft(data, norm='ortho'))
+        freqs = np.fft.fftfreq(N) * sampling_rate
+        peaks, _ = sp.signal.find_peaks(D, height=0.5, distance=N/10)
+        est_freq = freqs[peaks[0]]
+        
+        assert (np.abs(est_freq - alpha*tone_freq) < (3/N)) == expected
+        assert (len(data) == len(data_test)) == expected
         assert (type(data) == type(data_test)) == expected
         assert (data.dtype == torchsig_complex_data_type) == expected
 
@@ -669,6 +940,121 @@ def test_iq_imbalance(
 
 
 @pytest.mark.parametrize("data, params, expected, is_error", [
+    (generate_tone_signal(num_iq_samples = 1024, scale = 1.0).data, {'max_drift': 1e-1, 'max_drift_rate': 4e-1}, True, False),
+    (generate_tone_signal(num_iq_samples = 1024, scale = 1.0).data, {'max_drift': 5e-10, 'max_drift_rate': 1e-9}, True, False),
+])
+def test_local_oscillator_frequency_drift(
+    data: Any, 
+    params: dict, 
+    expected: bool, 
+    is_error: bool
+    ) -> None:
+    """Test the local_oscillator_frequency_drift functional with pytest.
+
+    Args:
+        data (Any): Data input, nominally np.ndarray.
+        params (dict): Function call parameters (see description).
+        expected (bool | IndexError): Expected test result.
+        is_error (bool): Is a test error expected.
+
+    Raises:
+        AssertionError: If unexpected test outcome.
+
+    """
+    rng = np.random.default_rng(42)
+
+    max_drift = params['max_drift']
+    max_drift_rate = params['max_drift_rate']
+
+    if is_error:
+        with pytest.raises(expected): 
+            data = local_oscillator_frequency_drift(
+                data = data,
+                max_drift = max_drift,
+                max_drift_rate = max_drift_rate,
+                rng = rng
+            )
+    else:
+        data_test = deepcopy(data)
+        data = local_oscillator_frequency_drift(
+            data = data,
+            max_drift = max_drift,
+            max_drift_rate = max_drift_rate,
+            rng = rng
+        )
+
+        unwrapped_phase = np.unwrap(np.angle(data))
+        instantaneous_frequency = np.diff(unwrapped_phase)
+        df = np.diff(instantaneous_frequency) 
+        reset_inds = np.where(np.abs(df) > max_drift/2)[0]
+        assert (len(reset_inds) > 0) == expected
+        assert (len(data) == len(data_test)) == expected
+        assert (type(data) == type(data_test)) == expected
+        assert (data.dtype == torchsig_complex_data_type) == expected
+
+
+@pytest.mark.parametrize("data, params, expected, is_error", [
+    (deepcopy(TEST_DATA), {'Fs': 4.0, 'fc': 0., 'pow': 0.01, 'color': 'white'}, True, False),
+    (deepcopy(TEST_DATA), {'Fs': 8.4, 'fc': 0.42, 'pow': 0.004, 'color': 'white'}, True, False),
+    (deepcopy(TEST_DATA), {'Fs': 1.0, 'fc': 0.2, 'pow': 0.1, 'color': 'red'}, True, False)
+])
+def test_local_oscillator_phase_noise(
+    data: Any, 
+    params: dict, 
+    expected: bool, 
+    is_error: bool
+    ) -> None:
+    """Test the local_oscillator_phase_noise functional with pytest.
+
+    Args:
+        data (Any): Data input, nominally np.ndarray.
+        params (dict): Function call parameters (see description).
+        expected (bool | IndexError): Expected test result.
+        is_error (bool): Is a test error expected.
+
+    Raises:
+        AssertionError: If unexpected test outcome.
+
+    """
+    rng = np.random.default_rng(42)
+
+    sample_rate = params['Fs']
+    frequency = params['fc']
+    power = params['pow']
+    color = params['color']
+
+    if is_error:
+        with pytest.raises(expected): 
+            data = local_oscillator_phase_noise(
+                data = data,
+                sample_rate = sample_rate,
+                frequency = frequency,
+                noise_power = power,
+                noise_color = color,
+                rng = rng
+            )
+    else:
+        data_test = deepcopy(data)
+        data = local_oscillator_phase_noise(
+            data = data,
+            sample_rate = sample_rate,
+            frequency = frequency,
+            noise_power = power,
+            noise_color = color,
+            rng = rng
+        )
+
+        data_power = np.sum(np.abs(data)**2)/len(data)
+        data_test_power = np.sum(np.abs(data_test)**2)/len(data_test)
+        power_increase = np.abs(data_test_power - data_power)
+        
+        assert (np.abs(power_increase - power) < 10**(0.01/10)) == expected
+        assert (len(data) == len(data_test)) == expected
+        assert (type(data) == type(data_test)) == expected
+        assert (data.dtype == torchsig_complex_data_type) == expected
+
+
+@pytest.mark.parametrize("data, params, expected, is_error", [
     (
         0,
         {'start': 0.1, 'scale': -0.5}, 
@@ -856,6 +1242,80 @@ def test_normalize(
         assert data.dtype == torchsig_complex_data_type
 
 
+@pytest.mark.parametrize("params, expected, is_error", [
+    ({'N': 1024, 'ripple_db': 6.0, 'order': 5, 'cutoff': 0.2, 'numtaps': 128}, True, False),
+    ({'N': 1111,'ripple_db': 3.2, 'order': 7, 'cutoff': 0.3, 'numtaps': 67}, True, False),
+    ({'N': 101,'ripple_db': 0.1, 'order': 10, 'cutoff': 0.1, 'numtaps': 255}, True, False),
+    ({'N': 100,'ripple_db': 4.2, 'order': 5, 'cutoff': 0.15, 'numtaps': 63}, True, False),
+])
+def test_passband_ripple(
+    params: dict, 
+    expected: bool, 
+    is_error: bool
+    ) -> None:
+    """Test the passband_ripple functional with pytest.
+
+    Args:
+        params (dict): Function call parameters (see description).
+        expected (bool | IndexError): Expected test result.
+        is_error (bool): Is a test error expected.
+
+    Raises:
+        AssertionError: If unexpected test outcome.
+
+    """
+    rng = np.random.default_rng(42)
+
+    N = params['N']
+    ripple_db = params['ripple_db']
+    order = params['order']
+    cutoff = params['cutoff']
+    numtaps = params['numtaps']
+
+    # create impulse response
+    data = dsp.noise_generator(
+        N       = N,
+        power   = 1.0, 
+        color   = 'white',
+        continuous = False,
+        rng     = rng 
+    )
+
+    # design filter
+    b, a = sp.signal.cheby1(order, ripple_db, cutoff, fs=1.0, btype='low')
+    t, h = sp.signal.dimpulse((b, a, 1/1.0), n=numtaps)
+    fir_coeffs = h[0].squeeze()
+
+    if is_error:
+        with pytest.raises(expected): 
+            data = passband_ripple(
+                data = data,
+                filter_coeffs = fir_coeffs,
+                normalize = True
+            )
+    else:
+        data_test = deepcopy(data)   
+        data = passband_ripple(
+            data = data,
+            filter_coeffs = fir_coeffs,
+            normalize = True
+        )
+        D = np.abs(np.fft.fft(data, norm='ortho'))
+        mag = np.abs(D)
+        M = len(D)
+        
+        peak_inds, _ = sp.signal.find_peaks(mag, height=0.1, distance=M/20)
+        peak_vals = mag[peak_inds]
+        trough_inds, _ = sp.signal.find_peaks(-mag, height=-10.0, distance=M/20)
+        trough_vals = mag[trough_inds]
+        ripple_est = np.mean(peak_vals[peak_vals > 0.5]) - np.mean(trough_vals[trough_vals > 0.5])
+        ripple_est_db = 20*np.log10(1 + ripple_est)
+
+        assert (np.abs(ripple_est_db - ripple_db) < 10**(0.5/20)) == expected
+        assert (type(data) == type(data_test)) == expected
+        assert (data.dtype == torchsig_complex_data_type) == expected
+
+
 @pytest.mark.parametrize("data, params, expected, is_error", [
     (
         0,
@@ -1024,6 +1484,66 @@ def test_quantize(
         assert np.allclose(data, expected, rtol=RTOL)
         assert type(data) == type(expected)
         assert data.dtype == torchsig_complex_data_type
+
+
+@pytest.mark.parametrize("data, params, expected, is_error", [
+    (deepcopy(TEST_DATA), {'mean_db': 4.0, 'sigma_db': 2.0}, True, False),
+    (deepcopy(TEST_DATA), {'mean_db': 0.0, 'sigma_db': 0.42}, True, False)
+])
+def test_shadowing(
+    data: Any, 
+    params: dict, 
+    expected: bool, 
+    is_error: bool
+    ) -> None:
+    """Test the shadowing functional with pytest.
+
+    Args:
+        data (Any): Data input, nominally np.ndarray.
+        params (dict): Function call parameters (see description).
+        expected (bool | IndexError): Expected test result.
+        is_error (bool): Is a test error expected.
+
+    Raises:
+        AssertionError: If unexpected test outcome.
+
+    """
+    rng = np.random.default_rng(42)
+
+    mean_db = params['mean_db']
+    sigma_db = params['sigma_db']
+
+    if is_error:
+        with pytest.raises(expected): 
+            data = shadowing(
+                data = data,
+                mean_db = mean_db,
+                sigma_db = sigma_db,
+                rng = rng
+            )
+    else:
+        data_test = deepcopy(data)
+        n_iterations = 30
+        results = [
+            10*np.log10(np.mean(np.abs(
+                shadowing(
+                    data = data,
+                    mean_db = mean_db,
+                    sigma_db = sigma_db,
+                    rng = rng
+                )**2)
+            ))
+            for _ in  range(n_iterations)
+        ]
+        results_array = np.array(results)
+        
+        # Shapiro-Wilk test for normality
+        stat, p_value = sp.stats.shapiro(results_array)
+        
+        assert (p_value > 0.05) == expected
+        assert (len(data) == len(data_test)) == expected
+        assert (type(data) == type(data_test)) == expected
+        assert (data.dtype == torchsig_complex_data_type) == expected
 
 
 @pytest.mark.parametrize("data, expected, is_error", [

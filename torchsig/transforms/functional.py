@@ -4,7 +4,10 @@ from typing import Literal, Optional, Tuple
 
 # TorchSig
 import torchsig.utils.dsp as dsp
-from torchsig.utils.dsp import torchsig_complex_data_type
+from torchsig.utils.dsp import (
+    torchsig_complex_data_type,
+    torchsig_float_data_type
+)
 
 # Third Party
 import scipy
@@ -13,11 +16,15 @@ import numpy as np
 
 __all__ = [
     "add_slope",
+    "additive_noise",
+    "adjacent_channel_interference",
     "agc",
     "block_agc",
     "channel_swap",
-    "complex_to_2d",    
+    "cochannel_interference",
+    "complex_to_2d",
     "cut_out",
+    "doppler",
     "drop_samples",
     "fading",
     "intermodulation_products",
@@ -26,11 +33,12 @@ __all__ = [
     "local_oscillator_phase_noise",
     "mag_rescale",
     "nonlinear_amplifier",
-    "normalize",    
+    "normalize",
     "passband_ripple",
     "patch_shuffle",
     "phase_offset",
     "quantize",
+    "shadowing",
     "spectral_inversion",
     "spectrogram",
     "spectrogram_drop_samples",
@@ -119,6 +127,84 @@ def agc(
     return output.astype(torchsig_complex_data_type)
 
 
+def additive_noise(
+    data: np.ndarray,
+    power: float = 1.0,
+    color: str = 'white',
+    continuous: bool = True,
+    rng: np.random.Generator = np.random.default_rng(seed=None)
+) -> np.ndarray:
+    """Additive complex noise with specified parameters.
+
+    Args:
+        data (np.ndarray): Complex valued IQ data samples.
+        power (float): Desired noise power (linear, positive). Defaults to 1.0 W (0 dBW).
+        color (str): Noise color, supports 'white', 'pink', or 'red' noise frequency spectrum types. Defaults to 'white'.
+        continuous (bool): Sets noise to continuous (True) or impulsive (False). Defaults to True.
+        rng (np.random.Generator, optional): Random number generator. Defaults to np.random.default_rng(seed=None).
+    
+    Returns:
+        np.ndarray: Data with complex noise samples with specified power added.
+    
+    """
+    N = len(data)
+    noise_samples = dsp.noise_generator(N, power, color, continuous, rng)
+    return (data + noise_samples).astype(torchsig_complex_data_type)
+
+
+def adjacent_channel_interference(
+    data: np.ndarray,
+    sample_rate: float = 4.0,
+    power: float = 1.0,
+    center_frequency: float = 0.2,
+    filter_weights: np.ndarray = dsp.low_pass(0.25, 0.25, 4.0),
+    phase_sigma: float = 1.0,
+    time_sigma: float = 0.0,
+    rng: np.random.Generator = np.random.default_rng(seed=None)
+) -> np.ndarray:
+    """Adds adjacent channel interference to the baseband data at a specified center frequency and power level. The 
+    adjacent channel signal is a filtered, frequency-offset, randomly block time-shifted, randomly phase-perturbed 
+    baseband copy that has similar bandwidth and modulation properties, but degrades phase and time coherence with the
+    original baseband signal.
+
+    Args:
+        data (np.ndarray): Complex valued IQ data samples.
+        sample_rate (float): Sampling rate (Fs). Default 4.0
+        power (float): Adjacent interference signal power (linear, positive). Default 1.0 W (0 dBW).
+        center_frequency (float): Adjacent interference signal center frequency (normalized relative to Fs). Default 0.2.
+        filter_weights (np.ndarray): Lowpass filter weights applied to baseband signal data to band limit prior to creating
+            adjacent signal. Default low_pass(0.25,0.25,4.0).
+        phase_sigma (float): Standard deviation of Gaussian phase noise. Default 1.0.
+        time_sigma (float): Standard deviation of Gaussian block time shift in samples. Default 0.0.
+        rng (np.random.Generator, optional): Random number generator. Defaults to np.random.default_rng(seed=None).
+    
+    Returns:
+        np.ndarray: Data with added adjacent interference.
+    
+    """
+    N = len(data)
+    t = np.arange(N) / sample_rate
+
+    data_filtered = np.convolve(data, filter_weights)[-N:] # band limit original data
+    phase_noise = rng.normal(0, phase_sigma, N)  # Gaussian phase noise
+    interference = data_filtered * np.exp(1j*(2*np.pi*center_frequency*t + phase_noise)) # note: does not check aliasing
+
+    time_shift = int(np.round(rng.normal(0, time_sigma, 1))[0]) # Gaussian block time shift for data (nearest sample)
+    if time_shift > 0: # time shift with zero fill; # note: may produce discontinuities
+        interference = np.roll(interference, time_shift) 
+        interference[0:time_shift] = 0 + 1j*0
+    elif time_shift < 0:
+        interference = np.roll(interference, time_shift)
+        interference[time_shift:0] = 0 + 1j*0
+
+    # set interference power 
+    est_power = np.sum(np.abs(interference)**2)/len(interference)
+    interference = np.sqrt(power / est_power) * interference 
+
+    return (data + interference).astype(torchsig_complex_data_type)
+
+
+# TODO: redundant with general additive noise
 def awgn(data: np.ndarray, 
          noise_power_db: float,
          rng: Optional[np.random.Generator] = None
@@ -192,6 +278,38 @@ def channel_swap(
     new_data.real = imag_component
     new_data.imag = real_component
     return new_data.astype(torchsig_complex_data_type)
+
+
+def cochannel_interference(
+    data: np.ndarray,
+    power: float = 1.0,
+    filter_weights: np.ndarray = dsp.low_pass(0.25, 0.25, 4.0),
+    color: str = 'white',
+    continuous: bool = True,
+    rng: np.random.Generator = np.random.default_rng(seed=None)
+) -> np.ndarray:
+    """Applies uncorrelated co-channel interference to the baseband data, modeled as shaped noise with specified parameters.
+
+    Args:
+        data (np.ndarray): Complex valued IQ data samples.
+        power (float): Interference power (linear, positive). Default 1.0 W (0 dBW).
+        filter_weights: Lowpass interference shaping filter weights. Default low_pass(0.25, 0.25, 4.0).
+        color (str): Base noise color, supports 'white', 'pink', or 'red' noise frequency spectrum types. Default 'white'.
+        continuous (bool): Sets noise to continuous (True) or impulsive (False). Default True.
+        rng (np.random.Generator, optional): Random number generator. Defaults to np.random.default_rng(seed=None).
+    
+    Returns:
+        np.ndarray: Data with added uncorrelated co-channel interference.
+    
+    """
+    N = len(data)
+    noise_samples = dsp.noise_generator(N, power, color, continuous, rng)
+    shaped_noise = np.convolve(noise_samples, filter_weights)[-N:]
+    
+    # correct shaped noise power (do not assume filter is prescaled)
+    est_power = np.sum(np.abs(shaped_noise)**2)/len(shaped_noise)
+    interference = np.sqrt(power / est_power) * shaped_noise 
+    return (data + interference).astype(torchsig_complex_data_type)
 
 
 def complex_to_2d(data: np.ndarray) -> np.ndarray:
@@ -271,6 +389,44 @@ def cut_out(
     data[cut_start : cut_start + cut_mask_length] = cut_mask
 
     return data.astype(torchsig_complex_data_type)
+
+
+# TODO: improved time-scaling interpolator
+def doppler(
+    data: np.ndarray,
+    velocity: float = 1e1,
+    propagation_speed: float = 2.9979e8,
+    sampling_rate: float = 1.0
+) -> np.ndarray:
+    """Applies wideband Doppler effect through time scaling.
+
+    Args:
+        data (np.ndarray): Complex valued IQ data samples.
+        velocity (float): Relative velocity in m/s (positive = approaching). Default 10 m/s.
+        propagation_speed (float): Wave speed in medium. Default 2.9979e8 m/s.
+        sampling_rate (float): Data sampling rate. Default 1.0.
+
+    Returns:
+        np.ndarray: Data with wideband Doppler.
+
+    """
+    N = data.size
+    
+    # time scaling factor
+    alpha = propagation_speed / (propagation_speed - velocity)
+
+    # original and scaled signal sample times
+    t_orig = np.arange(N) / sampling_rate
+    t_new = t_orig * alpha
+
+    # prevent extrapolation beyond original signal duration
+    t_new = np.clip(t_new, 0, t_orig[-1])
+
+    # numpy default interpolator
+    interp_real = np.interp(t_new, t_orig, data.real)
+    interp_imag = np.interp(t_new, t_orig, data.imag)
+    data = interp_real + 1j*interp_imag
+    return (data).astype(torchsig_complex_data_type)
 
 
 def drop_samples(
@@ -453,13 +609,81 @@ def iq_imbalance(
 
     return data.astype(torchsig_complex_data_type)
 
-def local_oscillator_frequency_drift():
-    """Unimplemented Functional for modeling Local Oscillator drift in frequency.
-    """   
 
-def local_oscillator_phase_noise():
-    """Unimplemented Functional for modeling Local Oscillator phase noise.
-    """   
+def local_oscillator_frequency_drift(
+    data: np.ndarray,
+    max_drift: float = 0.01,
+    max_drift_rate: float = 0.001,
+    rng: np.random.Generator = np.random.default_rng(seed=None)
+) -> np.ndarray:
+    """Mixes data with a frequency drifting Local Oscillator (LO), with drift modeled as a bounded random walk.
+
+    Args:
+        data (np.ndarray): Complex valued IQ data samples.
+        max_drift (float): Maximum absolute frequency offset; resets if reached. Default 0.01.
+        max_drift_rate (float): Maximum drift rate over entire data sample. Default 0.001.
+        rng (np.random.Generator): Random number generator. Defaults to np.random.default_rng(seed=None).
+
+    Returns:
+        np.ndarray: Data with LO drift applied.
+    
+    """
+    rng = rng if rng else np.random.default_rng()
+    N = data.size
+    
+    # drift modeled as random walk
+    random_walk = rng.choice([-1, 1], size = N)
+
+    # limit rate of change to at most 1/max_drift_rate times the length of the data sample
+    frequency = np.cumsum(random_walk) * max_drift_rate / np.sqrt(N)
+
+    # reset offset if max_drift bounds reached 
+    while np.argmax(np.abs(frequency) > max_drift):
+        idx = np.argmax(np.abs(frequency) > max_drift)
+        offset = max_drift if frequency[idx] < 0 else -max_drift
+        frequency[idx:] += offset
+
+    complex_phase = np.exp(2j * np.pi * np.cumsum(frequency))
+    data = data * complex_phase
+    return data.astype(torchsig_complex_data_type)
+
+
+def local_oscillator_phase_noise(
+    data: np.ndarray,
+    sample_rate: float = 1.0,
+    frequency: float = 0.0,
+    noise_power: float = 0.01,
+    noise_color: str = 'pink',
+    rng: np.random.Generator = np.random.default_rng(seed=None)
+) -> np.ndarray:
+    """Mixes data with a Local Oscillator (LO) modeled as a fixed frequency CW tone with additive phase noise.
+
+    Args:
+        data (np.ndarray): Complex valued IQ data samples.
+        sample_rate (float): Sample rate of input data (same units as frequency). Defaults to 1.0. 
+        frequency (float): LO frequency (same units as sample_rate). Defaults to baseband 0.0.
+        noise_power (float): Noise power in Watts. Defaults to 0.01 W (-20 dBW).
+        noise_color (str): Noise frequency response. Defaults to 'pink'.
+        rng (np.random.Generator, optional): Random number generator. Defaults to np.random.default_rng(seed=None).
+
+    Returns:
+        np.ndarray: Data mixed with noisy LO.
+    
+    """
+    rng = rng if rng else np.random.default_rng()
+    N = data.size
+
+    cw = np.exp(2j*np.pi*(frequency/sample_rate)*np.arange(0,N, dtype=torchsig_float_data_type)) # cw tone at specified frequency
+    noise = dsp.noise_generator(
+        N = N,
+        power = noise_power, 
+        color = noise_color,
+        continuous = True,
+        rng   = rng 
+    )
+    data = data * (cw * noise) # mix data with noisy LO
+    return data.astype(torchsig_complex_data_type)
+
 
 def mag_rescale(
     data: np.ndarray,
@@ -567,9 +791,31 @@ def normalize(
     return np.multiply(data, 1.0 / norm).astype(torchsig_complex_data_type)
 
 
-def passband_ripple():
-    """Unimplemented Functional to create passband ripple filter effects within the sampling bandwidth.
-    """  
+def passband_ripple(
+    data: np.ndarray,
+    filter_coeffs: np.ndarray,
+    normalize: bool = False
+) -> np.ndarray:
+    """Functional for passband ripple transforms.
+
+    Args:
+        data (np.ndarray): Complex valued IQ data samples.
+        filter_coeffs (np.ndarray): FIR filter coeffecients with desired ripple characteristics.
+        normalize (bool): Normalize filter coefficients for energy preservation. Default False.
+
+    Returns:
+        np.ndarray: Filtered data.
+
+    """
+    N = len(data)    
+
+    if normalize: # filter energy normalization
+        energy = np.sum(np.abs(filter_coeffs)**2)
+        filter_coeffs = filter_coeffs / np.sqrt(energy)
+    
+    data = np.convolve(data, filter_coeffs)
+    #data = data[-N:] # retain data size
+    return data.astype(torchsig_complex_data_type)
 
 
 def patch_shuffle(
@@ -676,6 +922,32 @@ def quantize(
     quantized_data = quantized_real + 1j * quantized_imag
 
     return quantized_data.astype(torchsig_complex_data_type)
+
+
+def shadowing(
+    data: np.ndarray,
+    mean_db: float = 4.0,
+    sigma_db: float = 2.0,
+    rng: np.random.Generator = np.random.default_rng(seed=None)
+) -> np.ndarray:
+    """Applies RF shadowing to the data, assuming the channel obstructions' loss are lognormal.
+    Refer to T.S. Rappaport, Wireless Communications, Prentice Hall, 2002.
+
+    Args:
+        data (np.ndarray): Complex valued IQ data samples.
+        mu_db (float): Mean value of shadowing in dB. Default 4.0.
+        sigma_db (float): Shadowing standard deviation. Default 2.0.
+        rng (np.random.Generator, optional): Random number generator. 
+            Defaults to np.random.default_rng(seed=None).
+
+    Returns:
+        np.ndarray: Data with shadowing.
+    
+    """
+    rng = rng if rng else np.random.default_rng()
+    power_db = rng.normal(mean_db, sigma_db) # normal distribution in log domain
+    data = data * 10 ** (power_db / 20)
+    return data.astype(torchsig_complex_data_type)
 
 
 def spectral_inversion(
