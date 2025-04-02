@@ -571,10 +571,23 @@ def prototype_polyphase_filter (num_branches:int, attenuation_db:float=120) -> n
     # create path to weights file
     path_to_file = Path(__file__).parent.absolute().joinpath(pfb_weights_filename)
 
-    # if weights file exists, load it
-    if (path_to_file.is_file()):
-        filter_weights = read_pickle ( path_to_file )
-    else: # file does not yet exist
+    # does weights file exist?
+    weights_exist_boolean = path_to_file.is_file()
+
+    # can the weights be loaded? possibility of corrupted file
+    # if CTRL+C exit during write, or other misc file corruption.
+    design_weights_boolean = True
+    if (weights_exist_boolean):
+        try:
+            # read from file
+            filter_weights = read_pickle ( path_to_file )
+            # overwrite the default value of boolean, no need to recompute
+            design_weights_boolean = False
+        except:
+            pass
+
+    # design and save new weights if the file does not exist OR the file read failed
+    if (not weights_exist_boolean or design_weights_boolean):
         # design prototype filter weights
         filter_weights = low_pass_iterative_design(cutoff,transition_bandwidth,sample_rate,attenuation_db)
         # write weights to file for later
