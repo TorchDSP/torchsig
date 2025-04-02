@@ -32,7 +32,8 @@ __all__ = [
     "local_oscillator_frequency_drift",
     "local_oscillator_phase_noise",
     "mag_rescale",
-    "nonlinear_amplifier",
+    "nonlinear_amplifier_am_pm",
+    "nonlinear_amplifier_poly",
     "normalize",
     "passband_ripple",
     "patch_shuffle",
@@ -711,7 +712,7 @@ def mag_rescale(
     return data.astype(torchsig_complex_data_type)
 
 
-def nonlinear_amplifier(
+def nonlinear_amplifier_am_pm(
     data: np.ndarray,
     Pin: np.ndarray =  10**((np.array([-100., -20., -10.,  0.,  5., 10. ]) / 10)),
     Pout: np.ndarray = 10**((np.array([ -90., -10.,   0.,  9., 9.9, 10. ]) / 10)),
@@ -756,6 +757,38 @@ def nonlinear_amplifier(
     data = out_magnitude * np.exp(1j * (phase + out_phase_shift_rad))
     
     return data.astype(torchsig_complex_data_type)
+
+def nonlinear_amplifier_poly(
+    data: np.ndarray,
+    IIP3_dbm: float = 33,
+    c1: float = 7.0,
+) -> np.ndarray:
+    """A memoryless cubic polynomial model for a nonlinear amplifier response. The 
+    cubic polynomial is of the form: |x_out| = c1 * |x_in| + 0.75 * c3 * |x_in|**3
+    where x_in is the input signal magnitude, x_out is the output signal magnitude, and
+    c1 and c3 are cubic polynomial model coefficients. 
+
+        Refer to this designer guide for default values:
+            Kundert, Ken. “Accurate and Rapid Measurement of IP2 and IP3,“ 
+            The Designer Guide Community, May 22, 2002.
+            https://designers-guide.org/analysis/intercept-point.pdf 
+
+    Args:
+        data (np.ndarray): Complex valued IQ data samples.
+        IIP3 (float): Input third-order intercept point.
+        c1 (float): Linear gain term coefficient of cubic polynomial model.
+            
+    Returns:
+        np.ndarray: Nonlinearly distorted IQ data.
+        
+    """
+    c3 = -4 * c1 / (3 * 10**((IIP3_dbm-30)/10))
+    #c3 = -4 * c1 / (9 * 10**(IPsat_dbm-30)/10)
+
+    mag_input_est = np.max(np.abs(data))
+    mag_output = c1 * mag_input_est + 0.75 * c3 * mag_input_est**3
+    
+    return data * mag_output / mag_input_est
      
 
 def normalize(

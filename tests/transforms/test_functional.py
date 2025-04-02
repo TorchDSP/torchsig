@@ -19,7 +19,7 @@ from torchsig.transforms.functional import (
     local_oscillator_frequency_drift,
     local_oscillator_phase_noise,
     mag_rescale,
-    nonlinear_amplifier,
+    nonlinear_amplifier_am_pm,
     normalize,
     passband_ripple,
     patch_shuffle,
@@ -1135,7 +1135,7 @@ def test_mag_rescale(
         False
     ),
 ])
-def test_nonlinear_amplifier(
+def test_nonlinear_amplifier_am_pm(
     data: Any, 
     params: dict, 
     expected: bool | ValueError, 
@@ -1161,7 +1161,7 @@ def test_nonlinear_amplifier(
     
     if is_error:
         with pytest.raises(expected): 
-            data = nonlinear_amplifier(
+            data = nonlinear_amplifier_am_pm(
                 data = data,
                 Pin  = Pin,
                 Pout = Pout,
@@ -1170,7 +1170,7 @@ def test_nonlinear_amplifier(
     else:
         data_test = deepcopy(data)
 
-        data = nonlinear_amplifier(
+        data = nonlinear_amplifier_am_pm(
             data = data,
             Pin  = Pin,
             Pout = Pout,

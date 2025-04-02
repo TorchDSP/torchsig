@@ -515,7 +515,7 @@ class NonlinearAmplifierSignalTransform(SignalTransform):
         self.Phi = Phi 
     
     def __call__(self, signal: Signal) -> Signal:
-        signal.data = F.nonlinear_amplifier(
+        signal.data = F.nonlinear_amplifier_am_pm(
             data = signal.data,
             Pin  = self.Pin,
             Pout = self.Pout,
