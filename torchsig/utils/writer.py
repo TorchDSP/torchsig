@@ -17,6 +17,7 @@ from torchsig.utils.yaml import write_dict_to_yaml
 from tqdm import tqdm
 import yaml
 import numpy as np
+from time import time
 
 # Built-In
 from typing import Callable, Dict, Any, List, Tuple
@@ -203,9 +204,11 @@ class DatasetCreator:
         # get reference to tqdm progress bar object
         pbar = tqdm()
 
+        # store start time
+        self._msg_timer = time()
+
         # update progress bar message
         self._update_tqdm_message(pbar)
-
 
         for batch_idx, batch in tqdm(enumerate(self.dataloader), total = len(self.dataloader)):
 
@@ -217,6 +220,7 @@ class DatasetCreator:
 
 
     def _update_tqdm_message( self, pbar=tqdm(), batch_idx:int = 0 ):
+
         """Updates the tqdm progress bar with remaining disk space
 
         Informs the user how much remaining space left (in gigabytes) is
@@ -227,8 +231,11 @@ class DatasetCreator:
             ValueError: If the disk space remaining is below a threshold
         """
 
-        # run periodically
-        if np.mod(batch_idx,10) == 0:
+        # compute elapsed time since last run
+        elapsed_time = time() - self._msg_timer
+
+        # run every 5 seconds
+        if (batch_idx == 0 or elapsed_time > 5):
 
             # get the amount of disk space remaining
             disk_size_available_bytes = disk_usage(self.writer.root)[2]
@@ -258,6 +265,8 @@ class DatasetCreator:
             # set the progress bar message
             pbar.set_description(updated_tqdm_desc)
 
+            # update timer
+            self._msg_timer = time()
 
     def _get_directory_size_gigabytes ( self, start_path ):
         """
