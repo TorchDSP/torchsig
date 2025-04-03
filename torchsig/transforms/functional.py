@@ -633,13 +633,16 @@ def local_oscillator_frequency_drift(
     rng = rng if rng else np.random.default_rng()
     N = data.size
     
-    # drift modeled as random walk
+    # generate a random phase with appropriate standard deviation
     random_phase = rng.normal(0,drift_std,N)
 
-    # limit rate of change to at most 1/max_drift_rate times the length of the data sample
+    # accumulate the phase into a frequency
     frequency = np.cumsum(random_phase)
 
+    # frequency drift effect now contained within the complex sinusoid
     complex_phase = np.exp(2j * np.pi * frequency / sample_rate )
+
+    # apply frequency drift effect
     data = data * complex_phase
     return data.astype(torchsig_complex_data_type)
 
