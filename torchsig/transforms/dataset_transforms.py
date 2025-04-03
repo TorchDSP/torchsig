@@ -379,10 +379,15 @@ class LocalOscillatorFrequencyDriftDatasetTransform(DatasetTransform):
     def __call__(self, signal: DatasetSignal) -> DatasetSignal:
         drift_std = self.drift_std_distribution()
 
+        if (isinstance(signal.metadata,list)):
+            sample_rate = signal.metadata[0].sample_rate
+        else:
+            sample_rate = signal.metadata.sample_rate
+
         signal.data = F.local_oscillator_frequency_drift(
             data = signal.data, 
             drift_std = drift_std,
-            sample_rate = signal.metadata.sample_rate,
+            sample_rate = sample_rate,
             rng = self.random_generator
         )
 
