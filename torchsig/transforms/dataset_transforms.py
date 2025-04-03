@@ -382,6 +382,7 @@ class LocalOscillatorFrequencyDriftDatasetTransform(DatasetTransform):
         signal.data = F.local_oscillator_frequency_drift(
             data = signal.data, 
             drift_std = drift_std,
+            sample_rate = signal.metadata.sample_rate,
             rng = self.random_generator
         )
 
