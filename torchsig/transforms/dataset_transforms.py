@@ -400,37 +400,30 @@ class LocalOscillatorPhaseNoiseDatasetTransform(DatasetTransform):
     """Applies LO phase noise to DatasetSignal.
 
     Attributes:
-        sample_rate (float): Sample rate of input data (same units as frequency). Defaults to 1.0. 
-        frequency (float): LO frequency (same units as sample_rate). Defaults to baseband 0.0.
-        noise_power_range (Tuple[float, float]): Noise power in Watts. Defaults to (0.01,100.0).
-        noise_power_distribution (Callable[[], float]): Random draw from noise_power distribution.
-        noise_color (str): Noise frequency response. Defaults to 'pink'.
+        phase_noise_std_range (Tuple[float, float]): Range of phase noise standard deviation.. Defaults to (0.0001,0.001).
         
     """
     def __init__(
         self, 
-        sample_rate: float = 1.0,
-        frequency: float = 0.0,
-        noise_power_range: Tuple[float, float] = (0.01, 100.0),
-        noise_color: str = 'pink',
+        phase_noise_std_range: Tuple[float, float] = (0.0001, 0.001),
         **kwargs
     ):
         super().__init__(**kwargs)
-        self.sample_rate = sample_rate
-        self.frequency = frequency
-        self.noise_power_range = noise_power_range
-        self.noise_power_distribution = self.get_distribution(self.noise_power_range)
-        self.noise_color = noise_color
+        self.phase_noise_std_range = phase_noise_std_range
+        self.phase_noise_std_distribution = self.get_distribution(self.phase_noise_std_range)
     
     def __call__(self, signal: DatasetSignal) -> DatasetSignal:
-        noise_power = self.noise_power_distribution()
+        phase_noise_std = self.phase_noise_std_distribution()
+
+        if (isinstance(signal.metadata,list)):
+            sample_rate = signal.metadata[0].sample_rate
+        else:
+            sample_rate = signal.metadata.sample_rate
 
         signal.data = F.local_oscillator_phase_noise(
             data = signal.data,
-            sample_rate = self.sample_rate,
-            frequency = self.frequency,
-            noise_power = noise_power,
-            noise_color = self.noise_color,
+            phase_noise_std = phase_noise_std,
+            sample_rate = sample_rate,
             rng = self.random_generator
         )
 

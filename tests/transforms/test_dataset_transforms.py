@@ -496,20 +496,14 @@ def test_LocalOscillatorFrequencyDriftDatasetTransform(
     (
         deepcopy(TEST_DS_SIGNAL), 
         {
-            'sample_rate': 1.0, 
-            'frequency': 0.0, 
-            'noise_power_range': (0.01, 100.0), 
-            'noise_color': 'pink'
+            'phase_noise_std_range': (0.0001, 0.001)
         },
         False
     ),
     (
         deepcopy(TEST_DS_SIGNAL), 
         {
-            'sample_rate': 2.5, 
-            'frequency': -0.4, 
-            'noise_power_range': (0.001, 0.005), 
-            'noise_color': 'red'
+            'phase_noise_std_range': (0.0001, 0.001)
         },
         False
     ),    
@@ -530,38 +524,26 @@ def test_LocalOscillatorPhaseNoiseDatasetTransform(
         AssertionError: If unexpected test outcome.
 
     """      
-    sample_rate = params['sample_rate']
-    frequency = params['frequency']
-    noise_power_range = params['noise_power_range']
-    noise_color = params['noise_color']
+    phase_noise_std_range = params['phase_noise_std_range']
 
     if is_error:
         with pytest.raises(Exception, match=r".*"):   
             T = LocalOscillatorPhaseNoiseDatasetTransform(
-                sample_rate = sample_rate,
-                frequency = frequency,
-                noise_power_range = noise_power_range,
-                noise_color = noise_color,
+                phase_noise_std_range = phase_noise_std_range,
                 seed = 42
             )
             signal = T(signal)
     else:
         signal_test = deepcopy(signal)
         T = LocalOscillatorPhaseNoiseDatasetTransform(
-            sample_rate = sample_rate,
-            frequency = frequency,
-            noise_power_range = noise_power_range,
-            noise_color = noise_color,
+            phase_noise_std_range = phase_noise_std_range,
             seed = 42
         )
         signal = T(signal)
 
         assert isinstance(T, LocalOscillatorPhaseNoiseDatasetTransform)
-        assert isinstance(T.sample_rate, float)
-        assert isinstance(T.frequency, float)
-        assert isinstance(T.noise_power_range, tuple)
-        assert isinstance(T.noise_power_distribution(), float)
-        assert isinstance(T.noise_color, str)
+        assert isinstance(T.phase_noise_std_range, tuple)
+        assert isinstance(T.phase_noise_std_distribution(), float)
         assert isinstance(signal, DatasetSignal)
         assert len(signal.data) == len(signal_test.data)
         assert type(signal.data) == type(signal_test.data)

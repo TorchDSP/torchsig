@@ -986,9 +986,7 @@ def test_local_oscillator_frequency_drift(
 
 
 @pytest.mark.parametrize("data, params, expected, is_error", [
-    (deepcopy(TEST_DATA), {'Fs': 4.0, 'fc': 0., 'pow': 0.01, 'color': 'white'}, True, False),
-    (deepcopy(TEST_DATA), {'Fs': 8.4, 'fc': 0.42, 'pow': 0.004, 'color': 'white'}, True, False),
-    (deepcopy(TEST_DATA), {'Fs': 1.0, 'fc': 0.2, 'pow': 0.1, 'color': 'red'}, True, False)
+    (deepcopy(TEST_DATA), {'phase_noise_std': 0.001, 'sample_rate': 10e6}, True, False),
 ])
 def test_local_oscillator_phase_noise(
     data: Any, 
@@ -1010,37 +1008,26 @@ def test_local_oscillator_phase_noise(
     """
     rng = np.random.default_rng(42)
 
-    sample_rate = params['Fs']
-    frequency = params['fc']
-    power = params['pow']
-    color = params['color']
+    sample_rate = params['sample_rate']
+    phase_noise_std = params['phase_noise_std']
 
     if is_error:
         with pytest.raises(expected): 
             data = local_oscillator_phase_noise(
                 data = data,
+                phase_noise_std = phase_noise_std,
                 sample_rate = sample_rate,
-                frequency = frequency,
-                noise_power = power,
-                noise_color = color,
                 rng = rng
             )
     else:
         data_test = deepcopy(data)
         data = local_oscillator_phase_noise(
             data = data,
+            phase_noise_std = phase_noise_std,
             sample_rate = sample_rate,
-            frequency = frequency,
-            noise_power = power,
-            noise_color = color,
             rng = rng
         )
 
-        data_power = np.sum(np.abs(data)**2)/len(data)
-        data_test_power = np.sum(np.abs(data_test)**2)/len(data_test)
-        power_increase = np.abs(data_test_power - data_power)
-        
-        assert (np.abs(power_increase - power) < 10**(0.01/10)) == expected
         assert (len(data) == len(data_test)) == expected
         assert (type(data) == type(data_test)) == expected
         assert (data.dtype == torchsig_complex_data_type) == expected
