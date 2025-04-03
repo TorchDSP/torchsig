@@ -640,19 +640,17 @@ def local_oscillator_frequency_drift(
     frequency = np.cumsum(random_phase)
 
     # frequency drift effect now contained within the complex sinusoid
-    complex_phase = np.exp(2j * np.pi * frequency / sample_rate )
+    drift_effect = np.exp(2j * np.pi * frequency / sample_rate )
 
     # apply frequency drift effect
-    data = data * complex_phase
+    data = data * drift_effect
     return data.astype(torchsig_complex_data_type)
 
 
 def local_oscillator_phase_noise(
     data: np.ndarray,
+    phase_noise_std: float = 0.001,
     sample_rate: float = 1.0,
-    frequency: float = 0.0,
-    noise_power: float = 0.01,
-    noise_color: str = 'pink',
     rng: np.random.Generator = np.random.default_rng(seed=None)
 ) -> np.ndarray:
     """Mixes data with a Local Oscillator (LO) modeled as a fixed frequency CW tone with additive phase noise.
@@ -660,9 +658,7 @@ def local_oscillator_phase_noise(
     Args:
         data (np.ndarray): Complex valued IQ data samples.
         sample_rate (float): Sample rate of input data (same units as frequency). Defaults to 1.0. 
-        frequency (float): LO frequency (same units as sample_rate). Defaults to baseband 0.0.
-        noise_power (float): Noise power in Watts. Defaults to 0.01 W (-20 dBW).
-        noise_color (str): Noise frequency response. Defaults to 'pink'.
+        phase_noise (float): Phase noise standard deviation. Defaults to 0.001.
         rng (np.random.Generator, optional): Random number generator. Defaults to np.random.default_rng(seed=None).
 
     Returns:
@@ -672,15 +668,14 @@ def local_oscillator_phase_noise(
     rng = rng if rng else np.random.default_rng()
     N = data.size
 
-    cw = np.exp(2j*np.pi*(frequency/sample_rate)*np.arange(0,N, dtype=torchsig_float_data_type)) # cw tone at specified frequency
-    noise = dsp.noise_generator(
-        N = N,
-        power = noise_power, 
-        color = noise_color,
-        continuous = True,
-        rng   = rng 
-    )
-    data = data * (cw * noise) # mix data with noisy LO
+    # generate phase noise with given standard deviation
+    phase_noise = rng.normal(0,phase_noise_std,N)
+
+    # phase noise effect contained with a complex sinusoid
+    phase_noise_effect = np.exp(2j*np.pi*phase_noise)
+
+    # apply phase noise effect
+    data = data * phase_noise_effect
     return data.astype(torchsig_complex_data_type)
 
 
