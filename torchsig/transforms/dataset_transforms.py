@@ -365,7 +365,6 @@ class LocalOscillatorFrequencyDriftDatasetTransform(DatasetTransform):
 
     Attributes:
         drift_std_range (Tuple[float, float]): Drift standard deviation. Default (10, 100).
-        drift_std_distribution (Callable[[], float]): Random draw from drift_std_range distribution.
         
     """
     def __init__(
