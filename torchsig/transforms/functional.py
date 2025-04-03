@@ -649,7 +649,7 @@ def local_oscillator_frequency_drift(
 
 def local_oscillator_phase_noise(
     data: np.ndarray,
-    phase_noise_std: float = 0.001,
+    phase_noise_std: float = 100,
     sample_rate: float = 10e6,
     rng: np.random.Generator = np.random.default_rng(seed=None)
 ) -> np.ndarray:
@@ -658,7 +658,7 @@ def local_oscillator_phase_noise(
     Args:
         data (np.ndarray): Complex valued IQ data samples.
         sample_rate (float): Sample rate of input data (same units as frequency). Defaults to 10e6.
-        phase_noise (float): Phase noise standard deviation. Defaults to 0.001.
+        phase_noise (float): Phase noise standard deviation. Defaults to 100.
         rng (np.random.Generator, optional): Random number generator. Defaults to np.random.default_rng(seed=None).
 
     Returns:
@@ -672,7 +672,7 @@ def local_oscillator_phase_noise(
     phase_noise = rng.normal(0,phase_noise_std,N)
 
     # phase noise effect contained with a complex sinusoid
-    phase_noise_effect = np.exp(2j*np.pi*phase_noise)
+    phase_noise_effect = np.exp(2j*np.pi*phase_noise/sample_rate)
 
     # apply phase noise effect
     data = data * phase_noise_effect

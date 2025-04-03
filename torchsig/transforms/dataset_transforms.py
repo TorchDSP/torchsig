@@ -400,12 +400,12 @@ class LocalOscillatorPhaseNoiseDatasetTransform(DatasetTransform):
     """Applies LO phase noise to DatasetSignal.
 
     Attributes:
-        phase_noise_std_range (Tuple[float, float]): Range of phase noise standard deviation.. Defaults to (0.0001,0.001).
+        phase_noise_std_range (Tuple[float, float]): Range of phase noise standard deviation.. Defaults to (10,100).
         
     """
     def __init__(
         self, 
-        phase_noise_std_range: Tuple[float, float] = (0.0001, 0.001),
+        phase_noise_std_range: Tuple[float, float] = (10, 100),
         **kwargs
     ):
         super().__init__(**kwargs)

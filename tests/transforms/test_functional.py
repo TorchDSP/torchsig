@@ -986,7 +986,7 @@ def test_local_oscillator_frequency_drift(
 
 
 @pytest.mark.parametrize("data, params, expected, is_error", [
-    (deepcopy(TEST_DATA), {'phase_noise_std': 0.001, 'sample_rate': 10e6}, True, False),
+    (deepcopy(TEST_DATA), {'phase_noise_std': 100, 'sample_rate': 10e6}, True, False),
 ])
 def test_local_oscillator_phase_noise(
     data: Any, 
