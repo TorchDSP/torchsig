@@ -496,14 +496,14 @@ def test_LocalOscillatorFrequencyDriftDatasetTransform(
     (
         deepcopy(TEST_DS_SIGNAL), 
         {
-            'phase_noise_std_range': (0.0001, 0.001)
+            'phase_noise_std_range': (10, 100)
         },
         False
     ),
     (
         deepcopy(TEST_DS_SIGNAL), 
         {
-            'phase_noise_std_range': (0.0001, 0.001)
+            'phase_noise_std_range': (10, 100)
         },
         False
     ),    
