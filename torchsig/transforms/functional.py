@@ -13,6 +13,7 @@ from torchsig.utils.dsp import (
 import scipy
 from scipy import signal as sp
 import numpy as np
+from scipy.constants import c
 
 __all__ = [
     "add_slope",
@@ -396,7 +397,7 @@ def cut_out(
 def doppler(
     data: np.ndarray,
     velocity: float = 1e1,
-    propagation_speed: float = 2.9979e8,
+    propagation_speed: float = c,
     sampling_rate: float = 1.0
 ) -> np.ndarray:
     """Applies wideband Doppler effect through time scaling.
