@@ -614,16 +614,16 @@ def iq_imbalance(
 
 def local_oscillator_frequency_drift(
     data: np.ndarray,
-    max_drift: float = 0.01,
-    max_drift_rate: float = 0.001,
+    drift_std: float = 100,
+    sample_rate: float = 10e6,
     rng: np.random.Generator = np.random.default_rng(seed=None)
 ) -> np.ndarray:
     """Mixes data with a frequency drifting Local Oscillator (LO), with drift modeled as a bounded random walk.
 
     Args:
         data (np.ndarray): Complex valued IQ data samples.
-        max_drift (float): Maximum absolute frequency offset; resets if reached. Default 0.01.
-        max_drift_rate (float): Maximum drift rate over entire data sample. Default 0.001.
+        drift_std(float): Drift standard deviation. Must be in same units as sample_rate. Default 100.
+        sample_rate (float): Sample rate associated with input data. Default 10e6.
         rng (np.random.Generator): Random number generator. Defaults to np.random.default_rng(seed=None).
 
     Returns:
@@ -634,18 +634,12 @@ def local_oscillator_frequency_drift(
     N = data.size
     
     # drift modeled as random walk
-    random_walk = rng.choice([-1, 1], size = N)
+    random_phase = rng.normal(0,drift_std,N)
 
     # limit rate of change to at most 1/max_drift_rate times the length of the data sample
-    frequency = np.cumsum(random_walk) * max_drift_rate / np.sqrt(N)
+    frequency = np.cumsum(random_phase)
 
-    # reset offset if max_drift bounds reached 
-    while np.argmax(np.abs(frequency) > max_drift):
-        idx = np.argmax(np.abs(frequency) > max_drift)
-        offset = max_drift if frequency[idx] < 0 else -max_drift
-        frequency[idx:] += offset
-
-    complex_phase = np.exp(2j * np.pi * np.cumsum(frequency))
+    complex_phase = np.exp(2j * np.pi * frequency / sample_rate )
     data = data * complex_phase
     return data.astype(torchsig_complex_data_type)
 

@@ -577,16 +577,14 @@ def test_IQImbalanceSignalTransform(
     (
         deepcopy(TEST_SIGNAL), 
         {
-            'max_drift_range': (0.01, 0.02), 
-            'max_drift_rate_range': (0.001, 0.005)
+            'drift_std_range': (10,  100)
         },
         False
     ),
     (
         deepcopy(TEST_SIGNAL), 
         {
-            'max_drift_range': (0.1, 0.5), 
-            'max_drift_rate_range': (0.01, 0.02)
+            'drift_std_range': (10, 100), 
         },
         False
     ),    
@@ -607,29 +605,25 @@ def test_LocalOscillatorFrequencyDriftSignalTransform(
         AssertionError: If unexpected test outcome.
 
     """      
-    max_drift_range = params['max_drift_range']
-    max_drift_rate_range = params['max_drift_rate_range']
+    drift_std_range = params['drift_std_range']
 
     if is_error:
         with pytest.raises(Exception, match=r".*"):   
             T = LocalOscillatorFrequencyDriftSignalTransform(
-                max_drift_range = max_drift_range, 
-                max_drift_rate_range = max_drift_rate_range, 
+                drift_std_range = drift_std_range, 
                 seed = 42
             )
             signal = T(signal)
     else:
         signal_test = deepcopy(signal)
         T = LocalOscillatorFrequencyDriftSignalTransform(
-            max_drift_range = max_drift_range,
-            max_drift_rate_range = max_drift_rate_range, 
+            drift_std_range = drift_std_range, 
             seed = 42
         )
         signal = T(signal)
 
         assert isinstance(T, LocalOscillatorFrequencyDriftSignalTransform)
-        assert isinstance(T.max_drift_distribution(), float)
-        assert isinstance(T.max_drift_rate_distribution(), float)
+        assert isinstance(T.drift_std_distribution(), float)
         assert isinstance(signal, Signal)
         assert len(signal.data) == len(signal_test.data)
         assert type(signal.data) == type(signal_test.data)

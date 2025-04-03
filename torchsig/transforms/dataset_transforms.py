@@ -364,32 +364,25 @@ class LocalOscillatorFrequencyDriftDatasetTransform(DatasetTransform):
     """Apply LO frequency drift to DatasetSignal.
 
     Attributes:
-        max_drift_range (Tuple[float, float]): Maximum absolute frequency offset; resets if reached. Default (0.001, 0.01).
-        max_drift_distribution (Callable[[], float]): Random draw from max_drift distribution.
-        max_drift_rate_range (Tuple[float, float]): Maximum drift rate over entire data sample. Default (0.001, 0.005).
-        max_drift_rate_distribution (Callable[[], float]): Random draw from max_drift_rate distribution.
+        drift_std_range (Tuple[float, float]): Drift standard deviation. Default (10, 100).
+        drift_std_distribution (Callable[[], float]): Random draw from drift_std_range distribution.
         
     """
     def __init__(
         self, 
-        max_drift_range: Tuple[float, float] = (0.001, 0.01),
-        max_drift_rate_range: Tuple[float, float] = (0.001, 0.005),
+        drift_std_range: Tuple[float, float] = (10, 100),
         **kwargs
     ):
         super().__init__(**kwargs)
-        self.max_drift_range = max_drift_range
-        self.max_drift_distribution = self.get_distribution(self.max_drift_range)
-        self.max_drift_rate_range = max_drift_rate_range
-        self.max_drift_rate_distribution = self.get_distribution(self.max_drift_rate_range)
+        self.drift_std_range = drift_std_range
+        self.drift_std_distribution = self.get_distribution(self.drift_std_range)
     
     def __call__(self, signal: DatasetSignal) -> DatasetSignal:
-        max_drift = self.max_drift_distribution()
-        max_drift_rate = self.max_drift_rate_distribution()
+        drift_std = self.drift_std_distribution()
 
         signal.data = F.local_oscillator_frequency_drift(
             data = signal.data, 
-            max_drift = max_drift, 
-            max_drift_rate = max_drift_rate, 
+            drift_std = drift_std,
             rng = self.random_generator
         )
 

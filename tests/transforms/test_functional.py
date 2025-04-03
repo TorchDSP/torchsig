@@ -940,8 +940,8 @@ def test_iq_imbalance(
 
 
 @pytest.mark.parametrize("data, params, expected, is_error", [
-    (generate_tone_signal(num_iq_samples = 1024, scale = 1.0).data, {'max_drift': 1e-1, 'max_drift_rate': 4e-1}, True, False),
-    (generate_tone_signal(num_iq_samples = 1024, scale = 1.0).data, {'max_drift': 5e-10, 'max_drift_rate': 1e-9}, True, False),
+    (generate_tone_signal(num_iq_samples = 1024, scale = 1.0).data, {'drift_std': 10}, True, False),
+    (generate_tone_signal(num_iq_samples = 1024, scale = 1.0).data, {'drift_std': 100}, True, False),
 ])
 def test_local_oscillator_frequency_drift(
     data: Any, 
@@ -963,31 +963,23 @@ def test_local_oscillator_frequency_drift(
     """
     rng = np.random.default_rng(42)
 
-    max_drift = params['max_drift']
-    max_drift_rate = params['max_drift_rate']
+    drift_std = params['drift_std']
 
     if is_error:
         with pytest.raises(expected): 
             data = local_oscillator_frequency_drift(
                 data = data,
-                max_drift = max_drift,
-                max_drift_rate = max_drift_rate,
+                drift_std = drift_std,
                 rng = rng
             )
     else:
         data_test = deepcopy(data)
         data = local_oscillator_frequency_drift(
             data = data,
-            max_drift = max_drift,
-            max_drift_rate = max_drift_rate,
+            drift_std = drift_std,
             rng = rng
         )
 
-        unwrapped_phase = np.unwrap(np.angle(data))
-        instantaneous_frequency = np.diff(unwrapped_phase)
-        df = np.diff(instantaneous_frequency) 
-        reset_inds = np.where(np.abs(df) > max_drift/2)[0]
-        assert (len(reset_inds) > 0) == expected
         assert (len(data) == len(data_test)) == expected
         assert (type(data) == type(data_test)) == expected
         assert (data.dtype == torchsig_complex_data_type) == expected
