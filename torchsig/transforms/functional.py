@@ -650,14 +650,14 @@ def local_oscillator_frequency_drift(
 def local_oscillator_phase_noise(
     data: np.ndarray,
     phase_noise_std: float = 0.001,
-    sample_rate: float = 1.0,
+    sample_rate: float = 10e6,
     rng: np.random.Generator = np.random.default_rng(seed=None)
 ) -> np.ndarray:
-    """Mixes data with a Local Oscillator (LO) modeled as a fixed frequency CW tone with additive phase noise.
+    """Mixes data with a Local Oscillator (LO) with phase noise modeled as a Gaussian RV.
 
     Args:
         data (np.ndarray): Complex valued IQ data samples.
-        sample_rate (float): Sample rate of input data (same units as frequency). Defaults to 1.0. 
+        sample_rate (float): Sample rate of input data (same units as frequency). Defaults to 10e6.
         phase_noise (float): Phase noise standard deviation. Defaults to 0.001.
         rng (np.random.Generator, optional): Random number generator. Defaults to np.random.default_rng(seed=None).
 
