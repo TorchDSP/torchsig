@@ -30,10 +30,12 @@ from torchsig.transforms.signal_transforms import (
     IQImbalanceSignalTransform,
     CarrierPhaseOffsetSignalTransform,
     Fading,
+    LocalOscillatorPhaseNoiseSignalTransform,
 )
 from torchsig.transforms.dataset_transforms import (
     IQImbalanceDatasetTransform,
     CarrierPhaseOffsetDatasetTransform,
+    LocalOscillatorPhaseNoiseDatasetTransform,
     RandomDropSamples,
     ChannelSwap,
     TimeReversal,
@@ -81,6 +83,12 @@ class WidebandImpairments(Impairments):
                     coherence_bandwidth = (0.001, 0.01)
                 ), 
                 0.5
+            ),
+            RandomApply(
+                LocalOscillatorPhaseNoiseSignalTransform(
+                    phase_noise_std = (10, 1000)
+                ), 
+                0.7
             )
         ]
         
@@ -110,6 +118,12 @@ class WidebandImpairments(Impairments):
                 0.9
             ),
             RandomApply(CarrierPhaseOffsetDatasetTransform(), 0.9),
+            RandomApply(
+                LocalOscillatorPhaseNoiseDatasetTransform(
+                    phase_noise_std=(10,1000)
+                ),
+                0.9
+            ),
             # RandomApply(AGC(), TBD),
             RandAugment(
                 transforms= [
