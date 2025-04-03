@@ -496,14 +496,14 @@ def test_LocalOscillatorFrequencyDriftDatasetTransform(
     (
         deepcopy(TEST_DS_SIGNAL), 
         {
-            'phase_noise_std_range': (10, 100)
+            'phase_noise_std': (10, 100)
         },
         False
     ),
     (
         deepcopy(TEST_DS_SIGNAL), 
         {
-            'phase_noise_std_range': (10, 100)
+            'phase_noise_std': (10, 100)
         },
         False
     ),    
@@ -524,25 +524,25 @@ def test_LocalOscillatorPhaseNoiseDatasetTransform(
         AssertionError: If unexpected test outcome.
 
     """      
-    phase_noise_std_range = params['phase_noise_std_range']
+    phase_noise_std = params['phase_noise_std']
 
     if is_error:
         with pytest.raises(Exception, match=r".*"):   
             T = LocalOscillatorPhaseNoiseDatasetTransform(
-                phase_noise_std_range = phase_noise_std_range,
+                phase_noise_std = phase_noise_std,
                 seed = 42
             )
             signal = T(signal)
     else:
         signal_test = deepcopy(signal)
         T = LocalOscillatorPhaseNoiseDatasetTransform(
-            phase_noise_std_range = phase_noise_std_range,
+            phase_noise_std = phase_noise_std,
             seed = 42
         )
         signal = T(signal)
 
         assert isinstance(T, LocalOscillatorPhaseNoiseDatasetTransform)
-        assert isinstance(T.phase_noise_std_range, tuple)
+        assert isinstance(T.phase_noise_std, tuple)
         assert isinstance(T.phase_noise_std_distribution(), float)
         assert isinstance(signal, DatasetSignal)
         assert len(signal.data) == len(signal_test.data)
