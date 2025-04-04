@@ -946,6 +946,9 @@ def quantize(
     # scale the input signal
     input_signal_scaled = data * ref_level_linear / max_value_signal
 
+    if (round_type == 'floor'):
+        input_signal_scaled += quant_level_distance
+
     # quantize real and imag seperately
     quant_signal_real = np.zeros(len(data),dtype=torchsig_float_data_type)
     quant_signal_imag = np.zeros(len(data),dtype=torchsig_float_data_type)
@@ -979,18 +982,25 @@ def quantize(
     quant_signal_real[remaining_index] = quant_levels[real_index_subset]
     quant_signal_imag[remaining_index] = quant_levels[imag_index_subset]
 
-    # for floor, subtract off one quantization level
 	# TODO: implement 'floor', 'nearest'?
 
-    print('remove this print')
+    if (round_type == 'floor'):
+        quant_signal_real -= quant_level_distance
+        quant_signal_imag -= quant_level_distance
 
-    import matplotlib.pyplot as plt
-    fig = plt.figure(figsize=(12,8))
-    ax = fig.add_subplot(2,1,1)
-    ax.plot(np.real(data[0:100]))
-    ax = fig.add_subplot(2,1,2)
-    ax.plot(np.real(input_signal_scaled[0:100]))
-    ax.plot(quant_signal_real[0:100])
+    #print('remove this print')
+
+    #import matplotlib.pyplot as plt
+    #fig = plt.figure(figsize=(12,8))
+    #ax = fig.add_subplot(2,1,1)
+    #ax.plot(np.real(data[0:100]))
+    #ax = fig.add_subplot(2,1,2)
+    #ax.plot(np.real(input_signal_scaled[0:100]))
+    #ax.plot(quant_signal_real[0:100])
+    #for level in quant_levels:
+    #    ax.plot([0,100],np.ones(2)*level,'k:')
+
+
     plt.show()
 
     # form the quantized IQ samples
