@@ -901,7 +901,7 @@ def phase_offset(
 def quantize(
     data: np.ndarray,
     num_bits: int,
-    round_type: str = "ceiling"
+    round_type: str = 'floor',
 ) -> np.ndarray:
     """Quantize input to number of levels specified.
 
@@ -911,7 +911,7 @@ def quantize(
         data (np.ndarray): IQ data.
         num_bits (int): Number of bits to simulate
         round_type (str, optional): Quantization rounding. Must be one of 
-            'floor', 'nearest' or 'ceiling'. Defaults to 'ceiling'.
+            'floor', 'ceiling'. Defaults to 'floor'.
 
     Raises:
         ValueError: Invalid round type.
@@ -920,8 +920,8 @@ def quantize(
         np.ndarray: Quantized IQ data.
 
     """
-    if round_type not in ("floor", "nearest", "ceiling"):
-        raise ValueError(f"Invalid rounding type {round_type}. Must be 'floor', 'nearest' or 'ceiling'.")
+    if round_type not in ("floor", "ceiling"):
+        raise ValueError(f"Invalid rounding type {round_type}. Must be 'floor' or 'ceiling'.")
 
     # calculate number of levels
     num_levels = int(2**num_bits)
@@ -1000,8 +1000,7 @@ def quantize(
     #for level in quant_levels:
     #    ax.plot([0,100],np.ones(2)*level,'k:')
 
-
-    plt.show()
+    #plt.show()
 
     # form the quantized IQ samples
     quantized_data = quant_signal_real + 1j*quant_signal_imag
