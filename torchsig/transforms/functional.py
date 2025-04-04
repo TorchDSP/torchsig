@@ -901,7 +901,7 @@ def phase_offset(
 def quantize(
     data: np.ndarray,
     num_bits: int,
-    round_type: str = 'floor',
+    ref_level_adjustment_db: float = 0.0
 ) -> np.ndarray:
     """Quantize input to number of levels specified.
 
@@ -910,8 +910,9 @@ def quantize(
     Args:
         data (np.ndarray): IQ data.
         num_bits (int): Number of bits to simulate
-        round_type (str, optional): Quantization rounding. Must be one of 
-            'floor', 'ceiling'. Defaults to 'floor'.
+        ref_level_adjustment_db (float): Changes the relative scaling of the input. For example, ref_level_adjustment_db = 3.0,
+            the average power is now 3 dB *above* full scale and into saturation. For ref_level_adjustment_db = -3.0, the average
+            power is now 3 dB *below* full scale and simulates a loss of dynamic range. Default is 0.
 
     Raises:
         ValueError: Invalid round type.
@@ -920,8 +921,6 @@ def quantize(
         np.ndarray: Quantized IQ data.
 
     """
-    if round_type not in ("floor", "ceiling"):
-        raise ValueError(f"Invalid rounding type {round_type}. Must be 'floor' or 'ceiling'.")
 
     # calculate number of levels
     num_levels = int(2**num_bits)
@@ -937,19 +936,13 @@ def quantize(
     max_value_signal_imag = np.max(np.abs(data.imag))
     max_value_signal = np.max((max_value_signal_real,max_value_signal_imag))
 
+    # convert the reference level adjustment into a linear value.
     # +3 dB -> 3 dB above max scaling (saturation)
     # -3 dB -> 3 dB below max scaling (dynamic range loss)
-    # TODO: make a external parameter, also needs a better name
-    ref_level_db = -3
-    ref_level_linear = 10**(ref_level_db/10)
+    ref_level_adjustment_linear = 10**(ref_level_adjustment_db/10)
  
     # scale the input signal
-    input_signal_scaled = data * ref_level_linear / max_value_signal
-
-    # subtract off one quantization level in order to implement the floor
-    # effect using the same code.
-    if (round_type == 'floor'):
-        input_signal_scaled += quant_level_distance
+    input_signal_scaled = data * ref_level_adjustment_linear / max_value_signal
 
     # quantize real and imag seperately
     quant_signal_real = np.zeros(len(data),dtype=torchsig_float_data_type)
@@ -984,30 +977,23 @@ def quantize(
     quant_signal_real[remaining_index] = quant_levels[real_index_subset]
     quant_signal_imag[remaining_index] = quant_levels[imag_index_subset]
 
-	# undo offset which was needed to implement 'floor' rounding
-    if (round_type == 'floor'):
-        quant_signal_real -= quant_level_distance
-        quant_signal_imag -= quant_level_distance
-
-    #print('remove this print')
-
-    #import matplotlib.pyplot as plt
-    #fig = plt.figure(figsize=(12,8))
-    #ax = fig.add_subplot(2,1,1)
-    #ax.plot(np.real(data[0:100]))
-    #ax = fig.add_subplot(2,1,2)
-    #ax.plot(np.real(input_signal_scaled[0:100]))
-    #ax.plot(quant_signal_real[0:100])
-    #for level in quant_levels:
-    #    ax.plot([0,100],np.ones(2)*level,'k:')
-
-    #plt.show()
+    print('remove this print')
+    import matplotlib.pyplot as plt
+    fig = plt.figure(figsize=(12,8))
+    ax = fig.add_subplot(2,1,1)
+    ax.plot(np.real(data[0:100]))
+    ax = fig.add_subplot(2,1,2)
+    ax.plot(np.real(input_signal_scaled[0:100]))
+    ax.plot(quant_signal_real[0:100])
+    for level in quant_levels:
+        ax.plot([0,100],np.ones(2)*level,'k:')
+    plt.show()
 
     # form the quantized IQ samples
     quantized_data = quant_signal_real + 1j*quant_signal_imag
 
     # undo quantization-based scaling
-    data_unscaled = quantized_data * max_value_signal / ref_level_linear
+    data_unscaled = quantized_data * max_value_signal / ref_level_adjustment_linear
 
     return data_unscaled.astype(torchsig_complex_data_type)
 
