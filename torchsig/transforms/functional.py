@@ -946,6 +946,8 @@ def quantize(
     # scale the input signal
     input_signal_scaled = data * ref_level_linear / max_value_signal
 
+    # subtract off one quantization level in order to implement the floor
+    # effect using the same code.
     if (round_type == 'floor'):
         input_signal_scaled += quant_level_distance
 
@@ -982,8 +984,7 @@ def quantize(
     quant_signal_real[remaining_index] = quant_levels[real_index_subset]
     quant_signal_imag[remaining_index] = quant_levels[imag_index_subset]
 
-	# TODO: implement 'floor', 'nearest'?
-
+	# undo offset which was needed to implement 'floor' rounding
     if (round_type == 'floor'):
         quant_signal_real -= quant_level_distance
         quant_signal_imag -= quant_level_distance
