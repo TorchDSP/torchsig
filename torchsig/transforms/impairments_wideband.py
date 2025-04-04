@@ -86,8 +86,8 @@ class WidebandImpairments(Impairments):
                 ), 
                 0.5
             ),
-            RandomApply(LocalOscillatorPhaseNoiseSignalTransform((1, 1000)), 0.5),
-            RandomApply(LocalOscillatorFrequencyDriftSignalTransform((10, 100)), 0.5),
+            RandomApply(LocalOscillatorPhaseNoiseSignalTransform(), 0.5),
+            RandomApply(LocalOscillatorFrequencyDriftSignalTransform(), 0.5),
         ]
         
         ST_all_levels = [
@@ -116,8 +116,8 @@ class WidebandImpairments(Impairments):
                 0.9
             ),
             RandomApply(CarrierPhaseOffsetDatasetTransform(), 0.9),
-            RandomApply(LocalOscillatorPhaseNoiseDatasetTransform((10,1000)),0.5),
-            RandomApply(LocalOscillatorFrequencyDriftDatasetTransform((10,1000)),0.5),
+            RandomApply(LocalOscillatorPhaseNoiseDatasetTransform(),0.5),
+            RandomApply(LocalOscillatorFrequencyDriftDatasetTransform(),0.5),
             # RandomApply(AGC(), TBD),
             RandAugment(
                 transforms= [
