@@ -71,8 +71,8 @@ class NarrowbandImpairments(Impairments):
             ),
             RandomApply(Fading(), 0.5),
             RandomApply(SpectralInversionSignalTransform(), 0.5),
-            RandomApply(LocalOscillatorPhaseNoiseSignalTransform((1,1000)), 0.5),
-            RandomApply(LocalOscillatorFrequencyDriftSignalTransform((10,100)), 0.5),
+            RandomApply(LocalOscillatorPhaseNoiseSignalTransform(), 0.5),
+            RandomApply(LocalOscillatorFrequencyDriftSignalTransform(), 0.5),
         ]
         
         ST_all_levels = [
@@ -104,8 +104,8 @@ class NarrowbandImpairments(Impairments):
             ),
             RandomApply(CarrierPhaseOffsetDatasetTransform(), 0.9),
             RandomApply(SpectralInversionDatasetTransform(), 0.5),
-            RandomApply(LocalOscillatorPhaseNoiseDatasetTransform((1,1000)), 0.5),
-            RandomApply(LocalOscillatorFrequencyDriftDatasetTransform((10,100)), 0.5),
+            RandomApply(LocalOscillatorPhaseNoiseDatasetTransform(), 0.5),
+            RandomApply(LocalOscillatorFrequencyDriftDatasetTransform(), 0.5),
         ]
         
         DT_all_levels = [
