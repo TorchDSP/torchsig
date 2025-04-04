@@ -24,12 +24,14 @@ from torchsig.transforms.signal_transforms import (
     IQImbalanceSignalTransform,
     CarrierPhaseOffsetSignalTransform,
     Fading,
-    SpectralInversionSignalTransform
+    SpectralInversionSignalTransform,
+    LocalOscillatorPhaseNoiseSignalTransform
 )
 from torchsig.transforms.dataset_transforms import (
     IQImbalanceDatasetTransform,
     CarrierPhaseOffsetDatasetTransform,
-    SpectralInversionDatasetTransform
+    SpectralInversionDatasetTransform,
+    LocalOscillatorPhaseNoiseDatasetTransform
 )
 
 # Third Party
@@ -66,7 +68,8 @@ class NarrowbandImpairments(Impairments):
                 0.9
             ),
             RandomApply(Fading(), 0.5),
-            RandomApply(SpectralInversionSignalTransform(), 0.5)
+            RandomApply(SpectralInversionSignalTransform(), 0.5),
+            RandomApply(LocalOscillatorPhaseNoiseSignalTransform((1,1000)), 0.5),
         ]
         
         ST_all_levels = [
@@ -98,6 +101,7 @@ class NarrowbandImpairments(Impairments):
             ),
             RandomApply(CarrierPhaseOffsetDatasetTransform(), 0.9),
             RandomApply(SpectralInversionDatasetTransform(), 0.5),
+            RandomApply(LocalOscillatorPhaseNoiseDatasetTransform((1,1000)), 0.5),
         ]
         
         DT_all_levels = [
