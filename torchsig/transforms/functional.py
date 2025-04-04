@@ -980,10 +980,7 @@ def quantize(
     quant_signal_imag[remaining_index] = quant_levels[imag_index_subset]
 
     # for floor, subtract off one quantization level
-	# TODO: 'nearest'?
-    if (round_type == 'floor'):
-        quant_signal_real -= quant_level_distance
-        quant_signal_imag -= quant_level_distance
+	# TODO: implement 'floor', 'nearest'?
 
     print('remove this print')
 
