@@ -898,10 +898,9 @@ def phase_offset(
     """
     return (data * np.exp(1j * phase)).astype(torchsig_complex_data_type)
 
-
 def quantize(
     data: np.ndarray,
-    num_levels: int,
+    num_bits: int,
     round_type: str = "ceiling"
 ) -> np.ndarray:
     """Quantize input to number of levels specified.
@@ -910,7 +909,7 @@ def quantize(
 
     Args:
         data (np.ndarray): IQ data.
-        num_levels (int): Number of quantization levels
+        num_bits (int): Number of bits to simulate
         round_type (str, optional): Quantization rounding. Must be one of 
             'floor', 'nearest' or 'ceiling'. Defaults to 'ceiling'.
 
@@ -923,31 +922,72 @@ def quantize(
     """
     if round_type not in ("floor", "nearest", "ceiling"):
         raise ValueError(f"Invalid rounding type {round_type}. Must be 'floor', 'nearest' or 'ceiling'.")
-    
-    # Setup quantization resolution/bins
-    max_value = max(np.abs(data)) + 1e-9
-    bins = np.linspace(-max_value, max_value, num_levels + 1)
 
-    # Digitize to bins
-    quantized_real = np.digitize(data.real, bins)
-    quantized_imag = np.digitize(data.imag, bins)
+    # calculate number of levels
+    num_levels = int(2**num_bits)
 
-    if round_type == "floor":
-        quantized_real -= 1
-        quantized_imag -= 1
+    # establish quantization levels
+    quant_levels = np.arange(-num_levels//2,num_levels//2) / (num_levels//2)
 
-    # Revert to values
-    quantized_real = bins[quantized_real]
-    quantized_imag = bins[quantized_imag]
+    # determine maximum value of signal amplitude
+    max_value_signal_real = np.max(np.abs(data.real))
+    max_value_signal_imag = np.max(np.abs(data.imag))
+    max_value_signal = np.max((max_value_signal_real,max_value_signal_imag))
 
-    if round_type == "nearest":
-        bin_size = np.diff(bins)[0]
-        quantized_real -= bin_size / 2
-        quantized_imag -= bin_size / 2
+    # +3 dB -> 3 dB above max scaling (saturation)
+    # -3 dB -> 3 dB below max scaling (dynamic range loss)
+    # TODO: make a external parameter, also needs a better name
+    ref_level_db = -3
+    ref_level_linear = 10**(ref_level_db/10)
+ 
+    # scale the input signal
+    input_signal_scaled = data * ref_level_linear / max_value_signal
 
-    quantized_data = quantized_real + 1j * quantized_imag
+    # quantize real and imag seperately
+    quant_signal_real = np.zeros(len(data),dtype=torchsig_float_data_type)
+    quant_signal_imag = np.zeros(len(data),dtype=torchsig_float_data_type)
 
-    return quantized_data.astype(torchsig_complex_data_type)
+    input_signal_scaled_real = input_signal_scaled.real
+    input_signal_scaled_imag = input_signal_scaled.imag
+
+    # check for saturated values minimum
+    real_saturation_neg_index = np.where(input_signal_scaled_real <= quant_levels[0])[0]
+    imag_saturation_neg_index = np.where(input_signal_scaled_imag <= quant_levels[0])[0]
+    quant_signal_real[real_saturation_neg_index] = quant_levels[0]
+    quant_signal_imag[imag_saturation_neg_index] = quant_levels[0]
+
+    # check for saturated values maximum
+    real_saturation_pos_index = np.where(input_signal_scaled_real >= quant_levels[-1])[0]
+    imag_saturation_pos_index = np.where(input_signal_scaled_imag >= quant_levels[-1])[0]
+    quant_signal_real[real_saturation_pos_index] = quant_levels[-1]
+    quant_signal_imag[imag_saturation_pos_index] = quant_levels[-1]
+
+    # check for all other levels
+    # TODO: this loop is really slow. need to rework with, possibly with np.digitize()
+    for level_index in range(0,len(quant_levels)-1):
+        # get upper and lower quantization levels
+        level_lower = quant_levels[level_index]
+        level_upper = quant_levels[level_index+1]
+
+        # find places in signal where signal is within level bounds
+        real_index = np.where( (input_signal_scaled_real >= level_lower) & (input_signal_scaled_real <= level_upper) )[0]
+        imag_index = np.where( (input_signal_scaled_imag >= level_lower) & (input_signal_scaled_imag <= level_upper) )[0]
+
+        # TODO: implement 'nearest'?
+        if (round_type == 'ceiling'):
+            quant_signal_real[real_index] = level_upper
+            quant_signal_imag[imag_index] = level_upper
+        elif (round_type == 'floor'):
+            quant_signal_real[real_index] = level_floor
+            quant_signal_imag[imag_index] = level_floor
+
+    # form the quantized IQ samples
+    quantized_data = quant_signal_real + 1j*quant_signal_imag
+
+    # undo quantization-based scaling
+    data_unscaled = quantized_data * max_value_signal / ref_level_linear
+
+    return data_unscaled.astype(torchsig_complex_data_type)
 
 
 def shadowing(
