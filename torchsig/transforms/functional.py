@@ -962,24 +962,31 @@ def quantize(
     quant_signal_real[real_saturation_pos_index] = quant_levels[-1]
     quant_signal_imag[imag_saturation_pos_index] = quant_levels[-1]
 
-    # check for all other levels
-    # TODO: this loop is really slow. need to rework with, possibly with np.digitize()
-    for level_index in range(0,len(quant_levels)-1):
-        # get upper and lower quantization levels
-        level_lower = quant_levels[level_index]
-        level_upper = quant_levels[level_index+1]
+    # calculate which remaining indicies have not yet been quantized
+    all_index = np.arange(0,len(data))
+    remaining_index = np.setdiff1d(all_index,       real_saturation_neg_index)
+    remaining_index = np.setdiff1d(remaining_index, imag_saturation_neg_index)
+    remaining_index = np.setdiff1d(remaining_index, real_saturation_pos_index)
+    remaining_index = np.setdiff1d(remaining_index, imag_saturation_pos_index)
 
-        # find places in signal where signal is within level bounds
-        real_index = np.where( (input_signal_scaled_real >= level_lower) & (input_signal_scaled_real <= level_upper) )[0]
-        imag_index = np.where( (input_signal_scaled_imag >= level_lower) & (input_signal_scaled_imag <= level_upper) )[0]
+    # quantize all other levels
+	# TODO: implement 'ceiling', 'floor', 'nearest'?
+    real_index_subset = np.digitize( input_signal_scaled_real[remaining_index], quant_levels)
+    imag_index_subset = np.digitize( input_signal_scaled_imag[remaining_index], quant_levels)
 
-        # TODO: implement 'nearest'?
-        if (round_type == 'ceiling'):
-            quant_signal_real[real_index] = level_upper
-            quant_signal_imag[imag_index] = level_upper
-        elif (round_type == 'floor'):
-            quant_signal_real[real_index] = level_floor
-            quant_signal_imag[imag_index] = level_floor
+    quant_signal_real[remaining_index] = quant_levels[real_index_subset]
+    quant_signal_imag[remaining_index] = quant_levels[imag_index_subset]
+
+    #print('remove this print')
+
+    #import matplotlib.pyplot as plt
+    #fig = plt.figure(figsize=(12,8))
+    #ax = fig.add_subplot(2,1,1)
+    #ax.plot(np.real(data[0:100]))
+    #ax = fig.add_subplot(2,1,2)
+    #ax.plot(np.real(input_signal_scaled[0:100]))
+    #ax.plot(quant_signal_real[0:100])
+    #plt.show()
 
     # form the quantized IQ samples
     quantized_data = quant_signal_real + 1j*quant_signal_imag
