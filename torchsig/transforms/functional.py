@@ -977,18 +977,6 @@ def quantize(
     quant_signal_real[remaining_index] = quant_levels[real_index_subset]
     quant_signal_imag[remaining_index] = quant_levels[imag_index_subset]
 
-    print('remove this print')
-    import matplotlib.pyplot as plt
-    fig = plt.figure(figsize=(12,8))
-    ax = fig.add_subplot(2,1,1)
-    ax.plot(np.real(data[0:100]))
-    ax = fig.add_subplot(2,1,2)
-    ax.plot(np.real(input_signal_scaled[0:100]))
-    ax.plot(quant_signal_real[0:100])
-    for level in quant_levels:
-        ax.plot([0,100],np.ones(2)*level,'k:')
-    plt.show()
-
     # form the quantized IQ samples
     quantized_data = quant_signal_real + 1j*quant_signal_imag
 
