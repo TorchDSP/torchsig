@@ -350,13 +350,28 @@ class IntermodulationProducts(SignalTransform):
         self.coeffs_distribution = self.get_distribution(self.coeffs_range)
     
     def __call__(self, signal: Signal) -> Signal:
-        coeffs = np.zeros(self.model_order,dtype=torchsig_complex_data_type)
-        for index in range(0,self.model_order,2):
+        # determine how many non-zero coefficients
+        num_coefficients = len(np.arange(0,self.model_order,2))
+        # pre-allocate with all zeros
+        non_zero_coeffs = np.zeros(num_coefficients,dtype=torchsig_complex_data_type)
+        # randomize each coefficient
+        for index in range(num_coefficients):
             if (index == 0):
-                coeffs[index] = 1
+                non_zero_coeffs[index] = 1
             else:
-                # TODO: ensure that coefs[2] >= coefs[4]
-                coeffs[index] = self.coeffs_distribution()
+                # get randomized coefficient
+                non_zero_coeffs[index] = self.coeffs_distribution()
+                # each coefficient must be smaller than the previous
+                while (non_zero_coeffs[index] >= non_zero_coeffs[index-1]):
+                    non_zero_coeffs[index] = self.coeffs_distribution()
+
+        # form the coeff array with appropriate zero-based weights
+        coeffs = np.zeros(self.model_order,dtype=torchsig_complex_data_type)
+        inner_index = 0
+        for outer_index in range(self.model_order):
+            if (np.mod(outer_index,2) == 0):
+                coeffs[outer_index] = non_zero_coeffs[inner_index]
+                inner_index += 1
 
         print('test')
         import matplotlib.pyplot as plt
