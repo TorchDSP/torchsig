@@ -378,15 +378,6 @@ class IntermodulationProducts(SignalTransform):
                 coeffs[outer_index] = non_zero_coeffs[inner_index]
                 inner_index += 1
 
-        print('test')
-        print('model order = ' + str(model_order))
-        import matplotlib.pyplot as plt
-        fig = plt.figure(figsize=(12,8))
-        ax = fig.add_subplot(1,1,1)
-        import scipy.signal as sp
-        win = sp.windows.blackmanharris(len(signal.data))
-        plot1db = 20*np.log10(np.abs(np.fft.fftshift(np.fft.fft(signal.data*win))))
-
         signal.data = F.intermodulation_products(
             data = signal.data,
             coeffs = coeffs      
@@ -394,16 +385,6 @@ class IntermodulationProducts(SignalTransform):
 
 
         signal.data = signal.data.astype(torchsig_complex_data_type)
-
-        plot2db = 20*np.log10(np.abs(np.fft.fftshift(np.fft.fft(signal.data*win))))
-
-        ax.plot(plot1db,'k')
-        ax.plot(plot2db,'r--',alpha=0.5)
-        max_value = np.max((np.max(plot1db),np.max(plot2db)))
-        #ax.set_ylim([max_value-20,max_value+3])
-        ax.grid()
-        ax.set_title(signal.metadata.class_name)
-        plt.show()
 
         self.update(signal)
         return signal
