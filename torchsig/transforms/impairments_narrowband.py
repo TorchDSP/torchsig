@@ -103,7 +103,7 @@ class NarrowbandImpairments(Impairments):
                 ), 
                 0.9
             ),
-            RandomApply(CarrierPhaseOffsetDatasetTransform(), 0.9),
+            RandomApply(CarrierPhaseOffsetDatasetTransform(), 1.0),
             RandomApply(SpectralInversionDatasetTransform(), 0.5),
             RandomApply(LocalOscillatorPhaseNoiseDatasetTransform(), 0.5),
             RandomApply(LocalOscillatorFrequencyDriftDatasetTransform(), 0.5),
