@@ -334,6 +334,7 @@ class IntermodulationProducts(SignalTransform):
     """Applies simulated intermodulation products to a Signal.
 
     Attributes:
+        model_order (List[int]): The model order, 3rd or 5th order. Defaults to 3.
         coeffs_range (Tuple[float, float]): Range bounds for each intermodulation coefficient. 
             Defaults to (0., 1.).
         coeffs_distribution (float): Random draw of a coefficient.
@@ -341,17 +342,22 @@ class IntermodulationProducts(SignalTransform):
     """
     def __init__(
         self,
+        model_order = [3, 5],
         coeffs_range = (0.01, 0.1),
         **kwargs
     ):  
         super().__init__(**kwargs)
-        self.model_order = 3 # TODO: needs to be a random choice between 3 or 5
+        self.model_order = model_order
+        self.model_order_distribution = self.get_distribution(self.model_order)
         self.coeffs_range = coeffs_range
         self.coeffs_distribution = self.get_distribution(self.coeffs_range)
     
     def __call__(self, signal: Signal) -> Signal:
+        # get randomized choice for model order
+        model_order = self.model_order_distribution()
+
         # determine how many non-zero coefficients
-        num_coefficients = len(np.arange(0,self.model_order,2))
+        num_coefficients = len(np.arange(0,model_order,2))
         # pre-allocate with all zeros
         non_zero_coeffs = np.zeros(num_coefficients,dtype=torchsig_complex_data_type)
         # randomize each coefficient
@@ -362,18 +368,19 @@ class IntermodulationProducts(SignalTransform):
                 # get randomized coefficient
                 non_zero_coeffs[index] = self.coeffs_distribution()
                 # each coefficient must be smaller than the previous
-                while (non_zero_coeffs[index] >= non_zero_coeffs[index-1]):
+                while (non_zero_coeffs[index] > non_zero_coeffs[index-1]):
                     non_zero_coeffs[index] = self.coeffs_distribution()
 
         # form the coeff array with appropriate zero-based weights
-        coeffs = np.zeros(self.model_order,dtype=torchsig_complex_data_type)
+        coeffs = np.zeros(model_order,dtype=torchsig_complex_data_type)
         inner_index = 0
-        for outer_index in range(self.model_order):
+        for outer_index in range(model_order):
             if (np.mod(outer_index,2) == 0):
                 coeffs[outer_index] = non_zero_coeffs[inner_index]
                 inner_index += 1
 
         print('test')
+        print('model order = ' + str(model_order))
         import matplotlib.pyplot as plt
         fig = plt.figure(figsize=(12,8))
         ax = fig.add_subplot(1,1,1)
