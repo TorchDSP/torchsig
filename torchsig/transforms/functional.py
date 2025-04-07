@@ -571,6 +571,9 @@ def intermodulation_products(
         np.ndarray: IQ data with local IMD products.
         
     """
+    if (coeffs.size == 0):
+        raise IndexError('Coeffs has length zero.')
+
     model_order = coeffs.size
     distorted_data = np.zeros(len(data),dtype=torchsig_complex_data_type)
 
