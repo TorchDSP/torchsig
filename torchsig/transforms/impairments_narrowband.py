@@ -33,7 +33,8 @@ from torchsig.transforms.dataset_transforms import (
     CarrierPhaseOffsetDatasetTransform,
     SpectralInversionDatasetTransform,
     LocalOscillatorPhaseNoiseDatasetTransform,
-    LocalOscillatorFrequencyDriftDatasetTransform
+    LocalOscillatorFrequencyDriftDatasetTransform,
+    QuantizeDatasetTransform
 )
 
 # Third Party
@@ -106,6 +107,7 @@ class NarrowbandImpairments(Impairments):
             RandomApply(SpectralInversionDatasetTransform(), 0.5),
             RandomApply(LocalOscillatorPhaseNoiseDatasetTransform(), 0.5),
             RandomApply(LocalOscillatorFrequencyDriftDatasetTransform(), 0.5),
+            RandomApply(QuantizeDatasetTransform(), 1.0),
         ]
         
         DT_all_levels = [
