@@ -572,12 +572,22 @@ def intermodulation_products(
         
     """
     model_order = coeffs.size
-    distorted_data = coeffs[0] * data
-    
+    distorted_data = np.zeros(len(data),dtype=torchsig_complex_data_type)
+
     # only odd-order distortion products are relevant local contributors
-    for i in range(2, model_order, 2):
+    for i in range(0, model_order, 1):
+        if (i > 0 and np.mod(i,2) == 1 and coeffs[i] != 0.0):
+            raise ValueError('Even-order coefficients must be zero.')
+
         i_order_distortion = (np.abs(data) ** (i)) * data
         distorted_data += coeffs[i] * i_order_distortion
+
+    # compute the change in spectral magnitudes in order to maintain the same SNR
+    # on the other side of the transform
+    win = sp.windows.blackmanharris(len(data))
+    input_power = np.max(np.abs(np.fft.fft(data*win)))
+    output_power = np.max(np.abs(np.fft.fft(distorted_data*win)))
+    distorted_data *= input_power/output_power
     
     return distorted_data.astype(torchsig_complex_data_type)
 
