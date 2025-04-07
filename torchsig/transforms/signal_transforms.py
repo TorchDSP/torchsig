@@ -9,7 +9,7 @@ __all__ = [
     "CochannelInterference", 
     "DopplerSignalTransform",
     "Fading",
-    "IntermodulationProducts",
+    "IntermodulationProductsSignalTransform",
     "IQImbalanceSignalTransform",
     "LocalOscillatorFrequencyDriftSignalTransform",
     "LocalOscillatorPhaseNoiseSignalTransform",
@@ -330,7 +330,7 @@ class Fading(SignalTransform): # slow, fast, block fading
         return signal
 
 
-class IntermodulationProducts(SignalTransform):
+class IntermodulationProductsSignalTransform(SignalTransform):
     """Applies simulated intermodulation products to a Signal.
 
     Attributes:
