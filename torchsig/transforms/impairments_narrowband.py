@@ -27,7 +27,6 @@ from torchsig.transforms.signal_transforms import (
     SpectralInversionSignalTransform,
     LocalOscillatorPhaseNoiseSignalTransform,
     LocalOscillatorFrequencyDriftSignalTransform,
-    QuantizeSignalTransform,
     IntermodulationProductsSignalTransform
 )
 from torchsig.transforms.dataset_transforms import (
@@ -36,7 +35,7 @@ from torchsig.transforms.dataset_transforms import (
     SpectralInversionDatasetTransform,
     LocalOscillatorPhaseNoiseDatasetTransform,
     LocalOscillatorFrequencyDriftDatasetTransform,
-    QuantizeDatasetTransform
+    Quantize,
 )
 
 # Third Party
@@ -65,7 +64,7 @@ class NarrowbandImpairments(Impairments):
             RandomApply(SpectralInversionSignalTransform(), 0.5),
             RandomApply(LocalOscillatorPhaseNoiseSignalTransform(), 0.5),
             RandomApply(LocalOscillatorFrequencyDriftSignalTransform(), 0.5),
-            RandomApply(QuantizeSignalTransform(), 0.5),
+            RandomApply(Quantize(), 0.5),
             RandomApply(IntermodulationProductsSignalTransform(), 0.5),
         ]
         
@@ -89,7 +88,7 @@ class NarrowbandImpairments(Impairments):
             RandomApply(SpectralInversionDatasetTransform(), 0.5),
             RandomApply(LocalOscillatorPhaseNoiseDatasetTransform(), 0.5),
             RandomApply(LocalOscillatorFrequencyDriftDatasetTransform(), 0.5),
-            RandomApply(QuantizeDatasetTransform(), 1.0),
+            RandomApply(Quantize(), 1.0),
         ]
         
         DT_all_levels = [

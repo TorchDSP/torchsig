@@ -16,7 +16,7 @@ __all__ = [
     "LocalOscillatorFrequencyDriftDatasetTransform"
     "NonlinearAmplifierDatasetTransform",
     "PassbandRippleDatasetTransform",
-    "QuantizeDatasetTransform",
+    "Quantize",
     "Spectrogram",
     "SpectralInversionDatasetTransform",
     "TimeVaryingNoise",
@@ -517,7 +517,7 @@ class PassbandRippleDatasetTransform(DatasetTransform):
         return signal
 
 
-class QuantizeDatasetTransform(DatasetTransform):
+class Quantize(DatasetTransform):
     """Quantize signal I/Q samples into specified levels with a rounding method.
 
     Attributes:

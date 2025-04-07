@@ -32,7 +32,6 @@ from torchsig.transforms.signal_transforms import (
     Fading,
     LocalOscillatorPhaseNoiseSignalTransform,
     LocalOscillatorFrequencyDriftSignalTransform,
-    QuantizeSignalTransform,
     IntermodulationProductsSignalTransform
 )
 from torchsig.transforms.dataset_transforms import (
@@ -40,7 +39,7 @@ from torchsig.transforms.dataset_transforms import (
     CarrierPhaseOffsetDatasetTransform,
     LocalOscillatorPhaseNoiseDatasetTransform,
     LocalOscillatorFrequencyDriftDatasetTransform,
-    QuantizeDatasetTransform,
+    Quantize,
     RandomDropSamples,
     ChannelSwap,
     TimeReversal,
@@ -73,7 +72,7 @@ class WidebandImpairments(Impairments):
             RandomApply(Fading(coherence_bandwidth = (0.001, 0.01)),0.5),
             RandomApply(LocalOscillatorPhaseNoiseSignalTransform(), 0.5),
             RandomApply(LocalOscillatorFrequencyDriftSignalTransform(), 0.5),
-            RandomApply(QuantizeSignalTransform(), 0.5),
+            RandomApply(Quantize(), 0.5),
             RandomApply(IntermodulationProductsSignalTransform(), 0.5),
         ]
         
@@ -94,7 +93,7 @@ class WidebandImpairments(Impairments):
             RandomApply(CarrierPhaseOffsetDatasetTransform(), 1.0),
             RandomApply(LocalOscillatorPhaseNoiseDatasetTransform(),0.5),
             RandomApply(LocalOscillatorFrequencyDriftDatasetTransform(),0.5),
-            RandomApply(QuantizeDatasetTransform(),0.5),
+            RandomApply(Quantize(),0.5),
             # RandomApply(AGC(), TBD),
             RandAugment(
                 transforms= [
