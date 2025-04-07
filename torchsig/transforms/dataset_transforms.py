@@ -16,7 +16,7 @@ __all__ = [
     "LocalOscillatorFrequencyDriftDatasetTransform"
     "NonlinearAmplifierDatasetTransform",
     "PassbandRippleDatasetTransform",
-    "Quantize",
+    "QuantizeDatasetTransform",
     "Spectrogram",
     "SpectralInversionDatasetTransform",
     "TimeVaryingNoise",
@@ -517,7 +517,7 @@ class PassbandRippleDatasetTransform(DatasetTransform):
         return signal
 
 
-class Quantize(DatasetTransform):
+class QuantizeDatasetTransform(DatasetTransform):
     """Quantize signal I/Q samples into specified levels with a rounding method.
 
     Attributes:
@@ -530,23 +530,32 @@ class Quantize(DatasetTransform):
     """
     def __init__(
         self,
-        num_levels = ([16, 24, 32, 40, 48, 56, 64]),
-        round_type: List[str] = (["floor", "middle", "ceiling"]),
+        num_bits:  Tuple[int, int] = (6, 18),
+        ref_level_adjustment_db:  Tuple[float, float] = (-10, 3),
         **kwargs
     ):
         super().__init__(**kwargs)
-        self.num_levels = num_levels
-        self.round_type = round_type
-
-        self.num_levels_distribution = self.get_distribution(self.num_levels )
-        self.round_type_distribution = self.get_distribution(self.round_type )
+        self.num_bits = num_bits
+        print('init num_bits = '  + str(self.num_bits))
+        self.num_bits_distribution = self.get_distribution(self.num_bits)
+        print('init num_bits_distro = ' + str(self.num_bits_distribution))
+        self.ref_level_adjustment_db = ref_level_adjustment_db
+        self.ref_level_adjustment_db_distribution = self.get_distribution(self.ref_level_adjustment_db)
         
     def __call__(self, signal: DatasetSignal) -> DatasetSignal:
-        num_levels = self.num_levels_distribution()
-        round_type = self.round_type_distribution()
-        signal.data = F.quantize(signal.data, num_levels, round_type)
+        num_bits = self.num_bits_distribution()
+        ref_level_adjustment_db = self.ref_level_adjustment_db_distribution()
+
+        # apply quantization
+        signal.data = F.quantize(
+            data = signal.data,
+            num_bits = num_bits,
+            ref_level_adjustment_db = ref_level_adjustment_db,
+        )
+
         signal.data = signal.data.astype(torchsig_complex_data_type)
         self.update(signal)
+
         return signal
 
 
