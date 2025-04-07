@@ -536,9 +536,7 @@ class QuantizeDatasetTransform(DatasetTransform):
     ):
         super().__init__(**kwargs)
         self.num_bits = num_bits
-        print('init num_bits = '  + str(self.num_bits))
         self.num_bits_distribution = self.get_distribution(self.num_bits)
-        print('init num_bits_distro = ' + str(self.num_bits_distribution))
         self.ref_level_adjustment_db = ref_level_adjustment_db
         self.ref_level_adjustment_db_distribution = self.get_distribution(self.ref_level_adjustment_db)
         
