@@ -334,7 +334,7 @@ class IntermodulationProducts(SignalTransform):
     """Applies simulated intermodulation products to a Signal.
 
     Attributes:
-        model_order (List[int]): The model order, 3rd or 5th order. Defaults to 3.
+        model_order (List[int]): The choices model order, 3rd or 5th order. Defaults to [3,5].
         coeffs_range (Tuple[float, float]): Range bounds for each intermodulation coefficient. 
             Defaults to (0., 1.).
         
