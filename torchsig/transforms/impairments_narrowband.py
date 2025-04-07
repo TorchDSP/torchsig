@@ -27,7 +27,8 @@ from torchsig.transforms.signal_transforms import (
     SpectralInversionSignalTransform,
     LocalOscillatorPhaseNoiseSignalTransform,
     LocalOscillatorFrequencyDriftSignalTransform,
-    QuantizeSignalTransform
+    QuantizeSignalTransform,
+    IntermodulationProductsSignalTransform
 )
 from torchsig.transforms.dataset_transforms import (
     IQImbalanceDatasetTransform,
@@ -65,6 +66,7 @@ class NarrowbandImpairments(Impairments):
             RandomApply(LocalOscillatorPhaseNoiseSignalTransform(), 0.5),
             RandomApply(LocalOscillatorFrequencyDriftSignalTransform(), 0.5),
             RandomApply(QuantizeSignalTransform(), 0.5),
+            RandomApply(IntermodulationProductsSignalTransform(), 0.5),
         ]
         
         ST_all_levels = [
