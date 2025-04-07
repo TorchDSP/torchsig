@@ -15,7 +15,7 @@ __all__ = [
     "LocalOscillatorPhaseNoiseSignalTransform",
     "NonlinearAmplifierSignalTransform",
     "PassbandRippleSignalTransform",
-    "Quantize",
+    "QuantizeSignalTransform",
     "ShadowingSignalTransform",
     "SpectralInversionSignalTransform",
 ]
