@@ -337,7 +337,7 @@ class IQImbalanceDatasetTransform(DatasetTransform):
         self,
         amplitude_imbalance = (-1., 1.),
         phase_imbalance = (-5.0 * np.pi / 180.0, 5.0 * np.pi / 180.0),
-        dc_offset = (-0.1, 0.1),
+        dc_offset = ((-0.1, 0.1),(-0.1, 0.1)),
         **kwargs
     ): 
         super().__init__(**kwargs)
