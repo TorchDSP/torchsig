@@ -76,16 +76,8 @@ class WidebandImpairments(Impairments):
                     dc_offset = ((-0.1, 0.1),(-0.1, 0.1))
                 ), 
                 0.9),
-            RandomApply(
-                CarrierPhaseOffsetSignalTransform(), 
-                0.9
-            ),
-            RandomApply(
-                Fading(
-                    coherence_bandwidth = (0.001, 0.01)
-                ), 
-                0.5
-            ),
+            RandomApply(CarrierPhaseOffsetSignalTransform(),1.0),
+            RandomApply(Fading(coherence_bandwidth = (0.001, 0.01)),0.5),
             RandomApply(LocalOscillatorPhaseNoiseSignalTransform(), 0.5),
             RandomApply(LocalOscillatorFrequencyDriftSignalTransform(), 0.5),
         ]
@@ -115,7 +107,7 @@ class WidebandImpairments(Impairments):
                 ), 
                 0.9
             ),
-            RandomApply(CarrierPhaseOffsetDatasetTransform(), 0.9),
+            RandomApply(CarrierPhaseOffsetDatasetTransform(), 1.0),
             RandomApply(LocalOscillatorPhaseNoiseDatasetTransform(),0.5),
             RandomApply(LocalOscillatorFrequencyDriftDatasetTransform(),0.5),
             # RandomApply(AGC(), TBD),
