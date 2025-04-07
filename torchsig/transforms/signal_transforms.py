@@ -15,6 +15,7 @@ __all__ = [
     "LocalOscillatorPhaseNoiseSignalTransform",
     "NonlinearAmplifierSignalTransform",
     "PassbandRippleSignalTransform",
+    "QuantizeSignalTransform",
     "ShadowingSignalTransform",
     "SpectralInversionSignalTransform",
 ]
@@ -614,6 +615,44 @@ class Shadowing(SignalTransform):
         signal.data = signal.data.astype(torchsig_complex_data_type)
         self.update(signal)
         return signal
+
+
+class QuantizeSignalTransform(SignalTransform):
+    """SignalTransform that models Quantization in DAC.
+
+    Attributes:
+        num_bits (float): Range of number of bits in DAC to simulate. Defaults 4 bits to 18 bits.
+        ref_level_adjustment_db (float): Reference level (in dB) to increase or decrease relative to full scale. Defaults to -10 dB to +3 dB.
+        
+    """
+    def __init__(
+        self, 
+        num_bits:  Tuple[int, int] = (6, 18),
+        ref_level_adjustment_db:  Tuple[float, float] = (-10, 3),
+        **kwargs
+    ):
+        super().__init__(**kwargs)
+        self.num_bits = num_bits
+        self.num_bits_distribution = self.get_distribution(self.num_bits)
+        self.ref_level_adjustment_db = ref_level_adjustment_db
+        self.ref_level_adjustment_db_distribution = self.get_distribution(self.ref_level_adjustment_db)
+
+    def __call__(self, signal: Signal) -> Signal:
+
+        num_bits = self.num_bits_distribution()
+        ref_level_adjustment_db = self.ref_level_adjustment_db_distribution()
+
+        # apply quantization
+        signal.data = F.quantize(
+            data = signal.data,
+            num_bits = num_bits,
+            ref_level_adjustment_db = ref_level_adjustment_db,
+        )
+
+        signal.data = signal.data.astype(torchsig_complex_data_type)
+        self.update(signal)
+        return signal
+
 
 class SpectralInversionSignalTransform(SignalTransform):
     """Inverts spectrum of complex IQ data.
