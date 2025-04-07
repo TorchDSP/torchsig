@@ -606,7 +606,7 @@ class QuantizeSignalTransform(SignalTransform):
     """
     def __init__(
         self, 
-        num_bits:  Tuple[int, int] = (4, 18),
+        num_bits:  Tuple[int, int] = (6, 18),
         ref_level_adjustment_db:  Tuple[float, float] = (-10, 3),
         **kwargs
     ):
