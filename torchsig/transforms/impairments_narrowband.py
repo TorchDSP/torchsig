@@ -80,9 +80,7 @@ class NarrowbandImpairments(Impairments):
             CarrierPhaseOffsetDatasetTransform()
         ]
         DT_level_2 = [
-            RandomApply(
-                IQImbalanceDatasetTransform(),0.5),
-            ),
+            RandomApply(IQImbalanceDatasetTransform(),0.5),
             RandomApply(CarrierPhaseOffsetDatasetTransform(), 1.0),
             RandomApply(SpectralInversionDatasetTransform(), 0.5),
             RandomApply(LocalOscillatorPhaseNoiseDatasetTransform(), 0.5),
