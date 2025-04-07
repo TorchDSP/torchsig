@@ -337,13 +337,12 @@ class IntermodulationProducts(SignalTransform):
         model_order (List[int]): The model order, 3rd or 5th order. Defaults to 3.
         coeffs_range (Tuple[float, float]): Range bounds for each intermodulation coefficient. 
             Defaults to (0., 1.).
-        coeffs_distribution (float): Random draw of a coefficient.
         
     """
     def __init__(
         self,
-        model_order = [3, 5],
-        coeffs_range = (0.01, 0.1),
+        model_order: List[int] = [3, 5],
+        coeffs_range: Tuple[float, float] = (0.01, 0.1),
         **kwargs
     ):  
         super().__init__(**kwargs)
