@@ -44,6 +44,7 @@ class TorchSigDataModule(pl.LightningDataModule):
         create_batch_size (int, optional): The batch size used during dataset creation. Defaults to 8.
         create_num_workers (int, optional): The number of workers used during dataset creation. Defaults to 4.
         file_handler (TorchSigFileHandler, optional): The file handler for managing data storage. Defaults to ZarrFileHandler.
+        overwrite (bool, optional): Overwrites data on disk. Defaults to False.
         transforms (list, optional): A list of transformations to apply to the input data. Defaults to an empty list.
         target_transforms (list, optional): A list of transformations to apply to the target labels. Defaults to an empty list.
     """
@@ -61,6 +62,7 @@ class TorchSigDataModule(pl.LightningDataModule):
         create_batch_size: int = 8,
         create_num_workers: int = 4,
         file_handler: TorchSigFileHandler = ZarrFileHandler,
+        overwrite: bool = False,
         # applied after dataset written to disk
         transforms: list = [],
         target_transforms: list = [],
@@ -107,6 +109,7 @@ class TorchSigDataModule(pl.LightningDataModule):
         self.create_batch_size = create_batch_size
         self.create_num_workers = create_num_workers
         self.file_handler = file_handler
+        self.overwrite = overwrite
 
         # to be initialized in setup()
         self.train: Optional[self.static_dataset_class] = None
@@ -129,7 +132,7 @@ class TorchSigDataModule(pl.LightningDataModule):
         train_creator = DatasetCreator(
             dataset = train_dataset,
             root = self.root,
-            overwrite = False,
+            overwrite = self.overwrite,
             file_handler = self.file_handler,
             batch_size = self.create_batch_size,
             num_workers = self.create_num_workers,
@@ -144,7 +147,7 @@ class TorchSigDataModule(pl.LightningDataModule):
         val_creator = DatasetCreator(
             dataset = val_dataset,
             root = self.root,
-            overwrite = False,
+            overwrite = self.overwrite,
             file_handler = self.file_handler,
             batch_size = self.create_batch_size,
             num_workers = self.create_num_workers,
@@ -223,6 +226,7 @@ class NarrowbandDataModule(TorchSigDataModule):
         create_batch_size (int, optional): The batch size used during dataset creation. Defaults to 8.
         create_num_workers (int, optional): The number of workers used during dataset creation. Defaults to 4.
         file_handler (TorchSigFileHandler, optional): The file handler for managing data storage. Defaults to ZarrFileHandler.
+        overwrite (bool, optional): Overwrites data on disk. Defaults to False.
         transforms (Transform | List[Callable | Transform], optional): A list of transformations to apply to the input data.
         target_transforms (TargetTransform | List[Callable | TargetTransform], optional): A list of transformations to apply to the target labels.
     """
@@ -241,6 +245,7 @@ class NarrowbandDataModule(TorchSigDataModule):
         create_batch_size: int = 8,
         create_num_workers: int = 4,
         file_handler: TorchSigFileHandler = ZarrFileHandler,
+        overwrite: bool = False,
         # applied after dataset written to disk
         transforms: Transform | List[Callable | Transform] = [],
         target_transforms: TargetTransform | List[Callable | TargetTransform] = [],
@@ -305,6 +310,7 @@ class NarrowbandDataModule(TorchSigDataModule):
             create_batch_size = create_batch_size,
             create_num_workers = create_num_workers,
             file_handler = file_handler,
+            overwrite = overwrite,
             transforms = transforms,
             target_transforms = target_transforms,
         )
@@ -324,6 +330,7 @@ class WidebandDataModule(TorchSigDataModule):
         create_batch_size (int, optional): The batch size used during dataset creation. Defaults to 8.
         create_num_workers (int, optional): The number of workers used during dataset creation. Defaults to 4.
         file_handler (TorchSigFileHandler, optional): The file handler for managing data storage. Defaults to ZarrFileHandler.
+        overwrite (bool, optional): Overwrites data on disk. Defaults to False.
         transforms (Transform | List[Callable | Transform], optional): A list of transformations to apply to the input data.
         target_transforms (TargetTransform | List[Callable | TargetTransform], optional): A list of transformations to apply to the target labels.
     """
@@ -342,6 +349,7 @@ class WidebandDataModule(TorchSigDataModule):
         create_batch_size: int = 8,
         create_num_workers: int = 4,
         file_handler: TorchSigFileHandler = ZarrFileHandler,
+        overwrite: bool = False,
         # applied after dataset written to disk
         transforms: Transform | List[Callable | Transform]  = [],
         target_transforms: TargetTransform | List[Callable | TargetTransform] = [],
@@ -410,6 +418,7 @@ class WidebandDataModule(TorchSigDataModule):
             file_handler = file_handler,
             transforms = transforms,
             target_transforms = target_transforms,
+            overwrite = False
         )
 
 
