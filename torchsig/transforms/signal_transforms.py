@@ -345,15 +345,18 @@ class IntermodulationProducts(SignalTransform):
         **kwargs
     ):  
         super().__init__(**kwargs)
-        self.model_order = 3
+        self.model_order = 3 # TODO: needs to be a random choice between 3 or 5
         self.coeffs_range = coeffs_range
         self.coeffs_distribution = self.get_distribution(self.coeffs_range)
     
     def __call__(self, signal: Signal) -> Signal:
-        coeffs = np.zeros(self.model_order)
-        coeffs[0] = 1
-        #coeffs[1] = 0 # must be zero because it is even-power exponent
-        coeffs[2] = self.coeffs_distribution()
+        coeffs = np.zeros(self.model_order,dtype=torchsig_complex_data_type)
+        for index in range(0,self.model_order,2):
+            if (index == 0):
+                coeffs[index] = 1
+            else:
+                # TODO: ensure that coefs[2] >= coefs[4]
+                coeffs[index] = self.coeffs_distribution()
 
         print('test')
         import matplotlib.pyplot as plt
