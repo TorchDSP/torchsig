@@ -12,7 +12,7 @@ from torchsig.transforms.dataset_transforms import (
     LocalOscillatorPhaseNoiseDatasetTransform,
     NonlinearAmplifierDatasetTransform,
     PassbandRippleDatasetTransform,    
-    Quantize,
+    QuantizeDatasetTransform,
     SpectralInversionDatasetTransform,
     Spectrogram,
     TimeVaryingNoise,
@@ -695,21 +695,19 @@ def PassbandRippleDatasetTransform(
     (
         deepcopy(TEST_DS_SIGNAL), 
         {
-            'num_levels': [16], 
-            'round_type': ["floor"]
+            'num_bits': [4]
         },
         False
     ),
     (
         deepcopy(TEST_DS_SIGNAL), 
         {
-            'num_levels': [4], 
-            'round_type': ["nearest"]
+            'num_bits': [16]
         },
         False
     )
 ])
-def test_Quantize(signal: DatasetSignal, params: dict, is_error: bool) -> None:
+def test_QuantizeDatasetTransform(signal: DatasetSignal, params: dict, is_error: bool) -> None:
     """Test the Quantize DatasetTransform with pytest.
 
     Args:
@@ -721,29 +719,25 @@ def test_Quantize(signal: DatasetSignal, params: dict, is_error: bool) -> None:
         AssertionError: If unexpected test output.
 
     """
-    num_levels = params['num_levels']
-    round_type = params['round_type']
+    num_bits = params['num_bits']
     if is_error:
         with pytest.raises(Exception, match=r".*"):
-            T = Quantize(
-                num_levels = num_levels,
-                round_type = round_type,
+            T = QuantizeDatasetTransform(
+                num_bits = num_bits,
                 seed = 42
             )
             signal = T(signal)
     else:
-        T = Quantize(
-            num_levels = num_levels,
-            round_type = round_type,
+        T = QuantizeDatasetTransform(
+            num_bits = num_bits,
             seed = 42
         )
         signal_test = deepcopy(signal)
         signal = T(signal)
 
-        assert isinstance(T, Quantize)
+        assert isinstance(T, QuantizeDatasetTransform)
         assert isinstance(T.random_generator, np.random.Generator)
-        assert isinstance(T.num_levels_distribution(), np.int_)
-        assert isinstance(T.round_type_distribution(), str)
+        assert isinstance(T.num_bits_distribution(), np.int_)
         assert isinstance(signal, DatasetSignal)
         assert type(signal.data) == type(signal_test.data)
         assert signal.data.dtype == signal_test.data.dtype

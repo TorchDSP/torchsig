@@ -8,7 +8,7 @@ from torchsig.transforms.signal_transforms import (
     CarrierPhaseOffsetSignalTransform,
     DopplerSignalTransform,
     Fading,
-    IntermodulationProducts,
+    IntermodulationProductsSignalTransform,
     IQImbalanceSignalTransform,
     LocalOscillatorFrequencyDriftSignalTransform,
     LocalOscillatorPhaseNoiseSignalTransform,
@@ -451,18 +451,18 @@ def test_Fading(
 @pytest.mark.parametrize("signal, params, is_error", [
     (deepcopy(TEST_SIGNAL), 
         {
-            'model_order_range': (0, 5), 
+            'model_order': [3,5], 
             'coeffs_range': (0., 1.),
         },
         False
     ) 
 ])
-def test_IntermodulationProducts(
+def test_IntermodulationProductsSignalTransform(
     signal: Signal,
     params: dict, 
     is_error: bool
 ) -> None:
-    """Test IntermodulationProducts with pytest.
+    """Test IntermodulationProductsSignalTransform with pytest.
 
     Args:
         signal (Signal): Input signal to transform.
@@ -473,13 +473,13 @@ def test_IntermodulationProducts(
         AssertionError: If unexpected test outcome.
 
     """      
-    model_order_range = params['model_order_range']
+    model_order = params['model_order']
     coeffs_range = params['coeffs_range']
 
     if is_error:
         with pytest.raises(Exception, match=r".*"):
-                T = IntermodulationProducts(
-                    model_order_range = model_order_range,
+                T = IntermodulationProductsSignalTransform(
+                    model_order = model_order,
                     coeffs_range = coeffs_range,
                     seed = 42
                 )
@@ -487,15 +487,15 @@ def test_IntermodulationProducts(
     else:
         signal_test = deepcopy(signal)
 
-        T = IntermodulationProducts(
-            model_order_range = model_order_range,
+        T = IntermodulationProductsSignalTransform(
+            model_order = model_order,
             coeffs_range = coeffs_range,
             seed = 42
         )
         signal = T(signal)
 
-        assert isinstance(T, IntermodulationProducts)
-        assert isinstance(T.model_order_distribution(), float)
+        assert isinstance(T, IntermodulationProductsSignalTransform)
+        assert isinstance(T.model_order_distribution(), np.int64)
         assert isinstance(T.coeffs_distribution(), float)
         assert isinstance(signal, Signal)
         assert type(signal.data) == type(signal_test.data)
