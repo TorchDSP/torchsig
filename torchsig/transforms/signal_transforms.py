@@ -342,7 +342,7 @@ class IntermodulationProducts(SignalTransform):
     def __init__(
         self,
         model_order: List[int] = [3, 5],
-        coeffs_range: Tuple[float, float] = (0.01, 0.1),
+        coeffs_range: Tuple[float, float] = (1e-6, 1e-5),
         **kwargs
     ):  
         super().__init__(**kwargs)
@@ -364,9 +364,9 @@ class IntermodulationProducts(SignalTransform):
             if (index == 0):
                 non_zero_coeffs[index] = 1
             else:
-                # get randomized coefficient
+                # calculate coefficient
                 non_zero_coeffs[index] = self.coeffs_distribution()
-                # each coefficient must be smaller than the previous
+                # run loop to ensure each coefficient must be smaller than the previous
                 while (non_zero_coeffs[index] > non_zero_coeffs[index-1]):
                     non_zero_coeffs[index] = self.coeffs_distribution()
 
@@ -402,6 +402,7 @@ class IntermodulationProducts(SignalTransform):
         max_value = np.max((np.max(plot1db),np.max(plot2db)))
         #ax.set_ylim([max_value-20,max_value+3])
         ax.grid()
+        ax.set_title(signal.metadata.class_name)
         plt.show()
 
         self.update(signal)
