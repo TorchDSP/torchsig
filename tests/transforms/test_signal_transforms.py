@@ -452,7 +452,7 @@ def test_Fading(
     (deepcopy(TEST_SIGNAL), 
         {
             'model_order': [3,5], 
-            'coeffs_range': (0., 1.),
+            'coeffs_range': (1e-3, 1e-1),
         },
         False
     ) 
