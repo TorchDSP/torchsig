@@ -342,14 +342,14 @@ class IntermodulationProductsSignalTransform(SignalTransform):
     def __init__(
         self,
         model_order: List[int] = [3, 5],
-        coeffs_range: Tuple[float, float] = (1e-6, 1e-5),
+        coeffs_range: Tuple[float, float] = (1e-7, 1e-5),
         **kwargs
     ):  
         super().__init__(**kwargs)
         self.model_order = model_order
         self.model_order_distribution = self.get_distribution(self.model_order)
         self.coeffs_range = coeffs_range
-        self.coeffs_distribution = self.get_distribution(self.coeffs_range)
+        self.coeffs_distribution = self.get_distribution(self.coeffs_range,'log10')
     
     def __call__(self, signal: Signal) -> Signal:
         # get randomized choice for model order
