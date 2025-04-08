@@ -105,6 +105,9 @@ def make_distribution(params):
     elif isinstance(params, int) or isinstance(params, float):
         # draw samples from evenly spaced values within [0, params)
         return UniformDistribution(params)
+    else:
+        raise ValueError(f'Undefined condition in make_distribution(). params = {params}')
+
 
 class Distribution(Seedable):
     """A class for representing random distributions; created by calling get_distribution(params) on a Seedable object
