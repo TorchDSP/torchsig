@@ -152,6 +152,11 @@ class Log10UniformRangeDistribution(Distribution):
     def __init__(self, params, **kwargs):
         Distribution.__init__(self, params, **kwargs)
     def get_value(self):
+        if (self.params[0] == 0 or self.params[1] == 0):
+            raise ValueError(f'Cannot compute log10(0). params = {self.params}')
+        elif (self.params[0] < 0 or self.params[1] < 0):
+            raise ValueError(f'Cannot compute log10 of negative number. params = {params}')
+
         low_log10 = np.log10(self.params[0])
         high_log10 = np.log10(self.params[1])
         random_exponent = self.random_generator.uniform(low=low_log10, high=high_log10)
