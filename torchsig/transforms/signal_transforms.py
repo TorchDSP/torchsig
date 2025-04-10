@@ -495,36 +495,49 @@ class LocalOscillatorPhaseNoiseSignalTransform(SignalTransform):
 
 
 class NonlinearAmplifierSignalTransform(SignalTransform):
-    """Applies a specified, fixed memoryless nonlinear amplifier (AM/AM, AM/PM) model response to a Signal.
+    """Applies a memoryless nonlinear amplifier model to Signal.
 
-    Attributes:    
-        Pin (np.ndarray): Model signal power input points. Assumes sorted ascending linear values (Watts).
-            Default 10**((np.array([-100., -20., -10.,  0.,  5., 10. ]) / 10)).
-        Pout (np.ndarray): Model power out corresponding to Pin points (Watts).
-            Default 10**((np.array([ -90., -10.,   0.,  9., 9.9, 10. ]) / 10)).
-        Phi (np.ndarray): Model output phase shift values (radians) corresponding to Pin points.
-            Default np.deg2rad(np.array([0., -2.,  -4.,  7., 12., 23.])).
+    Attributes:
+        gain_range (Tuple[float, float]): Small-signal gain range (linear). Defaults to (1.0, 4.0).
+        gain_distribution (Callable[[], float]): Random draw from gain distribution.
+        psat_backoff_range (Tuple[float, float]): Psat backoff factor (linear) reflecting saturated
+            power level (Psat) relative to input signal mean power. Defaults to (5.0, 20.0).
+        past_backoff_distribution (Callable[[], float]): Random draw from psat_backoff distribution.   
+        phi_range (Tuple[float, float]): Maximum signal relative phase shift at 
+            saturation power level (radians). Defaults to (0.0, 0.0).
+        phi_distribution (Callable[[], float]): Random draw from phi distribution.        
+        auto_scale (bool): Automatically rescale output power to match full-scale peak 
+            input power prior to transform, based on peak estimates. Default True.
         
     """
     def __init__(
         self,
-        Pin: np.ndarray =  10**((np.array([-100., -20., -10.,  0.,  5., 10. ]) / 10)),
-        Pout: np.ndarray = 10**((np.array([ -90., -10.,   0.,  9., 9.9, 10. ]) / 10)),
-        Phi: np.ndarray = np.deg2rad(np.array([0., -2.,  -4.,  7., 12., 23.])),
+        gain_range: Tuple[float, float] = (1.0, 4.0),
+        psat_backoff_range: Tuple[float, float] = (5.0, 20.0),
+        phi_range: Tuple[float, float] = (0.0, 0.0),
+        auto_scale: bool = True,
         **kwargs
     ):  
         super().__init__(**kwargs)
-        # note: amplifier model values are fixed to reflect a desired response, not randomized
-        self.Pin = Pin
-        self.Pout = Pout
-        self.Phi = Phi 
+        self.gain_range = gain_range
+        self.gain_distribution = self.get_distribution(self.gain_range)
+        self.psat_backoff_range = psat_backoff_range
+        self.psat_backoff_distribution = self.get_distribution(self.psat_backoff_range)        
+        self.phi_range = phi_range
+        self.phi_distribution = self.get_distribution(self.phi_range)
+        self.auto_scale = auto_scale
     
     def __call__(self, signal: Signal) -> Signal:
-        signal.data = F.nonlinear_amplifier_am_pm(
+        gain = self.gain_distribution()
+        psat_backoff = self.psat_backoff_distribution()
+        phi = self.phi_distribution()
+
+        signal.data = F.nonlinear_amplifier(
             data = signal.data,
-            Pin  = self.Pin,
-            Pout = self.Pout,
-            Phi  = self.Phi            
+            gain = gain,
+            psat_backoff = psat_backoff,
+            phi_rad = phi,
+            auto_scale = self.auto_scale
         )
         signal.data = signal.data.astype(torchsig_complex_data_type)
         self.update(signal)

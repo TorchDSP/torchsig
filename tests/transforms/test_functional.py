@@ -19,7 +19,8 @@ from torchsig.transforms.functional import (
     local_oscillator_frequency_drift,
     local_oscillator_phase_noise,
     mag_rescale,
-    nonlinear_amplifier_am_pm,
+    nonlinear_amplifier,
+    nonlinear_amplifier_table,
     normalize,
     passband_ripple,
     patch_shuffle,
@@ -1084,6 +1085,89 @@ def test_mag_rescale(
 
 @pytest.mark.parametrize("data, params, expected, is_error", [
     (
+        deepcopy(TEST_DATA),
+        {
+            'gain': 1.0,
+            'psat_backoff' : 10.0,
+            'phi_rad': 0.0,
+            'auto_scale': True
+        }, 
+        True, 
+        False
+    ),
+    (
+        deepcopy(TEST_DATA),
+        {
+            'gain': 7.4,
+            'psat_backoff' : 3.0,
+            'phi_rad': 0.2,
+            'auto_scale': False
+        }, 
+        True, 
+        False
+    ),    
+])
+def test_nonlinear_amplifier(
+    data: Any, 
+    params: dict, 
+    expected: bool, 
+    is_error: bool
+    ) -> None:
+    """Test the nonlinear_amplifier functional with pytest.
+
+    Args:
+        data (Any): Data input, nominally np.ndarray.
+        params (dict): Function call parameters (see description).
+        expected (bool): Expected test result.
+        is_error (bool): Is a test error expected.
+
+    Raises:
+        AssertionError: If unexpected test outcome.
+
+    """
+    gain = params['gain']
+    psat_backoff = params['psat_backoff']
+    phi_rad = params['phi_rad']
+    auto_scale = params['auto_scale']
+    
+    if is_error:
+        with pytest.raises(expected): 
+            data = nonlinear_amplifier(
+                data = data,
+                gain = gain,
+                psat_backoff = psat_backoff,
+                phi_rad = phi_rad,
+                auto_scale = auto_scale
+            )
+    else:
+        data_test = deepcopy(data)
+
+        data = nonlinear_amplifier(
+            data = data,
+            gain = gain,
+            psat_backoff = psat_backoff,
+            phi_rad = phi_rad,
+            auto_scale = auto_scale
+        )
+
+        input_power = np.mean(np.abs(data_test)**2)
+        output_power = np.mean(np.abs(data)**2)        
+        psat = input_power * psat_backoff
+        input_phase_rad = np.angle(data_test)
+        output_phase_rad = np.angle(data)
+        phase_diff = abs(np.mean(np.unwrap(output_phase_rad - input_phase_rad)))
+        
+        if auto_scale:
+            assert (abs(output_power - input_power) < 10**(0.1/10)) == expected
+        else:
+            assert (np.all(output_power <= psat)) == expected
+        assert (phase_diff <= (abs(phi_rad) + RTOL)) == expected
+        assert (type(data) == type(data_test)) == expected
+        assert (data.dtype == torchsig_complex_data_type) == expected
+
+
+@pytest.mark.parametrize("data, params, expected, is_error", [
+    (
         np.zeros((2,)), 
         {
             'Pin': np.zeros((3,)), 
@@ -1108,13 +1192,13 @@ def test_mag_rescale(
         False
     ),
 ])
-def test_nonlinear_amplifier_am_pm(
+def test_nonlinear_amplifier_table(
     data: Any, 
     params: dict, 
     expected: bool | ValueError, 
     is_error: bool
     ) -> None:
-    """Test the nonlinear_amplifier functional with pytest.
+    """Test the nonlinear_amplifier_table functional with pytest.
 
     Args:
         data (Any): Data input, nominally np.ndarray.
@@ -1134,20 +1218,22 @@ def test_nonlinear_amplifier_am_pm(
     
     if is_error:
         with pytest.raises(expected): 
-            data = nonlinear_amplifier_am_pm(
+            data = nonlinear_amplifier_table(
                 data = data,
                 Pin  = Pin,
                 Pout = Pout,
-                Phi  = Phi
+                Phi  = Phi,
+                auto_scale = False
             )
     else:
         data_test = deepcopy(data)
 
-        data = nonlinear_amplifier_am_pm(
+        data = nonlinear_amplifier_table(
             data = data,
             Pin  = Pin,
             Pout = Pout,
-            Phi  = Phi
+            Phi  = Phi,
+            auto_scale = False
         )
 
         input_power = np.mean(np.abs(data_test)**2)

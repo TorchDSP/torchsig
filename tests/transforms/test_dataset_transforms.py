@@ -555,18 +555,20 @@ def test_LocalOscillatorPhaseNoiseDatasetTransform(
     (
         deepcopy(TEST_DS_SIGNAL), 
         {
-            'Pin': np.zeros((1,)),
-            'Pout': np.zeros((2,)),
-            'Phi': np.zeros((3,))
+            'gain_range': (1.0, 4.0),
+            'psat_backoff_range': (5.0, 20.0),
+            'phi_range': (0.0, 0.0),
+            'auto_scale': True
         },
-        True
+        False
     ),
     (
         deepcopy(TEST_DS_SIGNAL), 
         {
-            'Pin': 10**((np.array([-100., -20., -10.,  0.,  5., 10. ]) / 10)),
-            'Pout': 10**((np.array([ -90., -10.,   0.,  9., 9.9, 10. ]) / 10)),
-            'Phi': np.deg2rad(np.array([0., -2.,  -4.,  7., 12., 23.]))
+            'gain_range': (0.25, 4.2),
+            'psat_backoff_range': (0.0, 2.2),
+            'phi_range': (np.deg2rad(4.0), np.deg2rad(7.0)),
+            'auto_scale': True
         },
         False
     )    
@@ -587,32 +589,35 @@ def test_NonlinearAmplifierDatasetTransform(
         AssertionError: If unexpected test outcome.
 
     """      
-    Pin = params['Pin']
-    Pout = params['Pout']
-    Phi = params['Phi']
+    gain_range = params['gain_range']
+    psat_backoff_range = params['psat_backoff_range']
+    phi_range = params['phi_range']
+    auto_scale = params['auto_scale']
     
     if is_error:
         with pytest.raises(Exception, match=r".*"):
                 T = NonlinearAmplifierDatasetTransform(
-                    Pin  = Pin,
-                    Pout = Pout,
-                    Phi  = Phi,
+                    gain_range  = gain_range,
+                    psat_backoff_range = psat_backoff_range,
+                    phi_range = phi_range,
+                    auto_scale = auto_scale,
                     seed = 42
                 )
                 signal = T(signal)
     else:
         T = NonlinearAmplifierDatasetTransform(
-            Pin  = Pin,
-            Pout = Pout,
-            Phi  = Phi,
+            gain_range  = gain_range,
+            psat_backoff_range = psat_backoff_range,
+            phi_range = phi_range,
+            auto_scale = auto_scale,
             seed = 42
         )
         signal = T(signal)
 
         assert isinstance(T, NonlinearAmplifierDatasetTransform)
-        assert isinstance(T.Pin, np.ndarray)
-        assert isinstance(T.Pout, np.ndarray)
-        assert isinstance(T.Phi, np.ndarray)
+        assert isinstance(T.gain_distribution(), float)
+        assert isinstance(T.psat_backoff_distribution(), float)
+        assert isinstance(T.phi_distribution(), float)
         assert isinstance(signal, DatasetSignal)
         assert (signal.data.dtype == torchsig_complex_data_type)
         # no metadata impacts

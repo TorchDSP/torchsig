@@ -690,32 +690,31 @@ def test_LocalOscillatorPhaseNoiseSignalTransform(
         # no metadata impacts
 
 
-@pytest.mark.parametrize("signal, params, expected, is_error", [
+@pytest.mark.parametrize("signal, params, is_error", [
     (
         deepcopy(TEST_SIGNAL), 
         {
-            'Pin': np.zeros((1,)),
-            'Pout': np.zeros((2,)),
-            'Phi': np.zeros((3,))
+            'gain_range': (1.0, 4.0),
+            'psat_backoff_range': (5.0, 20.0),
+            'phi_range': (0.0, 0.0),
+            'auto_scale': True
         },
-        ValueError,
-        True
+        False
     ),
     (
         deepcopy(TEST_SIGNAL), 
         {
-            'Pin': 10**((np.array([-100., -20., -10.,  0.,  5., 10. ]) / 10)),
-            'Pout': 10**((np.array([ -90., -10.,   0.,  9., 9.9, 10. ]) / 10)),
-            'Phi': np.deg2rad(np.array([0., -2.,  -4.,  7., 12., 23.]))
+            'gain_range': (0.5, 17.2),
+            'psat_backoff_range': (0.0, 7.0),
+            'phi_range': (-np.deg2rad(10.0), np.deg2rad(17.0)),
+            'auto_scale': True
         },
-        True,
         False
-    )    
+    )  
 ])
 def test_NonlinearAmplifierSignalTransform(
     signal: Signal,
     params: dict, 
-    expected: bool | ValueError, 
     is_error: bool
 ) -> None:
     """Test NonlinearAmplifierSignalTransform with pytest.
@@ -723,41 +722,43 @@ def test_NonlinearAmplifierSignalTransform(
     Args:
         signal (Signal): Input signal to transform.
         params (dict): Transform call parameters (see description).
-        expected (bool | ValueError): Expected test result.
         is_error (bool): Is a test error expected.
 
     Raises:
         AssertionError: If unexpected test outcome.
 
     """      
-    Pin = params['Pin']
-    Pout = params['Pout']
-    Phi = params['Phi']
+    gain_range = params['gain_range']
+    psat_backoff_range = params['psat_backoff_range']
+    phi_range = params['phi_range']
+    auto_scale = params['auto_scale']
     
     if is_error:
         with pytest.raises(Exception, match=r".*"):
                 T = NonlinearAmplifierSignalTransform(
-                    Pin  = Pin,
-                    Pout = Pout,
-                    Phi  = Phi,
+                    gain_range  = gain_range,
+                    psat_backoff_range = psat_backoff_range,
+                    phi_range = phi_range,
+                    auto_scale = auto_scale,
                     seed = 42
                 )
                 signal = T(signal)
     else:
         T = NonlinearAmplifierSignalTransform(
-            Pin  = Pin,
-            Pout = Pout,
-            Phi  = Phi,
+            gain_range  = gain_range,
+            psat_backoff_range = psat_backoff_range,
+            phi_range = phi_range,
+            auto_scale = auto_scale,
             seed = 42
         )
         signal = T(signal)
 
-        assert isinstance(T, NonlinearAmplifierSignalTransform) == expected
-        assert isinstance(T.Pin, np.ndarray) == expected
-        assert isinstance(T.Pout, np.ndarray) == expected
-        assert isinstance(T.Phi, np.ndarray) == expected
-        assert isinstance(signal, Signal) == expected
-        assert (signal.data.dtype == torchsig_complex_data_type) == expected
+        assert isinstance(T, NonlinearAmplifierSignalTransform)
+        assert isinstance(T.gain_distribution(), float)
+        assert isinstance(T.psat_backoff_distribution(), float)
+        assert isinstance(T.phi_distribution(), float)
+        assert isinstance(signal, Signal)
+        assert (signal.data.dtype == torchsig_complex_data_type)
         # no metadata impacts
 
 

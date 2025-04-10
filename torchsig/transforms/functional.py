@@ -33,8 +33,8 @@ __all__ = [
     "local_oscillator_frequency_drift",
     "local_oscillator_phase_noise",
     "mag_rescale",
-    "nonlinear_amplifier_am_pm",
-    "nonlinear_amplifier_poly",
+    "nonlinear_amplifier",
+    "nonlinear_amplifier_table",
     "normalize",
     "passband_ripple",
     "patch_shuffle",
@@ -718,11 +718,72 @@ def mag_rescale(
     return data.astype(torchsig_complex_data_type)
 
 
-def nonlinear_amplifier_am_pm(
+def nonlinear_amplifier(
+    data: np.ndarray,
+    gain: float = 1.0,
+    psat_backoff: float = 10.0,
+    phi_rad: float = 0.0,
+    auto_scale: bool = True
+) -> np.ndarray:
+    """A memoryless AM/AM, AM/PM nonlinear amplifier function-based model using a
+    hyperbolic tangent output power response defined by gain and saturation power.
+
+    Args:
+        data (np.ndarray): Complex valued IQ data samples.
+        gain (float): Small-signal linear gain. Default 1.0.
+        psat_backoff (float): Saturated output power factor relative to the input signal 
+            mean power. For example, operating at a 2.0 psat_backoff factor with a 1 W 
+            mean power signal has saturation power level at 2.0 W. Default 10.0.
+        phi_rad (float): Signal relative phase shift at saturation (radians). Modeled
+            to vary linearly from (0.0 rad, 0.0 power). Default 0.0 rad.
+        auto_scale (bool): Automatically rescale output power to match full-scale peak 
+            input power prior to transform, based on peak estimates. Default True.
+
+    Returns:
+        np.ndarray: Nonlinearly distorted IQ data.
+        
+    """
+    N = len(data)
+    magnitude = np.abs(data)
+    phase = np.angle(data)
+    in_power = magnitude**2
+    mean_power_est = np.mean(in_power)
+
+    # amplitude-to-amplitude modulation (AM/AM)
+    # hyperbolic tangent power response passes 
+    # through (0,0) and asymptotically approaches psat
+    psat = mean_power_est * psat_backoff
+    scale_factor = psat / gain
+    out_power = psat * np.tanh(in_power / scale_factor)
+    out_magnitude = out_power**0.5
+   
+    # amplitude-to-phase modulation (AM/PM)
+    # linear phase shift from origin to Psat
+    out_phase_shift_rad = np.zeros((N,))
+    if phi_rad != 0.:
+        Pin = np.array([0.0, psat])
+        Phi = np.array([0.0, phi_rad])
+        out_phase_shift_rad = np.interp(in_power, Pin, Phi)
+
+    amp_data = out_magnitude * np.exp(1j * (phase + out_phase_shift_rad))
+    
+    # auto_scale: rescale output power to match full-scale input power
+    # by estimating peaks for input and output power
+    if auto_scale:
+        win = sp.windows.blackmanharris(N)
+        input_power = np.max(np.abs(np.fft.fft(data*win)))
+        output_power = np.max(np.abs(np.fft.fft(amp_data*win)))
+        amp_data *= input_power/output_power
+        
+    return amp_data.astype(torchsig_complex_data_type)
+
+
+def nonlinear_amplifier_table(
     data: np.ndarray,
     Pin: np.ndarray =  10**((np.array([-100., -20., -10.,  0.,  5., 10. ]) / 10)),
     Pout: np.ndarray = 10**((np.array([ -90., -10.,   0.,  9., 9.9, 10. ]) / 10)),
-    Phi: np.ndarray = np.deg2rad(np.array([0., -2.,  -4.,  7., 12., 23.]))
+    Phi: np.ndarray = np.deg2rad(np.array([0., -2.,  -4.,  7., 12., 23.])),
+    auto_scale: bool = False
 ) -> np.ndarray:
     """A nonlinear amplifier (AM/AM, AM/PM) memoryless model that distorts an input
     complex signal to simulate an amplifier response, based on interpolating a table of
@@ -738,6 +799,8 @@ def nonlinear_amplifier_am_pm(
         Pin (np.ndarray): Model signal power input points. Assumes sorted ascending linear values (Watts).
         Pout (np.ndarray): Model power out corresponding to Pin points (Watts).
         Phi (np.ndarray): Model output phase shift values (radians) corresponding to Pin points.
+        auto_scale (bool): Automatically rescale output power to match full-scale peak 
+            input power prior to transform, based on peak estimates. Default False.
 
     Raises:
         ValueError: If model array arguments are not the same size.
@@ -760,41 +823,17 @@ def nonlinear_amplifier_am_pm(
     # amplitude-to-phase modulation (AM/PM)
     out_phase_shift_rad = np.interp(in_power, Pin, Phi)
 
-    data = out_magnitude * np.exp(1j * (phase + out_phase_shift_rad))
+    amp_data = out_magnitude * np.exp(1j * (phase + out_phase_shift_rad))
     
-    return data.astype(torchsig_complex_data_type)
+    # auto_scale: rescale output power to match full-scale input power
+    # by estimating peaks for input and output power
+    if auto_scale:
+        win = sp.windows.blackmanharris(len(data))
+        input_power = np.max(np.abs(np.fft.fft(data*win)))
+        output_power = np.max(np.abs(np.fft.fft(amp_data*win)))
+        amp_data *= input_power/output_power
 
-def nonlinear_amplifier_poly(
-    data: np.ndarray,
-    IIP3_dbm: float = 33,
-    c1: float = 7.0,
-) -> np.ndarray:
-    """A memoryless cubic polynomial model for a nonlinear amplifier response. The 
-    cubic polynomial is of the form: |x_out| = c1 * |x_in| + 0.75 * c3 * |x_in|**3
-    where x_in is the input signal magnitude, x_out is the output signal magnitude, and
-    c1 and c3 are cubic polynomial model coefficients. 
-
-        Refer to this designer guide for default values:
-            Kundert, Ken. “Accurate and Rapid Measurement of IP2 and IP3,“ 
-            The Designer Guide Community, May 22, 2002.
-            https://designers-guide.org/analysis/intercept-point.pdf 
-
-    Args:
-        data (np.ndarray): Complex valued IQ data samples.
-        IIP3 (float): Input third-order intercept point.
-        c1 (float): Linear gain term coefficient of cubic polynomial model.
-            
-    Returns:
-        np.ndarray: Nonlinearly distorted IQ data.
-        
-    """
-    c3 = -4 * c1 / (3 * 10**((IIP3_dbm-30)/10))
-    #c3 = -4 * c1 / (9 * 10**(IPsat_dbm-30)/10)
-
-    mag_input_est = np.max(np.abs(data))
-    mag_output = c1 * mag_input_est + 0.75 * c3 * mag_input_est**3
-    
-    return data * mag_output / mag_input_est
+    return amp_data.astype(torchsig_complex_data_type)
      
 
 def normalize(
