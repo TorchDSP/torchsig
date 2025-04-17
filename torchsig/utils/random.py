@@ -17,7 +17,7 @@ class Seedable():
     Two Seedable objects with the same seed will always generate/access the same random values in the same order.
     Containing or composing Seedable objects are generally responsible for seeding contained or composed Seedable objects.
     """
-    def __init__(self, seed: int = None, parent = None):
+    def __init__(self, seed: int = None, parent = None, **kwargs):
         """Initializes seedable object with self.seed = seed;
         if a parent Seedable object is passed in, they will share random number generators, and the seed argument will not be used
 
