@@ -53,7 +53,7 @@ class BaseFileHandler():
 
     def exists(self) -> bool:
         # check whether dataset already exists on disk
-        if os.path.exists(self.root) and len(os.listdir(self.root)) > 0:
+        if os.path.exists(self.root):
             return True
         else:
             return False

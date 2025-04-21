@@ -62,8 +62,7 @@ class ZarrFileHandler(TorchSigFileHandler):
         Returns:
             bool: True if the Zarr file exists, otherwise False.
         """
-        num_files = len(os.listdir(self.datapath))
-        if os.path.exists(self.datapath) and num_files > 0:
+        if os.path.exists(self.datapath):
             return True
         else:
             return False
