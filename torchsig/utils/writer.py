@@ -5,7 +5,8 @@ from __future__ import annotations
 
 # TorchSig
 from torch.utils.data import DataLoader
-from torchsig.datasets.datasets import NewTorchSigDataset, dataset_yaml_name, writer_yaml_name
+from torchsig.datasets.datasets import NewTorchSigDataset
+from torchsig.datasets.dataset_utils import dataset_full_path, dataset_yaml_name, writer_yaml_name
 from torchsig.utils.file_handlers.base_handler import TorchSigFileHandler
 from torchsig.utils.file_handlers.zarr import ZarrFileHandler
 
@@ -24,6 +25,7 @@ from typing import Callable, Dict, Any, List, Tuple
 from pathlib import Path
 import os
 from shutil import disk_usage
+import concurrent.futures
 
 
 class DatasetCreator:
@@ -55,6 +57,7 @@ class DatasetCreator:
         tqdm_desc: str = None,
         file_handler: TorchSigFileHandler = ZarrFileHandler,
         train: bool = None,
+        multithreading: bool = True,
         **kwargs # any additional file handler args
     ):
         """Initializes the DatasetCreator.
@@ -78,6 +81,7 @@ class DatasetCreator:
         self.batch_size = batch_size
         self.num_workers = num_workers
         self.batch_size = batch_size
+        self.multithreading = multithreading
 
         if dataset.dataset_metadata.num_samples is None:
             raise ValueError("Must specify num_samples as an integer number. Cannot write infinite dataset to disk.")
@@ -89,10 +93,16 @@ class DatasetCreator:
             collate_fn = collate_fn
         )
 
-        self.writer = file_handler(
-            root = self.root,
-            dataset_metadata = dataset.dataset_metadata,
+        # e.g., root/torchsig_narrowband_clean
+        full_root = dataset_full_path(
+            dataset_type = dataset.dataset_metadata.dataset_type,
+            impairment_level = dataset.dataset_metadata.impairment_level,
             train = train,
+        )
+        self.full_root = f"{root}/{full_root}"
+
+        self.writer = file_handler(
+            root = self.full_root,
             batch_size = self.batch_size,
             **kwargs
         )
@@ -131,7 +141,8 @@ class DatasetCreator:
             'batch_size': self.batch_size,
             'num_workers': self.num_workers,
             'file_handler': self.writer.__class__.__name__,
-            'save_type': self.save_type
+            'save_type': self.save_type,
+            'complete': False,
         }
 
     def check_yamls(self) -> List[Tuple[str, Any, Any]]:
@@ -144,6 +155,13 @@ class DatasetCreator:
             List[Tuple[str, Any, Any]]: List of differences between metadata on disk and in memory.
         """
         to_write_dataset_metadata = self.dataloader.dataset.dataset_metadata.to_dict()
+
+        writer_yaml = f"{self.writer.root}/{writer_yaml_name}"
+        complete = False
+        with open(writer_yaml, 'r') as f:
+            writer_dict = yaml.load(f, Loader=yaml.FullLoader)
+            # check if dataset finished writing
+            complete = writer_dict['complete']
         
         dataset_yaml = f"{self.writer.root}/{dataset_yaml_name}"
         different_params = []
@@ -162,7 +180,20 @@ class DatasetCreator:
                     if current_params[k] != v:
                         different_params.append((k, v, current_params[k]))
 
-        return different_params
+        return complete, different_params
+
+    def _write_batch(self, batch_idx: int, batch: Any, pbar):
+        """Multi-threaded writer batch
+        Args:
+            batch_idx (int): batch index
+            batch (Any): batch
+            pbar (_type_): tqdm bar to update
+        """        
+        # write to disk
+        self.writer.write(batch_idx, batch)
+
+        # update progress bar message
+        self._update_tqdm_message(pbar,batch_idx)
 
     
     def create(self) -> None:
@@ -177,10 +208,15 @@ class DatasetCreator:
             ValueError: If the dataset is already generated and `overwrite` is set to False.
         """
         if self.writer.exists() and not self.overwrite:
-            different_params = self.check_yamls()
-            if len(different_params) == 0:
+            complete, different_params = self.check_yamls()
+            if len(different_params) == 0 and complete:
                 print(f"Dataset already exists in {self.writer.root}. Not regenerating.")
                 return
+
+            if not complete:
+                # dataset on disk is corrupted
+                # dataset was not fully written to disk
+                raise RuntimeError(f"Dataset only partially exists in {self.writer.root} (writing dataset to disk was cancelled early). Regenerate the dataset by setting overwrite = True for DatasetCreator")
             # else:
             # dataset exists on disk with different params
             # use dataset on disk instead
@@ -210,13 +246,34 @@ class DatasetCreator:
         # update progress bar message
         self._update_tqdm_message(pbar)
 
-        for batch_idx, batch in tqdm(enumerate(self.dataloader), total = len(self.dataloader)):
+        # write dataset
 
-            # write to disk
-            self.writer.write(batch_idx, batch)
+        if self.multithreading:
+            # write each batch as its own thread
+            # num_threads defaults to: min(32, os.cpu_count() + 4)
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                # Submit each batch write task to the executor
+                futures = [executor.submit(self._write_batch, batch_idx, batch, pbar) for batch_idx, batch in tqdm(enumerate(self.dataloader), total = len(self.dataloader))]
 
-            # update progress bar message
-            self._update_tqdm_message(pbar,batch_idx)
+                # Wait for all futures to complete
+                concurrent.futures.wait(futures)
+        
+        else:
+            # single threaded writing
+
+            for batch_idx, batch in tqdm(enumerate(self.dataloader), total = len(self.dataloader)):
+
+                # write to disk
+                self.writer.write(batch_idx, batch)
+
+                # update progress bar message
+                self._update_tqdm_message(pbar,batch_idx)
+
+        # update writer yaml
+        # indicate writing dataset to disk was successful
+        updated_writer_yaml = self.get_writing_info_dict()
+        updated_writer_yaml['complete'] = True
+        write_dict_to_yaml(f"{self.writer.root}/{writer_yaml_name}", updated_writer_yaml)
 
 
     def _update_tqdm_message( self, pbar=tqdm(), batch_idx:int = 0 ):
