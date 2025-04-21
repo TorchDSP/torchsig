@@ -571,10 +571,25 @@ def prototype_polyphase_filter (num_branches:int, attenuation_db:float=120) -> n
     # create path to weights file
     path_to_file = Path(__file__).parent.absolute().joinpath(pfb_weights_filename)
 
-    # if weights file exists, load it
-    if (Path(path_to_file).is_file()):
-        filter_weights = read_pickle ( path_to_file )
-    else: # file does not yet exist
+    # does weights file exist?
+    weights_exist_boolean = path_to_file.is_file()
+
+    # can the weights be loaded? possibility of corrupted file
+    # if CTRL+C exit during write, or other misc file corruption.
+    design_weights_boolean = True
+    if (weights_exist_boolean):
+        try:
+            # read from file
+            filter_weights = read_pickle ( path_to_file )
+            # overwrite the default value of boolean, no need to recompute
+            design_weights_boolean = False
+        except:
+            # do nothing here. design_weights_boolean already has the correct
+            # value and will be acted upon in next if() statement
+            pass
+
+    # design and save new weights if the file does not exist OR the file read failed
+    if (not weights_exist_boolean or design_weights_boolean):
         # design prototype filter weights
         filter_weights = low_pass_iterative_design(cutoff,transition_bandwidth,sample_rate,attenuation_db)
         # write weights to file for later
@@ -1107,3 +1122,60 @@ def low_pass_iterative_design(cutoff:float, transition_bandwidth:float, sample_r
 
     return lpf
 
+
+def noise_generator(
+    N: int = 1024,
+    power: float = 1.0,
+    color: str = 'white',
+    continuous: bool = True,
+    rng: np.random.Generator = np.random.default_rng(seed=None)
+) -> np.ndarray:
+    """Generates additive complex noise of specified power and type.
+
+    Args:
+        power (float): Desired noise power (linear, positive). Defaults to 1.0 W (0 dBW).
+        color (str): Noise color, supports 'white', 'pink', or 'red' noise frequency spectrum types. Defaults to 'white'.
+        continuous (bool): Sets noise to continuous (True) or impulsive (False). Defaults to True.
+        rng (np.random.Generator, optional): Random number generator. Defaults to np.random.default_rng(seed=None).
+
+    Raises:
+        ValueError: If invalid noise power specified.
+        ValueError: If unsupported noise type specified.
+    
+    Returns:
+        np.ndarray: Complex noise samples with specified power.
+    
+    """
+    if not power >= 0.:
+         raise ValueError(f"Noise power must be greater than or equal to 0.")
+
+    if continuous:
+        noise_source = (   rng.standard_normal((N,), dtype=torchsig_float_data_type) + 
+                        1j*rng.standard_normal((N,), dtype=torchsig_float_data_type)) / np.sqrt(2) # continous white noise (1.0 W)
+    else: # impulsive
+        noise_source = np.zeros((N,), dtype=torchsig_complex_data_type)
+        impulse_ind = rng.integers(0,N,dtype=int)   # random impulse location
+        noise_source[impulse_ind] = (1 + 1j) / np.sqrt(2) # impulse 1.0 W
+
+    X_white = np.fft.fft(noise_source, norm="ortho") # frequency domain noise 1.0 W
+
+    # frequency domain shaping filter
+    freqs = np.fft.fftfreq(N) # sample frequencies 
+    if color == 'white': # flat frequency spectrum
+        S = 1
+        #S = np.ones((N,))
+        #S = S / np.sqrt(np.mean(S**2)) 
+    elif color == 'pink': # 1/f (flicker noise), -10 db/decade frequency power spectrum
+        S = 1/np.where(freqs == 0, float('inf'), np.sqrt(np.abs(freqs))) # zero-mean (DC=0) 
+        S = S / np.sqrt(np.mean(S**2)) # RMS normalize shaping filter (estimated)
+    elif color == 'red': # 1/f**2 (brownian noise), -20 dB/decade frequency power spectrum
+        S = 1/np.where(freqs == 0, float('inf'), np.abs(freqs)) # zero-mean (DC=0)
+        S = S / np.sqrt(np.mean(S**2)) # RMS normalize shaping filter (estimated)
+    else:
+        raise ValueError(f"Invalid noise type {type}. Must be 'white', 'pink', or 'red'.")
+    
+    X_shaped = S * X_white 
+    noise = np.fft.ifft(X_shaped, norm="ortho")
+    est_power = np.sum(np.abs(noise)**2)/len(noise)
+    noise = np.sqrt(power / est_power) * noise 
+    return noise

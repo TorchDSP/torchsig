@@ -5,19 +5,18 @@ __all__ = [
     "DatasetTransform",
 
     ### RF Transforms
+    "AdditiveNoiseDatasetTransform"
     "AGC",
     "AWGN",
     "BlockAGC",
     "CarrierPhaseOffsetDatasetTransform",
-    # "ColoredNoise",
     "ComplexTo2D",
-    # "ImpulsiveNoise",    
     "IQImbalanceDatasetTransform",
-    # "LocalOscillatorPhaseNoiseDatasetTransform",
-    # "LocalOscillatorFrequencyDriftDatasetTransform"
-    # "NonlinearAmplifierDatasetTransform",
-    # "PassbandRippleDatasetTransform",
-    "Quantize",
+    "LocalOscillatorPhaseNoiseDatasetTransform",
+    "LocalOscillatorFrequencyDriftDatasetTransform"
+    "NonlinearAmplifierDatasetTransform",
+    "PassbandRippleDatasetTransform",
+    "QuantizeDatasetTransform",
     "Spectrogram",
     "SpectralInversionDatasetTransform",
     "TimeVaryingNoise",
@@ -42,6 +41,7 @@ from torchsig.utils.dsp import torchsig_complex_data_type, torchsig_float_data_t
 
 # Third Party
 import numpy as np
+import scipy as sp
 
 # Built-In
 from typing import List, Tuple
@@ -83,6 +83,49 @@ class DatasetTransform(Transform):
         raise NotImplementedError
 
 ### RF Transforms
+
+class AdditiveNoiseDatasetTransform(DatasetTransform):
+    """Apply additive noise with specified parameters to DatasetSignal.
+
+    Attributes:  
+        power_range (Tuple[float, float]): Range bounds for interference power level (W). 
+            Defaults to (0.01, 10.0).
+        power_distribution (float): Random draw of interference power.
+        color (str): Noise color, supports 'white', 'pink', or 'red' noise frequency spectrum types. Defaults to 'white'.
+        continuous (bool): Sets noise to continuous (True) or impulsive (False). Defaults to True.
+    
+    """
+    def __init__(
+        self,
+        power_range: Tuple = (0.01, 10.0),
+        color: str = 'white',
+        continuous: bool = True,
+        **kwargs
+    ):
+        super().__init__(**kwargs)
+        self.power_range = power_range
+        self.power_distribution = self.get_distribution(self.power_range)
+        self.color = color
+        self.continuous = continuous
+
+    def __call__(self, signal: DatasetSignal) -> DatasetSignal:
+        power = self.power_distribution()
+
+        signal.data = F.additive_noise(
+            data = signal.data,
+            power = power,
+            color = self.color,
+            continuous = self.continuous,
+            rng = self.random_generator
+        )   
+        signal.data = signal.data.astype(torchsig_complex_data_type)        
+        self.update(signal)
+        return signal
+
+
+
+
+
 
 class AGC(DatasetTransform):
     """Automatic Gain Control performing sample-by-sample AGC algorithm.
@@ -268,10 +311,6 @@ class CarrierPhaseOffsetDatasetTransform(DatasetTransform):
         return signal
 
 
-class ColoredNoise(DatasetTransform):
-    """Unimplemented DatasetTransform for producing noise of varying PSD responses.
-    """
-
 class ComplexTo2D(DatasetTransform):
     """Converts IQ data to two channels (real and imaginary parts).
     """
@@ -281,13 +320,9 @@ class ComplexTo2D(DatasetTransform):
         self.update(signal)
         return signal
 
-class ImpulsiveNoise(DatasetTransform):
-    """Unimplemented DatasetTransform that models sharp impulsive noise events.
-    """
-
 
 class IQImbalanceDatasetTransform(DatasetTransform):
-    """Applies a set of IQImbalance effects to a Signal: amplitude, phase, and DC offset.
+    """Applies a set of IQImbalance effects to a DatasetSignal: amplitude, phase, and DC offset.
 
     Attributes:
         amplitude_imbalance (optional): Range bounds of IQ amplitude imbalance (dB).    
@@ -302,7 +337,7 @@ class IQImbalanceDatasetTransform(DatasetTransform):
         self,
         amplitude_imbalance = (-1., 1.),
         phase_imbalance = (-5.0 * np.pi / 180.0, 5.0 * np.pi / 180.0),
-        dc_offset = (-0.1, 0.1),
+        dc_offset = ((-0.1, 0.1),(-0.1, 0.1)),
         **kwargs
     ): 
         super().__init__(**kwargs)
@@ -326,26 +361,177 @@ class IQImbalanceDatasetTransform(DatasetTransform):
 
 
 class LocalOscillatorFrequencyDriftDatasetTransform(DatasetTransform):
-    """Unimplemented DatasetTransform for modeling Local Oscillator drift in frequency.
+    """Apply LO frequency drift to DatasetSignal.
+
+    Attributes:
+        drift_std_range (Tuple[float, float]): Drift standard deviation. Default (10, 100).
+        
     """
+    def __init__(
+        self, 
+        drift_std_range: Tuple[float, float] = (10, 100),
+        **kwargs
+    ):
+        super().__init__(**kwargs)
+        self.drift_std_range = drift_std_range
+        self.drift_std_distribution = self.get_distribution(self.drift_std_range)
+    
+    def __call__(self, signal: DatasetSignal) -> DatasetSignal:
+        drift_std = self.drift_std_distribution()
+
+        if (isinstance(signal.metadata,list)):
+            sample_rate = signal.metadata[0].sample_rate
+        else:
+            sample_rate = signal.metadata.sample_rate
+
+        signal.data = F.local_oscillator_frequency_drift(
+            data = signal.data, 
+            drift_std = drift_std,
+            sample_rate = sample_rate,
+            rng = self.random_generator
+        )
+
+        signal.data = signal.data.astype(torchsig_complex_data_type)
+        self.update(signal)
+        return signal
 
 
 class LocalOscillatorPhaseNoiseDatasetTransform(DatasetTransform):
-    """Unimplemented DatasetTransform for modeling Local Oscillator phase noise.
-    """   
+    """Applies LO phase noise to DatasetSignal.
+
+    Attributes:
+        phase_noise_std (Tuple[float, float]): Range of phase noise standard deviation.. Defaults to (10,100).
+        
+    """
+    def __init__(
+        self, 
+        phase_noise_std: Tuple[float, float] = (10, 100),
+        **kwargs
+    ):
+        super().__init__(**kwargs)
+        self.phase_noise_std = phase_noise_std
+        self.phase_noise_std_distribution = self.get_distribution(self.phase_noise_std)
+    
+    def __call__(self, signal: DatasetSignal) -> DatasetSignal:
+        phase_noise_std = self.phase_noise_std_distribution()
+
+        if (isinstance(signal.metadata,list)):
+            sample_rate = signal.metadata[0].sample_rate
+        else:
+            sample_rate = signal.metadata.sample_rate
+
+        signal.data = F.local_oscillator_phase_noise(
+            data = signal.data,
+            phase_noise_std = phase_noise_std,
+            sample_rate = sample_rate,
+            rng = self.random_generator
+        )
+
+        signal.data = signal.data.astype(torchsig_complex_data_type)
+        self.update(signal)
+        return signal
 
 
 class NonlinearAmplifierDatasetTransform(DatasetTransform):
-    """Unimplemented SignalTransform for memoryless nonlinear amplifier response.
-    """  
+    """Applies a memoryless nonlinear amplifier model to DatasetSignal.
+
+    Attributes:
+        gain_range (Tuple[float, float]): Small-signal gain range (linear). Defaults to (1.0, 4.0).
+        gain_distribution (Callable[[], float]): Random draw from gain distribution.
+        psat_backoff_range (Tuple[float, float]): Psat backoff factor (linear) reflecting saturated
+            power level (Psat) relative to input signal mean power. Defaults to (5.0, 20.0).
+        past_backoff_distribution (Callable[[], float]): Random draw from psat_backoff distribution.   
+        phi_range (Tuple[float, float]): Maximum signal relative phase shift at 
+            saturation power level (radians). Defaults to (0.0, 0.0).
+        phi_distribution (Callable[[], float]): Random draw from phi distribution.        
+        auto_scale (bool): Automatically rescale output power to match full-scale peak 
+            input power prior to transform, based on peak estimates. Default True.
+
+    """
+    def __init__(
+        self,
+        gain_range: Tuple[float, float] = (1.0, 4.0),
+        psat_backoff_range: Tuple[float, float] = (5.0, 20.0),
+        phi_range: Tuple[float, float] = (0.0, 0.0),
+        auto_scale: bool = True,
+        **kwargs
+    ):
+        super().__init__(**kwargs)
+        self.gain_range = gain_range
+        self.gain_distribution = self.get_distribution(self.gain_range)
+        self.psat_backoff_range = psat_backoff_range
+        self.psat_backoff_distribution = self.get_distribution(self.psat_backoff_range)        
+        self.phi_range = phi_range
+        self.phi_distribution = self.get_distribution(self.phi_range)
+        self.auto_scale = auto_scale
+
+    def __call__(self, signal: DatasetSignal) -> DatasetSignal:
+        
+        # apply a wideband nonlinear response to entire band
+        gain = self.gain_distribution()
+        psat_backoff = self.psat_backoff_distribution()
+        phi = self.phi_distribution()
+
+        signal.data = F.nonlinear_amplifier(
+            data = signal.data,
+            gain = gain,
+            psat_backoff = psat_backoff,
+            phi_rad = phi,
+            auto_scale = self.auto_scale       
+        )
+        signal.data = signal.data.astype(torchsig_complex_data_type)
+        self.update(signal)
+        return signal
 
 
 class PassbandRippleDatasetTransform(DatasetTransform):
-    """Unimplemented SignalTransform to create passband ripple filter effects within the sampling bandwidth.
-    """     
+    """Applies a model of wideband analog filter passband ripple for DatasetSignals.
+
+    Attributes:
+        passband_ripple_db (float): Desired passband ripple in dB. Default 1.0 dB.
+        cutoff (float): Passband cutoff frequency relative to Fs=1.0 sample rate. Default 0.25.
+        order (int): Desired filter order, which drives number of ripples present within
+            the passband. Default 5.
+        numtaps (int): Number of taps in filter. Default 63.
+        
+    """
+    def __init__(
+        self, 
+        passband_ripple_db: float = 1.0,
+        cutoff: float = 0.25,
+        order: int = 5,
+        numtaps: int = 63,
+        **kwargs
+    ):
+        super().__init__(**kwargs)
+        self.passband_ripple_db = passband_ripple_db
+        self.cutoff = cutoff
+        self.order = order
+        self.numtaps = numtaps
+
+        # design filter 
+        b, a = sp.signal.cheby1(
+            self.order, 
+            self.passband_ripple_db, 
+            self.cutoff, 
+            fs=1.0, 
+            btype='low'
+        )
+        _, h = sp.signal.dimpulse((b, a, 1/1.0), n=numtaps)
+        self.fir_coeffs = h[0].squeeze()
+    
+    def __call__(self, signal: DatasetSignal) -> DatasetSignal:
+        signal.data = F.passband_ripple(
+            data = signal.data,
+            filter_coeffs = self.fir_coeffs,
+            normalize = True
+        )
+        signal.data = signal.data.astype(torchsig_complex_data_type)
+        self.update(signal)
+        return signal
 
 
-class Quantize(DatasetTransform):
+class QuantizeDatasetTransform(DatasetTransform):
     """Quantize signal I/Q samples into specified levels with a rounding method.
 
     Attributes:
@@ -358,23 +544,30 @@ class Quantize(DatasetTransform):
     """
     def __init__(
         self,
-        num_levels = ([16, 24, 32, 40, 48, 56, 64]),
-        round_type: List[str] = (["floor", "middle", "ceiling"]),
+        num_bits:  Tuple[int, int] = (6, 18),
+        ref_level_adjustment_db:  Tuple[float, float] = (-10, 3),
         **kwargs
     ):
         super().__init__(**kwargs)
-        self.num_levels = num_levels
-        self.round_type = round_type
-
-        self.num_levels_distribution = self.get_distribution(self.num_levels )
-        self.round_type_distribution = self.get_distribution(self.round_type )
+        self.num_bits = num_bits
+        self.num_bits_distribution = self.get_distribution(self.num_bits)
+        self.ref_level_adjustment_db = ref_level_adjustment_db
+        self.ref_level_adjustment_db_distribution = self.get_distribution(self.ref_level_adjustment_db)
         
     def __call__(self, signal: DatasetSignal) -> DatasetSignal:
-        num_levels = self.num_levels_distribution()
-        round_type = self.round_type_distribution()
-        signal.data = F.quantize(signal.data, num_levels, round_type)
+        num_bits = self.num_bits_distribution()
+        ref_level_adjustment_db = self.ref_level_adjustment_db_distribution()
+
+        # apply quantization
+        signal.data = F.quantize(
+            data = signal.data,
+            num_bits = num_bits,
+            ref_level_adjustment_db = ref_level_adjustment_db,
+        )
+
         signal.data = signal.data.astype(torchsig_complex_data_type)
         self.update(signal)
+
         return signal
 
 
