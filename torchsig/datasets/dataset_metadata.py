@@ -89,11 +89,11 @@ class DatasetMetadata(Seedable):
 
         Args:
             num_iq_samples_dataset (int): Length of I/Q array in dataset.
-            sample_rate (float, optional): Sample rate for dataset. Defaults to 10e6.
             fft_size (int): Size of FFT (number of bins) to be used in spectrogram.
             impairment_level (int): Signal impairment level.
-            num_signals_max (int): Maximum number of signals per sample in dataset.
+            sample_rate (float, optional): Sample rate for dataset. Defaults to 10e6.
             num_signals_min (int, optional): Minimum number of signals per sample. Defaults to 0.
+            num_signals_max (int): Maximum number of signals per sample in dataset.
             num_signals_distribution (np.ndarray | List[float], optional): Probability to generate sample with N signals 
                 for each value in `[num_signals_min, num_signals_max]`. Defaults to None (uniform).
             snr_db_min (float, optional): Minimum SNR of signals to generate. Defaults to 0.0.
@@ -985,8 +985,9 @@ class NarrowbandMetadata(DatasetMetadata):
 
         Args:
             num_iq_samples_dataset (int): The length of I/Q array per sample in the dataset.
-            sample_rate (float, optional): The sample rate for the dataset (default is 10e6).
             fft_size (int): The size of FFT (number of bins) to be used in spectrogram calculation.
+            impairment_level (int): Signal impairment level.
+            sample_rate (float, optional): The sample rate for the dataset (default is 10e6).
             num_signals_min (int, optional): Minimum number of signals per sample (default is 0).
             num_signals_distribution (np.ndarray | List[float], optional): The probability distribution 
                 for generating samples with a specific number of signals. Defaults to uniform distribution if None.
@@ -1000,7 +1001,6 @@ class NarrowbandMetadata(DatasetMetadata):
             signal_center_freq_max (float, optional): Maximum center frequency of a signal. Default is None.
             transforms (list, optional): Transforms to apply on the dataset (default in []).
             target_transforms (list, optional): Transforms for targets (default is an empty list).
-            impairment_level (int, optional): Level of signal impairment (default is 2).
             class_list (List[str], optional): List of signal class names (default is all signals from TorchSigSignalLists).
             class_distribution (np.ndarray | List[float], optional): Probability distribution for classes (default is None).
             num_samples (int, optional): Length of the dataset. If None, an infinite dataset is assumed (default is None).
@@ -1120,10 +1120,10 @@ class WidebandMetadata(DatasetMetadata):
         
         Args:
             num_iq_samples_dataset (int): Length of I/Q array per sample in the dataset.
-            sample_rate (float): Sample rate for the dataset.
             fft_size (int): Size of FFT (number of bins) used in spectrogram.
-            impairment_level (int, optional): Impairment level for the signals.
+            impairment_level (int): Impairment level for the signals.
             num_signals_max (int): Maximum number of signals per sample in the dataset.
+            sample_rate (float): Sample rate for the dataset.
             num_signals_min (int, optional): Minimum number of signals per sample (default is 0).
             num_signals_distribution (np.ndarray | List[float], optional): Distribution of signals for each value 
                 in `[num_signals_min, num_signals_max]`. Defaults to None (uniform).
@@ -1139,8 +1139,6 @@ class WidebandMetadata(DatasetMetadata):
             target_transforms (list, optional): Target transforms applied (default is []).
             class_list (List[str], optional): List of signal class names (default is `TorchSigSignalLists.all_signals`).
             class_distribution (np.ndarray | List[float], optional): Probabilities for each class.
-            # root (str, optional): Directory to write the dataset to disk (default is None).
-            # overwrite (bool, optional): Whether to overwrite the existing dataset (default is False).
             num_samples (int, optional): Number of samples in the dataset (default is None, infinite dataset).
             **kwargs: Additional parameters to pass to the parent class.
         """  
