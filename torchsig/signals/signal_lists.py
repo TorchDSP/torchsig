@@ -74,34 +74,6 @@ SIGNALS_SHARED_LIST: list = list(CLASS_FAMILY_DICT.keys())
 
 FAMILY_SHARED_LIST: list = sorted(list(set(CLASS_FAMILY_DICT.values())))
 
-# list for radio ML 2018 dataset
-FAMILY_SHARED_LIST_RADIOML: list = [
-        "OOK",
-        "4ASK",
-        "8ASK",
-        "BPSK",
-        "QPSK",
-        "8PSK",
-        "16PSK",
-        "32PSK",
-        "16APSK",
-        "32APSK",
-        "64APSK",
-        "128APSK",
-        "16QAM",
-        "32QAM",
-        "64QAM",
-        "128QAM",
-        "256QAM",
-        "AM-SSB-WC",
-        "AM-SSB-SC",
-        "AM-DSB-WC",
-        "AM-DSB-SC",
-        "FM",
-        "GMSK",
-        "OQPSK",
-    ]
-
 @dataclass
 class TorchSigSignalLists():
     """Various lists of signals available within TorchSig
@@ -168,14 +140,3 @@ class TorchSigSignalLists():
     # specifically designed lists
     ofdm_subcarrier_modulations = ["bpsk", "qpsk", "16qam", "64qam", "256qam", "1024qam"]
 
-
-@dataclass
-class RadioML2018():
-    """Radio ML 2016 dataclass, containing family class names list `family_class_list`
-    
-    Example:
-        Access this list::
-            >>> from torchsig.signals.signal_lists import radioml2018
-            >>> radioml2018.family_class_list
-    """
-    family_class_list: ClassVar[list[str]] = FAMILY_SHARED_LIST_RADIOML
