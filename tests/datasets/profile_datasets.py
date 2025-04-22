@@ -301,11 +301,11 @@ def main():
         now = datetime.datetime.now()
         print("Profile Run at: ", now.strftime("%Y-%m-%d %H:%M:%S"))
 
-        # wideband_infinite_generation(transforms = Spectrogram(fft_size=fft_size))
-        # wideband_finite_writing(transforms = Spectrogram(fft_size=fft_size))
-        # wideband_finite_reading(transforms = Spectrogram(fft_size=fft_size))
+        wideband_infinite_generation(transforms = Spectrogram(fft_size=fft_size))
+        wideband_finite_writing(transforms = Spectrogram(fft_size=fft_size))
+        wideband_finite_reading(transforms = Spectrogram(fft_size=fft_size))
 
-        # narrowband_infinite_generation(transforms = Spectrogram(fft_size=fft_size))
+        narrowband_infinite_generation(transforms = Spectrogram(fft_size=fft_size))
         narrowband_finite_writing(transforms = Spectrogram(fft_size=fft_size))
         narrowband_finite_reading(transforms = Spectrogram(fft_size=fft_size))
 
