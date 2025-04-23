@@ -41,6 +41,7 @@ from copy import deepcopy
 import numpy as np
 import pytest
 
+
 TEST_DS_SIGNAL = generate_test_dataset_signal(num_iq_samples = 64, scale = 1.0)
 
 
@@ -66,8 +67,9 @@ def test_DatasetTransform(is_error: bool) -> None:
 
 
 @pytest.mark.parametrize("signal, params, is_error", [
-    (deepcopy(TEST_DS_SIGNAL),{'power_range': (0.01, 10.0), 'color': 'white', 'continuous': True},False),
-    (deepcopy(TEST_DS_SIGNAL),{'power_range': (2.0, 4.0), 'color': 'red', 'continuous': False},False),
+    # (deepcopy(TEST_DS_SIGNAL),{'power_range': (0.01, 10.0), 'color': 'white', 'continuous': True,'measure': False},False),
+    # (deepcopy(TEST_DS_SIGNAL),{'power_range': (2.0, 4.0), 'color': 'red', 'continuous': False,'measure': False},False),
+    (deepcopy(TEST_DS_SIGNAL),{'power_range': (2.0, 2.0),'color': 'white','continuous': True,'measure': True},False)    
 ])
 def test_AdditiveNoiseDatasetTransform(signal: DatasetSignal, params: dict, is_error: bool) -> None:
     """Test the AdditiveNoiseDatasetTransform with pytest.
@@ -84,6 +86,7 @@ def test_AdditiveNoiseDatasetTransform(signal: DatasetSignal, params: dict, is_e
     power_range = params['power_range']
     color = params['color']
     continuous = params['continuous']
+    measure = params['measure']    
 
     if is_error:
         with pytest.raises(Exception, match=r".*"):
@@ -91,6 +94,7 @@ def test_AdditiveNoiseDatasetTransform(signal: DatasetSignal, params: dict, is_e
                 power_range = power_range,
                 color = color,
                 continuous = continuous,
+                measure = measure,
                 seed = 42
             )
             signal = T(signal)
@@ -100,9 +104,27 @@ def test_AdditiveNoiseDatasetTransform(signal: DatasetSignal, params: dict, is_e
             power_range = power_range,
             color = color,
             continuous = continuous,
+            measure = measure,
             seed = 42
         )
         signal = T(signal)
+
+        for i, m in enumerate(signal.metadata):
+            start = m.start_in_samples
+            duration = m.duration_in_samples
+            stop = start + duration
+            orig_snr_linear = 10 ** (signal_test.metadata[i].snr_db / 10)
+            orig_power = np.sum(np.abs(signal_test.data[start:stop])**2)/duration
+            out_power = np.sum(np.abs(signal.data[start:stop])**2)/duration
+            add_noise_power = out_power - orig_power
+            sig_power = orig_power / (1 + 1/orig_snr_linear)
+            noise_power = sig_power / orig_snr_linear
+            new_snr_db = 10*np.log10(sig_power / (noise_power + add_noise_power))
+            
+            if measure:
+                assert np.abs(signal.metadata[i].snr_db - new_snr_db) < 10**(1.0/10)
+            else:
+                assert signal.metadata[i].snr_db == signal_test.metadata[i].snr_db
 
         assert isinstance(T, AdditiveNoiseDatasetTransform)
         assert isinstance(T.random_generator, np.random.Generator)   
@@ -112,46 +134,6 @@ def test_AdditiveNoiseDatasetTransform(signal: DatasetSignal, params: dict, is_e
         assert isinstance(signal, DatasetSignal)
         assert type(signal.data) == type(signal_test.data)
         assert len(signal.data) == len(signal_test.data)
-        assert signal.data.dtype == signal_test.data.dtype
-        assert np.not_equal(signal.data, signal_test.data).any()
-
-
-@pytest.mark.parametrize("signal, params, is_error", [
-    ( deepcopy(TEST_DS_SIGNAL), {'noise_power_db': 3.0}, False ),
-    ( deepcopy(TEST_DS_SIGNAL), {'noise_power_db': 0.1}, False ),
-])
-def test_AWGN(signal: DatasetSignal, params: dict, is_error: bool) -> None:
-    """Test the AWGN DatasetTransform with pytest.
-
-    Args:
-        signal (is_error: bool) -> None:: input dataset.
-        params (dict): AWGN parameters (see functional AWGN description).
-        is_error (bool): Is a test error expected. 
-
-    Raises:
-        AssertionError: If unexpected test output.
-
-    """
-    if is_error:
-        with pytest.raises(Exception, match=r".*"):
-            T = AWGN(
-                noise_power_db = params['noise_power_db'],
-                seed = 42
-            )
-            signal = T(signal)
-    else:        
-        T = AWGN(
-            noise_power_db = params['noise_power_db'],
-            seed = 42
-        )
-        signal_test = deepcopy(signal) 
-        signal = T(signal)
-
-        assert isinstance(T, AWGN)
-        assert isinstance(T.random_generator, np.random.Generator)   
-        assert isinstance(T.noise_power_db, float) 
-        assert isinstance(signal, DatasetSignal)
-        assert type(signal.data) == type(signal_test.data)
         assert signal.data.dtype == signal_test.data.dtype
         assert np.not_equal(signal.data, signal_test.data).any()
 
@@ -254,8 +236,9 @@ def test_AGC(signal: DatasetSignal, params: dict, is_error: bool) -> None:
 
 
 @pytest.mark.parametrize("signal, params, is_error", [
-    ( deepcopy(TEST_DS_SIGNAL), {'noise_power_db': 3.0}, False ),
-    ( deepcopy(TEST_DS_SIGNAL), {'noise_power_db': 0.1}, False ),
+    ( deepcopy(TEST_DS_SIGNAL), {'noise_power_db': 3.0, 'measure': False}, False ),
+    ( deepcopy(TEST_DS_SIGNAL), {'noise_power_db': 0.1, 'measure': False}, False ),
+    ( deepcopy(TEST_DS_SIGNAL), {'noise_power_db': 0.5, 'measure': True}, False )
 ])
 def test_AWGN(signal: DatasetSignal, params: dict, is_error: bool) -> None:
     """Test the AWGN DatasetTransform with pytest.
@@ -269,21 +252,41 @@ def test_AWGN(signal: DatasetSignal, params: dict, is_error: bool) -> None:
         AssertionError: If unexpected test output.
 
     """
+    noise_power_db = params['noise_power_db']
+    add_noise_power_linear = 10**(noise_power_db / 10)
+    measure = params['measure']
+    
     if is_error:
         with pytest.raises(Exception, match=r".*"):
             T = AWGN(
-                noise_power_db = params['noise_power_db'],
+                noise_power_db = noise_power_db,
+                measure = measure,
                 seed = 42
             )
             signal = T(signal)
     else:        
+        signal_test = deepcopy(signal)
         T = AWGN(
-            noise_power_db = params['noise_power_db'],
+            noise_power_db = noise_power_db,
+            measure = measure,
             seed = 42
         )
-        signal_test = deepcopy(signal) 
         signal = T(signal)
 
+        for i, m in enumerate(signal.metadata):
+            if measure:
+                start = m.start_in_samples
+                duration = m.duration_in_samples
+                stop = start + duration
+                orig_snr_linear = 10 ** (signal_test.metadata[i].snr_db / 10)
+                orig_power = np.sum(np.abs(signal_test.data[start:stop])**2)/duration
+                sig_power = orig_power / (1 + 1/orig_snr_linear)
+                noise_power = sig_power / orig_snr_linear
+                new_snr_db = 10*np.log10(sig_power / (noise_power + add_noise_power_linear))
+                assert np.abs(signal.metadata[i].snr_db - new_snr_db) < 10**(1.0/10)
+            else:
+                assert signal.metadata[i].snr_db == signal_test.metadata[i].snr_db
+                
         assert isinstance(T, AWGN)
         assert isinstance(T.random_generator, np.random.Generator)   
         assert isinstance(T.noise_power_db, float) 

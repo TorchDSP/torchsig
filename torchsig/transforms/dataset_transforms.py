@@ -12,8 +12,8 @@ __all__ = [
     "CarrierPhaseOffsetDatasetTransform",
     "ComplexTo2D",
     "IQImbalanceDatasetTransform",
-    "LocalOscillatorPhaseNoiseDatasetTransform",
     "LocalOscillatorFrequencyDriftDatasetTransform"
+    "LocalOscillatorPhaseNoiseDatasetTransform",
     "NonlinearAmplifierDatasetTransform",
     "PassbandRippleDatasetTransform",
     "QuantizeDatasetTransform",
@@ -85,7 +85,7 @@ class DatasetTransform(Transform):
 ### RF Transforms
 
 class AdditiveNoiseDatasetTransform(DatasetTransform):
-    """Apply additive noise with specified parameters to DatasetSignal.
+    """Apply wideband additive noise with specified parameters to DatasetSignal.
 
     Attributes:  
         power_range (Tuple[float, float]): Range bounds for interference power level (W). 
@@ -93,6 +93,7 @@ class AdditiveNoiseDatasetTransform(DatasetTransform):
         power_distribution (float): Random draw of interference power.
         color (str): Noise color, supports 'white', 'pink', or 'red' noise frequency spectrum types. Defaults to 'white'.
         continuous (bool): Sets noise to continuous (True) or impulsive (False). Defaults to True.
+        measure (bool): Measure and update SNR metadata. Default to False.    
     
     """
     def __init__(
@@ -100,6 +101,7 @@ class AdditiveNoiseDatasetTransform(DatasetTransform):
         power_range: Tuple = (0.01, 10.0),
         color: str = 'white',
         continuous: bool = True,
+        measure: bool = False,        
         **kwargs
     ):
         super().__init__(**kwargs)
@@ -107,13 +109,28 @@ class AdditiveNoiseDatasetTransform(DatasetTransform):
         self.power_distribution = self.get_distribution(self.power_range)
         self.color = color
         self.continuous = continuous
+        self.measure = measure
 
     def __call__(self, signal: DatasetSignal) -> DatasetSignal:
-        power = self.power_distribution()
+        add_noise_power = self.power_distribution()
+        
+        if self.measure:
+            for i, m in enumerate(signal.metadata):            
+                start = m.start_in_samples
+                duration = m.duration_in_samples
+                stop = start + duration
+                snr_linear = 10 ** (m.snr_db / 10) 
+                
+                # update SNR assuming independent noise
+                total_power = np.sum(np.abs(signal.data[start:stop])**2)/duration
+                sig_power = total_power / (1 + 1/snr_linear)
+                noise_power = sig_power / snr_linear
+                new_snr = sig_power / (noise_power + add_noise_power)
+                signal.metadata[i].snr_db = 10*np.log10(new_snr)
 
         signal.data = F.additive_noise(
             data = signal.data,
-            power = power,
+            power = add_noise_power,
             color = self.color,
             continuous = self.continuous,
             rng = self.random_generator
@@ -121,10 +138,6 @@ class AdditiveNoiseDatasetTransform(DatasetTransform):
         signal.data = signal.data.astype(torchsig_complex_data_type)        
         self.update(signal)
         return signal
-
-
-
-
 
 
 class AGC(DatasetTransform):
@@ -225,28 +238,42 @@ class AWGN(DatasetTransform):
 
     Attributes:
         noise_power_db (float): noise AWGN power in dB (absolute).
+        measure (bool): Measure and update SNR metadata. Default to False.
     
     """
     def __init__(
         self,
         noise_power_db: float,
+        measure: bool = False,
         **kwargs
     ):
-        self.noise_power_db = noise_power_db   
         super().__init__(**kwargs)
+        self.noise_power_db = noise_power_db
+        self.noise_power_linear = 10**(self.noise_power_db / 10)
+        self.measure = measure
 
     def __call__(self, signal: DatasetSignal) -> DatasetSignal:
+
+        if self.measure:            
+            for i, m in enumerate(signal.metadata):            
+                start = m.start_in_samples
+                duration = m.duration_in_samples
+                stop = start + duration
+                snr_linear = 10 ** (m.snr_db / 10) 
+                
+                # update SNR assuming independent noise
+                total_power = np.sum(np.abs(signal.data[start:stop])**2)/duration
+                sig_power = total_power / (1 + 1/snr_linear)
+                noise_power = sig_power / snr_linear
+                new_snr = sig_power / (noise_power + self.noise_power_linear)
+                signal.metadata[i].snr_db = 10*np.log10(new_snr)
+
         signal.data = F.awgn(
             signal.data,
             noise_power_db = self.noise_power_db,
             rng = self.random_generator
         )
         signal.data = signal.data.astype(torchsig_complex_data_type)
-
-        # # uniformly applied uncorrelated AWGN
-        # for m in signal.metadata:
-        #     snr_linear = 10 ** (m.snr_db / 10.0)        
-        
         self.update(signal)
         return signal
 

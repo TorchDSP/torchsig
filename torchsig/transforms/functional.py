@@ -187,7 +187,7 @@ def adjacent_channel_interference(
     N = len(data)
     t = np.arange(N) / sample_rate
 
-    data_filtered = np.convolve(data, filter_weights)[-N:] # band limit original data
+    data_filtered = np.convolve(data, filter_weights)[-N:] # band limit original data (maintain data size)
     phase_noise = rng.normal(0, phase_sigma, N)  # Gaussian phase noise
     interference = data_filtered * np.exp(1j*(2*np.pi*center_frequency*t + phase_noise)) # note: does not check aliasing
 
@@ -206,7 +206,6 @@ def adjacent_channel_interference(
     return (data + interference).astype(torchsig_complex_data_type)
 
 
-# TODO: redundant with general additive noise
 def awgn(data: np.ndarray, 
          noise_power_db: float,
          rng: Optional[np.random.Generator] = None
@@ -653,7 +652,7 @@ def local_oscillator_frequency_drift(
     frequency = np.cumsum(random_phase)
 
     # frequency drift effect now contained within the complex sinusoid
-    drift_effect = np.exp(2j * np.pi * frequency / sample_rate )
+    drift_effect = np.exp(2j * np.pi * frequency / sample_rate)
 
     # apply frequency drift effect
     data = data * drift_effect

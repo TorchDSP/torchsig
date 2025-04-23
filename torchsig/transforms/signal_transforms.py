@@ -69,14 +69,16 @@ class SignalTransform(Transform):
 
 
 class AdditiveNoiseSignalTransform(SignalTransform):
-    """Adds noise with specifed properties to Signal data.
+    """Adds noise with specified properties to Signal data.
 
     Attributes:  
         power_range (Tuple[float, float]): Range bounds for interference power level (W). 
             Defaults to (0.01, 10.0).
-        power_distribution (float): Random draw of interference power.
-        color (str): Noise color, supports 'white', 'pink', or 'red' noise frequency spectrum types. Defaults to 'white'.
+        power_distribution (Callable[[], float]): Random draw of interference power.
+        color (str): Noise color, supports 'white', 'pink', or 'red' noise frequency spectrum types. 
+            Defaults to 'white'.
         continuous (bool): Sets noise to continuous (True) or impulsive (False). Defaults to True.
+        measure (bool): Measure and update SNR metadata. Default to False.
     
     """
     def __init__(
@@ -84,6 +86,7 @@ class AdditiveNoiseSignalTransform(SignalTransform):
         power_range: Tuple = (0.01, 10.0),
         color: str = 'white',
         continuous: bool = True,
+        measure: bool = False,
         **kwargs
     ):  
         super().__init__(**kwargs)
@@ -91,21 +94,30 @@ class AdditiveNoiseSignalTransform(SignalTransform):
         self.power_distribution = self.get_distribution(self.power_range)
         self.color = color
         self.continuous = continuous
+        self.measure = measure
     
     def __call__(self, signal: Signal) -> Signal:
-        power = self.power_distribution()
-
+        add_noise_power = self.power_distribution()
+        
+        if self.measure:
+            # update SNR for full sampled band, assuming independent noise
+            snr_linear = 10 ** (signal.metadata.snr_db / 10)
+            total_power = np.sum(np.abs(signal.data)**2)/len(signal.data)
+            sig_power = total_power / (1 + 1/snr_linear)
+            noise_power = sig_power / snr_linear
+            new_snr = sig_power / (noise_power + add_noise_power)
+            signal.metadata.snr_db = 10*np.log10(new_snr)
+            
         signal.data = F.additive_noise(
             data = signal.data,
-            power = power,
+            power = add_noise_power,
             color = self.color,
             continuous = self.continuous,
             rng = self.random_generator
-        )        
+        )
         signal.data = signal.data.astype(torchsig_complex_data_type)
         self.update(signal)
         return signal
-
 
 
 class AdjacentChannelInterference(SignalTransform):
@@ -115,16 +127,16 @@ class AdjacentChannelInterference(SignalTransform):
         sample_rate (float): Sample rate (normalized). Defaults to 1.0.
         power_range (Tuple[float, float]): Range bounds for interference power level (W). 
             Defaults to (0.01, 10.0).
-        power_distribution (float): Random draw of interference power.
+        power_distribution (Callable[[], float]): Random draw of interference power.
         center_frequency_range (Tuple[float, float]): Range bounds for interference center
             frequency (normalized). Defaults to (0.2, 0.3).
-        center_frequency_distribution (float): Random draw of interference power.        
+        center_frequency_distribution (Callable[[], float]): Random draw of interference power.        
         phase_sigma_range (Tuple[float, float]): Range bounds for interference phase sigma. 
             Defaults to (0.0, 1.0).
-        phase_sigma_distribution (float): Random draw of phase sigma. 
+        phase_sigma_distribution (Callable[[], float]): Random draw of phase sigma. 
         time_sigma_range (Tuple[float, float]): Range bounds for interference time sigma. 
             Defaults to (0.0, 10.0).
-        time_sigma_distribution (float): Random draw of time sigma.      
+        time_sigma_distribution (Callable[[], float]): Random draw of time sigma.      
         filter_weights (np.ndarray): Predefined baseband lowpass filter, fixed for all calls.
             Defaults to low_pass(0.125, 0.125, 1.0).
     
@@ -196,7 +208,6 @@ class CarrierPhaseOffsetSignalTransform(SignalTransform):
         phase_offset = self.phase_offset_distribution()
 
         signal.data = F.phase_offset(signal.data, phase_offset)
-
         signal.data = signal.data.astype(torchsig_complex_data_type)
         self.update(signal)
         return signal
@@ -213,7 +224,8 @@ class CochannelInterference(SignalTransform):
             Default low_pass(0.125, 0.125, 1.0).
         noise_color (str): Base noise color, supports 'white', 'pink', or 'red' noise 
             frequency spectrum types. Default 'white'.
-        continuous (bool): Sets noise to continuous (True) or impulsive (False). Default True.      
+        continuous (bool): Sets noise to continuous (True) or impulsive (False). Default True.
+        measure (bool): Measure and update SNR metadata. Default to False.
     
     """
     def __init__(
@@ -222,19 +234,32 @@ class CochannelInterference(SignalTransform):
         filter_weights: np.ndarray = low_pass(0.125, 0.125, 1.0),
         color: str = 'white',
         continuous: bool = True,
+        measure: bool = False,
         **kwargs
     ):  
         super().__init__(**kwargs)
         self.power_range = power_range
         self.power_distribution = self.get_distribution(self.power_range)
-        self.filter_weights = filter_weights # predefined, fixed filter
+        self.filter_weights = filter_weights # predefined, fixed band limiting filter
         self.color = color
         self.continuous = continuous
+        self.measure = measure
     
     def __call__(self, signal: Signal) -> Signal:
+        cochan_noise_power = self.power_distribution()
+        
+        if self.measure:
+            # Treat SNR as SINR/AWGN for full sampled band, assuming independent noise
+            snr_linear = 10 ** (signal.metadata.snr_db / 10)
+            total_power = np.sum(np.abs(signal.data)**2)/len(signal.data)
+            sig_power = total_power / (1 + 1/snr_linear)
+            noise_power = sig_power / snr_linear
+            new_snr = sig_power / (noise_power + cochan_noise_power)
+            signal.metadata.snr_db = 10*np.log10(new_snr)
+        
         signal.data = F.cochannel_interference(
             data = signal.data,
-            power = self.power_distribution(),
+            power = cochan_noise_power,
             filter_weights = self.filter_weights,
             color = self.color,
             continuous = self.continuous,
@@ -270,6 +295,7 @@ class DopplerSignalTransform(SignalTransform):
     
     def __call__(self, signal: Signal) -> Signal:
         velocity = self.velocity_distribution()
+        alpha = self.propagation_speed / (self.propagation_speed - velocity) # scaling factor
 
         signal.data = F.doppler(
             data = signal.data, 
@@ -277,8 +303,12 @@ class DopplerSignalTransform(SignalTransform):
             propagation_speed = self.propagation_speed, 
             sampling_rate = self.sampling_rate
         )
-
         signal.data = signal.data.astype(torchsig_complex_data_type)
+        
+        # adjust metadata by scaling factor
+        signal.metadata.center_freq *= alpha
+        signal.metadata.bandwidth *= alpha
+        
         self.update(signal)
         return signal
 
@@ -314,15 +344,14 @@ class Fading(SignalTransform): # slow, fast, block fading
         self.power_delay_profile = np.asarray(power_delay_profile)
         self.coherence_bandwidth_distribution = self.get_distribution(self.coherence_bandwidth)
         
-
     def __call__(self, signal: Signal) -> Signal:
         coherence_bandwidth = self.coherence_bandwidth_distribution()
 
         signal.data = F.fading(
-            signal.data, 
-            coherence_bandwidth, 
-            self.power_delay_profile,
-            self.random_generator
+            data = signal.data, 
+            coherence_bandwidth = coherence_bandwidth, 
+            power_delay_profile = self.power_delay_profile,
+            rng = self.random_generator
         )
 
         signal.data = signal.data.astype(torchsig_complex_data_type)
@@ -382,10 +411,7 @@ class IntermodulationProductsSignalTransform(SignalTransform):
             data = signal.data,
             coeffs = coeffs      
         )
-
-
         signal.data = signal.data.astype(torchsig_complex_data_type)
-
         self.update(signal)
         return signal
 
@@ -456,8 +482,7 @@ class LocalOscillatorFrequencyDriftSignalTransform(SignalTransform):
             sample_rate = signal.metadata.sample_rate,
             rng = self.random_generator
         )
-
-        signal.data = signal.data.astype(torchsig_complex_data_type)
+        signal.data = signal.data.astype(torchsig_complex_data_type)       
         self.update(signal)
         return signal
 
@@ -672,7 +697,6 @@ class SpectralInversionSignalTransform(SignalTransform):
     """
     def __call__(self, signal: Signal) -> Signal:
         signal.data = F.spectral_inversion(signal.data)
-
         signal.data = signal.data.astype(torchsig_complex_data_type)
 
         signal.metadata.center_freq *= -1

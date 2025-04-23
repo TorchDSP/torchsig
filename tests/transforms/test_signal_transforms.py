@@ -31,6 +31,7 @@ from copy import deepcopy
 import numpy as np
 import pytest
 
+
 RTOL = 1E-6
 TEST_SIGNAL = generate_test_signal(num_iq_samples = 64, scale = 1.0)
 
@@ -57,8 +58,9 @@ def test_SignalTransform(is_error: bool) -> None:
 
 
 @pytest.mark.parametrize("signal, params, is_error", [
-    (deepcopy(TEST_SIGNAL),{'power_range': (0.01, 10.0),'color': 'white','continuous': True}, False),
-    (deepcopy(TEST_SIGNAL),{'power_range': (0.5, 2.0),'color': 'pink','continuous': False}, False)
+    (deepcopy(TEST_SIGNAL),{'power_range': (0.01, 10.0),'color': 'white','continuous': True, 'measure': False}, False),
+    (deepcopy(TEST_SIGNAL),{'power_range': (0.5, 2.0),'color': 'pink','continuous': False, 'measure': False}, False),
+    (deepcopy(TEST_SIGNAL),{'power_range': (2.0, 2.0),'color': 'white','continuous': True, 'measure': True}, False)
 ])
 def test_AdditiveNoiseSignalTransform(
     signal: Signal,
@@ -79,6 +81,7 @@ def test_AdditiveNoiseSignalTransform(
     power_range = params['power_range']
     color = params['color']
     continuous = params['continuous']
+    measure = params['measure']
     
     if is_error:
         with pytest.raises(Exception, match=r".*"):
@@ -86,6 +89,7 @@ def test_AdditiveNoiseSignalTransform(
                     power_range = power_range,
                     color = color,
                     continuous = continuous,
+                    measure = measure,
                     seed = 42
                 )
                 signal = T(signal)
@@ -96,19 +100,32 @@ def test_AdditiveNoiseSignalTransform(
             power_range = power_range,
             color = color,
             continuous = continuous,
+            measure = measure,
             seed = 42
         )
         signal = T(signal)
+        
+        if measure:
+            orig_power = np.sum(np.abs(signal_test.data)**2)/len(signal_test.data)
+            orig_snr_linear = 10 ** (signal_test.metadata.snr_db / 10)
+            out_power = np.sum(np.abs(signal.data)**2)/len(signal.data)
+            add_noise_power = out_power - orig_power
+            sig_power = orig_power / (1 + 1/orig_snr_linear)
+            noise_power = sig_power / orig_snr_linear
+            new_snr_db = 10*np.log10(sig_power / (noise_power + add_noise_power))
+            assert np.abs(signal.metadata.snr_db - new_snr_db) < 10**(1.0/10)
+        else:
+            assert signal.metadata.snr_db == signal_test.metadata.snr_db
 
         assert isinstance(T, AdditiveNoiseSignalTransform)
         assert isinstance(T.power_distribution(), float)
         assert isinstance(T.color, str)
         assert isinstance(T.continuous, bool)
+        assert isinstance(T.measure, bool)
         assert isinstance(signal, Signal)
         assert len(signal.data) == len(signal_test.data)
         assert (signal.data.dtype == torchsig_complex_data_type)
-        # no metadata impacts
-
+    
 
 @pytest.mark.parametrize("signal, params, expected, is_error", [
     (
@@ -246,7 +263,8 @@ def test_CarrierPhaseOffsetSignalTransform(
             'power_range': (0.5, 2.0),
             'filter_weights': low_pass(0.125, 0.125, 1.0),
             'color': 'white',
-            'continuous': True
+            'continuous': True,
+            'measure': False,
         },
         True,
         False
@@ -257,11 +275,24 @@ def test_CarrierPhaseOffsetSignalTransform(
             'power_range': (0.01, 100.0),
             'filter_weights': low_pass(0.04, 0.16, 2.4),
             'color': 'pink',
-            'continuous': False            
+            'continuous': False,
+            'measure': False,
         },
         True,
         False
     ),
+    (
+        deepcopy(TEST_SIGNAL), 
+        {
+            'power_range': (0.1, 0.1),
+            'filter_weights': low_pass(0.125, 0.125, 1.0),
+            'color': 'white',
+            'continuous': True,
+            'measure': True,
+        },
+        True,
+        False
+    ),    
 ])
 def test_CochannelInterference(
     signal: Signal,
@@ -285,35 +316,52 @@ def test_CochannelInterference(
     filter_weights = params['filter_weights']
     color = params['color']
     continuous = params['continuous']
+    measure = params['measure']
     
     if is_error:
         with pytest.raises(Exception, match=r".*"):
-                T = CochannelInterference(
-                    power_range = power_range,
-                    filter_weights = filter_weights,
-                    color = color,
-                    continuous = continuous,
-                    seed = 42
-                )
-                signal = T(signal)
+            T = CochannelInterference(
+                power_range = power_range,
+                filter_weights = filter_weights,
+                color = color,
+                continuous = continuous,
+                measure = measure,
+                seed = 42
+            )
+            signal = T(signal)
     else:
+        signal_test = deepcopy(signal)
+        
         T = CochannelInterference(
             power_range = power_range,
             filter_weights = filter_weights,
             color = color,
             continuous = continuous,
+            measure = measure,
             seed = 42
         )
         signal = T(signal)
+
+        if measure:
+            orig_power = np.sum(np.abs(signal_test.data)**2)/len(signal_test.data)
+            orig_snr_linear = 10 ** (signal_test.metadata.snr_db / 10)
+            out_power = np.sum(np.abs(signal.data)**2)/len(signal.data)
+            add_noise_power = out_power - orig_power
+            sig_power = orig_power / (1 + 1/orig_snr_linear)
+            noise_power = sig_power / orig_snr_linear
+            new_snr_db = 10*np.log10(sig_power / (noise_power + add_noise_power))
+            assert np.abs(signal.metadata.snr_db - new_snr_db) < 10**(1.0/10)
+        else:
+            assert signal.metadata.snr_db == signal_test.metadata.snr_db
 
         assert isinstance(T, CochannelInterference) == expected
         assert isinstance(T.power_distribution(), float) == expected
         assert isinstance(T.filter_weights, np.ndarray) == expected
         assert isinstance(T.color, str) == expected
         assert isinstance(T.continuous, bool) == expected
+        assert isinstance(T.measure, bool) == expected
         assert isinstance(signal, Signal) == expected
         assert (signal.data.dtype == torchsig_complex_data_type) == expected
-        # no metadata impacts
 
 
 @pytest.mark.parametrize("signal, params, is_error", [
@@ -382,7 +430,6 @@ def test_DopplerSignalTransform(
         assert isinstance(signal, Signal)
         assert type(signal.data) == type(signal_test.data)
         assert signal.data.dtype == torchsig_complex_data_type
-        # no metadata impacts
 
 
 @pytest.mark.parametrize("signal, params, is_error", [
