@@ -981,7 +981,7 @@ def test_local_oscillator_frequency_drift(
 
 
 @pytest.mark.parametrize("data, params, expected, is_error", [
-    (deepcopy(TEST_DATA), {'phase_noise_std': 100, 'sample_rate': 10e6}, True, False),
+    (deepcopy(TEST_DATA), {'phase_noise_degrees': 1}, True, False),
 ])
 def test_local_oscillator_phase_noise(
     data: Any, 
@@ -1003,23 +1003,20 @@ def test_local_oscillator_phase_noise(
     """
     rng = np.random.default_rng(42)
 
-    sample_rate = params['sample_rate']
-    phase_noise_std = params['phase_noise_std']
+    phase_noise_degrees = params['phase_noise_degrees']
 
     if is_error:
         with pytest.raises(expected): 
             data = local_oscillator_phase_noise(
                 data = data,
-                phase_noise_std = phase_noise_std,
-                sample_rate = sample_rate,
+                phase_noise_degrees = phase_noise_degrees,
                 rng = rng
             )
     else:
         data_test = deepcopy(data)
         data = local_oscillator_phase_noise(
             data = data,
-            phase_noise_std = phase_noise_std,
-            sample_rate = sample_rate,
+            phase_noise_degrees = phase_noise_degrees,
             rng = rng
         )
 

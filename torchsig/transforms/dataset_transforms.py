@@ -427,30 +427,24 @@ class LocalOscillatorPhaseNoiseDatasetTransform(DatasetTransform):
     """Applies LO phase noise to DatasetSignal.
 
     Attributes:
-        phase_noise_std (Tuple[float, float]): Range of phase noise standard deviation.. Defaults to (10,100).
+        phase_noise_degrees (Tuple[float, float]): Range of phase noise (in degrees). Defaults to (0.25,1).
         
     """
     def __init__(
         self, 
-        phase_noise_std: Tuple[float, float] = (10, 100),
+        phase_noise_degrees: Tuple[float, float] = (0.25, 1),
         **kwargs
     ):
         super().__init__(**kwargs)
-        self.phase_noise_std = phase_noise_std
-        self.phase_noise_std_distribution = self.get_distribution(self.phase_noise_std)
+        self.phase_noise_degrees = phase_noise_degrees
+        self.phase_noise_degrees_distribution = self.get_distribution(self.phase_noise_degrees)
     
     def __call__(self, signal: DatasetSignal) -> DatasetSignal:
-        phase_noise_std = self.phase_noise_std_distribution()
-
-        if (isinstance(signal.metadata,list)):
-            sample_rate = signal.metadata[0].sample_rate
-        else:
-            sample_rate = signal.metadata.sample_rate
+        phase_noise_degrees = self.phase_noise_degrees_distribution()
 
         signal.data = F.local_oscillator_phase_noise(
             data = signal.data,
-            phase_noise_std = phase_noise_std,
-            sample_rate = sample_rate,
+            phase_noise_degrees = phase_noise_degrees,
             rng = self.random_generator
         )
 
