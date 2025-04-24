@@ -460,26 +460,25 @@ class LocalOscillatorFrequencyDriftSignalTransform(SignalTransform):
     """SignalTransform that applies LO frequency drift to Signal IQ data.
 
     Attributes:
-        drift_std_range (Tuple[float, float]): Drift standard deviation. Default (10, 100).
-        drift_std_distribution (Callable[[], float]): Random draw from drift_std_range distribution.
+        drift_ppm_range (Tuple[float, float]): Drift in parts per million (ppm). Default (0.1,1).
+        drift_ppm_distribution (Callable[[], float]): Random draw from drift_ppm_range distribution.
         
     """
     def __init__(
         self, 
-        drift_std_range: Tuple[float, float] = (10, 100),
+        drift_ppm: Tuple[float, float] = (0.1, 1),
         **kwargs
     ):
         super().__init__(**kwargs)
-        self.drift_std_range = drift_std_range
-        self.drift_std_distribution = self.get_distribution(self.drift_std_range)
+        self.drift_ppm = drift_ppm
+        self.drift_ppm_distribution = self.get_distribution(self.drift_ppm,'log10')
     
     def __call__(self, signal: Signal) -> Signal:
-        drift_std = self.drift_std_distribution()
+        drift_ppm = self.drift_ppm_distribution()
 
         signal.data = F.local_oscillator_frequency_drift(
             data = signal.data, 
-            drift_std = drift_std, 
-            sample_rate = signal.metadata.sample_rate,
+            drift_ppm = drift_ppm, 
             rng = self.random_generator
         )
         signal.data = signal.data.astype(torchsig_complex_data_type)       

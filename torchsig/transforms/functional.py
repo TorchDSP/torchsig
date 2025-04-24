@@ -626,16 +626,14 @@ def iq_imbalance(
 
 def local_oscillator_frequency_drift(
     data: np.ndarray,
-    drift_std: float = 100,
-    sample_rate: float = 10e6,
+    drift_ppm: float = 1,
     rng: np.random.Generator = np.random.default_rng(seed=None)
 ) -> np.ndarray:
-    """Mixes data with a frequency drifting Local Oscillator (LO), with drift modeled as a bounded random walk.
+    """Mixes data with a frequency drifting Local Oscillator (LO), with drift modeled as a random walk.
 
     Args:
         data (np.ndarray): Complex valued IQ data samples.
-        drift_std(float): Drift standard deviation. Must be in same units as sample_rate. Default 100.
-        sample_rate (float): Sample rate associated with input data. Default 10e6.
+        drift_ppm(float): Drift in parts per million (ppm). Default 1.
         rng (np.random.Generator): Random number generator. Defaults to np.random.default_rng(seed=None).
 
     Returns:
@@ -644,15 +642,24 @@ def local_oscillator_frequency_drift(
     """
     rng = rng if rng else np.random.default_rng()
     N = data.size
-    
+
+    # convert drift PPM units. typically the PPM is in
+    # reference to a 10 MHz oscillator, but we allow for
+    # user-input arbitrary sample rates and assuming a
+    # 10 MHz reference may produce problems when the 
+    # sample rate <= 10 MHz. so use PPM in a normalized value
+    # in that it gets it "close" although not perfectly
+    # emulating receiver.
+    drift = drift_ppm * 10e-6
+
     # generate a random phase with appropriate standard deviation
-    random_phase = rng.normal(0,drift_std,N)
+    random_phase = rng.normal(0,drift,N)
 
     # accumulate the phase into a frequency
     frequency = np.cumsum(random_phase)
 
     # frequency drift effect now contained within the complex sinusoid
-    drift_effect = np.exp(2j * np.pi * frequency / sample_rate)
+    drift_effect = np.exp(2j * np.pi * frequency)
 
     # apply frequency drift effect
     data = data * drift_effect

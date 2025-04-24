@@ -391,30 +391,24 @@ class LocalOscillatorFrequencyDriftDatasetTransform(DatasetTransform):
     """Apply LO frequency drift to DatasetSignal.
 
     Attributes:
-        drift_std_range (Tuple[float, float]): Drift standard deviation. Default (10, 100).
+        drift_ppm (Tuple[float, float]): Drift in parts per million (ppm). Default (0.1, 1).
         
     """
     def __init__(
         self, 
-        drift_std_range: Tuple[float, float] = (10, 100),
+        drift_ppm: Tuple[float, float] = (0.1, 1),
         **kwargs
     ):
         super().__init__(**kwargs)
-        self.drift_std_range = drift_std_range
-        self.drift_std_distribution = self.get_distribution(self.drift_std_range)
+        self.drift_ppm = drift_ppm
+        self.drift_ppm_distribution = self.get_distribution(self.drift_ppm,'log10')
     
     def __call__(self, signal: DatasetSignal) -> DatasetSignal:
-        drift_std = self.drift_std_distribution()
-
-        if (isinstance(signal.metadata,list)):
-            sample_rate = signal.metadata[0].sample_rate
-        else:
-            sample_rate = signal.metadata.sample_rate
+        drift_ppm = self.drift_ppm_distribution()
 
         signal.data = F.local_oscillator_frequency_drift(
             data = signal.data, 
-            drift_std = drift_std,
-            sample_rate = sample_rate,
+            drift_ppm = drift_ppm,
             rng = self.random_generator
         )
 

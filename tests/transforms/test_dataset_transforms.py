@@ -441,14 +441,14 @@ def test_IQImbalanceDatasetTransform(signal: DatasetSignal, params: dict, is_err
     (
         deepcopy(TEST_DS_SIGNAL), 
         {
-            'drift_std_range': (10, 100), 
+            'drift_ppm': (0.1, 1), 
         },
         False
     ),
     (
         deepcopy(TEST_DS_SIGNAL), 
         {
-            'drift_std_range': (10, 100), 
+            'drift_ppm': (0.1, 1), 
         },
         False
     ),    
@@ -469,25 +469,25 @@ def test_LocalOscillatorFrequencyDriftDatasetTransform(
         AssertionError: If unexpected test outcome.
 
     """      
-    drift_std_range = params['drift_std_range']
+    drift_ppm = params['drift_ppm']
 
     if is_error:
         with pytest.raises(Exception, match=r".*"):   
             T = LocalOscillatorFrequencyDriftDatasetTransform(
-                drift_std_range = drift_std_range,
+                drift_ppm = drift_ppm,
                 seed = 42
             )
             signal = T(signal)
     else:
         signal_test = deepcopy(signal)
         T = LocalOscillatorFrequencyDriftDatasetTransform(
-            drift_std_range = drift_std_range, 
+            drift_ppm = drift_ppm, 
             seed = 42
         )
         signal = T(signal)
 
         assert isinstance(T, LocalOscillatorFrequencyDriftDatasetTransform)
-        assert isinstance(T.drift_std_distribution(), float)
+        assert isinstance(T.drift_ppm_distribution(), float)
         assert isinstance(signal, DatasetSignal)
         assert len(signal.data) == len(signal_test.data)
         assert type(signal.data) == type(signal_test.data)

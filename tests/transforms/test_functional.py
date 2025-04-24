@@ -935,8 +935,8 @@ def test_iq_imbalance(
 
 
 @pytest.mark.parametrize("data, params, expected, is_error", [
-    (generate_tone_signal(num_iq_samples = 1024, scale = 1.0).data, {'drift_std': 10}, True, False),
-    (generate_tone_signal(num_iq_samples = 1024, scale = 1.0).data, {'drift_std': 100}, True, False),
+    (generate_tone_signal(num_iq_samples = 1024, scale = 1.0).data, {'drift_ppm': 0.1}, True, False),
+    (generate_tone_signal(num_iq_samples = 1024, scale = 1.0).data, {'drift_ppm': 1}, True, False),
 ])
 def test_local_oscillator_frequency_drift(
     data: Any, 
@@ -958,20 +958,20 @@ def test_local_oscillator_frequency_drift(
     """
     rng = np.random.default_rng(42)
 
-    drift_std = params['drift_std']
+    drift_ppm = params['drift_ppm']
 
     if is_error:
         with pytest.raises(expected): 
             data = local_oscillator_frequency_drift(
                 data = data,
-                drift_std = drift_std,
+                drift_ppm = drift_ppm,
                 rng = rng
             )
     else:
         data_test = deepcopy(data)
         data = local_oscillator_frequency_drift(
             data = data,
-            drift_std = drift_std,
+            drift_ppm = drift_ppm,
             rng = rng
         )
 
