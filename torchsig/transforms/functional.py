@@ -31,7 +31,7 @@ __all__ = [
     "intermodulation_products",
     "iq_imbalance",
     "local_oscillator_frequency_drift",
-    "local_oscillator_phase_noise",
+    "phase_noise",
     "mag_rescale",
     "nonlinear_amplifier",
     "nonlinear_amplifier_table",
@@ -666,7 +666,7 @@ def local_oscillator_frequency_drift(
     return data.astype(torchsig_complex_data_type)
 
 
-def local_oscillator_phase_noise(
+def phase_noise(
     data: np.ndarray,
     phase_noise_degrees: float = 1.0,
     rng: np.random.Generator = np.random.default_rng(seed=None)

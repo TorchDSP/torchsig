@@ -436,7 +436,7 @@ class LocalOscillatorPhaseNoiseDatasetTransform(DatasetTransform):
     def __call__(self, signal: DatasetSignal) -> DatasetSignal:
         phase_noise_degrees = self.phase_noise_degrees_distribution()
 
-        signal.data = F.local_oscillator_phase_noise(
+        signal.data = F.phase_noise(
             data = signal.data,
             phase_noise_degrees = phase_noise_degrees,
             rng = self.random_generator

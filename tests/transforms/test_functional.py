@@ -17,7 +17,7 @@ from torchsig.transforms.functional import (
     intermodulation_products,
     iq_imbalance,
     local_oscillator_frequency_drift,
-    local_oscillator_phase_noise,
+    phase_noise,
     mag_rescale,
     nonlinear_amplifier,
     nonlinear_amplifier_table,
@@ -989,7 +989,7 @@ def test_local_oscillator_phase_noise(
     expected: bool, 
     is_error: bool
     ) -> None:
-    """Test the local_oscillator_phase_noise functional with pytest.
+    """Test the phase_noise functional with pytest.
 
     Args:
         data (Any): Data input, nominally np.ndarray.
@@ -1007,14 +1007,14 @@ def test_local_oscillator_phase_noise(
 
     if is_error:
         with pytest.raises(expected): 
-            data = local_oscillator_phase_noise(
+            data = phase_noise(
                 data = data,
                 phase_noise_degrees = phase_noise_degrees,
                 rng = rng
             )
     else:
         data_test = deepcopy(data)
-        data = local_oscillator_phase_noise(
+        data = phase_noise(
             data = data,
             phase_noise_degrees = phase_noise_degrees,
             rng = rng
