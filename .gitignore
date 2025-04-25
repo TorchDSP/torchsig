@@ -41,6 +41,7 @@ torchsig.egg-info
 # Docs
 docs/_static
 docs/src
+prep_release.sh
 
 # Tests
 tests/datasets/*
@@ -57,7 +58,6 @@ examples/datasets
 !examples/diagrams
 !examples/diagrams/*
 
-# Tools
 # Tools
 tools/examples/datasets/*
 tools/examples/datasets/yolo_annotation_data/annotated_yolo_sample_images
