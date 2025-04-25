@@ -17,6 +17,7 @@ torchsig.transforms.signal\_transforms.CarrierPhaseOffsetSignalTransform
       :nosignatures:
    
       ~CarrierPhaseOffsetSignalTransform.add_parent
+      ~CarrierPhaseOffsetSignalTransform.get_distribution
       ~CarrierPhaseOffsetSignalTransform.get_second_seed
       ~CarrierPhaseOffsetSignalTransform.seed
       ~CarrierPhaseOffsetSignalTransform.setup_rngs

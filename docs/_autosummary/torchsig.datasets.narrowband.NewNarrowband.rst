@@ -17,6 +17,7 @@ torchsig.datasets.narrowband.NewNarrowband
       :nosignatures:
    
       ~NewNarrowband.add_parent
+      ~NewNarrowband.get_distribution
       ~NewNarrowband.get_second_seed
       ~NewNarrowband.reset
       ~NewNarrowband.seed

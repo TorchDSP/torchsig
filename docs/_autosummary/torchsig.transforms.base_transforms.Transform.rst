@@ -17,6 +17,7 @@ torchsig.transforms.base\_transforms.Transform
       :nosignatures:
    
       ~Transform.add_parent
+      ~Transform.get_distribution
       ~Transform.get_second_seed
       ~Transform.seed
       ~Transform.setup_rngs

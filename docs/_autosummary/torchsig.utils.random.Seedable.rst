@@ -17,6 +17,7 @@ torchsig.utils.random.Seedable
       :nosignatures:
    
       ~Seedable.add_parent
+      ~Seedable.get_distribution
       ~Seedable.get_second_seed
       ~Seedable.seed
       ~Seedable.setup_rngs

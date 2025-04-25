@@ -17,6 +17,7 @@ torchsig.transforms.target\_transforms.SNR
       :nosignatures:
    
       ~SNR.add_parent
+      ~SNR.get_distribution
       ~SNR.get_second_seed
       ~SNR.seed
       ~SNR.setup_rngs

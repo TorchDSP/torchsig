@@ -18,6 +18,7 @@ torchsig.signals.builders.test.TestSignalBuilder
    
       ~TestSignalBuilder.add_parent
       ~TestSignalBuilder.build
+      ~TestSignalBuilder.get_distribution
       ~TestSignalBuilder.get_second_seed
       ~TestSignalBuilder.reset
       ~TestSignalBuilder.seed

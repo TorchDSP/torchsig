@@ -17,6 +17,7 @@ torchsig.transforms.base\_transforms.RandomApply
       :nosignatures:
    
       ~RandomApply.add_parent
+      ~RandomApply.get_distribution
       ~RandomApply.get_second_seed
       ~RandomApply.seed
       ~RandomApply.setup_rngs

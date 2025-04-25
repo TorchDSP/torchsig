@@ -17,6 +17,7 @@ torchsig.transforms.dataset\_transforms.IQImbalanceDatasetTransform
       :nosignatures:
    
       ~IQImbalanceDatasetTransform.add_parent
+      ~IQImbalanceDatasetTransform.get_distribution
       ~IQImbalanceDatasetTransform.get_second_seed
       ~IQImbalanceDatasetTransform.seed
       ~IQImbalanceDatasetTransform.setup_rngs

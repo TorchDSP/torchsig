@@ -17,6 +17,7 @@ torchsig.transforms.signal\_transforms.LocalOscillatorPhaseNoiseSignalTransform
       :nosignatures:
    
       ~LocalOscillatorPhaseNoiseSignalTransform.add_parent
+      ~LocalOscillatorPhaseNoiseSignalTransform.get_distribution
       ~LocalOscillatorPhaseNoiseSignalTransform.get_second_seed
       ~LocalOscillatorPhaseNoiseSignalTransform.seed
       ~LocalOscillatorPhaseNoiseSignalTransform.setup_rngs

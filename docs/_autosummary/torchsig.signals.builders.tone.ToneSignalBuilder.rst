@@ -18,6 +18,7 @@ torchsig.signals.builders.tone.ToneSignalBuilder
    
       ~ToneSignalBuilder.add_parent
       ~ToneSignalBuilder.build
+      ~ToneSignalBuilder.get_distribution
       ~ToneSignalBuilder.get_second_seed
       ~ToneSignalBuilder.reset
       ~ToneSignalBuilder.seed

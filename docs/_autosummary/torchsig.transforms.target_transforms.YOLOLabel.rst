@@ -17,6 +17,7 @@ torchsig.transforms.target\_transforms.YOLOLabel
       :nosignatures:
    
       ~YOLOLabel.add_parent
+      ~YOLOLabel.get_distribution
       ~YOLOLabel.get_second_seed
       ~YOLOLabel.seed
       ~YOLOLabel.setup_rngs

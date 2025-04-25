@@ -17,6 +17,7 @@ torchsig.transforms.dataset\_transforms.RandomMagRescale
       :nosignatures:
    
       ~RandomMagRescale.add_parent
+      ~RandomMagRescale.get_distribution
       ~RandomMagRescale.get_second_seed
       ~RandomMagRescale.seed
       ~RandomMagRescale.setup_rngs
