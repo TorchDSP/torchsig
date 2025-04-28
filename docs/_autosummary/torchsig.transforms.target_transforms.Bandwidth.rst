@@ -17,6 +17,7 @@ torchsig.transforms.target\_transforms.Bandwidth
       :nosignatures:
    
       ~Bandwidth.add_parent
+      ~Bandwidth.get_distribution
       ~Bandwidth.get_second_seed
       ~Bandwidth.seed
       ~Bandwidth.setup_rngs

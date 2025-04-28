@@ -17,6 +17,7 @@ torchsig.transforms.target\_transforms.UpperFreq
       :nosignatures:
    
       ~UpperFreq.add_parent
+      ~UpperFreq.get_distribution
       ~UpperFreq.get_second_seed
       ~UpperFreq.seed
       ~UpperFreq.setup_rngs

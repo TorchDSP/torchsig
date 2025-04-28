@@ -18,6 +18,7 @@ torchsig.signals.builder.SignalBuilder
    
       ~SignalBuilder.add_parent
       ~SignalBuilder.build
+      ~SignalBuilder.get_distribution
       ~SignalBuilder.get_second_seed
       ~SignalBuilder.reset
       ~SignalBuilder.seed

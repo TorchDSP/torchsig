@@ -17,6 +17,7 @@ torchsig.transforms.target\_transforms.NumSamples
       :nosignatures:
    
       ~NumSamples.add_parent
+      ~NumSamples.get_distribution
       ~NumSamples.get_second_seed
       ~NumSamples.seed
       ~NumSamples.setup_rngs

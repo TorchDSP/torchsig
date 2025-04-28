@@ -17,6 +17,7 @@ torchsig.transforms.dataset\_transforms.CarrierPhaseOffsetDatasetTransform
       :nosignatures:
    
       ~CarrierPhaseOffsetDatasetTransform.add_parent
+      ~CarrierPhaseOffsetDatasetTransform.get_distribution
       ~CarrierPhaseOffsetDatasetTransform.get_second_seed
       ~CarrierPhaseOffsetDatasetTransform.seed
       ~CarrierPhaseOffsetDatasetTransform.setup_rngs

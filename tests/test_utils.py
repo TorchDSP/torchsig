@@ -16,8 +16,7 @@ signal_metadata_floats = [
     'duration',
     'upper_freq',
     'lower_freq',
-    'oversampling_rate',
-    'samples_per_baud'
+    'oversampling_rate'
 ]
 signal_metadata_ints = [
     'start_in_samples',

@@ -19,7 +19,6 @@ torchsig.utils.verify
       verify_dict
       verify_distribution_list
       verify_float
-      verify_impairment_level
       verify_int
       verify_list
       verify_numpy_array

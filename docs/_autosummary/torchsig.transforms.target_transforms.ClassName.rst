@@ -17,6 +17,7 @@ torchsig.transforms.target\_transforms.ClassName
       :nosignatures:
    
       ~ClassName.add_parent
+      ~ClassName.get_distribution
       ~ClassName.get_second_seed
       ~ClassName.seed
       ~ClassName.setup_rngs

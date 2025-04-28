@@ -35,7 +35,6 @@ torchsig.transforms.target\_transforms
       PassThrough
       SNR
       SampleRate
-      SamplesPerBaud
       Start
       StartInSamples
       Stop

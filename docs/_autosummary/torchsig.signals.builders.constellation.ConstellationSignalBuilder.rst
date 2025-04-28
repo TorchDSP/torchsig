@@ -18,6 +18,7 @@ torchsig.signals.builders.constellation.ConstellationSignalBuilder
    
       ~ConstellationSignalBuilder.add_parent
       ~ConstellationSignalBuilder.build
+      ~ConstellationSignalBuilder.get_distribution
       ~ConstellationSignalBuilder.get_second_seed
       ~ConstellationSignalBuilder.reset
       ~ConstellationSignalBuilder.seed

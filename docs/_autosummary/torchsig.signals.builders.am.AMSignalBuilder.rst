@@ -18,6 +18,7 @@ torchsig.signals.builders.am.AMSignalBuilder
    
       ~AMSignalBuilder.add_parent
       ~AMSignalBuilder.build
+      ~AMSignalBuilder.get_distribution
       ~AMSignalBuilder.get_second_seed
       ~AMSignalBuilder.reset
       ~AMSignalBuilder.seed

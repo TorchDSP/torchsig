@@ -17,6 +17,7 @@ torchsig.transforms.signal\_transforms.DopplerSignalTransform
       :nosignatures:
    
       ~DopplerSignalTransform.add_parent
+      ~DopplerSignalTransform.get_distribution
       ~DopplerSignalTransform.get_second_seed
       ~DopplerSignalTransform.seed
       ~DopplerSignalTransform.setup_rngs

@@ -21,11 +21,13 @@ body:
       label: Version
       description: What version of TorchSig? Note that any bugs before 1.0.0 are not prioritized.
       options:
-        - 1.0.0 (Default)
+        - 1.2.0-dev
+        - 1.1.0 (Default)
+        - 1.0.0
         - 0.6.1
         - 0.6.0
         - Other
-      default: 0
+      default: 1
     validations:
       required: true
   - type: textarea

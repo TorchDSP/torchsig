@@ -17,6 +17,7 @@ torchsig.image\_datasets.transforms.impairments.RandomRippleNoiseTransform
       :nosignatures:
    
       ~RandomRippleNoiseTransform.add_parent
+      ~RandomRippleNoiseTransform.get_distribution
       ~RandomRippleNoiseTransform.get_second_seed
       ~RandomRippleNoiseTransform.seed
       ~RandomRippleNoiseTransform.setup_rngs

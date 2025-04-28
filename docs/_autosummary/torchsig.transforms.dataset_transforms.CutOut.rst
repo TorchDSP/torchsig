@@ -17,6 +17,7 @@ torchsig.transforms.dataset\_transforms.CutOut
       :nosignatures:
    
       ~CutOut.add_parent
+      ~CutOut.get_distribution
       ~CutOut.get_second_seed
       ~CutOut.seed
       ~CutOut.setup_rngs

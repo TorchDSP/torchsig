@@ -17,6 +17,7 @@ torchsig.transforms.dataset\_transforms.PatchShuffle
       :nosignatures:
    
       ~PatchShuffle.add_parent
+      ~PatchShuffle.get_distribution
       ~PatchShuffle.get_second_seed
       ~PatchShuffle.seed
       ~PatchShuffle.setup_rngs
