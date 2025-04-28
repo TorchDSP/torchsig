@@ -17,6 +17,7 @@ torchsig.datasets.datasets.NewTorchSigDataset
       :nosignatures:
    
       ~NewTorchSigDataset.add_parent
+      ~NewTorchSigDataset.get_distribution
       ~NewTorchSigDataset.get_second_seed
       ~NewTorchSigDataset.reset
       ~NewTorchSigDataset.seed

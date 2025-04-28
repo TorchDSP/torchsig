@@ -17,6 +17,7 @@ torchsig.transforms.dataset\_transforms.ChannelSwap
       :nosignatures:
    
       ~ChannelSwap.add_parent
+      ~ChannelSwap.get_distribution
       ~ChannelSwap.get_second_seed
       ~ChannelSwap.seed
       ~ChannelSwap.setup_rngs

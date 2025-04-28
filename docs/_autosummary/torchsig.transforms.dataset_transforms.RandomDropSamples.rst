@@ -17,6 +17,7 @@ torchsig.transforms.dataset\_transforms.RandomDropSamples
       :nosignatures:
    
       ~RandomDropSamples.add_parent
+      ~RandomDropSamples.get_distribution
       ~RandomDropSamples.get_second_seed
       ~RandomDropSamples.seed
       ~RandomDropSamples.setup_rngs

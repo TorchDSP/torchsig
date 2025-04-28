@@ -18,6 +18,7 @@ torchsig.signals.builders.ofdm.OFDMSignalBuilder
    
       ~OFDMSignalBuilder.add_parent
       ~OFDMSignalBuilder.build
+      ~OFDMSignalBuilder.get_distribution
       ~OFDMSignalBuilder.get_second_seed
       ~OFDMSignalBuilder.reset
       ~OFDMSignalBuilder.seed

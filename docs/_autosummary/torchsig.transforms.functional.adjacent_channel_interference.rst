@@ -1,6 +1,6 @@
-torchsig.transforms.functional.local\_oscillator\_phase\_noise
+torchsig.transforms.functional.adjacent\_channel\_interference
 ==============================================================
 
 .. currentmodule:: torchsig.transforms.functional
 
-.. autofunction:: local_oscillator_phase_noise
+.. autofunction:: adjacent_channel_interference

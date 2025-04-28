@@ -17,6 +17,7 @@ torchsig.transforms.dataset\_transforms.Spectrogram
       :nosignatures:
    
       ~Spectrogram.add_parent
+      ~Spectrogram.get_distribution
       ~Spectrogram.get_second_seed
       ~Spectrogram.seed
       ~Spectrogram.setup_rngs

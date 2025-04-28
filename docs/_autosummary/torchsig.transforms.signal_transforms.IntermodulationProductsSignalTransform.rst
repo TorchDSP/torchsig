@@ -17,6 +17,7 @@ torchsig.transforms.signal\_transforms.IntermodulationProductsSignalTransform
       :nosignatures:
    
       ~IntermodulationProductsSignalTransform.add_parent
+      ~IntermodulationProductsSignalTransform.get_distribution
       ~IntermodulationProductsSignalTransform.get_second_seed
       ~IntermodulationProductsSignalTransform.seed
       ~IntermodulationProductsSignalTransform.setup_rngs

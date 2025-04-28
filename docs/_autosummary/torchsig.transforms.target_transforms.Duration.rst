@@ -17,6 +17,7 @@ torchsig.transforms.target\_transforms.Duration
       :nosignatures:
    
       ~Duration.add_parent
+      ~Duration.get_distribution
       ~Duration.get_second_seed
       ~Duration.seed
       ~Duration.setup_rngs

@@ -33,12 +33,15 @@ dist/
 torchsig.egg-info
 !torchsig/datasets/default_consfigs
 !torchsig/datasets/default_configs/*
+!requirements.txt
+
 # keep license docs
 !**LICENSE.txt
 
 # Docs
 docs/_static
 docs/src
+prep_release.sh
 
 # Tests
 tests/datasets/*
@@ -55,7 +58,6 @@ examples/datasets
 !examples/diagrams
 !examples/diagrams/*
 
-# Tools
 # Tools
 tools/examples/datasets/*
 tools/examples/datasets/yolo_annotation_data/annotated_yolo_sample_images

@@ -20,7 +20,6 @@ from torchsig.transforms.target_transforms import (
     UpperFreq,
     LowerFreq,
     OversamplingRate,
-    SamplesPerBaud,
     FamilyName,
     FamilyIndex,
     YOLOLabel
@@ -245,11 +244,6 @@ def test_PassThrough(
     (
         deepcopy(TEST_SIGNAL), 
         OversamplingRate,
-        False
-    ),
-    (
-        deepcopy(TEST_SIGNAL), 
-        SamplesPerBaud,
         False
     ),
 ])

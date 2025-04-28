@@ -17,6 +17,7 @@ torchsig.transforms.base\_transforms.Compose
       :nosignatures:
    
       ~Compose.add_parent
+      ~Compose.get_distribution
       ~Compose.get_second_seed
       ~Compose.seed
       ~Compose.setup_rngs

@@ -24,12 +24,19 @@ from torchsig.transforms.signal_transforms import (
     IQImbalanceSignalTransform,
     CarrierPhaseOffsetSignalTransform,
     Fading,
-    SpectralInversionSignalTransform
+    SpectralInversionSignalTransform,
+    LocalOscillatorPhaseNoiseSignalTransform,
+    LocalOscillatorFrequencyDriftSignalTransform,
+    QuantizeSignalTransform,
+    IntermodulationProductsSignalTransform
 )
 from torchsig.transforms.dataset_transforms import (
     IQImbalanceDatasetTransform,
     CarrierPhaseOffsetDatasetTransform,
-    SpectralInversionDatasetTransform
+    SpectralInversionDatasetTransform,
+    LocalOscillatorPhaseNoiseDatasetTransform,
+    LocalOscillatorFrequencyDriftDatasetTransform,
+    QuantizeDatasetTransform
 )
 
 # Third Party
@@ -49,24 +56,17 @@ class NarrowbandImpairments(Impairments):
         # Narrowband Signal Transforms
         ST_level_0 = []
         ST_level_1 = [
-            IQImbalanceSignalTransform(
-                amplitude_imbalance = (-1., 1.), 
-                phase_imbalance = (-5.0 * np.pi / 180.0, 5.0 * np.pi / 180.0), 
-                dc_offset = ((-0.1, 0.1),(-0.1, 0.1))
-            ),
+            IQImbalanceSignalTransform(),
             CarrierPhaseOffsetSignalTransform()
         ]
         ST_level_2 = [
-            RandomApply(
-                IQImbalanceSignalTransform(
-                    amplitude_imbalance = (-1., 1.), 
-                    phase_imbalance = (-5.0 * np.pi / 180.0, 5.0 * np.pi / 180.0), 
-                    dc_offset = ((-0.1, 0.1),(-0.1, 0.1)),
-                ),
-                0.9
-            ),
+            RandomApply(IQImbalanceSignalTransform(),0.25),
             RandomApply(Fading(), 0.5),
-            RandomApply(SpectralInversionSignalTransform(), 0.5)
+            RandomApply(SpectralInversionSignalTransform(), 0.5),
+            RandomApply(LocalOscillatorPhaseNoiseSignalTransform(), 0.5),
+            RandomApply(LocalOscillatorFrequencyDriftSignalTransform(), 0.5),
+            RandomApply(QuantizeSignalTransform(), 0.5),
+            RandomApply(IntermodulationProductsSignalTransform(), 0.5),
         ]
         
         ST_all_levels = [
@@ -80,24 +80,16 @@ class NarrowbandImpairments(Impairments):
         
         ]
         DT_level_1 = [
-            IQImbalanceDatasetTransform(
-                amplitude_imbalance = (-1., 1.), 
-                phase_imbalance = (-5.0 * np.pi / 180.0, 5.0 * np.pi / 180.0), 
-                dc_offset = ((-0.1, 0.1),(-0.1, 0.1))
-            ),
+            IQImbalanceDatasetTransform(),
             CarrierPhaseOffsetDatasetTransform()
         ]
         DT_level_2 = [
-            RandomApply(
-                IQImbalanceDatasetTransform(
-                    amplitude_imbalance = (-1., 1.), 
-                    phase_imbalance = (-5.0 * np.pi / 180.0, 5.0 * np.pi / 180.0), 
-                    dc_offset = ((-0.1, 0.1),(-0.1, 0.1))
-                ), 
-                0.9
-            ),
-            RandomApply(CarrierPhaseOffsetDatasetTransform(), 0.9),
+            RandomApply(IQImbalanceDatasetTransform(),0.5),
+            RandomApply(CarrierPhaseOffsetDatasetTransform(), 1.0),
             RandomApply(SpectralInversionDatasetTransform(), 0.5),
+            RandomApply(LocalOscillatorPhaseNoiseDatasetTransform(), 0.5),
+            RandomApply(LocalOscillatorFrequencyDriftDatasetTransform(), 0.5),
+            RandomApply(QuantizeDatasetTransform(), 1.0),
         ]
         
         DT_all_levels = [

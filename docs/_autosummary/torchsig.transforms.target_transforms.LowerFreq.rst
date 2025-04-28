@@ -17,6 +17,7 @@ torchsig.transforms.target\_transforms.LowerFreq
       :nosignatures:
    
       ~LowerFreq.add_parent
+      ~LowerFreq.get_distribution
       ~LowerFreq.get_second_seed
       ~LowerFreq.seed
       ~LowerFreq.setup_rngs

@@ -5,7 +5,7 @@ category: '[spectrumDetect]'
 
 templates:
   imports: from gnuradio import spectrumDetect
-  make: spectrumDetect.specDetect(${center_frequency},${sample_rate},${vector_size}, ${n_fft}, ${trained_model}, ${augment}, ${iou}, ${save}, ${max_det}, ${debug_sigMF})
+  make: spectrumDetect.specDetect(${center_frequency},${sample_rate},${vector_size}, ${n_fft},${trained_wideband_model}, ${trained_narrowband_model}, ${yolo_augment}, ${yolo_iou}, ${yolo_conf}, ${yolo_agnostic_nms}, ${yolo_max_det}, ${write_labeled_wb_images}, ${write_wb_images}, ${write_wb_iq_file}, ${write_nb_iq_file}, ${gpu_device}, ${gpu_half}, ${detect_json}, ${wb_detect_only})
 
 parameters:
 - id: center_frequency
@@ -16,7 +16,7 @@ parameters:
 - id: sample_rate
   label: sampleRate
   dtype: float
-  default: 20000000.0
+  default: 50000000.0
 
 - id: vector_size
   label: vectorSize
@@ -28,35 +28,80 @@ parameters:
   dtype: int
   default: 1024
 
-- id: trained_model
-  label: trainedModel
+- id: trained_wideband_model
+  label: trainedWidebandModel
   dtype: string
-  default: 'detect.pt'
+  default: '11s.pt'
   
-- id: augment
-  label: yoloAugment
+- id: trained_narrowband_model
+  label: trainedNarrowbandModel
+  dtype: string
+  default: 'xcit.ckpt'
+  
+- id: yolo_augment
+  label: augment
   dtype: bool
   default: False  
  
-- id: iou
-  label: yoloIOU
+- id: yolo_iou
+  label: iou
   dtype: float
-  default: 0.1  
+  default: 0.7  
   
-- id: save
-  label: yoloSave
+- id: yolo_conf
+  label: conf
+  dtype: float
+  default: 0.25   
+  
+- id: yolo_agnostic_nms
+  label: agnosticNms
+  dtype: bool
+  default: False
+  
+- id: yolo_max_det
+  label: maxDet
+  dtype: int
+  default: 300  
+  
+- id: write_labeled_wb_images
+  label: writeLabeledWBImages
   dtype: bool
   default: False    
   
-- id: max_det
-  label: yoloMAX_DET
-  dtype: int
-  default: 300  
+- id: write_wb_images
+  label: writeWBImages
+  dtype: bool
+  default: False  
 
-- id: debug_sigMF
-  label: debugOut_sigMF
+- id: write_wb_iq_file
+  label: writeWBIQFile
   dtype: bool
   default: False 
+
+- id: write_nb_iq_file
+  label: writeNBIQFile
+  dtype: bool
+  default: False 
+  
+- id: gpu_device
+  label: gpuDevice
+  dtype: string
+  default: '0' 
+  
+- id: gpu_half
+  label: gpuHalf
+  dtype: bool
+  default: False 
+  
+- id: detect_json
+  label: detectJson
+  dtype: bool
+  default: False 
+  
+- id: wb_detect_only
+  label: wbDetectOnly
+  dtype: bool
+  default: True          
 
 inputs:
 - label: vector

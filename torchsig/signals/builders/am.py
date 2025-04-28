@@ -61,12 +61,12 @@ def am_modulator ( class_name:str, bandwidth:float, sample_rate:float, num_sampl
     if class_name == "am-dsb-sc":
         baseband_signal = shaped_message
     elif class_name == "am-dsb":
-        # build carrier
-        carrier = np.ones(len(shaped_message))
-        # scale to unit power
-        carrier = carrier/np.sqrt(np.mean(np.abs(carrier)**2))
         # randomly determine modulation index
-        modulation_index = rng.uniform(0.1,1)
+        modulation_index = rng.uniform(0.8,4)
+        # find the max of the message
+        shaped_message_max = np.max(np.abs(shaped_message))
+        # build and scale the carrier
+        carrier = (shaped_message_max/modulation_index)*np.ones(len(shaped_message))
         # add in the carrier
         baseband_signal = (modulation_index*shaped_message) + carrier
     elif class_name == "am-lsb":

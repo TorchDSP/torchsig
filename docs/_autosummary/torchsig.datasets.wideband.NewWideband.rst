@@ -17,6 +17,7 @@ torchsig.datasets.wideband.NewWideband
       :nosignatures:
    
       ~NewWideband.add_parent
+      ~NewWideband.get_distribution
       ~NewWideband.get_second_seed
       ~NewWideband.reset
       ~NewWideband.seed

@@ -21,7 +21,7 @@ def main():
     parser.add_argument("root", type=str, help="Path to generate Narrowband dataset.")
     parser.add_argument("--type", type=str, default='narrowband', help="Which dataset to generate. Must be narrowband or wideband. Defaults to narrowband.")
     parser.add_argument("--train", action="store_true", help="Generate train dataset (otherwise validation).")
-    parser.add_argument("--impaired", action="store_true", help="Generate impaired dataset (otherwise clean).")
+    parser.add_argument("--impairment_level", type=int, default = 2, help="Impairment level. Defaults to 2.")
     parser.add_argument("--batch_size", type=int, default = 32, help="Batch size. Defaults to 32.")
     parser.add_argument("--num_workers", type=int, default=os.cpu_count() // 3, help="Number of workers to generate dataset. Defaults to a third of available CPU cores.")
 
@@ -31,7 +31,7 @@ def main():
     # get dataset metadata
     dataset_metadata = to_dataset_metadata(get_default_yaml_config(
         dataset_type = args.type.lower(),
-        impairment_level = args.impaired,
+        impairment_level = args.impairment_level,
         train = args.train
     ))
 

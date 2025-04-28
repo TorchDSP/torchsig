@@ -17,6 +17,7 @@ torchsig.transforms.signal\_transforms.Fading
       :nosignatures:
    
       ~Fading.add_parent
+      ~Fading.get_distribution
       ~Fading.get_second_seed
       ~Fading.seed
       ~Fading.setup_rngs

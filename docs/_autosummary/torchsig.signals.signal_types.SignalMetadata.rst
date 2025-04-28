@@ -34,7 +34,6 @@ torchsig.signals.signal\_types.SignalMetadata
       ~SignalMetadata.num_samples
       ~SignalMetadata.oversampling_rate
       ~SignalMetadata.sample_rate
-      ~SignalMetadata.samples_per_baud
       ~SignalMetadata.start
       ~SignalMetadata.stop
       ~SignalMetadata.stop_in_samples

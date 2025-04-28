@@ -19,7 +19,8 @@ import numpy as np
 
 fft_size = 512
 num_iq_samples_dataset = fft_size ** 2
-sample_rate = 1.0
+narrowband_sample_rate = 10e6
+wideband_sample_rate = 100e6
 num_signals_max = 1
 num_signals_min = 0
 transforms = []
@@ -32,7 +33,7 @@ def test_DatasetMetadata():
     with pytest.raises(NotImplementedError):
         md = DatasetMetadata(
             num_iq_samples_dataset=num_iq_samples_dataset,
-            sample_rate=1.0,
+            sample_rate=10e6,
             fft_size = 64,
             num_signals_min=0,
             transforms=transforms,
@@ -46,7 +47,7 @@ def test_DatasetMetadata():
 def test_NarrowbandMetadata():
     md = NarrowbandMetadata(
         num_iq_samples_dataset=num_iq_samples_dataset,
-        sample_rate=sample_rate,
+        sample_rate=narrowband_sample_rate,
         fft_size=fft_size,
         impairment_level=0,
     )
@@ -55,9 +56,9 @@ def test_NarrowbandMetadata():
 def test_WidebandMetadata():
     md = WidebandMetadata(
         num_iq_samples_dataset=num_iq_samples_dataset,
-        sample_rate=sample_rate,
+        sample_rate=wideband_sample_rate,
         fft_size=fft_size,
         num_signals_max=5,
-        impairment_level=0,
+        impairment_level=0
     )
     md.to_dict()

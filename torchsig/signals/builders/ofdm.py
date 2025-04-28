@@ -208,14 +208,14 @@ class OFDMSignalBuilder(SignalBuilder):
         minimum_duration_in_samples_for_ofdm = int(np.round(num_subcarriers*oversampling_rate))
 
         # select the appropriate value against the signal minimum and the dataset minimum
-        minimum_duration_in_samples = np.max((minimum_duration_in_samples_for_ofdm,self.dataset_metadata.duration_in_samples_min))
+        minimum_duration_in_samples = np.max((minimum_duration_in_samples_for_ofdm,self.dataset_metadata.signal_duration_in_samples_min))
 
-        if (minimum_duration_in_samples >= self.dataset_metadata.duration_in_samples_max):
+        if (minimum_duration_in_samples >= self.dataset_metadata.signal_duration_in_samples_max):
             # the estimated minimum is too large, use the max instead
-            self._signal.metadata.duration_in_samples = copy(self.dataset_metadata.duration_in_samples_max)
+            self._signal.metadata.duration_in_samples = copy(self.dataset_metadata.signal_duration_in_samples_max)
         else:
             # randomize the duration
-            self._signal.metadata.duration_in_samples = self.random_generator.integers(low=minimum_duration_in_samples, high=self.dataset_metadata.duration_in_samples_max,dtype=int)
+            self._signal.metadata.duration_in_samples = self.random_generator.integers(low=minimum_duration_in_samples, high=self.dataset_metadata.signal_duration_in_samples_max,dtype=int)
 
         # is start parameter to be randomized?
         if self._signal.metadata.duration_in_samples == self.dataset_metadata.num_iq_samples_dataset:

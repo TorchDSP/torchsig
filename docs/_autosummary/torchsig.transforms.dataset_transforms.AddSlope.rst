@@ -17,6 +17,7 @@ torchsig.transforms.dataset\_transforms.AddSlope
       :nosignatures:
    
       ~AddSlope.add_parent
+      ~AddSlope.get_distribution
       ~AddSlope.get_second_seed
       ~AddSlope.seed
       ~AddSlope.setup_rngs

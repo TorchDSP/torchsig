@@ -17,6 +17,7 @@ torchsig.transforms.dataset\_transforms.PassbandRippleDatasetTransform
       :nosignatures:
    
       ~PassbandRippleDatasetTransform.add_parent
+      ~PassbandRippleDatasetTransform.get_distribution
       ~PassbandRippleDatasetTransform.get_second_seed
       ~PassbandRippleDatasetTransform.seed
       ~PassbandRippleDatasetTransform.setup_rngs

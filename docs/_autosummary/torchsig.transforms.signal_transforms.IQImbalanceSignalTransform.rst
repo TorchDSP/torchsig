@@ -17,6 +17,7 @@ torchsig.transforms.signal\_transforms.IQImbalanceSignalTransform
       :nosignatures:
    
       ~IQImbalanceSignalTransform.add_parent
+      ~IQImbalanceSignalTransform.get_distribution
       ~IQImbalanceSignalTransform.get_second_seed
       ~IQImbalanceSignalTransform.seed
       ~IQImbalanceSignalTransform.setup_rngs

@@ -17,6 +17,7 @@ torchsig.transforms.target\_transforms.StartInSamples
       :nosignatures:
    
       ~StartInSamples.add_parent
+      ~StartInSamples.get_distribution
       ~StartInSamples.get_second_seed
       ~StartInSamples.seed
       ~StartInSamples.setup_rngs

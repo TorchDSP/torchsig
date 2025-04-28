@@ -17,6 +17,7 @@ torchsig.transforms.target\_transforms.OversamplingRate
       :nosignatures:
    
       ~OversamplingRate.add_parent
+      ~OversamplingRate.get_distribution
       ~OversamplingRate.get_second_seed
       ~OversamplingRate.seed
       ~OversamplingRate.setup_rngs

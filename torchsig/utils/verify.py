@@ -63,10 +63,10 @@ def verify_bounds(
     too_high = high is not None and ((exclude_high and a >= high) or (a > high))
 
     if (too_low and not clip_low) or (too_high and not clip_high):
-        o1 = ">" if exclude_low else ">="
+        o1 = "<" if exclude_low else "<="
         o2 = "<" if exclude_high else "<="
         bounds = f"{'-inf' if low is None else low} {o1} {name} {o2} {'inf' if high is None else high}"
-        raise ValueError(f"{name} is out of bounds. Must be {bounds}")
+        raise ValueError(f"{name}={a} is out of bounds. Must be {bounds}")
     
     if too_low and clip_low:
         a = low
@@ -389,6 +389,8 @@ def verify_transforms(
         List[Transform | Callable]: The verified list of transforms.
     """
     from torchsig.transforms.base_transforms import Transform
+    if t is None:
+        return []
     # convert all transforms to list of transforms
     if isinstance(t, Transform):
         t = [t]
@@ -417,6 +419,9 @@ def verify_target_transforms(
         List[TargetTransform | Callable]: The verified list of target transforms.
     """
     from torchsig.transforms.target_transforms import TargetTransform
+
+    if tt is None:
+        return []
     # convert target transforms to list
     if isinstance(tt, TargetTransform):
         tt = [tt]
@@ -429,31 +434,3 @@ def verify_target_transforms(
     
     return tt
 
-def verify_impairment_level(i: int | bool) -> int:
-    """
-    Verifies that the impairment level `i` is either a boolean or integer, and converts it to an integer representation.
-
-    Args:
-        i (int | bool): The impairment level to be checked. If it's a boolean, it will be converted to an integer.
-
-    Raises:
-        ValueError: If `i` is not in the valid range of 0, 1, or 2.
-
-    Returns:
-        int: The verified impairment level as an integer (0, 1, or 2).
-    """
-    # covnert to int
-    if isinstance(i, bool):
-        if i:
-            i = 2
-        else:
-            i = 0
-
-    verify_int(
-        i,
-        name = "impairment_level",
-        low = 0,
-        high = 2
-    )
-
-    return i

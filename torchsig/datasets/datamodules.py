@@ -44,6 +44,7 @@ class TorchSigDataModule(pl.LightningDataModule):
         create_batch_size (int, optional): The batch size used during dataset creation. Defaults to 8.
         create_num_workers (int, optional): The number of workers used during dataset creation. Defaults to 4.
         file_handler (TorchSigFileHandler, optional): The file handler for managing data storage. Defaults to ZarrFileHandler.
+        overwrite (bool, optional): Overwrites data on disk. Defaults to False.
         transforms (list, optional): A list of transformations to apply to the input data. Defaults to an empty list.
         target_transforms (list, optional): A list of transformations to apply to the target labels. Defaults to an empty list.
     """
@@ -61,6 +62,7 @@ class TorchSigDataModule(pl.LightningDataModule):
         create_batch_size: int = 8,
         create_num_workers: int = 4,
         file_handler: TorchSigFileHandler = ZarrFileHandler,
+        overwrite: bool = False,
         # applied after dataset written to disk
         transforms: list = [],
         target_transforms: list = [],
@@ -89,11 +91,11 @@ class TorchSigDataModule(pl.LightningDataModule):
         self.dataset = dataset
         self.train_metadata = to_dataset_metadata(train_metadata)
         self.val_metadata = to_dataset_metadata(val_metadata)
-        self.impaired = self.train_metadata.impairment_level > 0
+        self.impairment_level = self.train_metadata.impairment_level
 
         self.new_dataset_class = NewNarrowband if self.dataset == "narrowband" else NewWideband
         self.static_dataset_class = StaticNarrowband if self.dataset == "narrowband" else StaticWideband
-     
+
         self.transforms = transforms
         self.target_transforms = target_transforms
 
@@ -107,11 +109,14 @@ class TorchSigDataModule(pl.LightningDataModule):
         self.create_batch_size = create_batch_size
         self.create_num_workers = create_num_workers
         self.file_handler = file_handler
+        self.overwrite = overwrite
 
         # to be initialized in setup()
-        self.train: DataLoader = None
-        self.val: DataLoader = None
-        self.test: DataLoader = None
+        self.train: Optional[self.static_dataset_class] = None
+        self.val: Optional[self.static_dataset_class] = None
+        self.test: Optional[self.static_dataset_class] = None
+
+
 
     def prepare_data(self) -> None:
         """
@@ -127,7 +132,7 @@ class TorchSigDataModule(pl.LightningDataModule):
         train_creator = DatasetCreator(
             dataset = train_dataset,
             root = self.root,
-            overwrite = False,
+            overwrite = self.overwrite,
             file_handler = self.file_handler,
             batch_size = self.create_batch_size,
             num_workers = self.create_num_workers,
@@ -142,7 +147,7 @@ class TorchSigDataModule(pl.LightningDataModule):
         val_creator = DatasetCreator(
             dataset = val_dataset,
             root = self.root,
-            overwrite = False,
+            overwrite = self.overwrite,
             file_handler = self.file_handler,
             batch_size = self.create_batch_size,
             num_workers = self.create_num_workers,
@@ -160,14 +165,14 @@ class TorchSigDataModule(pl.LightningDataModule):
         """
         self.train = self.static_dataset_class(
             root = self.root,
-            impaired = self.impaired,
+            impairment_level = self.impairment_level,
             transforms = self.transforms,
             target_transforms = self.target_transforms,
             train = True,
         )
         self.val = self.static_dataset_class(
             root = self.root,
-            impaired = self.impaired,
+            impairment_level = self.impairment_level,
             transforms = self.transforms,
             target_transforms = self.target_transforms,
             train = False
@@ -221,6 +226,7 @@ class NarrowbandDataModule(TorchSigDataModule):
         create_batch_size (int, optional): The batch size used during dataset creation. Defaults to 8.
         create_num_workers (int, optional): The number of workers used during dataset creation. Defaults to 4.
         file_handler (TorchSigFileHandler, optional): The file handler for managing data storage. Defaults to ZarrFileHandler.
+        overwrite (bool, optional): Overwrites data on disk. Defaults to False.
         transforms (Transform | List[Callable | Transform], optional): A list of transformations to apply to the input data.
         target_transforms (TargetTransform | List[Callable | TargetTransform], optional): A list of transformations to apply to the target labels.
     """
@@ -239,6 +245,7 @@ class NarrowbandDataModule(TorchSigDataModule):
         create_batch_size: int = 8,
         create_num_workers: int = 4,
         file_handler: TorchSigFileHandler = ZarrFileHandler,
+        overwrite: bool = False,
         # applied after dataset written to disk
         transforms: Transform | List[Callable | Transform] = [],
         target_transforms: TargetTransform | List[Callable | TargetTransform] = [],
@@ -257,8 +264,12 @@ class NarrowbandDataModule(TorchSigDataModule):
             num_signals_distribution = base.num_signals_distribution,
             snr_db_min = base.snr_db_min,
             snr_db_max = base.snr_db_max,
-            signal_duration_percent_min = base.signal_duration_percent_min,
-            signal_duration_percent_max = base.signal_duration_percent_max,
+            signal_duration_min = base.signal_duration_min,
+            signal_duration_max = base.signal_duration_max,
+            signal_bandwidth_min = base.signal_bandwidth_min,
+            signal_bandwidth_max = base.signal_bandwidth_max,
+            signal_center_freq_min = base.signal_center_freq_min,
+            signal_center_freq_max = base.signal_center_freq_max,
             transforms = base.transforms,
             target_transforms = base.target_transforms,
             class_list = base.class_list,
@@ -275,8 +286,12 @@ class NarrowbandDataModule(TorchSigDataModule):
             num_signals_distribution = base.num_signals_distribution,
             snr_db_min = base.snr_db_min,
             snr_db_max = base.snr_db_max,
-            signal_duration_percent_min = base.signal_duration_percent_min,
-            signal_duration_percent_max = base.signal_duration_percent_max,
+            signal_duration_min = base.signal_duration_min,
+            signal_duration_max = base.signal_duration_max,
+            signal_bandwidth_min = base.signal_bandwidth_min,
+            signal_bandwidth_max = base.signal_bandwidth_max,
+            signal_center_freq_min = base.signal_center_freq_min,
+            signal_center_freq_max = base.signal_center_freq_max,
             transforms = base.transforms,
             target_transforms = base.target_transforms,
             class_list = base.class_list,
@@ -295,6 +310,7 @@ class NarrowbandDataModule(TorchSigDataModule):
             create_batch_size = create_batch_size,
             create_num_workers = create_num_workers,
             file_handler = file_handler,
+            overwrite = overwrite,
             transforms = transforms,
             target_transforms = target_transforms,
         )
@@ -314,6 +330,7 @@ class WidebandDataModule(TorchSigDataModule):
         create_batch_size (int, optional): The batch size used during dataset creation. Defaults to 8.
         create_num_workers (int, optional): The number of workers used during dataset creation. Defaults to 4.
         file_handler (TorchSigFileHandler, optional): The file handler for managing data storage. Defaults to ZarrFileHandler.
+        overwrite (bool, optional): Overwrites data on disk. Defaults to False.
         transforms (Transform | List[Callable | Transform], optional): A list of transformations to apply to the input data.
         target_transforms (TargetTransform | List[Callable | TargetTransform], optional): A list of transformations to apply to the target labels.
     """
@@ -332,6 +349,7 @@ class WidebandDataModule(TorchSigDataModule):
         create_batch_size: int = 8,
         create_num_workers: int = 4,
         file_handler: TorchSigFileHandler = ZarrFileHandler,
+        overwrite: bool = False,
         # applied after dataset written to disk
         transforms: Transform | List[Callable | Transform]  = [],
         target_transforms: TargetTransform | List[Callable | TargetTransform] = [],
@@ -351,8 +369,12 @@ class WidebandDataModule(TorchSigDataModule):
             num_signals_distribution = base.num_signals_distribution,
             snr_db_min = base.snr_db_min,
             snr_db_max = base.snr_db_max,
-            signal_duration_percent_min = base.signal_duration_percent_min,
-            signal_duration_percent_max = base.signal_duration_percent_max,
+            signal_duration_min = base.signal_duration_min,
+            signal_duration_max = base.signal_duration_max,
+            signal_bandwidth_min = base.signal_bandwidth_min,
+            signal_bandwidth_max = base.signal_bandwidth_max,
+            signal_center_freq_min = base.signal_center_freq_min,
+            signal_center_freq_max = base.signal_center_freq_max,
             transforms = base.transforms,
             target_transforms = base.target_transforms,
             class_list = base.class_list,
@@ -370,8 +392,12 @@ class WidebandDataModule(TorchSigDataModule):
             num_signals_distribution = base.num_signals_distribution,
             snr_db_min = base.snr_db_min,
             snr_db_max = base.snr_db_max,
-            signal_duration_percent_min = base.signal_duration_percent_min,
-            signal_duration_percent_max = base.signal_duration_percent_max,
+            signal_duration_min = base.signal_duration_min,
+            signal_duration_max = base.signal_duration_max,
+            signal_bandwidth_min = base.signal_bandwidth_min,
+            signal_bandwidth_max = base.signal_bandwidth_max,
+            signal_center_freq_min = base.signal_center_freq_min,
+            signal_center_freq_max = base.signal_center_freq_max,
             transforms = base.transforms,
             target_transforms = base.target_transforms,
             class_list = base.class_list,
@@ -392,6 +418,7 @@ class WidebandDataModule(TorchSigDataModule):
             file_handler = file_handler,
             transforms = transforms,
             target_transforms = target_transforms,
+            overwrite = False
         )
 
 
@@ -411,7 +438,7 @@ class OfficialTorchSigDataModdule(TorchSigDataModule):
     Args:
         root (str): Root directory where the dataset is stored.
         dataset (str): Name of the dataset.
-        impaired (bool | int): Defines the impairment level of the dataset.
+        impairment_level (int): Defines the impairment level of the dataset.
         batch_size (int, optional): Batch size for the dataloaders. Default is 1.
         num_workers (int, optional): Number of workers for data loading. Default is 1.
         collate_fn (Callable, optional): Function to merge a list of samples into a batch. Default is None.
@@ -426,7 +453,7 @@ class OfficialTorchSigDataModdule(TorchSigDataModule):
         self,
         root: str,
         dataset: str,
-        impaired: bool | int,
+        impairment_level: int,
         # dataloader params
         batch_size: int = 1,
         num_workers: int = 1,
@@ -443,13 +470,13 @@ class OfficialTorchSigDataModdule(TorchSigDataModule):
 
         train_metadata = get_default_yaml_config(
             dataset_type = dataset,
-            impairment_level = impaired,
+            impairment_level = impairment_level,
             train = True
         )
 
         val_metadata = get_default_yaml_config(
             dataset_type = dataset,
-            impairment_level = impaired,
+            impairment_level = impairment_level,
             train = False
         )
 
@@ -479,7 +506,7 @@ class OfficialNarrowbandDataModule(OfficialTorchSigDataModdule):
 
     Args:
         root (str): Root directory where the dataset is stored.
-        impaired (bool | int): Defines the impairment level of the dataset.
+        impairment_level (int): Defines the impairment level of the dataset.
         batch_size (int, optional): Batch size for the dataloaders. Default is 1.
         num_workers (int, optional): Number of workers for data loading. Default is 1.
         collate_fn (Callable, optional): Function to merge a list of samples into a batch. Default is None.
@@ -492,7 +519,7 @@ class OfficialNarrowbandDataModule(OfficialTorchSigDataModdule):
     def __init__(
         self,
         root: str,
-        impaired: bool | int,
+        impairment_level: int,
         # dataloader params
         batch_size: int = 1,
         num_workers: int = 1,
@@ -510,7 +537,7 @@ class OfficialNarrowbandDataModule(OfficialTorchSigDataModdule):
         super().__init__(
             root = root,
             dataset = 'narrowband',
-            impaired = impaired,
+            impairment_level = impairment_level,
             batch_size = batch_size,
             num_workers = num_workers,
             collate_fn = collate_fn,
@@ -532,7 +559,7 @@ class OfficialWidebandDataModule(OfficialTorchSigDataModdule):
 
     Args:
         root (str): Root directory where the dataset is stored.
-        impaired (bool | int): Defines the impairment level of the dataset.
+        impairment_level (int): Defines the impairment level of the dataset.
         batch_size (int, optional): Batch size for the dataloaders. Default is 1.
         num_workers (int, optional): Number of workers for data loading. Default is 1.
         collate_fn (Callable, optional): Function to merge a list of samples into a batch. Default is None.
@@ -545,7 +572,7 @@ class OfficialWidebandDataModule(OfficialTorchSigDataModdule):
     def __init__(
         self,
         root: str,
-        impaired: bool | int,
+        impairment_level: int,
         # dataloader params
         batch_size: int = 1,
         num_workers: int = 1,
@@ -562,7 +589,7 @@ class OfficialWidebandDataModule(OfficialTorchSigDataModdule):
         super().__init__(
             root = root,
             dataset = 'wideband',
-            impaired = impaired,
+            impairment_level = impairment_level,
             batch_size = batch_size,
             num_workers = num_workers,
             collate_fn = collate_fn,

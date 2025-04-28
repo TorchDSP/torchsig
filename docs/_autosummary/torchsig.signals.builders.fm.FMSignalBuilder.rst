@@ -18,6 +18,7 @@ torchsig.signals.builders.fm.FMSignalBuilder
    
       ~FMSignalBuilder.add_parent
       ~FMSignalBuilder.build
+      ~FMSignalBuilder.get_distribution
       ~FMSignalBuilder.get_second_seed
       ~FMSignalBuilder.reset
       ~FMSignalBuilder.seed

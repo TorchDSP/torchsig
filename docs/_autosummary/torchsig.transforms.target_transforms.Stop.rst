@@ -17,6 +17,7 @@ torchsig.transforms.target\_transforms.Stop
       :nosignatures:
    
       ~Stop.add_parent
+      ~Stop.get_distribution
       ~Stop.get_second_seed
       ~Stop.seed
       ~Stop.setup_rngs

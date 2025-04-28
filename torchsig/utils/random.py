@@ -17,7 +17,7 @@ class Seedable():
     Two Seedable objects with the same seed will always generate/access the same random values in the same order.
     Containing or composing Seedable objects are generally responsible for seeding contained or composed Seedable objects.
     """
-    def __init__(self, seed: int = None, parent = None):
+    def __init__(self, seed: int = None, parent = None, **kwargs):
         """Initializes seedable object with self.seed = seed;
         if a parent Seedable object is passed in, they will share random number generators, and the seed argument will not be used
 
@@ -86,25 +86,31 @@ class Seedable():
             f"{self.__class__.__name__}(seed={self.rng_seed}, parent={self.parent})"
         )
 
-    def get_distribution(self, params):
-        new_distribution = make_distribution(params)
+    def get_distribution(self, params, scaling:str='linear'):
+        new_distribution = make_distribution(params,scaling)
         new_distribution.add_parent(self)
         return new_distribution
 
 
-def make_distribution(params):
+def make_distribution(params,scaling:str='linear'):
     if callable(params):
         # custom distribution function
         raise NotImplementedError
     elif isinstance(params, list):
         # draw samples from uniform distribution from list values
         return ChoiceDistribution(params)
-    elif isinstance(params, tuple):
-        # draw samples from uniform distribution from [params[0], params[1])]
+    elif isinstance(params, tuple) and scaling == 'linear':
+        # draw samples from uniform distribution from [params[0], params[1]]
         return UniformRangeDistribution(params)
-    elif isinstance(params, int) or isinstance(params, float):
+    elif isinstance(params, tuple) and scaling == 'log10':
+        # draw samples from log10-weighted uniform distribution from [params[0], params[1]]
+        return Log10UniformRangeDistribution(params)
+    elif (isinstance(params, int) or isinstance(params, float)) and scaling == 'linear':
         # draw samples from evenly spaced values within [0, params)
         return UniformDistribution(params)
+    else:
+        raise ValueError(f'Undefined conditions in make_distribution(). params = {params}, scaling = {scaling}')
+
 
 class Distribution(Seedable):
     """A class for representing random distributions; created by calling get_distribution(params) on a Seedable object
@@ -140,6 +146,22 @@ class UniformRangeDistribution(Distribution):
         Distribution.__init__(self, params, **kwargs)
     def get_value(self):
         return self.random_generator.uniform(low=self.params[0], high=self.params[1])
+
+class Log10UniformRangeDistribution(Distribution):
+    """A class for handling log10-weighted random uniform ranges"""
+    def __init__(self, params, **kwargs):
+        Distribution.__init__(self, params, **kwargs)
+    def get_value(self):
+        if (self.params[0] == 0 or self.params[1] == 0):
+            raise ValueError(f'Cannot compute log10(0). params = {self.params}')
+        elif (self.params[0] < 0 or self.params[1] < 0):
+            raise ValueError(f'Cannot compute log10 of negative number. params = {params}')
+
+        low_log10 = np.log10(self.params[0])
+        high_log10 = np.log10(self.params[1])
+        random_exponent = self.random_generator.uniform(low=low_log10, high=high_log10)
+        linear_value = 10**random_exponent
+        return linear_value
 
 class UniformDistribution(Distribution):
     """A class for handling uniform random variables"""

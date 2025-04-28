@@ -17,6 +17,7 @@ torchsig.datasets.dataset\_metadata.DatasetMetadata
       :nosignatures:
    
       ~DatasetMetadata.add_parent
+      ~DatasetMetadata.get_distribution
       ~DatasetMetadata.get_second_seed
       ~DatasetMetadata.seed
       ~DatasetMetadata.setup_rngs
@@ -31,15 +32,17 @@ torchsig.datasets.dataset\_metadata.DatasetMetadata
 
    .. autosummary::
    
-      ~DatasetMetadata.bandwidth_max
-      ~DatasetMetadata.bandwidth_min
-      ~DatasetMetadata.center_freq_max
-      ~DatasetMetadata.center_freq_min
       ~DatasetMetadata.class_distribution
       ~DatasetMetadata.class_list
+      ~DatasetMetadata.dataset_bandwidth_max
+      ~DatasetMetadata.dataset_bandwidth_min
+      ~DatasetMetadata.dataset_center_freq_max
+      ~DatasetMetadata.dataset_center_freq_min
+      ~DatasetMetadata.dataset_duration_in_samples_max
+      ~DatasetMetadata.dataset_duration_in_samples_min
+      ~DatasetMetadata.dataset_duration_max
+      ~DatasetMetadata.dataset_duration_min
       ~DatasetMetadata.dataset_type
-      ~DatasetMetadata.duration_in_samples_max
-      ~DatasetMetadata.duration_in_samples_min
       ~DatasetMetadata.fft_frequency_max
       ~DatasetMetadata.fft_frequency_min
       ~DatasetMetadata.fft_frequency_resolution
@@ -53,14 +56,19 @@ torchsig.datasets.dataset\_metadata.DatasetMetadata
       ~DatasetMetadata.noise_power_db
       ~DatasetMetadata.num_iq_samples_dataset
       ~DatasetMetadata.num_samples
-      ~DatasetMetadata.num_samples_generated
       ~DatasetMetadata.num_signals_distribution
       ~DatasetMetadata.num_signals_max
       ~DatasetMetadata.num_signals_min
       ~DatasetMetadata.num_signals_range
       ~DatasetMetadata.sample_rate
-      ~DatasetMetadata.signal_duration_percent_max
-      ~DatasetMetadata.signal_duration_percent_min
+      ~DatasetMetadata.signal_bandwidth_max
+      ~DatasetMetadata.signal_bandwidth_min
+      ~DatasetMetadata.signal_center_freq_max
+      ~DatasetMetadata.signal_center_freq_min
+      ~DatasetMetadata.signal_duration_in_samples_max
+      ~DatasetMetadata.signal_duration_in_samples_min
+      ~DatasetMetadata.signal_duration_max
+      ~DatasetMetadata.signal_duration_min
       ~DatasetMetadata.snr_db_max
       ~DatasetMetadata.snr_db_min
       ~DatasetMetadata.target_transforms

@@ -18,6 +18,7 @@ torchsig.signals.builders.lfm.LFMSignalBuilder
    
       ~LFMSignalBuilder.add_parent
       ~LFMSignalBuilder.build
+      ~LFMSignalBuilder.get_distribution
       ~LFMSignalBuilder.get_second_seed
       ~LFMSignalBuilder.reset
       ~LFMSignalBuilder.seed

@@ -17,6 +17,7 @@ torchsig.transforms.dataset\_transforms.AGC
       :nosignatures:
    
       ~AGC.add_parent
+      ~AGC.get_distribution
       ~AGC.get_second_seed
       ~AGC.seed
       ~AGC.setup_rngs

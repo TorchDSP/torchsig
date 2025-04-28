@@ -99,8 +99,7 @@ def verify_getitem_targets(dataset_type: str, target_transforms: List[TargetTran
             "stop_in_samples",
             "upper_freq",
             "lower_freq",
-            "oversampling_rate",
-            "samples_per_baud"
+            "oversampling_rate"
         ]
         assert isinstance(targets, list)
         for t in targets:
@@ -236,7 +235,7 @@ def test_StaticDataset_getitem(dataset_type: str, target_transforms: List[Target
             num_iq_samples_dataset=fft_size**2,
             fft_size=fft_size,
             impairment_level=impairment_level,
-            num_samples=num_generate,
+            num_samples=num_generate
         )
         new_dataset = NewNarrowband(dataset_metadata=dm)
     else:
@@ -245,7 +244,7 @@ def test_StaticDataset_getitem(dataset_type: str, target_transforms: List[Target
             fft_size=fft_size,
             impairment_level=impairment_level,
             num_signals_max=3,
-            num_samples=num_generate,
+            num_samples=num_generate
         )
         new_dataset = NewWideband(dataset_metadata=dm)
 
@@ -262,13 +261,13 @@ def test_StaticDataset_getitem(dataset_type: str, target_transforms: List[Target
     if dataset_type == 'narrowband':
         static_dataset = StaticNarrowband(
             root = root,
-            impaired = impairment_level,
+            impairment_level = impairment_level,
             target_transforms=target_transforms,
         )
     else:
         static_dataset = StaticWideband(
             root = root,
-            impaired = impairment_level,
+            impairment_level = impairment_level,
             target_transforms=target_transforms,
         )
 
@@ -321,17 +320,13 @@ def test_NarrowbandDatasets(params: dict, is_error: bool) -> None:
     # testing to handle cases in which number of samples is not an integer multiple of FFT size
     num_iq_samples_dataset = int(num_iq_samples_dataset + rng.integers(0,fft_size,dtype=int))
 
-    # works for variable sample rates, 1.0 can be used for simplicity
-    sample_rate = rng.uniform(1.0, 1e6)
+    # works for variable sample rates
+    sample_rate = rng.uniform(10e6,20e6)
 
     # minimum and maximum SNR for signals
     snr_db_max = 50
     snr_db_min = 0
 
-    # min and max signal duration percentages (w.r.t dataset length)
-    signal_duration_percent_max = 100
-    signal_duration_percent_min = 80
-    
     # define transforms
     transforms = [Spectrogram(fft_size=fft_size)] # spectrogram (float data)
     target_transform = [
@@ -352,8 +347,6 @@ def test_NarrowbandDatasets(params: dict, is_error: bool) -> None:
         num_signals_min=num_signals_min,
         snr_db_max=snr_db_max,
         snr_db_min=snr_db_min,
-        signal_duration_percent_max=signal_duration_percent_max,
-        signal_duration_percent_min=signal_duration_percent_min,
         transforms=transforms,
         target_transforms=target_transform,
         impairment_level=impairment_level,
@@ -373,7 +366,7 @@ def test_NarrowbandDatasets(params: dict, is_error: bool) -> None:
             dc.create()
             NBS = StaticNarrowband(
                 root = nb_data_dir,
-                impaired = impairment_level,
+                impairment_level = impairment_level,
             )
     else:
         # create the narrowband object, derived from the metadata object
@@ -392,12 +385,12 @@ def test_NarrowbandDatasets(params: dict, is_error: bool) -> None:
         # load dataset from disk
         NBS0 = StaticNarrowband(
             root = nb_data_dir,
-            impaired = impairment_level,
+            impairment_level = impairment_level,
         )
 
         NBS1 = StaticNarrowband(
             root = nb_data_dir,
-            impaired = impairment_level,
+            impairment_level = impairment_level,
         )
         
         # # inspect and save save_num_signals as images
@@ -501,16 +494,12 @@ def test_WidebandDatasets(params: dict, is_error: bool) -> None:
     # testing to handle cases in which number of samples is not an integer multiple of FFT size
     num_iq_samples_dataset = int(num_iq_samples_dataset + rng.integers(0,fft_size,dtype=int))
 
-    # works for variable sample rates, 1.0 can be used for simplicity
-    sample_rate = rng.uniform(1.0, 1e6)
+    # works for variable sample rates
+    sample_rate = rng.uniform(100e6,200e6)
 
     # minimum and maximum SNR for signals
     snr_db_max = 50
     snr_db_min = 0
-
-    # min and max signal duration percentages (w.r.t dataset length)
-    signal_duration_percent_max = 100
-    signal_duration_percent_min = 0
 
     # probability for each sample to contain N signals where N is the index,
     # for example, num_signals_dist = [0.15, 0.5, 0.35] is 25% probability to 
@@ -540,8 +529,6 @@ def test_WidebandDatasets(params: dict, is_error: bool) -> None:
         num_signals_distribution=num_signals_dist,
         snr_db_max=snr_db_max,
         snr_db_min=snr_db_min,
-        signal_duration_percent_max=signal_duration_percent_max,
-        signal_duration_percent_min=signal_duration_percent_min,
         transforms=transforms,
         target_transforms=target_transform,
         impairment_level=impairment_level,
@@ -560,7 +547,7 @@ def test_WidebandDatasets(params: dict, is_error: bool) -> None:
             dc.create()
             WBS = StaticWideband(
                 root = wb_data_dir,
-                impaired = impairment_level,
+                impairment_level = impairment_level,
             )
     else:
         # create the wideband object, derived from the metadata object
@@ -578,11 +565,11 @@ def test_WidebandDatasets(params: dict, is_error: bool) -> None:
         # load dataset from disk
         WBS0 = StaticWideband(
             root = wb_data_dir,
-            impaired = impairment_level,
+            impairment_level = impairment_level,
         )
         WBS1 = StaticWideband(
             root = wb_data_dir,
-            impaired = impairment_level,
+            impairment_level = impairment_level,
         )
             
         # wideband dataset

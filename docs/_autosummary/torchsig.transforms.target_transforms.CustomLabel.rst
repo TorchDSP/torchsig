@@ -17,6 +17,7 @@ torchsig.transforms.target\_transforms.CustomLabel
       :nosignatures:
    
       ~CustomLabel.add_parent
+      ~CustomLabel.get_distribution
       ~CustomLabel.get_second_seed
       ~CustomLabel.seed
       ~CustomLabel.setup_rngs

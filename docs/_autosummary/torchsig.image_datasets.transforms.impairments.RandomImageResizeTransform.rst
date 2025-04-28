@@ -17,6 +17,7 @@ torchsig.image\_datasets.transforms.impairments.RandomImageResizeTransform
       :nosignatures:
    
       ~RandomImageResizeTransform.add_parent
+      ~RandomImageResizeTransform.get_distribution
       ~RandomImageResizeTransform.get_second_seed
       ~RandomImageResizeTransform.seed
       ~RandomImageResizeTransform.setup_rngs

@@ -16,12 +16,8 @@ from torchsig.utils.generate import generate
 import os
 import argparse
 import math
-import subprocess
-import sys
 
 def main():
-    subprocess.check_call([sys.executable, "-m", "pip", "install", "zarr"])
-    from torchsig.utils.generate import generate
     parser = argparse.ArgumentParser()
 
     parser.add_argument("root", type=str, help="Path to generate Wideband dataset.")
