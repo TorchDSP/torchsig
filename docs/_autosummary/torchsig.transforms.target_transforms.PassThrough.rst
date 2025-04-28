@@ -17,6 +17,7 @@ torchsig.transforms.target\_transforms.PassThrough
       :nosignatures:
    
       ~PassThrough.add_parent
+      ~PassThrough.get_distribution
       ~PassThrough.get_second_seed
       ~PassThrough.seed
       ~PassThrough.setup_rngs

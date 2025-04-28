@@ -17,6 +17,7 @@ torchsig.transforms.dataset\_transforms.SpectralInversionDatasetTransform
       :nosignatures:
    
       ~SpectralInversionDatasetTransform.add_parent
+      ~SpectralInversionDatasetTransform.get_distribution
       ~SpectralInversionDatasetTransform.get_second_seed
       ~SpectralInversionDatasetTransform.seed
       ~SpectralInversionDatasetTransform.setup_rngs

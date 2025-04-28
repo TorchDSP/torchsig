@@ -22,6 +22,7 @@ torchsig.datasets.datasets
    
       NewTorchSigDataset
       StaticTorchSigDataset
+      TorchsigIterableDataset
    
    
 

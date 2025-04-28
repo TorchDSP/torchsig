@@ -26,6 +26,7 @@ torchsig.datasets
    :template: custom_module_template.rst
    :recursive:
 
+   custom_datasets
    datamodules
    dataset_metadata
    dataset_utils

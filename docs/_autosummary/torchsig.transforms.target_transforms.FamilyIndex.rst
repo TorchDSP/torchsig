@@ -17,6 +17,7 @@ torchsig.transforms.target\_transforms.FamilyIndex
       :nosignatures:
    
       ~FamilyIndex.add_parent
+      ~FamilyIndex.get_distribution
       ~FamilyIndex.get_second_seed
       ~FamilyIndex.seed
       ~FamilyIndex.setup_rngs

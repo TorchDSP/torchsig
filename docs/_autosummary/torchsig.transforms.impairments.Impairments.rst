@@ -17,6 +17,7 @@ torchsig.transforms.impairments.Impairments
       :nosignatures:
    
       ~Impairments.add_parent
+      ~Impairments.get_distribution
       ~Impairments.get_second_seed
       ~Impairments.seed
       ~Impairments.setup_rngs

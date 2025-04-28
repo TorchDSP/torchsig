@@ -17,6 +17,7 @@ torchsig.transforms.target\_transforms.ClassIndex
       :nosignatures:
    
       ~ClassIndex.add_parent
+      ~ClassIndex.get_distribution
       ~ClassIndex.get_second_seed
       ~ClassIndex.seed
       ~ClassIndex.setup_rngs

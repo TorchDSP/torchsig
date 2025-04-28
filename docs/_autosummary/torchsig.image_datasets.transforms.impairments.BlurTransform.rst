@@ -17,6 +17,7 @@ torchsig.image\_datasets.transforms.impairments.BlurTransform
       :nosignatures:
    
       ~BlurTransform.add_parent
+      ~BlurTransform.get_distribution
       ~BlurTransform.get_second_seed
       ~BlurTransform.seed
       ~BlurTransform.setup_rngs
