@@ -17,6 +17,7 @@ torchsig.transforms.dataset\_transforms.TimeVaryingNoise
       :nosignatures:
    
       ~TimeVaryingNoise.add_parent
+      ~TimeVaryingNoise.get_distribution
       ~TimeVaryingNoise.get_second_seed
       ~TimeVaryingNoise.seed
       ~TimeVaryingNoise.setup_rngs

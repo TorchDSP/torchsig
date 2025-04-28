@@ -17,6 +17,7 @@ torchsig.transforms.dataset\_transforms.LocalOscillatorFrequencyDriftDatasetTran
       :nosignatures:
    
       ~LocalOscillatorFrequencyDriftDatasetTransform.add_parent
+      ~LocalOscillatorFrequencyDriftDatasetTransform.get_distribution
       ~LocalOscillatorFrequencyDriftDatasetTransform.get_second_seed
       ~LocalOscillatorFrequencyDriftDatasetTransform.seed
       ~LocalOscillatorFrequencyDriftDatasetTransform.setup_rngs

@@ -7,6 +7,7 @@ To generate Narrowband with 10 samples, each sample having 100 IQ samples, and i
 
 # TorchSig
 from torchsig.datasets.dataset_metadata import NarrowbandMetadata
+from torchsig.utils.generate import generate
 
 
 # Third Party
@@ -16,12 +17,8 @@ from torchsig.datasets.dataset_metadata import NarrowbandMetadata
 import os
 import argparse
 import math
-import subprocess
-import sys
 
 def main():
-    subprocess.check_call([sys.executable, "-m", "pip", "install", "zarr"])
-    from torchsig.utils.generate import generate
     parser = argparse.ArgumentParser()
 
     parser.add_argument("root", type=str, help="Path to generate Narrowband dataset.")

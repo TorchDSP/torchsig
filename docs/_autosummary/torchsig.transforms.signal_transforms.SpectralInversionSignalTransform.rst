@@ -17,6 +17,7 @@ torchsig.transforms.signal\_transforms.SpectralInversionSignalTransform
       :nosignatures:
    
       ~SpectralInversionSignalTransform.add_parent
+      ~SpectralInversionSignalTransform.get_distribution
       ~SpectralInversionSignalTransform.get_second_seed
       ~SpectralInversionSignalTransform.seed
       ~SpectralInversionSignalTransform.setup_rngs

@@ -17,6 +17,7 @@ torchsig.image\_datasets.transforms.impairments.ScaleTransform
       :nosignatures:
    
       ~ScaleTransform.add_parent
+      ~ScaleTransform.get_distribution
       ~ScaleTransform.get_second_seed
       ~ScaleTransform.seed
       ~ScaleTransform.setup_rngs

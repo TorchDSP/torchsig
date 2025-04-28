@@ -34,6 +34,7 @@ torchsig.utils.dsp
       multistage_polyphase_decimator
       multistage_polyphase_interpolator
       multistage_polyphase_resampler
+      noise_generator
       pad_head_tail_to_length
       polyphase_decimator
       polyphase_fractional_resampler
@@ -41,12 +42,14 @@ torchsig.utils.dsp
       prototype_polyphase_filter
       prototype_polyphase_filter_decimation
       prototype_polyphase_filter_interpolation
+      read_pickle
       slice_head_tail_to_length
       slice_tail_to_length
       srrc_taps
       upconversion_anti_aliasing_filter
       upper_freq_from_center_freq_bandwidth
       upsample
+      write_pickle
    
    
 

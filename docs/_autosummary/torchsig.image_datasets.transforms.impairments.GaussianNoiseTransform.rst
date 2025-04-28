@@ -17,6 +17,7 @@ torchsig.image\_datasets.transforms.impairments.GaussianNoiseTransform
       :nosignatures:
    
       ~GaussianNoiseTransform.add_parent
+      ~GaussianNoiseTransform.get_distribution
       ~GaussianNoiseTransform.get_second_seed
       ~GaussianNoiseTransform.seed
       ~GaussianNoiseTransform.setup_rngs

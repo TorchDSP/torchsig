@@ -17,6 +17,7 @@ torchsig.transforms.base\_transforms.Normalize
       :nosignatures:
    
       ~Normalize.add_parent
+      ~Normalize.get_distribution
       ~Normalize.get_second_seed
       ~Normalize.seed
       ~Normalize.setup_rngs

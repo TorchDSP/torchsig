@@ -17,6 +17,7 @@ torchsig.transforms.dataset\_transforms.DatasetTransform
       :nosignatures:
    
       ~DatasetTransform.add_parent
+      ~DatasetTransform.get_distribution
       ~DatasetTransform.get_second_seed
       ~DatasetTransform.seed
       ~DatasetTransform.setup_rngs

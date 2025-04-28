@@ -18,6 +18,7 @@ torchsig.signals.builders.chirpss.ChirpSSSignalBuilder
    
       ~ChirpSSSignalBuilder.add_parent
       ~ChirpSSSignalBuilder.build
+      ~ChirpSSSignalBuilder.get_distribution
       ~ChirpSSSignalBuilder.get_second_seed
       ~ChirpSSSignalBuilder.reset
       ~ChirpSSSignalBuilder.seed

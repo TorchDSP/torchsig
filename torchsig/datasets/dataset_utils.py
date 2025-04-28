@@ -12,6 +12,12 @@ import numpy as np
 
 import yaml
 
+# name of yaml file where dataset information will be written
+dataset_yaml_name = "create_dataset_info.yaml"
+# name of yaml file where dataset writing information will be written
+writer_yaml_name = "writer_info.yaml"
+
+
 
 def dataset_full_path(dataset_type: str, impairment_level: int, train: bool = None) -> str:
     """Generates the full path for a dataset based on its type, impairment level, and whether it is for training.

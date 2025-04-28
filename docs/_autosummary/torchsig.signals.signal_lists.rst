@@ -20,7 +20,6 @@ torchsig.signals.signal\_lists
       :template: custom_class_template.rst
       :nosignatures:
    
-      RadioML2018
       TorchSigSignalLists
    
    

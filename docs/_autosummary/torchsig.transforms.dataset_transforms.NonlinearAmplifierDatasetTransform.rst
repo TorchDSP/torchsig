@@ -17,6 +17,7 @@ torchsig.transforms.dataset\_transforms.NonlinearAmplifierDatasetTransform
       :nosignatures:
    
       ~NonlinearAmplifierDatasetTransform.add_parent
+      ~NonlinearAmplifierDatasetTransform.get_distribution
       ~NonlinearAmplifierDatasetTransform.get_second_seed
       ~NonlinearAmplifierDatasetTransform.seed
       ~NonlinearAmplifierDatasetTransform.setup_rngs

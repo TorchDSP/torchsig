@@ -17,6 +17,7 @@ torchsig.transforms.target\_transforms.SampleRate
       :nosignatures:
    
       ~SampleRate.add_parent
+      ~SampleRate.get_distribution
       ~SampleRate.get_second_seed
       ~SampleRate.seed
       ~SampleRate.setup_rngs

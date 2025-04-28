@@ -32,7 +32,6 @@ torchsig.utils.file\_handlers.zarr.ZarrFileHandler
 
    .. autosummary::
    
-      ~ZarrFileHandler.chunk_size
-      ~ZarrFileHandler.datapath_filename
+      ~ZarrFileHandler.datapath_filename_base
    
    

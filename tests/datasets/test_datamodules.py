@@ -18,20 +18,6 @@ from torchsig.datasets.dataset_metadata import NarrowbandMetadata, WidebandMetad
 
 import pytest
 
-num_samples = 5
-
-# fft_size = np.random.randint(128,1024)
-fft_size = 512
-# num_iq_samples_dataset = fft_size*np.random.randint(128,1024)
-num_iq_samples_dataset = fft_size ** 2
-
-impairment_level = 2
-
-num_signals_min = 1
-
-# wideband
-num_signals_max = 3
-
 def test_wideband_datamodule(tmpdir):
 
     root = tmpdir
@@ -40,7 +26,7 @@ def test_wideband_datamodule(tmpdir):
         num_iq_samples_dataset = 64 ** 2,
         fft_size = 64,
         impairment_level = 2,
-        num_signals_max=3,
+        num_signals_max=3
     )
 
     dm = WidebandDataModule(
@@ -78,7 +64,7 @@ def test_official_narrowband_datamodule(tmpdir):
 
     dm = OfficialNarrowbandDataModule(
         root=root,
-        impaired=True,
+        impairment_level=2,
         create_batch_size=32,
         create_num_workers=16
     )
@@ -92,7 +78,7 @@ def test_official_wideband_datamodule(tmpdir):
 
     dm = OfficialWidebandDataModule(
         root=root,
-        impaired=True,
+        impairment_level=2,
         create_batch_size=32,
         create_num_workers=16
     )

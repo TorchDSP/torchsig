@@ -17,6 +17,7 @@ torchsig.transforms.impairments\_narrowband.NarrowbandImpairments
       :nosignatures:
    
       ~NarrowbandImpairments.add_parent
+      ~NarrowbandImpairments.get_distribution
       ~NarrowbandImpairments.get_second_seed
       ~NarrowbandImpairments.seed
       ~NarrowbandImpairments.setup_rngs

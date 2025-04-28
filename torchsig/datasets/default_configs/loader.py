@@ -1,9 +1,6 @@
 """ Loads default yaml configs for Narrowband and Widebands
 """
 
-# TorchSig
-from torchsig.utils.verify import verify_impairment_level
-
 # Built-In
 import yaml
 from pathlib import Path
@@ -46,7 +43,6 @@ def get_default_yaml_config(
     if dataset_type not in ["narrowband", "wideband"]:
         raise ValueError(f"Invalid dataset type {dataset_type}")
 
-    impairment_level = verify_impairment_level(impairment_level)
     if impairment_level == 1:
         raise ValueError("Default config does not exist for impairment level 1")
     

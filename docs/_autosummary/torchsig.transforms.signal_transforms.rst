@@ -20,11 +20,10 @@ torchsig.transforms.signal\_transforms
       :template: custom_class_template.rst
       :nosignatures:
    
-      AdjacentChannelInterferenceSignalTransform
-      AtmosphericDuctSignalTransform
+      AdditiveNoiseSignalTransform
+      AdjacentChannelInterference
       CarrierPhaseOffsetSignalTransform
-      ClockSignalTransform
-      CoChannelInterferenceSignalTransform
+      CochannelInterference
       DopplerSignalTransform
       Fading
       IQImbalanceSignalTransform
@@ -33,10 +32,10 @@ torchsig.transforms.signal\_transforms
       LocalOscillatorPhaseNoiseSignalTransform
       NonlinearAmplifierSignalTransform
       PassbandRippleSignalTransform
-      ShadowingSignalTransform
+      QuantizeSignalTransform
+      Shadowing
       SignalTransform
       SpectralInversionSignalTransform
-      TimeShiftSignalTransform
    
    
 

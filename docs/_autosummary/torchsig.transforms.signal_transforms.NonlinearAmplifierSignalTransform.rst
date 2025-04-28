@@ -17,6 +17,7 @@ torchsig.transforms.signal\_transforms.NonlinearAmplifierSignalTransform
       :nosignatures:
    
       ~NonlinearAmplifierSignalTransform.add_parent
+      ~NonlinearAmplifierSignalTransform.get_distribution
       ~NonlinearAmplifierSignalTransform.get_second_seed
       ~NonlinearAmplifierSignalTransform.seed
       ~NonlinearAmplifierSignalTransform.setup_rngs

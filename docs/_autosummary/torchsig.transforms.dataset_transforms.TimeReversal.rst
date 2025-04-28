@@ -17,6 +17,7 @@ torchsig.transforms.dataset\_transforms.TimeReversal
       :nosignatures:
    
       ~TimeReversal.add_parent
+      ~TimeReversal.get_distribution
       ~TimeReversal.get_second_seed
       ~TimeReversal.seed
       ~TimeReversal.setup_rngs

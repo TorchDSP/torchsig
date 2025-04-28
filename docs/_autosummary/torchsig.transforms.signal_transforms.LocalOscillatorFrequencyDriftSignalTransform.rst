@@ -17,6 +17,7 @@ torchsig.transforms.signal\_transforms.LocalOscillatorFrequencyDriftSignalTransf
       :nosignatures:
    
       ~LocalOscillatorFrequencyDriftSignalTransform.add_parent
+      ~LocalOscillatorFrequencyDriftSignalTransform.get_distribution
       ~LocalOscillatorFrequencyDriftSignalTransform.get_second_seed
       ~LocalOscillatorFrequencyDriftSignalTransform.seed
       ~LocalOscillatorFrequencyDriftSignalTransform.setup_rngs

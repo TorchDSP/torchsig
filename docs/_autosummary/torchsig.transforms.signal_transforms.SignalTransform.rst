@@ -17,6 +17,7 @@ torchsig.transforms.signal\_transforms.SignalTransform
       :nosignatures:
    
       ~SignalTransform.add_parent
+      ~SignalTransform.get_distribution
       ~SignalTransform.get_second_seed
       ~SignalTransform.seed
       ~SignalTransform.setup_rngs

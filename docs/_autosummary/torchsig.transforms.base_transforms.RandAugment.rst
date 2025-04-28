@@ -17,6 +17,7 @@ torchsig.transforms.base\_transforms.RandAugment
       :nosignatures:
    
       ~RandAugment.add_parent
+      ~RandAugment.get_distribution
       ~RandAugment.get_second_seed
       ~RandAugment.seed
       ~RandAugment.setup_rngs

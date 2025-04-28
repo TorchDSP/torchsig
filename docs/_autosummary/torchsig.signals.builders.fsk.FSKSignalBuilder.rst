@@ -18,6 +18,7 @@ torchsig.signals.builders.fsk.FSKSignalBuilder
    
       ~FSKSignalBuilder.add_parent
       ~FSKSignalBuilder.build
+      ~FSKSignalBuilder.get_distribution
       ~FSKSignalBuilder.get_second_seed
       ~FSKSignalBuilder.reset
       ~FSKSignalBuilder.seed

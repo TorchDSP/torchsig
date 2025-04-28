@@ -17,6 +17,7 @@ torchsig.transforms.dataset\_transforms.ComplexTo2D
       :nosignatures:
    
       ~ComplexTo2D.add_parent
+      ~ComplexTo2D.get_distribution
       ~ComplexTo2D.get_second_seed
       ~ComplexTo2D.seed
       ~ComplexTo2D.setup_rngs

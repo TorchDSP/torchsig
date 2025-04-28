@@ -17,6 +17,7 @@ torchsig.transforms.dataset\_transforms.AWGN
       :nosignatures:
    
       ~AWGN.add_parent
+      ~AWGN.get_distribution
       ~AWGN.get_second_seed
       ~AWGN.seed
       ~AWGN.setup_rngs

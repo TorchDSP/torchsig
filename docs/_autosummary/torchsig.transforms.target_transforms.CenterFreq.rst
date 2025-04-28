@@ -17,6 +17,7 @@ torchsig.transforms.target\_transforms.CenterFreq
       :nosignatures:
    
       ~CenterFreq.add_parent
+      ~CenterFreq.get_distribution
       ~CenterFreq.get_second_seed
       ~CenterFreq.seed
       ~CenterFreq.setup_rngs

@@ -17,6 +17,7 @@ torchsig.transforms.base\_transforms.Lambda
       :nosignatures:
    
       ~Lambda.add_parent
+      ~Lambda.get_distribution
       ~Lambda.get_second_seed
       ~Lambda.seed
       ~Lambda.setup_rngs

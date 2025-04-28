@@ -28,10 +28,12 @@ class Transform(ABC, Seedable):
     """
     def __init__(
         self, 
+        measure=None,
         **kwargs
     ):      
         """Transform initialization as Seedable.
-        """    
+        """
+        self.measure = measure  # optional measurement mode
         Seedable.__init__(self, **kwargs)
 
     def update(self, signal: Signal | DatasetSignal) -> None:   
@@ -139,7 +141,7 @@ class Normalize(Transform):
         self,
         norm: Optional[int | float | Literal["fro", "nuc"]] = 2,
         flatten: bool = False,
-        seed:int = None,
+        seed: int = None,
         **kwargs
     ) -> None:
         super().__init__(seed=seed, **kwargs)

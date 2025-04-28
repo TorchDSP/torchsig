@@ -1,9 +1,13 @@
 
+"""
+zarr==2.18.3
+"""
 from __future__ import annotations
 
 # TorchSig
 from torchsig.utils.file_handlers.base_handler import TorchSigFileHandler
 from torchsig.datasets.dataset_metadata import DatasetMetadata
+from torchsig.datasets.dataset_utils import writer_yaml_name
 
 # Third Party
 import zarr
@@ -13,9 +17,7 @@ import numpy as np
 from typing import TYPE_CHECKING, Tuple, List, Dict, Any
 import os
 import pickle
-
-if TYPE_CHECKING:
-    from torchsig.datasets.datasets import NewTorchSigDataset
+import yaml
 
 class ZarrFileHandler(TorchSigFileHandler):
     """Handler for reading and writing data to/from a Zarr file format.
@@ -24,42 +26,35 @@ class ZarrFileHandler(TorchSigFileHandler):
     reading, writing, and managing Zarr-based storage for dataset samples.
 
     Attributes:
-        datapath_filename (str): The name of the file used to store the data in Zarr format.
+        datapath_filename (str): The name of the folder used to store the data in Zarr format.
     """
 
-    datapath_filename = "data.zarr"
-    chunk_size = (100, )
+    datapath_filename_base = "data"
 
     def __init__(
         self,
         root: str,
-        dataset_metadata: DatasetMetadata,
-        batch_size: int,
-        train: bool = None,
+        batch_size: int = 1,
     ):
-        """Initializes the ZarrFileHandler with dataset metadata and write type.
+        """Initializes the ZarrFileHandler
 
         Args:
-            dataset_metadata (DatasetMetadata): Metadata about the dataset, including 
-                sample sizes and other configuration.
-            write_type (str, optional): Specifies the write mode for the dataset ("raw" or otherwise). 
-                Defaults to None.
-        """
+            root (str): Where to write dataset on disk.
+            batch_size (int, optional): Size fo each batch write. Defaults to 1.
+        """        
         super().__init__(
             root = root,
-            dataset_metadata = dataset_metadata,
-            batch_size = batch_size,
-            train = train,
+            batch_size = batch_size
         )
 
-        self.datapath = f"{self.root}/{ZarrFileHandler.datapath_filename}"
+        self.datapath = f"{self.root}/{ZarrFileHandler.datapath_filename_base}"
 
-        self.data_shape = (self.dataset_metadata.num_samples, self.dataset_metadata.num_iq_samples_dataset)
-        self.data_type = float
-        # check data type and shape upon first batch
-        self.zarr_updated = False 
-
-        self.zarr_array = None
+        # compressor
+        self.compressor = zarr.Blosc(
+            cname = 'zstd', # type
+            clevel = 4, # compression level
+            shuffle = 2 # use bit shuffle
+        )
 
     def exists(self) -> bool:
         """Checks if the Zarr file exists at the specified path.
@@ -71,45 +66,6 @@ class ZarrFileHandler(TorchSigFileHandler):
             return True
         else:
             return False
-    
-    def _setup(self) -> None:
-        """Sets up the Zarr file for writing by creating a new Zarr array.
-
-        This method initializes the Zarr array with the specified data shape, type, 
-        compression settings, and chunking.
-        """
-        self.zarr_array = zarr.open(
-            self.datapath,
-            mode = 'w', # create or overwrite if exists
-            # array will be shape (num samples, num iq samples)
-            shape = self.data_shape,
-            # chunk array every 1000 elements
-            chunks = ZarrFileHandler.chunk_size,
-            # IQ data type
-            dtype = self.data_type,
-            # compression
-            compressor = zarr.Blosc(
-                cname = 'zstd', # type
-                clevel = 4, # compression level
-                shuffle = 2 # use bit shuffle
-            )
-        )
-
-    def _update_zarr(self, data: Any) -> None:
-        # first batch to be writtern
-        # check and update zarr array data shape and type
-        if self.data_shape[1:] != data[0].shape:
-            # data is >1D, update data shape
-            # print(f"current shape: {self.data_shape}, new shape: {data[0].shape}")
-            self.data_shape = (self.data_shape[0],) + data[0].shape
-            # print(self.data_shape)
-
-        if self.data_type != data[0].dtype:
-            self.data_type = data[0].dtype
-
-        self._setup()
-
-        self.zarr_updated = True
 
     def write(self, batch_idx: int, batch: Any) -> None:
         """Writes a sample (data and targets) to the Zarr file at the specified index.
@@ -129,33 +85,61 @@ class ZarrFileHandler(TorchSigFileHandler):
 
         data, targets = batch
 
-        # print(f"write: {targets}")
-
-        if not self.zarr_updated:
-            self._update_zarr(data)
         
-        try:
-            # set batched data into zarr array
-            self.zarr_array[start_idx: stop_idx, :] = data
-        except ValueError as v:
-            print(v)
-            raise MemoryError(f"Data too large to write to zarr array. Try a smaller batch size or smaller chunk size (ZarrFileHandler.chunk_size).")
+        # write batch of data into file
+        zarr_array = zarr.open(
+            # filenames will have 10 digits
+            # might need to change if you have more than 1 billion batches 
+            f"{self.datapath}/{batch_idx:010}.zarr",
+            mode = 'w', # create or overwrite if exists
+            # array will be shape (num samples, num iq samples)
+            shape = (len(data),) + data[0].shape,
+            # Data type
+            dtype = data[0].dtype,
+            # compression
+            compressor = self.compressor
+        )
+        zarr_array[:] = np.array(data)
 
         # add targets to zarr array attributes
-        for tidx, target in enumerate(targets):
-            # target index is start sample index + target index
-            kidx = start_idx + tidx
-            self.zarr_array.attrs[str(kidx)] = target
+        attrs_dict = {str(start_idx + tidx): target for tidx, target in enumerate(targets)}
+
+        zarr_array.attrs.update(attrs_dict) 
+
+
 
     @staticmethod
     def size(dataset_path: str) -> int:
-        zarr_arr = zarr.open(f"{dataset_path}/{ZarrFileHandler.datapath_filename}", mode = 'r')
+        """Return size of dataset
 
-        return zarr_arr.shape[0]
+        Args:
+            dataset_path (str): path to dataset on disk
+
+        Returns:
+            int: size of dataset
+        """        
+        # find batch size
+        batch_size = TorchSigFileHandler._calculate_batch_size(dataset_path)
+        
+        # count number of files
+        all_zarr_arrays = sorted(os.listdir(f"{dataset_path}/{ZarrFileHandler.datapath_filename_base}"))
+        num_zarr_files = len(all_zarr_arrays)
+
+        # num files * batch size
+        size = batch_size * (num_zarr_files - 1)
+
+        # check last file, since it might have less than batch_size data points
+        last_array = zarr.open(f"{dataset_path}/{ZarrFileHandler.datapath_filename_base}/{all_zarr_arrays[-1]}", mode = 'r')
+        last_batch_size = last_array.shape[0]
+
+        # add size of last batch file
+        size += last_batch_size
+
+        return size
 
     @staticmethod
     def static_load(filename:str, idx: int) -> Tuple[np.ndarray, List[Dict[str, Any]]]:
-        """Loads a sample from the Zarr file at the specified index.
+        """Loads a sample from the Zarr file at the specified index (without instantiating a ZarrFileHandler)
 
         Args:
             filename (str): Path to the directory containing the Zarr file.
@@ -167,10 +151,20 @@ class ZarrFileHandler(TorchSigFileHandler):
         Raises:
             IndexError: If the index is out of bounds.
         """
-        # root/data.zarr
-        zarr_arr = zarr.open(f"{filename}/{ZarrFileHandler.datapath_filename}", mode = 'r')
 
-        data = zarr_arr[idx]
+        # calculate batch size
+        batch_size = TorchSigFileHandler._calculate_batch_size(filename)
+        batch_idx = idx // batch_size
+        batch_file_idx = idx % batch_size 
+
+        # find correct file
+        batch_filename = f"{batch_idx:010}.zarr"
+
+        # load in
+        # root/data/batch filename.zarr
+        zarr_arr = zarr.open(f"{filename}/{ZarrFileHandler.datapath_filename_base}/{batch_filename}", mode = 'r')
+
+        data = zarr_arr[batch_file_idx]
         
         targets = zarr_arr.attrs[str(idx)]
 
@@ -196,22 +190,3 @@ class ZarrFileHandler(TorchSigFileHandler):
         # print(f"post load: {targets}")
 
         return data, targets
-    
-
-    def load(self, idx: int) -> Tuple[np.ndarray, Dict[str, Any]] | Tuple[Any,...]:
-        """Loads a sample from the Zarr file at the specified index into memory.
-
-        Args:
-            idx (int): The index of the sample to load.
-
-        Returns:
-            Tuple[np.ndarray, List[Dict[str, Any]] | Tuple[Any, ...]]]: The data and the corresponding 
-            targets for the sample.
-
-        Raises:
-            IndexError: If the index is out of bounds.
-        """
-        # # loads sample `idx` from disk into memory
-
-        # return data, targets
-        return ZarrFileHandler.static_load(self.root, idx)

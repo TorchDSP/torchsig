@@ -17,6 +17,7 @@ torchsig.transforms.signal\_transforms.PassbandRippleSignalTransform
       :nosignatures:
    
       ~PassbandRippleSignalTransform.add_parent
+      ~PassbandRippleSignalTransform.get_distribution
       ~PassbandRippleSignalTransform.get_second_seed
       ~PassbandRippleSignalTransform.seed
       ~PassbandRippleSignalTransform.setup_rngs

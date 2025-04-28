@@ -9,6 +9,14 @@ torchsig.utils.random
 
    
    
+   .. rubric:: Functions
+
+   .. autosummary::
+      :toctree:
+      :nosignatures:
+   
+      make_distribution
+   
    
 
    
@@ -20,7 +28,12 @@ torchsig.utils.random
       :template: custom_class_template.rst
       :nosignatures:
    
+      ChoiceDistribution
+      Distribution
+      Log10UniformRangeDistribution
       Seedable
+      UniformDistribution
+      UniformRangeDistribution
    
    
 

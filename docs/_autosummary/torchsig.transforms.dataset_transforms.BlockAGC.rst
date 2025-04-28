@@ -17,6 +17,7 @@ torchsig.transforms.dataset\_transforms.BlockAGC
       :nosignatures:
    
       ~BlockAGC.add_parent
+      ~BlockAGC.get_distribution
       ~BlockAGC.get_second_seed
       ~BlockAGC.seed
       ~BlockAGC.setup_rngs

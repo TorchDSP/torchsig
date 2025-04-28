@@ -161,107 +161,100 @@ class PassThrough(TargetTransform):
 ###
 
 class CenterFreq(PassThrough):
-    """Adds `samples_per_baud` from signal metadata
+    """Adds `center_freq` from signal metadata
     """ 
     def __init__(self, **kwargs):
         super().__init__(field = ['center_freq'])
 
 class Bandwidth(PassThrough):
-    """Adds `samples_per_baud` from signal metadata
+    """Adds `bandwidth` from signal metadata
     """ 
     def __init__(self, **kwargs):
         super().__init__(field = ['bandwidth'])
 
 class StartInSamples(PassThrough):
-    """Adds `samples_per_baud` from signal metadata
+    """Adds `start_in_samples` from signal metadata
     """ 
     def __init__(self, **kwargs):
         super().__init__(field = ['start_in_samples'])
 
 class DurationInSamples(PassThrough):
-    """Adds `samples_per_baud` from signal metadata
+    """Adds `duration_in_samples` from signal metadata
     """ 
     def __init__(self, **kwargs):
         super().__init__(field = ['duration_in_samples'])
 
 class SNR(PassThrough):
-    """Adds `samples_per_baud` from signal metadata
+    """Adds `snr_db` from signal metadata
     """ 
     def __init__(self, **kwargs):
         super().__init__(field = ['snr_db'])
 
 class ClassName(PassThrough):
-    """Adds `samples_per_baud` from signal metadata
+    """Adds `class_name` from signal metadata
     """ 
     def __init__(self, **kwargs):
         super().__init__(field = ['class_name'])
 
 class ClassIndex(PassThrough):
-    """Adds `samples_per_baud` from signal metadata
+    """Adds `class_index` from signal metadata
     """ 
     def __init__(self, **kwargs):
         super().__init__(field = ['class_index'])
 
 class SampleRate(PassThrough):
-    """Adds `samples_per_baud` from signal metadata
+    """Adds `sample_rate` from signal metadata
     """ 
     def __init__(self, **kwargs):
         super().__init__(field = ['sample_rate'])
 
 class NumSamples(PassThrough):
-    """Adds `samples_per_baud` from signal metadata
+    """Adds `num_samples` from signal metadata
     """ 
     def __init__(self, **kwargs):
         super().__init__(field = ['num_samples'])
 
 class Start(PassThrough):
-    """Adds `samples_per_baud` from signal metadata
+    """Adds `start` from signal metadata
     """ 
     def __init__(self, **kwargs):
         super().__init__(field = ['start'])
 
 class Stop(PassThrough):
-    """Adds `samples_per_baud` from signal metadata
+    """Adds `stop` from signal metadata
     """ 
     def __init__(self, **kwargs):
         super().__init__(field = ['stop'])
 
 class Duration(PassThrough):
-    """Adds `samples_per_baud` from signal metadata
+    """Adds `duration` from signal metadata
     """ 
     def __init__(self, **kwargs):
         super().__init__(field = ['duration'])
 
 class StopInSamples(PassThrough):
-    """Adds `samples_per_baud` from signal metadata
+    """Adds `stop_in_samples` from signal metadata
     """ 
     def __init__(self, **kwargs):
         super().__init__(field = ['stop_in_samples'])
 
 class UpperFreq(PassThrough):
-    """Adds `samples_per_baud` from signal metadata
+    """Adds `upper_freq` from signal metadata
     """ 
     def __init__(self, **kwargs):
         super().__init__(field = ['upper_freq'])
 
 class LowerFreq(PassThrough):
-    """Adds `samples_per_baud` from signal metadata
+    """Adds `lower_freq` from signal metadata
     """ 
     def __init__(self, **kwargs):
         super().__init__(field = ['lower_freq'])
 
 class OversamplingRate(PassThrough):
-    """Adds `samples_per_baud` from signal metadata
+    """Adds `oversampling_rate` from signal metadata
     """ 
     def __init__(self, **kwargs):
         super().__init__(field = ['oversampling_rate'])
-
-class SamplesPerBaud(PassThrough):
-    """Adds `samples_per_baud` from signal metadata
-    """    
-    def __init__(self, **kwargs):
-        super().__init__(field = ['samples_per_baud'])
-
 
 
 # Special Target Transforms

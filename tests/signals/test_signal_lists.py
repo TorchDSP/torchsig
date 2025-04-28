@@ -2,13 +2,11 @@
 
 Classes:
 - TorchSigSignalLists
-- radioml2018
 
 Variables:
 - CLASS_FAMILY_DICT
 - SIGNALS_SHARED_LIST
 - FAMILY_SHARED_LIST
-- FAMILY_SHARED_LIST_RADIOML
 """
 from torchsig.signals.signal_lists import (
     CLASS_FAMILY_DICT,

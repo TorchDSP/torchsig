@@ -23,21 +23,20 @@ torchsig.transforms.dataset\_transforms
       AGC
       AWGN
       AddSlope
+      AdditiveNoiseDatasetTransform
       BlockAGC
       CarrierPhaseOffsetDatasetTransform
       ChannelSwap
-      ColoredNoise
       ComplexTo2D
       CutOut
       DatasetTransform
       IQImbalanceDatasetTransform
-      ImpulsiveNoise
       LocalOscillatorFrequencyDriftDatasetTransform
       LocalOscillatorPhaseNoiseDatasetTransform
       NonlinearAmplifierDatasetTransform
       PassbandRippleDatasetTransform
       PatchShuffle
-      Quantize
+      QuantizeDatasetTransform
       RandomDropSamples
       RandomMagRescale
       SpectralInversionDatasetTransform

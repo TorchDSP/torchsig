@@ -17,6 +17,7 @@ torchsig.transforms.impairments\_wideband.WidebandImpairments
       :nosignatures:
    
       ~WidebandImpairments.add_parent
+      ~WidebandImpairments.get_distribution
       ~WidebandImpairments.get_second_seed
       ~WidebandImpairments.seed
       ~WidebandImpairments.setup_rngs
