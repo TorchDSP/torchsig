@@ -192,7 +192,7 @@ def upconversion_anti_aliasing_filter(input_signal:np.ndarray, center_freq:float
     # calculate the filter cutoff
     cutoff = 0.999*(passband_edge + (transition_bandwidth/2))
     # design the LPF
-    lpf_weights = low_pass_iterative_design(cutoff=cutoff,transition_bandwidth=transition_bandwidth,sample_rate=sample_rate)
+    lpf_weights = low_pass(cutoff=cutoff,transition_bandwidth=transition_bandwidth,sample_rate=sample_rate)
     # modulate the LPF to BPF
     num_lpf_weights = len(lpf_weights)
     n = np.arange(-int((num_lpf_weights-1)/2),int((num_lpf_weights-1)/2)+1)
