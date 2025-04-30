@@ -14,6 +14,7 @@ import scipy
 from scipy import signal as sp
 import numpy as np
 from scipy.constants import c
+import cv2
 
 __all__ = [
     "add_slope",
@@ -44,6 +45,7 @@ __all__ = [
     "spectral_inversion",
     "spectrogram",
     "spectrogram_drop_samples",
+    "spectrogram_image",
     "time_reversal",
     "time_varying_noise"
 ]
@@ -1276,3 +1278,33 @@ def time_varying_noise(
         )
 
     return ( data + (10.0 ** (noise_power / 20.0)) * (real_noise + 1j * imag_noise) / np.sqrt(2) ).astype(torchsig_complex_data_type)
+
+
+def spectrogram_image(
+    data: np.ndarray,
+    fft_size:int,
+    fft_stride:int,
+    black_hot: bool = True
+) -> np.ndarray:
+    """Creates spectrogram from IQ samples
+
+    Args:
+        data (numpy.ndarray): IQ samples
+        black_hot (bool, optional): toggles black hot spectrogram. Defaults to False (white-hot).
+
+    """
+
+    # compute the spectrogram in dB
+    spectrogram_dB = spectrogram(data, fft_size=fft_size, fft_stride=fft_stride)
+
+    # convert to grey-scale image
+    img = np.zeros((spectrogram_dB.shape[0], spectrogram_dB.shape[1], 3), dtype=np.float32)
+    img = cv2.normalize(spectrogram_dB, img, 0, 255, cv2.NORM_MINMAX)
+    img = cv2.cvtColor(img.astype(np.uint8), cv2.COLOR_GRAY2BGR)
+    
+    if black_hot:
+        img = cv2.bitwise_not(img, img)
+
+    return img
+
+
