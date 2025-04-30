@@ -62,7 +62,8 @@ class NarrowbandImpairments(Impairments):
         ST_level_2 = [
             RandomApply(IQImbalanceSignalTransform(),0.25),
             RandomApply(Fading(), 0.5),
-            RandomApply(SpectralInversionSignalTransform(), 0.5),
+            RandomApply(CarrierPhaseOffsetSignalTransform(),1.0),
+            RandomApply(SpectralInversionSignalTransform(), 0.25),
             RandomApply(FrequencyMixerPhaseNoiseSignalTransform(), 0.5),
             RandomApply(FrequencyMixerFrequencyDriftSignalTransform(), 0.5),
             RandomApply(QuantizeSignalTransform(), 0.5),

@@ -30,6 +30,7 @@ from torchsig.transforms.signal_transforms import (
     IQImbalanceSignalTransform,
     CarrierPhaseOffsetSignalTransform,
     Fading,
+    SpectralInversionSignalTransform,
     FrequencyMixerPhaseNoiseSignalTransform,
     FrequencyMixerFrequencyDriftSignalTransform,
     QuantizeSignalTransform,
@@ -38,6 +39,7 @@ from torchsig.transforms.signal_transforms import (
 from torchsig.transforms.dataset_transforms import (
     IQImbalanceDatasetTransform,
     CarrierPhaseOffsetDatasetTransform,
+    SpectralInversionDatasetTransform,
     FrequencyMixerPhaseNoiseDatasetTransform,
     FrequencyMixerFrequencyDriftDatasetTransform,
     QuantizeDatasetTransform,
@@ -69,8 +71,9 @@ class WidebandImpairments(Impairments):
         ]
         ST_level_2 = [
             RandomApply(IQImbalanceSignalTransform(),0.25),
+            RandomApply(Fading(), 0.5),
             RandomApply(CarrierPhaseOffsetSignalTransform(),1.0),
-            RandomApply(Fading(coherence_bandwidth = (0.001, 0.01)),0.5),
+            RandomApply(SpectralInversionSignalTransform(), 0.25),
             RandomApply(FrequencyMixerPhaseNoiseSignalTransform(), 0.5),
             RandomApply(FrequencyMixerFrequencyDriftSignalTransform(), 0.5),
             RandomApply(QuantizeSignalTransform(), 0.5),
@@ -92,10 +95,10 @@ class WidebandImpairments(Impairments):
         DT_level_2 = [
             RandomApply(IQImbalanceDatasetTransform(),0.5),
             RandomApply(CarrierPhaseOffsetDatasetTransform(), 1.0),
+            RandomApply(SpectralInversionDatasetTransform(), 0.5),
             RandomApply(FrequencyMixerPhaseNoiseDatasetTransform(),0.5),
             RandomApply(FrequencyMixerFrequencyDriftDatasetTransform(),0.5),
             RandomApply(QuantizeDatasetTransform(),0.5),
-            # RandomApply(AGC(), TBD),
             RandAugment(
                 transforms= [
                     RandomDropSamples(
