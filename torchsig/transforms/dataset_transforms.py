@@ -6,7 +6,7 @@ __all__ = [
 
     ### RF Transforms
     "AdditiveNoiseDatasetTransform"
-    "AGC",
+    "TrackingAGCDatasetTransform",
     "AWGN",
     "CoarseGainChangeDatasetTransform",
     "CarrierPhaseOffsetDatasetTransform",
@@ -141,7 +141,7 @@ class AdditiveNoiseDatasetTransform(DatasetTransform):
         return signal
 
 
-class AGC(DatasetTransform):
+class TrackingAGCDatasetTransform(DatasetTransform):
     """Automatic Gain Control performing sample-by-sample AGC algorithm.
 
     Attributes:
@@ -216,7 +216,7 @@ class AGC(DatasetTransform):
             size = 1
         )[0]
 
-        signal.data = F.agc(
+        signal.data = F.tracking_agc(
             np.ascontiguousarray(signal.data, dtype=np.complex64),
             np.float64(self.initial_gain_db),
             np.float64(alpha_smooth),

@@ -20,7 +20,7 @@ __all__ = [
     "add_slope",
     "additive_noise",
     "adjacent_channel_interference",
-    "agc",
+    "tracking_agc",
     "coarse_gain_change",
     "channel_swap",
     "cochannel_interference",
@@ -70,7 +70,7 @@ def add_slope(
     return (data + slope).astype(torchsig_complex_data_type)
 
 
-def agc(
+def tracking_agc(
     data: np.ndarray,
     initial_gain_db: float,
     alpha_smooth: float,
