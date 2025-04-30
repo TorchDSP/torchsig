@@ -11,8 +11,8 @@ __all__ = [
     "Fading",
     "IntermodulationProductsSignalTransform",
     "IQImbalanceSignalTransform",
-    "LocalOscillatorFrequencyDriftSignalTransform",
-    "LocalOscillatorPhaseNoiseSignalTransform",
+    "FrequencyMixerFrequencyDriftSignalTransform",
+    "FrequencyMixerPhaseNoiseSignalTransform",
     "NonlinearAmplifierSignalTransform",
     "PassbandRippleSignalTransform",
     "QuantizeSignalTransform",
@@ -456,7 +456,7 @@ class IQImbalanceSignalTransform(SignalTransform):
         return signal
 
 
-class LocalOscillatorFrequencyDriftSignalTransform(SignalTransform):
+class FrequencyMixerFrequencyDriftSignalTransform(SignalTransform):
     """SignalTransform that applies LO frequency drift to Signal IQ data.
 
     Attributes:
@@ -486,7 +486,7 @@ class LocalOscillatorFrequencyDriftSignalTransform(SignalTransform):
         return signal
 
 
-class LocalOscillatorPhaseNoiseSignalTransform(SignalTransform):
+class FrequencyMixerPhaseNoiseSignalTransform(SignalTransform):
     """SignalTransform that applies LO phase noise to Signal IQ data.
 
     Attributes:

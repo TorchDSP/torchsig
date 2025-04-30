@@ -30,16 +30,16 @@ from torchsig.transforms.signal_transforms import (
     IQImbalanceSignalTransform,
     CarrierPhaseOffsetSignalTransform,
     Fading,
-    LocalOscillatorPhaseNoiseSignalTransform,
-    LocalOscillatorFrequencyDriftSignalTransform,
+    FrequencyMixerPhaseNoiseSignalTransform,
+    FrequencyMixerFrequencyDriftSignalTransform,
     QuantizeSignalTransform,
     IntermodulationProductsSignalTransform
 )
 from torchsig.transforms.dataset_transforms import (
     IQImbalanceDatasetTransform,
     CarrierPhaseOffsetDatasetTransform,
-    LocalOscillatorPhaseNoiseDatasetTransform,
-    LocalOscillatorFrequencyDriftDatasetTransform,
+    FrequencyMixerPhaseNoiseDatasetTransform,
+    FrequencyMixerFrequencyDriftDatasetTransform,
     QuantizeDatasetTransform,
     RandomDropSamples,
     ChannelSwap,
@@ -71,8 +71,8 @@ class WidebandImpairments(Impairments):
             RandomApply(IQImbalanceSignalTransform(),0.25),
             RandomApply(CarrierPhaseOffsetSignalTransform(),1.0),
             RandomApply(Fading(coherence_bandwidth = (0.001, 0.01)),0.5),
-            RandomApply(LocalOscillatorPhaseNoiseSignalTransform(), 0.5),
-            RandomApply(LocalOscillatorFrequencyDriftSignalTransform(), 0.5),
+            RandomApply(FrequencyMixerPhaseNoiseSignalTransform(), 0.5),
+            RandomApply(FrequencyMixerFrequencyDriftSignalTransform(), 0.5),
             RandomApply(QuantizeSignalTransform(), 0.5),
             RandomApply(IntermodulationProductsSignalTransform(), 0.5),
         ]
@@ -92,8 +92,8 @@ class WidebandImpairments(Impairments):
         DT_level_2 = [
             RandomApply(IQImbalanceDatasetTransform(),0.5),
             RandomApply(CarrierPhaseOffsetDatasetTransform(), 1.0),
-            RandomApply(LocalOscillatorPhaseNoiseDatasetTransform(),0.5),
-            RandomApply(LocalOscillatorFrequencyDriftDatasetTransform(),0.5),
+            RandomApply(FrequencyMixerPhaseNoiseDatasetTransform(),0.5),
+            RandomApply(FrequencyMixerFrequencyDriftDatasetTransform(),0.5),
             RandomApply(QuantizeDatasetTransform(),0.5),
             # RandomApply(AGC(), TBD),
             RandAugment(

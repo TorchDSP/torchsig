@@ -25,8 +25,8 @@ from torchsig.transforms.signal_transforms import (
     CarrierPhaseOffsetSignalTransform,
     Fading,
     SpectralInversionSignalTransform,
-    LocalOscillatorPhaseNoiseSignalTransform,
-    LocalOscillatorFrequencyDriftSignalTransform,
+    FrequencyMixerPhaseNoiseSignalTransform,
+    FrequencyMixerFrequencyDriftSignalTransform,
     QuantizeSignalTransform,
     IntermodulationProductsSignalTransform
 )
@@ -34,8 +34,8 @@ from torchsig.transforms.dataset_transforms import (
     IQImbalanceDatasetTransform,
     CarrierPhaseOffsetDatasetTransform,
     SpectralInversionDatasetTransform,
-    LocalOscillatorPhaseNoiseDatasetTransform,
-    LocalOscillatorFrequencyDriftDatasetTransform,
+    FrequencyMixerPhaseNoiseDatasetTransform,
+    FrequencyMixerFrequencyDriftDatasetTransform,
     QuantizeDatasetTransform
 )
 
@@ -63,8 +63,8 @@ class NarrowbandImpairments(Impairments):
             RandomApply(IQImbalanceSignalTransform(),0.25),
             RandomApply(Fading(), 0.5),
             RandomApply(SpectralInversionSignalTransform(), 0.5),
-            RandomApply(LocalOscillatorPhaseNoiseSignalTransform(), 0.5),
-            RandomApply(LocalOscillatorFrequencyDriftSignalTransform(), 0.5),
+            RandomApply(FrequencyMixerPhaseNoiseSignalTransform(), 0.5),
+            RandomApply(FrequencyMixerFrequencyDriftSignalTransform(), 0.5),
             RandomApply(QuantizeSignalTransform(), 0.5),
             RandomApply(IntermodulationProductsSignalTransform(), 0.5),
         ]
@@ -87,8 +87,8 @@ class NarrowbandImpairments(Impairments):
             RandomApply(IQImbalanceDatasetTransform(),0.5),
             RandomApply(CarrierPhaseOffsetDatasetTransform(), 1.0),
             RandomApply(SpectralInversionDatasetTransform(), 0.5),
-            RandomApply(LocalOscillatorPhaseNoiseDatasetTransform(), 0.5),
-            RandomApply(LocalOscillatorFrequencyDriftDatasetTransform(), 0.5),
+            RandomApply(FrequencyMixerPhaseNoiseDatasetTransform(), 0.5),
+            RandomApply(FrequencyMixerFrequencyDriftDatasetTransform(), 0.5),
             RandomApply(QuantizeDatasetTransform(), 1.0),
         ]
         

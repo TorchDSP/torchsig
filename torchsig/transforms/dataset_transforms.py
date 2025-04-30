@@ -12,8 +12,8 @@ __all__ = [
     "CarrierPhaseOffsetDatasetTransform",
     "ComplexTo2D",
     "IQImbalanceDatasetTransform",
-    "LocalOscillatorFrequencyDriftDatasetTransform"
-    "LocalOscillatorPhaseNoiseDatasetTransform",
+    "FrequencyMixerFrequencyDriftDatasetTransform"
+    "FrequencyMixerPhaseNoiseDatasetTransform",
     "NonlinearAmplifierDatasetTransform",
     "PassbandRippleDatasetTransform",
     "QuantizeDatasetTransform",
@@ -388,7 +388,7 @@ class IQImbalanceDatasetTransform(DatasetTransform):
         return signal
 
 
-class LocalOscillatorFrequencyDriftDatasetTransform(DatasetTransform):
+class FrequencyMixerFrequencyDriftDatasetTransform(DatasetTransform):
     """Apply LO frequency drift to DatasetSignal.
 
     Attributes:
@@ -418,7 +418,7 @@ class LocalOscillatorFrequencyDriftDatasetTransform(DatasetTransform):
         return signal
 
 
-class LocalOscillatorPhaseNoiseDatasetTransform(DatasetTransform):
+class FrequencyMixerPhaseNoiseDatasetTransform(DatasetTransform):
     """Applies LO phase noise to DatasetSignal.
 
     Attributes:
@@ -437,7 +437,7 @@ class LocalOscillatorPhaseNoiseDatasetTransform(DatasetTransform):
     def __call__(self, signal: DatasetSignal) -> DatasetSignal:
         phase_noise_degrees = self.phase_noise_degrees_distribution()
 
-        signal.data = F.phase_noise(
+        signal.data = F.frequency_mixer_phase_noise(
             data = signal.data,
             phase_noise_degrees = phase_noise_degrees,
             rng = self.random_generator

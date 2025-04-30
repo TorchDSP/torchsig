@@ -31,8 +31,8 @@ __all__ = [
     "fading",
     "intermodulation_products",
     "iq_imbalance",
-    "local_oscillator_frequency_drift",
-    "phase_noise",
+    "frequency_mixer_frequency_drift",
+    "frequency_mixer_phase_noise",
     "mag_rescale",
     "nonlinear_amplifier",
     "nonlinear_amplifier_table",
@@ -626,7 +626,7 @@ def iq_imbalance(
     return data.astype(torchsig_complex_data_type)
 
 
-def local_oscillator_frequency_drift(
+def frequency_mixer_frequency_drift(
     data: np.ndarray,
     drift_ppm: float = 1,
     rng: np.random.Generator = np.random.default_rng(seed=None)
@@ -668,7 +668,7 @@ def local_oscillator_frequency_drift(
     return data.astype(torchsig_complex_data_type)
 
 
-def phase_noise(
+def frequency_mixer_phase_noise(
     data: np.ndarray,
     phase_noise_degrees: float = 1.0,
     rng: np.random.Generator = np.random.default_rng(seed=None)
