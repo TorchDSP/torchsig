@@ -298,7 +298,6 @@ class CoarseGainChangeDatasetTransform(DatasetTransform):
     def __call__(self, signal: DatasetSignal) -> DatasetSignal:
         # select a gain value change from distribution
         gain_change_db = self.gain_change_db_distribution()
-        print('gain change = ' + str(gain_change_db))
         # determine which samples gain change will be applied to. minimum index is 1, and maximum
         # index is second to last sample, such that at minimum the gain will be applied to one
         # sample or at maximum it will be applied to all less 1 samples. applying to zero samples
