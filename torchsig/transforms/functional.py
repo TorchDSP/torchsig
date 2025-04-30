@@ -645,14 +645,8 @@ def frequency_mixer_frequency_drift(
     rng = rng if rng else np.random.default_rng()
     N = data.size
 
-    # convert drift PPM units. typically the PPM is in
-    # reference to a 10 MHz oscillator, but we allow for
-    # user-input arbitrary sample rates and assuming a
-    # 10 MHz reference may produce problems when the 
-    # sample rate <= 10 MHz. so use PPM in a normalized value
-    # in that it gets it "close" although not perfectly
-    # emulating receiver.
-    drift = drift_ppm * 10e-6
+    # convert drift PPM units
+    drift = drift_ppm * 1e-6
 
     # generate a random phase with appropriate standard deviation
     random_phase = rng.normal(0,drift,N)
