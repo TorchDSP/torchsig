@@ -21,7 +21,7 @@ __all__ = [
     "additive_noise",
     "adjacent_channel_interference",
     "agc",
-    "block_agc",
+    "coarse_gain_change",
     "channel_swap",
     "cochannel_interference",
     "complex_to_2d",
@@ -33,7 +33,6 @@ __all__ = [
     "iq_imbalance",
     "frequency_mixer_frequency_drift",
     "frequency_mixer_phase_noise",
-    "mag_rescale",
     "nonlinear_amplifier",
     "nonlinear_amplifier_table",
     "normalize",
@@ -237,9 +236,7 @@ def awgn(data: np.ndarray,
     return (data + (10.0 ** (noise_power_db / 20.0)) * (real_noise + 1j * imag_noise) / np.sqrt(2)).astype(torchsig_complex_data_type)
 
 
-# TODO: block_agc is very similar to mag_rescale, and
-# does not actually perform any AGC - consider consolidating
-def block_agc(
+def coarse_gain_change(
     data: np.ndarray,
     gain_change_db: float,
     start_idx: int
@@ -252,7 +249,7 @@ def block_agc(
         start_idx (np.ndarray): Start index for IQ data.
 
     Returns:
-        np.ndarray: IQ data with Block AGC applied.
+        np.ndarray: IQ data with instantaneous gain change applied.
 
     """    
     # convert db to linear units
@@ -692,32 +689,6 @@ def frequency_mixer_phase_noise(
 
     # apply phase noise effect
     data = data * phase_noise_effect
-    return data.astype(torchsig_complex_data_type)
-
-
-def mag_rescale(
-    data: np.ndarray,
-    start: float | int,
-    scale: float
-) -> np.ndarray:
-    """Apply rescaling of input `rescale` starting at time `start`.
-
-    Args:
-        data (np.ndarray): IQ data.
-        start (float | int): Start time of rescaling.
-        * If int, treated as array index.
-        * If float, treated as normalized start time.
-        scale (float): Scaling factor.
-
-    Returns:
-        np.ndarray: data rescaled.
-
-    """    
-    if isinstance(start, float):
-        start = int(data.shape[0] * start)
-    
-    data[start:] *= scale
-
     return data.astype(torchsig_complex_data_type)
 
 

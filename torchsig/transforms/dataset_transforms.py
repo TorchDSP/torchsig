@@ -8,7 +8,7 @@ __all__ = [
     "AdditiveNoiseDatasetTransform"
     "AGC",
     "AWGN",
-    "BlockAGC",
+    "CoarseGainChangeDatasetTransform",
     "CarrierPhaseOffsetDatasetTransform",
     "ComplexTo2D",
     "IQImbalanceDatasetTransform",
@@ -279,7 +279,7 @@ class AWGN(DatasetTransform):
         return signal
 
 
-class BlockAGC(DatasetTransform):
+class CoarseGainChangeDatasetTransform(DatasetTransform):
     """Implements a large instantaneous jump in receiver gain.
 
     Attributes:
@@ -289,24 +289,23 @@ class BlockAGC(DatasetTransform):
     """
     def __init__(
         self, 
-        max_gain_change_db: float = 10.0,
+        gain_change_db: Tuple[float, float] = (-20, 20),
         **kwargs
     ):
         super().__init__(**kwargs)
-        # define the range (min,max) for possible change in gain (assume range is symmetric)
-        self.gain_change_db_range = (-max_gain_change_db,max_gain_change_db)
-        self.gain_change_db_distribution = self.get_distribution(self.gain_change_db_range )
+        self.gain_change_db_distribution = self.get_distribution(gain_change_db)
         
     def __call__(self, signal: DatasetSignal) -> DatasetSignal:
         # select a gain value change from distribution
         gain_change_db = self.gain_change_db_distribution()
+        print('gain change = ' + str(gain_change_db))
         # determine which samples gain change will be applied to. minimum index is 1, and maximum
         # index is second to last sample, such that at minimum the gain will be applied to one
         # sample or at maximum it will be applied to all less 1 samples. applying to zero samples
         # or to all samples does not have a practical effect for this specific transform.
         start_index = self.random_generator.integers(1,len(signal.data)-1)
         
-        signal.data = F.block_agc(signal.data, gain_change_db, start_index)
+        signal.data = F.coarse_gain_change(signal.data, gain_change_db, start_index)
 
         signal.data = signal.data.astype(torchsig_complex_data_type)
         self.update(signal)
@@ -920,49 +919,6 @@ class RandomDropSamples(DatasetTransform):
             drop_instances
         ).astype(int)
         signal.data = F.drop_samples(signal.data, drop_starts, drop_sizes, fill)
-        signal.data = signal.data.astype(torchsig_complex_data_type)
-        self.update(signal)
-        return signal
-
-
-class RandomMagRescale(DatasetTransform):
-    """Randomly apply a magnitude rescaling, emulating a change in a receiver's
-    gain control.
-
-    Attributes:
-         start (int, float, list, tuple):
-            start sets the time when the rescaling kicks in
-            * If int or float, start is fixed at the value provided.
-            * If list, start is any element in the list.
-            * If tuple, start is in range of (tuple[0], tuple[1]).
-        start_distribution (Callable[[], float]): Random draw from start distribution.
-        scale (int, float, list, tuple):
-            scale sets the magnitude of the rescale
-            * If int or float, scale is fixed at the value provided.
-            * If list, scale is any element in the list.
-            * If tuple, scale is in range of (tuple[0], tuple[1]).
-        scale_distribution (Callable[[], float]): Random draw from scale distribution.
-
-    """
-
-    def __init__(
-        self,
-        start = (0.0, 0.9),
-        scale = (-4.0, 4.0),
-        **kwargs
-    ) -> None:
-        super().__init__(**kwargs)
-        self.start = start
-        self.scale = scale
-
-        self.start_distribution = self.get_distribution(self.start )
-        self.scale_distribution = self.get_distribution(self.scale )
-
-    def __call__(self, signal: DatasetSignal) -> DatasetSignal:
-        start = self.start_distribution()
-        scale = self.scale_distribution()
-        
-        signal.data = F.mag_rescale(signal.data, start, scale)
         signal.data = signal.data.astype(torchsig_complex_data_type)
         self.update(signal)
         return signal

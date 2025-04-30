@@ -43,6 +43,7 @@ from torchsig.transforms.dataset_transforms import (
     FrequencyMixerPhaseNoiseDatasetTransform,
     FrequencyMixerFrequencyDriftDatasetTransform,
     QuantizeDatasetTransform,
+    CoarseGainChangeDatasetTransform,
     RandomDropSamples,
     ChannelSwap,
     TimeReversal,
@@ -99,6 +100,7 @@ class WidebandImpairments(Impairments):
             RandomApply(FrequencyMixerPhaseNoiseDatasetTransform(),0.5),
             RandomApply(FrequencyMixerFrequencyDriftDatasetTransform(),0.5),
             RandomApply(QuantizeDatasetTransform(),0.5),
+            RandomApply(CoarseGainChangeDatasetTransform(),0.1),
             RandAugment(
                 transforms= [
                     RandomDropSamples(
