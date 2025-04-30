@@ -18,6 +18,7 @@ __all__ = [
     "PassbandRippleDatasetTransform",
     "QuantizeDatasetTransform",
     "Spectrogram",
+    "SpectrogramImage",
     "SpectralInversionDatasetTransform",
     "TimeVaryingNoise",
 
@@ -1125,4 +1126,31 @@ class TimeReversal(DatasetTransform):
         
         self.update(signal)
         return signal
+
+class SpectrogramImage(DatasetTransform):
+    """Transforms SignalData to spectrogram image
+    """
+
+    def __init__(
+        self,
+        fft_size:int,
+        black_hot: bool=True,
+        **kwargs
+    ) -> None:
+        super().__init__(**kwargs) 
+        self.fft_size = fft_size
+        self.fft_stride = fft_size
+        self.black_hot = black_hot
+
+    def __call__(self, signal:DatasetSignal) -> DatasetSignal:
+        signal.data = F.spectrogram_image(
+            signal.data,
+            self.fft_size,
+            self.fft_stride,
+            self.black_hot
+        )
+        self.update(signal)
+        return signal
+
+
 
