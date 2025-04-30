@@ -476,7 +476,7 @@ class FrequencyMixerFrequencyDriftSignalTransform(SignalTransform):
     def __call__(self, signal: Signal) -> Signal:
         drift_ppm = self.drift_ppm_distribution()
 
-        signal.data = F.local_oscillator_frequency_drift(
+        signal.data = F.frequency_mixer_frequency_drift(
             data = signal.data, 
             drift_ppm = drift_ppm, 
             rng = self.random_generator
@@ -506,7 +506,7 @@ class FrequencyMixerPhaseNoiseSignalTransform(SignalTransform):
     def __call__(self, signal: Signal) -> Signal:
         phase_noise_degrees = self.phase_noise_degrees_distribution()
 
-        signal.data = F.phase_noise(
+        signal.data = F.frequency_mixer_phase_noise(
             data = signal.data,
             phase_noise_degrees = phase_noise_degrees,
             rng = self.random_generator

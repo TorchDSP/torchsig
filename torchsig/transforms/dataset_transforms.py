@@ -407,7 +407,7 @@ class FrequencyMixerFrequencyDriftDatasetTransform(DatasetTransform):
     def __call__(self, signal: DatasetSignal) -> DatasetSignal:
         drift_ppm = self.drift_ppm_distribution()
 
-        signal.data = F.local_oscillator_frequency_drift(
+        signal.data = F.frequency_mixer_frequency_drift(
             data = signal.data, 
             drift_ppm = drift_ppm,
             rng = self.random_generator
