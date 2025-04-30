@@ -334,6 +334,14 @@ def verify_numpy_array(
             if not isinstance(item, data_type):
                 raise ValueError(f"{name}[{i}] is not correct dtype {data_type}: {type(item)}")
 
+    # check for np.nan's
+    if (np.isnan(n).any()):
+        raise ValueError('Data contains one or more NaN np.nan values.')
+
+    # check for np.inf's
+    if (np.isinf(n).any()):
+        raise ValueError('Data contains one or more np.inf values.')
+
     return n
 
 
