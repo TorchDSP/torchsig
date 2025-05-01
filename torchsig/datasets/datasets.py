@@ -482,6 +482,24 @@ class NewTorchSigDataset(Dataset, Seedable):
 
         return new_rectangle
 
+    def _check_if_overlap ( self, new_rectangle:Rectangle, signal_rectangle_list:list ) -> bool:
+
+        # initialize the boolean value which determines if there is overlap or not
+        has_overlap = False
+
+        # determine if overlap
+        if (len(signal_rectangle_list) > 0):
+            # check to see if the current rectangle overlaps with any signals currently
+            # in the spectrogram
+            for reference_box in signal_rectangle_list:
+                # check for invidivual overlap
+                individual_overlap = is_box_overlap(new_rectangle,reference_box)
+                # combine with previous potential overlap checks
+                has_overlap = has_overlap or individual_overlap
+
+        return has_overlap
+
+
     def __generate_new_signal__(self) -> DatasetSignal:
         """Generates a new dataset signal/sample.
 
@@ -549,19 +567,8 @@ class NewTorchSigDataset(Dataset, Seedable):
             # map the signal bounding box into a rectangle in cartesian coordinate system
             new_rectangle = self._map_to_coordinates(new_signal)
 
-            # TODO: turn into function
-            # initialize the boolean value which determines if there is overlap or not
-            has_overlap = False
-
-            # determine if overlap
-            if (len(signal_rectangle_list) > 0):
-                # check to see if the current rectangle overlaps with any signals currently
-                # in the spectrogram
-                for reference_box in signal_rectangle_list:
-                    # check for invidivual overlap
-                    individual_overlap = is_box_overlap(new_rectangle,reference_box)
-                    # combine with previous potential overlap checks
-                    has_overlap = has_overlap or individual_overlap
+            # check if the new_rectangle overlaps with any others in spectrogram
+            has_overlap = self._check_if_overlap ( new_rectangle, signal_rectangle_list )
 
             # signal is used if there is no overlap OR with some random chance
             if (has_overlap == False or np.random.uniform(0,1) < overlap_prob): # TODO: use RNG
