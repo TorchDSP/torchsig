@@ -77,6 +77,7 @@ class DatasetMetadata(Seedable):
         signal_bandwidth_max: float = None,
         signal_center_freq_min: float = None,
         signal_center_freq_max: float = None,
+        cochannel_overlap_probability: float = 0.1,
         transforms: list = [],
         target_transforms: list = [],
         class_list: List[str] = None,
@@ -104,6 +105,7 @@ class DatasetMetadata(Seedable):
             signal_bandwidth_max (float, optional): Maximum bandwidth of the signal. Defaults to None.
             signal_center_freq_min (float, optional): Minimum center frequency of the signal. Defaults to None.
             signal_center_freq_max (float, optional): Maximum center frequency of the signal. Defaults to None.
+            cochannel_overlap_probability (float, optional): Probability to allow co-channel interference per signal. (default is 0.1).
             transforms (list): Transforms to apply. Defaults to [].
             target_transforms (list): List of Target Transforms to apply. Defaults to [].
             class_list (List[str], optional): Signal class name list. Defaults to TorchSigSignalLists.all_signals.
@@ -147,6 +149,8 @@ class DatasetMetadata(Seedable):
 
         self._signal_center_freq_min = signal_center_freq_min
         self._signal_center_freq_max = signal_center_freq_max
+
+        self._cochannel_overlap_probability = cochannel_overlap_probability
 
         # provide a noise power reference in dB
         self._noise_power_db = 0
@@ -305,6 +309,13 @@ class DatasetMetadata(Seedable):
             high = self.dataset_center_freq_max
         )
 
+        self._cochannel_overlap_probability = verify_float(
+            self._cochannel_overlap_probability,
+            name = "cochannel_overlap_probability",
+            low = 0,
+            high = 1
+        )
+
         if self._num_samples is not None:
             self._num_samples = verify_int(
                 self._num_samples,
@@ -404,6 +415,7 @@ class DatasetMetadata(Seedable):
             'signal_bandwidth_max': self._signal_bandwidth_max,
             'signal_center_freq_min': self._signal_center_freq_min,
             'signal_center_freq_max': self._signal_center_freq_max,
+            'cochannel_overlap_probability': self._cochannel_overlap_probability,
             'class_list': deepcopy(self._class_list),
             'class_distribution': "uniform" if self._class_distribution is None else self._class_distribution.tolist(),
             'seed': self.rng_seed
@@ -435,6 +447,7 @@ class DatasetMetadata(Seedable):
             'signal_bandwidth_max': self._signal_bandwidth_max,
             'signal_center_freq_min': self._signal_center_freq_min,
             'signal_center_freq_max': self._signal_center_freq_max,
+            'cochannel_overlap_probability': self._cochannel_overlap_probability,
             'fft_size': self._fft_size,
             'fft_frequency_resolution': self.fft_frequency_resolution,
             'fft_frequency_min': self.fft_frequency_min,
@@ -594,6 +607,17 @@ class DatasetMetadata(Seedable):
             float: maximum center frequency for signal
         """        
         return self._signal_center_freq_max
+
+    @property
+    def cochannel_overlap_probability(self) -> None:
+        """Probability that two signals are allowed to be
+        co-channel (ex: overlap) when being placed into the
+        spectrogram.
+
+        Returns:
+            float: cochannel (overlap) probability
+        """        
+        return self._cochannel_overlap_probability
 
     @property
     def signal_bandwidth_min(self) -> float:
@@ -1043,6 +1067,7 @@ class NarrowbandMetadata(DatasetMetadata):
             signal_bandwidth_max=signal_bandwidth_max,
             signal_center_freq_min=signal_center_freq_min,
             signal_center_freq_max=signal_center_freq_max,
+            cochannel_overlap_probability=1,
             transforms=transforms, 
             target_transforms=target_transforms, 
             class_list=class_list,
@@ -1109,6 +1134,7 @@ class WidebandMetadata(DatasetMetadata):
         signal_bandwidth_max: float = None,
         signal_center_freq_min: float = None,
         signal_center_freq_max: float = None,
+        cochannel_overlap_probability: float = 0.1,
         transforms: list = [],
         target_transforms: list = [],
         class_list: List[str] = TorchSigSignalLists.all_signals,
@@ -1135,6 +1161,7 @@ class WidebandMetadata(DatasetMetadata):
             signal_bandwidth_max (float, optional): Maximum signal bandwidth (default is None).
             signal_center_freq_min (float, optional): Minimum signal center frequency (default is None).
             signal_center_freq_max (float, optional): Maximum signal center frequency (default is None).
+            cochannel_overlap_probability (float, optional): Probability to allow co-channel interference per signal. (default is 0.1).
             transforms (list): Transforms applied to the dataset (default in []).
             target_transforms (list, optional): Target transforms applied (default is []).
             class_list (List[str], optional): List of signal class names (default is `TorchSigSignalLists.all_signals`).
@@ -1178,6 +1205,7 @@ class WidebandMetadata(DatasetMetadata):
             signal_bandwidth_max=signal_bandwidth_max,
             signal_center_freq_min=signal_center_freq_min,
             signal_center_freq_max=signal_center_freq_max,
+            cochannel_overlap_probability=cochannel_overlap_probability,
             transforms=transforms, 
             target_transforms=target_transforms, 
             class_list=class_list,

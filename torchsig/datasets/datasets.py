@@ -522,10 +522,6 @@ class NewTorchSigDataset(Dataset, Seedable):
         # list of rectangles representing the individual signals within wideband cut
         signal_rectangle_list = []
 
-        # TODO: make dataset_metadata
-        #cochannel_overlap_probability = 0.5
-        cochannel_overlap_probability = 0
-
         # counter to avoid stuck in infinite loop
         infinite_loop_counter = 0
         infinite_loop_counter_max = 10*num_signals_to_generate
@@ -571,7 +567,7 @@ class NewTorchSigDataset(Dataset, Seedable):
             has_overlap = self._check_if_overlap ( new_rectangle, signal_rectangle_list )
 
             # signal is used if there is no overlap OR with some random chance
-            if (has_overlap == False or self.random_generator.uniform(0,1) < cochannel_overlap_probability):
+            if (has_overlap == False or self.random_generator.uniform(0,1) < self.dataset_metadata.cochannel_overlap_probability):
                 # store the rectangle for future overlap checking
                 signal_rectangle_list.append( new_rectangle )
                 # place signal on iq sample cut
