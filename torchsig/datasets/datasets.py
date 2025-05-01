@@ -459,6 +459,28 @@ class NewTorchSigDataset(Dataset, Seedable):
 
         return iq_samples
 
+    def _map_to_coordinates ( self, new_signal:Signal ) -> Rectangle:
+
+        # calculate start and stop time in terms of FFT number
+        fft_start_time = np.round(new_signal.metadata.start_in_samples/self.dataset_metadata.fft_size)
+        fft_stop_time  = np.round(new_signal.metadata.stop_in_samples/self.dataset_metadata.fft_size)
+
+        # calculate bin position in FFT
+        fs = self.dataset_metadata.sample_rate
+        fft_start_bin_norm = (new_signal.metadata.lower_freq + (fs/2))/(fs/2)
+        fft_stop_bin_norm  = (new_signal.metadata.upper_freq + (fs/2))/(fs/2)
+
+        fft_start_bin_index = np.round(fft_start_bin_norm * self.dataset_metadata.fft_size)
+        fft_stop_bin_index  = np.round(fft_stop_bin_norm  * self.dataset_metadata.fft_size)
+
+        # map the position into retangle coordinates
+        lower_left_coord = Coordinate(fft_start_time,fft_start_bin_index)
+        upper_right_coord = Coordinate(fft_stop_time,fft_stop_bin_index)
+
+        # turn into a rectangle
+        new_rectangle = Rectangle(lower_left_coord,upper_right_coord)
+
+        return new_rectangle
 
     def __generate_new_signal__(self) -> DatasetSignal:
         """Generates a new dataset signal/sample.
@@ -524,26 +546,10 @@ class NewTorchSigDataset(Dataset, Seedable):
                 random_generator=self.random_generator,
             )
 
-            # TODO: turn this into a function
-            # calculate start and stop time in terms of FFT number
-            fft_start_time = np.round(new_signal.metadata.start_in_samples/self.dataset_metadata.fft_size)
-            fft_stop_time  = np.round(new_signal.metadata.stop_in_samples/self.dataset_metadata.fft_size)
+            # map the signal bounding box into a rectangle in cartesian coordinate system
+            new_rectangle = self._map_to_coordinates(new_signal)
 
-            # calculate bin position in FFT
-            fs = self.dataset_metadata.sample_rate
-            fft_start_bin_norm = (new_signal.metadata.lower_freq + (fs/2))/(fs/2)
-            fft_stop_bin_norm  = (new_signal.metadata.upper_freq + (fs/2))/(fs/2)
-
-            fft_start_bin_index = np.round(fft_start_bin_norm * self.dataset_metadata.fft_size)
-            fft_stop_bin_index  = np.round(fft_stop_bin_norm  * self.dataset_metadata.fft_size)
-
-            # map the position into retangle coordinates
-            lower_left_coord = Coordinate(fft_start_time,fft_start_bin_index)
-            upper_right_coord = Coordinate(fft_stop_time,fft_stop_bin_index)
-
-            # turn into a rectangle
-            new_rectangle = Rectangle(lower_left_coord,upper_right_coord)
-
+            # TODO: turn into function
             # initialize the boolean value which determines if there is overlap or not
             has_overlap = False
 
