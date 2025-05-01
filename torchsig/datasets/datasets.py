@@ -523,22 +523,22 @@ class NewTorchSigDataset(Dataset, Seedable):
         signal_rectangle_list = []
 
         # TODO: make dataset_metadata
-        #overlap_prob = 0.5
-        overlap_prob = 0
+        #cochannel_overlap_probability = 0.5
+        cochannel_overlap_probability = 0
 
         # counter to avoid stuck in infinite loop
-        counter = 0
-        counter_max = 10*num_signals_to_generate
+        infinite_loop_counter = 0
+        infinite_loop_counter_max = 10*num_signals_to_generate
 
         # TODO: note that this code needs to be replicated and/or replaced on both this class
         #       AND torchsig iterable
 
         # generate individual bursts
         num_signals_created = 0
-        while (num_signals_created < num_signals_to_generate and counter < counter_max):
+        while (num_signals_created < num_signals_to_generate and infinite_loop_counter < infinite_loop_counter_max):
 
             # increment fail-safe counter
-            counter += 1
+            infinite_loop_counter += 1
 
             # choose random signal
             class_name = self._random_signal_class()
@@ -571,7 +571,7 @@ class NewTorchSigDataset(Dataset, Seedable):
             has_overlap = self._check_if_overlap ( new_rectangle, signal_rectangle_list )
 
             # signal is used if there is no overlap OR with some random chance
-            if (has_overlap == False or self.random_generator.uniform(0,1) < overlap_prob):
+            if (has_overlap == False or self.random_generator.uniform(0,1) < cochannel_overlap_probability):
                 # store the rectangle for future overlap checking
                 signal_rectangle_list.append( new_rectangle )
                 # place signal on iq sample cut
