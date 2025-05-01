@@ -571,14 +571,14 @@ class NewTorchSigDataset(Dataset, Seedable):
             has_overlap = self._check_if_overlap ( new_rectangle, signal_rectangle_list )
 
             # signal is used if there is no overlap OR with some random chance
-            if (has_overlap == False or np.random.uniform(0,1) < overlap_prob): # TODO: use RNG
+            if (has_overlap == False or self.random_generator.uniform(0,1) < overlap_prob):
                 # store the rectangle for future overlap checking
                 signal_rectangle_list.append( new_rectangle )
                 # place signal on iq sample cut
                 iq_samples[new_signal.metadata.start_in_samples:new_signal.metadata.stop_in_samples] += new_signal.data
                 # append the signal on the list
                 signals.append(new_signal)
-                # update counter
+                # update signal created counter
                 num_signals_created += 1
             # else:
             #     loop back to top and attempt to recreate another signal
