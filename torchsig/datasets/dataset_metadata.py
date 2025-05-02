@@ -1067,7 +1067,6 @@ class NarrowbandMetadata(DatasetMetadata):
             signal_bandwidth_max=signal_bandwidth_max,
             signal_center_freq_min=signal_center_freq_min,
             signal_center_freq_max=signal_center_freq_max,
-            cochannel_overlap_probability=1,
             transforms=transforms, 
             target_transforms=target_transforms, 
             class_list=class_list,
