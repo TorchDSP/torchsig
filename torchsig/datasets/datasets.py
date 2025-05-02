@@ -22,7 +22,7 @@ from torchsig.datasets.dataset_utils import dataset_yaml_name, writer_yaml_name
 from torchsig.utils.coordinate_system import (
     Coordinate,
     Rectangle,
-    is_box_overlap
+    is_rectangle_overlap
 )
 
 # Third Party
@@ -493,7 +493,7 @@ class NewTorchSigDataset(Dataset, Seedable):
             # in the spectrogram
             for reference_box in signal_rectangle_list:
                 # check for invidivual overlap
-                individual_overlap = is_box_overlap(new_rectangle,reference_box)
+                individual_overlap = is_rectangle_overlap(new_rectangle,reference_box)
                 # combine with previous potential overlap checks
                 has_overlap = has_overlap or individual_overlap
 
