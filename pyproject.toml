@@ -38,6 +38,7 @@ dependencies = [
     "sigmf",
     "pytest",
     "zarr==2.18.3",
+    "numcodecs==0.13.1",
     "pylint",
     "pytest-cov",
 ]
