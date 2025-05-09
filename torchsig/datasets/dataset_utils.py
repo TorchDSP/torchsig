@@ -119,6 +119,10 @@ def frequency_shift_signal(
         )
     #else: # do nothing
 
+    # because we have altered both the IQ samples and metdata, run verify()
+    # to ensure nothing is broken
+    signal.verify()
+
     return signal
 
 

@@ -200,6 +200,9 @@ def upconversion_anti_aliasing_filter(input_signal:np.ndarray, center_freq:float
     # apply BPF
     output = convolve(input_signal,bpf_weights)
 
+    # convert data type
+    output = output.astype(torchsig_complex_data_type)
+
     return output, box_center_freq, box_bandwidth
 
 
@@ -827,7 +830,7 @@ def frequency_shift(signal:np.ndarray, frequency:float, sample_rate:float) -> np
         np.ndarray: The frequency shifted signal
     """
     # build mixer
-    mixer = np.exp(2j*np.pi*(frequency/sample_rate)*np.arange(0,len(signal)))
+    mixer = np.exp(2j*np.pi*(frequency/sample_rate)*np.arange(0,len(signal))).astype(torchsig_complex_data_type)
     return signal*mixer
 
 def compute_spectrogram(
