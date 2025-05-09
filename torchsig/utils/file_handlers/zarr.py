@@ -172,7 +172,7 @@ class ZarrFileHandler(TorchSigFileHandler):
         # print(data)
         # breakpoint()
 
-        if isinstance(targets, tuple) or isinstance(targets, list):
+        if ((isinstance(targets, tuple) or isinstance(targets, list)) and len(targets) > 0):
             # target has multiple outputs
             if isinstance(targets[0], list):
                 # convert `wideband targets (2D list) to a list of tuples
