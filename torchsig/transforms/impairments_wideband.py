@@ -26,28 +26,20 @@ from torchsig.transforms.base_transforms import (
     RandomApply,
     RandAugment
 )
-from torchsig.transforms.signal_transforms import (
-    IQImbalanceSignalTransform,
-    CarrierFrequencyDriftSignalTransform,
-    CarrierPhaseNoiseSignalTransform,
-    CarrierPhaseOffsetSignalTransform,
-    Fading,
-    SpectralInversionSignalTransform,
-    QuantizeSignalTransform,
-    IntermodulationProductsSignalTransform
-)
-from torchsig.transforms.dataset_transforms import (
-    IQImbalanceDatasetTransform,
-    CarrierFrequencyDriftDatasetTransform,    
-    CarrierPhaseNoiseDatasetTransform,
-    CarrierPhaseOffsetDatasetTransform,
-    SpectralInversionDatasetTransform,
-    QuantizeDatasetTransform,
-    CoarseGainChange,
-    RandomDropSamples,
-    ChannelSwap,
-    TimeReversal,
+from torchsig.transforms.transforms import (
     AddSlope,
+    CarrierFrequencyDrift,
+    CarrierPhaseNoise,
+    CarrierPhaseOffset,
+    ChannelSwap,
+    CoarseGainChange,
+    Fading,
+    IntermodulationProducts,
+    IQImbalance,
+    Quantize,
+    RandomDropSamples,
+    SpectralInversion,
+    TimeReversal
 )
 
 # Third Party
@@ -67,18 +59,18 @@ class WidebandImpairments(Impairments):
         # Wideband Signal Transforms
         ST_level_0 = []
         ST_level_1 = [
-            IQImbalanceSignalTransform(),
-            CarrierPhaseOffsetSignalTransform()
+            IQImbalance(),
+            CarrierPhaseOffset()
         ]
         ST_level_2 = [
-            RandomApply(IQImbalanceSignalTransform(),0.25),
+            RandomApply(IQImbalance(),0.25),
             RandomApply(Fading(), 0.5),
-            RandomApply(CarrierPhaseOffsetSignalTransform(),1.0),
-            RandomApply(SpectralInversionSignalTransform(), 0.25),
-            RandomApply(CarrierPhaseNoiseSignalTransform(), 0.5),
-            RandomApply(CarrierFrequencyDriftSignalTransform(), 0.5),
-            RandomApply(QuantizeSignalTransform(), 0.5),
-            RandomApply(IntermodulationProductsSignalTransform(), 0.5),
+            RandomApply(CarrierPhaseOffset(),1.0),
+            RandomApply(SpectralInversion(), 0.25),
+            RandomApply(CarrierPhaseNoise(), 0.5),
+            RandomApply(CarrierFrequencyDrift(), 0.5),
+            RandomApply(Quantize(), 0.5),
+            RandomApply(IntermodulationProducts(), 0.5),
         ]
         
         ST_all_levels = [
@@ -90,16 +82,16 @@ class WidebandImpairments(Impairments):
         # Wideband Dataset Transforms
         DT_level_0 = []
         DT_level_1 = [
-            IQImbalanceDatasetTransform(),
-            CarrierPhaseOffsetDatasetTransform()
+            IQImbalance(),
+            CarrierPhaseOffset()
         ]
         DT_level_2 = [
-            RandomApply(IQImbalanceDatasetTransform(),0.5),
-            RandomApply(CarrierPhaseOffsetDatasetTransform(), 1.0),
-            RandomApply(SpectralInversionDatasetTransform(), 0.5),
-            RandomApply(CarrierPhaseNoiseDatasetTransform(),0.5),
-            RandomApply(CarrierFrequencyDriftDatasetTransform(),0.5),
-            RandomApply(QuantizeDatasetTransform(),0.5),
+            RandomApply(IQImbalance(),0.5),
+            RandomApply(CarrierPhaseOffset(), 1.0),
+            RandomApply(SpectralInversion(), 0.5),
+            RandomApply(CarrierPhaseNoise(),0.5),
+            RandomApply(CarrierFrequencyDrift(),0.5),
+            RandomApply(Quantize(),0.5),
             RandomApply(CoarseGainChange(),0.1),
             RandAugment(
                 transforms= [
