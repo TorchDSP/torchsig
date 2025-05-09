@@ -138,10 +138,10 @@ class DatasetMetadata(Seedable):
         self._snr_db_max = snr_db_max
         self._snr_db_min = snr_db_min
 
-        self._signal_duration_min = self.dataset_duration_min*1.50 if (signal_duration_min == None) else signal_duration_min
-        self._signal_duration_max = self.dataset_duration_max*0.25 if (signal_duration_max == None) else signal_duration_max
+        self._signal_duration_min = self.dataset_duration_max*0.125 if (signal_duration_min == None) else signal_duration_min
+        self._signal_duration_max = self.dataset_duration_max*0.250 if (signal_duration_max == None) else signal_duration_max
 
-        self._signal_bandwidth_min = self.dataset_bandwidth_min*1.50 if (signal_bandwidth_min == None) else signal_bandwidth_min
+        self._signal_bandwidth_min = self.dataset_bandwidth_max*0.10 if (signal_bandwidth_min == None) else signal_bandwidth_min
         self._signal_bandwidth_max = self.dataset_bandwidth_max*0.25 if (signal_bandwidth_max == None) else signal_bandwidth_mi
 
         self._signal_center_freq_min = self.dataset_center_freq_min if (signal_center_freq_min == None) else signal_center_freq_min
