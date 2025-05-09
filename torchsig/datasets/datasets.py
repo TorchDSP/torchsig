@@ -19,6 +19,11 @@ from torchsig.utils.printing import generate_repr_str
 from torchsig.utils.verify import verify_transforms, verify_target_transforms
 from torchsig.utils.file_handlers.zarr import ZarrFileHandler
 from torchsig.datasets.dataset_utils import dataset_yaml_name, writer_yaml_name
+from torchsig.utils.coordinate_system import (
+    Coordinate,
+    Rectangle,
+    is_rectangle_overlap
+)
 
 # Third Party
 from torch.utils.data import Dataset, IterableDataset
@@ -454,6 +459,46 @@ class NewTorchSigDataset(Dataset, Seedable):
 
         return iq_samples
 
+    def _map_to_coordinates ( self, new_signal:Signal ) -> Rectangle:
+
+        # calculate start and stop time in terms of FFT number
+        fft_start_time = np.round(new_signal.metadata.start_in_samples/self.dataset_metadata.fft_size)
+        fft_stop_time  = np.round(new_signal.metadata.stop_in_samples/self.dataset_metadata.fft_size)
+
+        # calculate bin position in FFT
+        fs = self.dataset_metadata.sample_rate
+        fft_start_bin_norm = (new_signal.metadata.lower_freq + (fs/2))/(fs/2)
+        fft_stop_bin_norm  = (new_signal.metadata.upper_freq + (fs/2))/(fs/2)
+
+        fft_start_bin_index = np.round(fft_start_bin_norm * self.dataset_metadata.fft_size)
+        fft_stop_bin_index  = np.round(fft_stop_bin_norm  * self.dataset_metadata.fft_size)
+
+        # map the position into retangle coordinates
+        lower_left_coord = Coordinate(fft_start_time,fft_start_bin_index)
+        upper_right_coord = Coordinate(fft_stop_time,fft_stop_bin_index)
+
+        # turn into a rectangle
+        new_rectangle = Rectangle(lower_left_coord,upper_right_coord)
+
+        return new_rectangle
+
+    def _check_if_overlap ( self, new_rectangle:Rectangle, signal_rectangle_list:list ) -> bool:
+
+        # initialize the boolean value which determines if there is overlap or not
+        has_overlap = False
+
+        # determine if overlap
+        if (len(signal_rectangle_list) > 0):
+            # check to see if the current rectangle overlaps with any signals currently
+            # in the spectrogram
+            for reference_box in signal_rectangle_list:
+                # check for invidivual overlap
+                individual_overlap = is_rectangle_overlap(new_rectangle,reference_box)
+                # combine with previous potential overlap checks
+                has_overlap = has_overlap or individual_overlap
+
+        return has_overlap
+
 
     def __generate_new_signal__(self) -> DatasetSignal:
         """Generates a new dataset signal/sample.
@@ -474,8 +519,19 @@ class NewTorchSigDataset(Dataset, Seedable):
         # determine number of signals in sample
         num_signals_to_generate = self.random_generator.integers(low=self.dataset_metadata.num_signals_min, high = self.dataset_metadata.num_signals_max+1)
 
+        # list of rectangles representing the individual signals within wideband cut
+        signal_rectangle_list = []
+
+        # counter to avoid stuck in infinite loop
+        infinite_loop_counter = 0
+        infinite_loop_counter_max = 10*num_signals_to_generate
+
         # generate individual bursts
-        for i in range(num_signals_to_generate):
+        num_signals_created = 0
+        while (num_signals_created < num_signals_to_generate and infinite_loop_counter < infinite_loop_counter_max):
+
+            # increment fail-safe counter
+            infinite_loop_counter += 1
 
             # choose random signal
             class_name = self._random_signal_class()
@@ -501,11 +557,24 @@ class NewTorchSigDataset(Dataset, Seedable):
                 random_generator=self.random_generator,
             )
 
-            # place signal on iq sample cut
-            iq_samples[new_signal.metadata.start_in_samples:new_signal.metadata.stop_in_samples] += new_signal.data
+            # map the signal bounding box into a rectangle in cartesian coordinate system
+            new_rectangle = self._map_to_coordinates(new_signal)
 
-            # append the signal on the list
-            signals.append(new_signal)
+            # check if the new_rectangle overlaps with any others in spectrogram
+            has_overlap = self._check_if_overlap ( new_rectangle, signal_rectangle_list )
+
+            # signal is used if there is no overlap OR with some random chance
+            if (has_overlap == False or self.random_generator.uniform(0,1) < self.dataset_metadata.cochannel_overlap_probability):
+                # store the rectangle for future overlap checking
+                signal_rectangle_list.append( new_rectangle )
+                # place signal on iq sample cut
+                iq_samples[new_signal.metadata.start_in_samples:new_signal.metadata.stop_in_samples] += new_signal.data
+                # append the signal on the list
+                signals.append(new_signal)
+                # update signal created counter
+                num_signals_created += 1
+            # else:
+            #     loop back to top and attempt to recreate another signal
 
         # form the sample (dataset object)
         sample = DatasetSignal(data=iq_samples, signals=signals)
