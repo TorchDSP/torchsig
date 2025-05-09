@@ -1118,8 +1118,8 @@ def spectrogram_drop_samples(
 
 def spectrogram_image(
     data: np.ndarray,
-    fft_size:int,
-    fft_stride:int,
+    fft_size: int,
+    fft_stride: int,
     black_hot: bool = True
 ) -> np.ndarray:
     """Creates spectrogram from IQ samples
