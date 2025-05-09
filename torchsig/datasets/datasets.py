@@ -526,9 +526,6 @@ class NewTorchSigDataset(Dataset, Seedable):
         infinite_loop_counter = 0
         infinite_loop_counter_max = 10*num_signals_to_generate
 
-        # TODO: note that this code needs to be replicated and/or replaced on both this class
-        #       AND torchsig iterable
-
         # generate individual bursts
         num_signals_created = 0
         while (num_signals_created < num_signals_to_generate and infinite_loop_counter < infinite_loop_counter_max):
