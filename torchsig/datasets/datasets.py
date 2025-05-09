@@ -519,7 +519,7 @@ class NewTorchSigDataset(Dataset, Seedable):
         # determine number of signals in sample
         num_signals_to_generate = self.random_generator.integers(low=self.dataset_metadata.num_signals_min, high = self.dataset_metadata.num_signals_max+1)
 
-        # list of rectangles representing the individual signals within wideband cut
+        # list of rectangles representing the individual signals within IQ cut
         signal_rectangle_list = []
 
         # counter to avoid stuck in infinite loop
@@ -668,14 +668,8 @@ class NewTorchSigDataset(Dataset, Seedable):
         if len(self.dataset_metadata.target_transforms) == 0:
             # no target transform applied
             targets = sample.metadata
-        elif self.dataset_metadata.dataset_type == 'narrowband':
-            # only one signal in list for narrowband
-            # unwrap targets
-            targets = [item[0] if len(item) == 1 else item for row in targets for item in row]
-            # unwrap any target transform output that produced a tuple
-            targets = targets[0] if len(targets) == 1 else tuple(targets)
         else:
-            # wideband
+            # list of targets
             targets = [tuple([item[0] if len(item) == 1 else item for item in row]) for row in targets]
             # unwrap any target transform output that produced a tuple
             targets = [row[0] if len(row) == 1 else row for row in targets]
@@ -740,7 +734,7 @@ class StaticTorchSigDataset(Dataset):
         self.train = train
 
         # create filepath to saved dataset
-        # e.g., root/torchsig_narrowband_clean/
+        # e.g., root/torchsig_clean/
         self.full_root = dataset_full_path(
             impairment_level = self.impairment_level,
             train = self.train
