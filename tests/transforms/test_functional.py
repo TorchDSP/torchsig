@@ -5,10 +5,11 @@ from torchsig.transforms.functional import (
     add_slope,
     additive_noise,
     adjacent_channel_interference,
-    agc,
     awgn,
-    block_agc,
+    carrier_frequency_drift,
+    carrier_phase_noise,    
     channel_swap,
+    coarse_gain_change,
     cochannel_interference,    
     cut_out,
     doppler,    
@@ -16,9 +17,6 @@ from torchsig.transforms.functional import (
     fading,
     intermodulation_products,
     iq_imbalance,
-    local_oscillator_frequency_drift,
-    phase_noise,
-    mag_rescale,
     nonlinear_amplifier,
     nonlinear_amplifier_table,
     normalize,
@@ -31,7 +29,8 @@ from torchsig.transforms.functional import (
     spectrogram,
     spectrogram_drop_samples,
     time_reversal,
-    time_varying_noise
+    time_varying_noise,
+    tracking_agc,
 )
 from test_transforms_utils import (
     generate_test_signal,
@@ -226,98 +225,6 @@ def test_adjacent_channel_interference(
 
 
 @pytest.mark.parametrize("data, params, expected, is_error", [
-    (
-        0, 
-        {  
-            'initial_gain_db' : 0.,
-            'alpha_smooth'    : 0.,
-            'alpha_track'     : np.log(0.1),
-            'alpha_overflow'  : np.log(0.1),
-            'alpha_acquire'   : np.log(0.1),
-            'ref_level'       : 0.,
-            'ref_level_db'    : np.log(0.1),
-            'track_range_db'  : np.log(0.1),
-            'low_level_db'    : 0.,
-            'high_level_db'   : 0.
-        },
-        TypeError,
-        True
-    ),
-    (
-        0.2 + generate_test_signal(num_iq_samples = 1024, scale = 0.01).data,
-        {  
-            'initial_gain_db' : 0.0,
-            'alpha_smooth'    : 0.1,
-            'alpha_track'     : np.log(1.1),
-            'alpha_overflow'  : np.log(1.1),
-            'alpha_acquire'   : np.log(1.1),
-            'ref_level'       : 10.0,
-            'ref_level_db'    : np.log(10.0),
-            'track_range_db'  : np.log(4.0),
-            'low_level_db'    : -200.0,
-            'high_level_db'   : 200.0
-        },
-        True,
-        False
-    )
-])
-def test_agc(
-    data: Any, 
-    params: dict, 
-    expected: bool | TypeError, 
-    is_error: bool
-    ) -> None:
-    """Test the agc functional with pytest.
-
-    Args:
-        data (Any): Data input, nominally np.ndarray.
-        params (dict): Function call parameters (see description).
-        expected (bool | TypeError): Expected test result.
-        is_error (bool): Is a test error expected.
-
-    Raises:
-        AssertionError: If unexpected test outcome.
-
-    """
-    if is_error:
-        with pytest.raises(expected): 
-            data = agc(
-                data,
-                initial_gain_db = params['initial_gain_db'],
-                alpha_smooth    = params['alpha_smooth'],
-                alpha_track     = params['alpha_track'],
-                alpha_overflow  = params['alpha_overflow'],
-                alpha_acquire   = params['alpha_acquire'],
-                ref_level_db    = params['ref_level_db'],
-                track_range_db  = params['track_range_db'],
-                low_level_db    = params['low_level_db'],
-                high_level_db   = params['high_level_db'],
-            ) 
-    else:    
-        reference_level = params['ref_level']
-        data_type = type(data)
-        data_dtype = data.dtype
-
-        data = agc(
-            data,
-            initial_gain_db = params['initial_gain_db'],
-            alpha_smooth    = params['alpha_smooth'],
-            alpha_track     = params['alpha_track'],
-            alpha_overflow  = params['alpha_overflow'],
-            alpha_acquire   = params['alpha_acquire'],
-            ref_level_db    = params['ref_level_db'],
-            track_range_db  = params['track_range_db'],
-            low_level_db    = params['low_level_db'],
-            high_level_db   = params['high_level_db'],
-        )    
-        mean_level_est = np.round(np.mean(np.abs(data[-128:])))
-
-        assert (abs(mean_level_est - reference_level) < 1E-1) == expected
-        assert (type(data) == data_type) == expected
-        assert (data.dtype == torchsig_complex_data_type) == expected
-
-
-@pytest.mark.parametrize("data, params, expected, is_error", [
     (0, {'noise_power_db' : 0.0}, AttributeError, True),
     (np.zeros(1024, dtype=torchsig_complex_data_type), {'noise_power_db' : 3.0}, True, False)
 ])
@@ -366,58 +273,92 @@ def test_awgn(
 
 
 @pytest.mark.parametrize("data, params, expected, is_error", [
-    (
-        0,
-        {'gain_change_db': 1.0, 'start_idx': 13},
-        TypeError, 
-        True
-    ),
-    (
-        deepcopy(TEST_DATA),
-        {'gain_change_db': 3.0, 'start_idx': 17}, 
-        True,
-        False
-    )
+    (generate_tone_signal(num_iq_samples = 1024, scale = 1.0).data, {'drift_ppm': 0.1}, True, False),
+    (generate_tone_signal(num_iq_samples = 1024, scale = 1.0).data, {'drift_ppm': 1}, True, False),
 ])
-def test_block_agc(
+def test_carrier_frequency_drift(
     data: Any, 
     params: dict, 
-    expected: bool | TypeError, 
+    expected: bool, 
     is_error: bool
     ) -> None:
-    """Test the block_agc functional with pytest.
+    """Test the carrier_frequency_drift functional with pytest.
 
     Args:
         data (Any): Data input, nominally np.ndarray.
         params (dict): Function call parameters (see description).
-        expected (bool | TypeError): Expected test result.
+        expected (bool | IndexError): Expected test result.
         is_error (bool): Is a test error expected.
 
     Raises:
         AssertionError: If unexpected test outcome.
 
-    """    
-    gain_change_db = params['gain_change_db']
-    start_idx = params['start_idx']
+    """
+    rng = np.random.default_rng(42)
+
+    drift_ppm = params['drift_ppm']
 
     if is_error:
         with pytest.raises(expected): 
-            data = block_agc(
-                data, 
-                gain_change_db = gain_change_db,
-                start_idx   = start_idx
+            data = carrier_frequency_drift(
+                data = data,
+                drift_ppm = drift_ppm,
+                rng = rng
             )
     else:
-        gain_change_linear = 10**(gain_change_db/10)
         data_test = deepcopy(data)
-        data = block_agc(
-            data, 
-            gain_change_db = gain_change_db,
-            start_idx   = start_idx
+        data = carrier_frequency_drift(
+            data = data,
+            drift_ppm = drift_ppm,
+            rng = rng
         )
 
-        assert np.allclose(data[start_idx:], gain_change_linear * data_test[start_idx:], RTOL) == expected
-        assert np.allclose(data[:start_idx], data_test[:start_idx], RTOL) == expected
+        assert (len(data) == len(data_test)) == expected
+        assert (type(data) == type(data_test)) == expected
+        assert (data.dtype == torchsig_complex_data_type) == expected
+
+
+@pytest.mark.parametrize("data, params, expected, is_error", [
+    (deepcopy(TEST_DATA), {'phase_noise_degrees': 1}, True, False),
+])
+def test_carrier_phase_noise(
+    data: Any, 
+    params: dict, 
+    expected: bool, 
+    is_error: bool
+    ) -> None:
+    """Test the carrier_phase_noise functional with pytest.
+
+    Args:
+        data (Any): Data input, nominally np.ndarray.
+        params (dict): Function call parameters (see description).
+        expected (bool | IndexError): Expected test result.
+        is_error (bool): Is a test error expected.
+
+    Raises:
+        AssertionError: If unexpected test outcome.
+
+    """
+    rng = np.random.default_rng(42)
+
+    phase_noise_degrees = params['phase_noise_degrees']
+
+    if is_error:
+        with pytest.raises(expected): 
+            data = carrier_phase_noise(
+                data = data,
+                phase_noise_degrees = phase_noise_degrees,
+                rng = rng
+            )
+    else:
+        data_test = deepcopy(data)
+        data = carrier_phase_noise(
+            data = data,
+            phase_noise_degrees = phase_noise_degrees,
+            rng = rng
+        )
+
+        assert (len(data) == len(data_test)) == expected
         assert (type(data) == type(data_test)) == expected
         assert (data.dtype == torchsig_complex_data_type) == expected
 
@@ -457,7 +398,64 @@ def test_channel_swap(
         assert np.allclose(data.imag, test_real, RTOL) == expected
         assert (type(data) == type(data_test)) == expected
         assert (data.dtype == torchsig_complex_data_type) == expected
+
+
+@pytest.mark.parametrize("data, params, expected, is_error", [
+    (
+        deepcopy(TEST_DATA),
+        {'start_idx': 5, 'gain_change_db': 0.25}, 
+        True,
+        False
+    ),
+        (
+        deepcopy(TEST_DATA),
+        {'start_idx': -17, 'gain_change_db': -15.7}, 
+        True,
+        False
+    )    
+])
+def test_coarse_gain_change(
+    data: Any,
+    params: dict,
+    expected: bool, 
+    is_error: bool
+    ) -> None:
+    """Test the coarse_gain_change functional with pytest.
+
+    Args:
+        data (Any): Data input, nominally np.ndarray.
+        params (dict): Function call parameters (see description).
+        expected (bool): Expected test result.
+        is_error (bool): Is a test error expected.
+
+    Raises:
+        AssertionError: If unexpected test outcome.
+
+    """ 
+    start_idx = params['start_idx']
+    gain_change_db = params['gain_change_db']
     
+    if is_error:
+        with pytest.raises(expected):   
+            data = coarse_gain_change(
+                data = data,
+                gain_change_db = gain_change_db,
+                start_idx = start_idx
+            )
+    else:
+        data_test = deepcopy(data)
+
+        data = coarse_gain_change(
+            data = data,
+            gain_change_db = gain_change_db,
+            start_idx = start_idx
+        )
+        
+        gain_change_linear = 10**(gain_change_db/10)
+        assert (np.allclose(data[start_idx:], gain_change_linear * data_test[start_idx:], RTOL)) == expected
+        assert (type(data) == type(data_test)) == expected
+        assert (data.dtype == torchsig_complex_data_type) == expected
+
 
 @pytest.mark.parametrize("params, expected, is_error", [
     ({'N': 8192, 'sample_rate': 4.0, 'power': 0.1, 'tone_freq': 0.2, 'filter_weights': dsp.low_pass(0.25, 0.25, 4.0), 'color': 'white', 'continuous': True}, True, False),
@@ -930,152 +928,6 @@ def test_iq_imbalance(
         assert (abs(dc_imag_est - dc_offset[1]) < 1E-1) == expected
         assert (abs(amp_imbal_est - amplitude_imbalance_linear) < 1E-1) == expected
         assert (abs(np.mean(restored_data - data_test)) < 1E-1) == expected
-        assert (type(data) == type(data_test)) == expected
-        assert (data.dtype == torchsig_complex_data_type) == expected
-
-
-@pytest.mark.parametrize("data, params, expected, is_error", [
-    (generate_tone_signal(num_iq_samples = 1024, scale = 1.0).data, {'drift_ppm': 0.1}, True, False),
-    (generate_tone_signal(num_iq_samples = 1024, scale = 1.0).data, {'drift_ppm': 1}, True, False),
-])
-def test_local_oscillator_frequency_drift(
-    data: Any, 
-    params: dict, 
-    expected: bool, 
-    is_error: bool
-    ) -> None:
-    """Test the local_oscillator_frequency_drift functional with pytest.
-
-    Args:
-        data (Any): Data input, nominally np.ndarray.
-        params (dict): Function call parameters (see description).
-        expected (bool | IndexError): Expected test result.
-        is_error (bool): Is a test error expected.
-
-    Raises:
-        AssertionError: If unexpected test outcome.
-
-    """
-    rng = np.random.default_rng(42)
-
-    drift_ppm = params['drift_ppm']
-
-    if is_error:
-        with pytest.raises(expected): 
-            data = local_oscillator_frequency_drift(
-                data = data,
-                drift_ppm = drift_ppm,
-                rng = rng
-            )
-    else:
-        data_test = deepcopy(data)
-        data = local_oscillator_frequency_drift(
-            data = data,
-            drift_ppm = drift_ppm,
-            rng = rng
-        )
-
-        assert (len(data) == len(data_test)) == expected
-        assert (type(data) == type(data_test)) == expected
-        assert (data.dtype == torchsig_complex_data_type) == expected
-
-
-@pytest.mark.parametrize("data, params, expected, is_error", [
-    (deepcopy(TEST_DATA), {'phase_noise_degrees': 1}, True, False),
-])
-def test_local_oscillator_phase_noise(
-    data: Any, 
-    params: dict, 
-    expected: bool, 
-    is_error: bool
-    ) -> None:
-    """Test the phase_noise functional with pytest.
-
-    Args:
-        data (Any): Data input, nominally np.ndarray.
-        params (dict): Function call parameters (see description).
-        expected (bool | IndexError): Expected test result.
-        is_error (bool): Is a test error expected.
-
-    Raises:
-        AssertionError: If unexpected test outcome.
-
-    """
-    rng = np.random.default_rng(42)
-
-    phase_noise_degrees = params['phase_noise_degrees']
-
-    if is_error:
-        with pytest.raises(expected): 
-            data = phase_noise(
-                data = data,
-                phase_noise_degrees = phase_noise_degrees,
-                rng = rng
-            )
-    else:
-        data_test = deepcopy(data)
-        data = phase_noise(
-            data = data,
-            phase_noise_degrees = phase_noise_degrees,
-            rng = rng
-        )
-
-        assert (len(data) == len(data_test)) == expected
-        assert (type(data) == type(data_test)) == expected
-        assert (data.dtype == torchsig_complex_data_type) == expected
-
-
-@pytest.mark.parametrize("data, params, expected, is_error", [
-    (
-        0,
-        {'start': 0.1, 'scale': -0.5}, 
-        AttributeError,
-        True
-    ),
-    (
-        deepcopy(TEST_DATA),
-        {'start': 0.42, 'scale': 1.7}, 
-        True,
-        False
-    ),
-    (
-        deepcopy(TEST_DATA),
-        {'start': 5, 'scale': -2.2}, 
-        True,
-        False
-    )    
-])
-def test_mag_rescale(
-    data: Any,
-    params: dict,
-    expected: bool | AttributeError, 
-    is_error: bool
-    ) -> None:
-    """Test the mag_rescale functional with pytest.
-
-    Args:
-        data (Any): Data input, nominally np.ndarray.
-        params (dict): Function call parameters (see description).
-        expected (bool | AttributeError): Expected test result.
-        is_error (bool): Is a test error expected.
-
-    Raises:
-        AssertionError: If unexpected test outcome.
-
-    """ 
-    start = params['start']
-    scale = params['scale']
-    
-    if is_error:
-        with pytest.raises(expected):   
-            data = mag_rescale(data, start, scale)
-    else:
-        data_test = deepcopy(data)
-
-        data = mag_rescale(data, start, scale)
-
-        start_ind = int(data.shape[0] * start)
-        assert (np.allclose(data[start_ind:], scale * data_test[start_ind:], RTOL)) == expected
         assert (type(data) == type(data_test)) == expected
         assert (data.dtype == torchsig_complex_data_type) == expected
 
@@ -1886,3 +1738,93 @@ def test_time_varying_noise(
         assert (type(data) == type(data_test)) == expected
         assert (data.dtype == torchsig_complex_data_type) == expected
 
+
+@pytest.mark.parametrize("data, params, expected, is_error", [
+    (
+        0, 
+        {  
+            'initial_gain_db' : 0.,
+            'alpha_smooth'    : 0.,
+            'alpha_track'     : np.log(0.1),
+            'alpha_overflow'  : np.log(0.1),
+            'alpha_acquire'   : np.log(0.1),
+            'ref_level'       : 0.,
+            'ref_level_db'    : np.log(0.1),
+            'track_range_db'  : np.log(0.1),
+            'low_level_db'    : 0.,
+            'high_level_db'   : 0.
+        },
+        TypeError,
+        True
+    ),
+    (
+        0.2 + generate_test_signal(num_iq_samples = 1024, scale = 0.01).data,
+        {  
+            'initial_gain_db' : 0.0,
+            'alpha_smooth'    : 0.1,
+            'alpha_track'     : np.log(1.1),
+            'alpha_overflow'  : np.log(1.1),
+            'alpha_acquire'   : np.log(1.1),
+            'ref_level'       : 10.0,
+            'ref_level_db'    : np.log(10.0),
+            'track_range_db'  : np.log(4.0),
+            'low_level_db'    : -200.0,
+            'high_level_db'   : 200.0
+        },
+        True,
+        False
+    )
+])
+def test_tracking_agc(
+    data: Any, 
+    params: dict, 
+    expected: bool | TypeError, 
+    is_error: bool
+    ) -> None:
+    """Test the agc functional with pytest.
+
+    Args:
+        data (Any): Data input, nominally np.ndarray.
+        params (dict): Function call parameters (see description).
+        expected (bool | TypeError): Expected test result.
+        is_error (bool): Is a test error expected.
+
+    Raises:
+        AssertionError: If unexpected test outcome.
+
+    """
+    if is_error:
+        with pytest.raises(expected): 
+            data = tracking_agc(
+                data,
+                initial_gain_db = params['initial_gain_db'],
+                alpha_smooth    = params['alpha_smooth'],
+                alpha_track     = params['alpha_track'],
+                alpha_overflow  = params['alpha_overflow'],
+                alpha_acquire   = params['alpha_acquire'],
+                ref_level_db    = params['ref_level_db'],
+                track_range_db  = params['track_range_db'],
+                low_level_db    = params['low_level_db'],
+                high_level_db   = params['high_level_db'],
+            ) 
+    else:    
+        reference_level = params['ref_level']
+        data_type = type(data)
+
+        data = tracking_agc(
+            data,
+            initial_gain_db = params['initial_gain_db'],
+            alpha_smooth    = params['alpha_smooth'],
+            alpha_track     = params['alpha_track'],
+            alpha_overflow  = params['alpha_overflow'],
+            alpha_acquire   = params['alpha_acquire'],
+            ref_level_db    = params['ref_level_db'],
+            track_range_db  = params['track_range_db'],
+            low_level_db    = params['low_level_db'],
+            high_level_db   = params['high_level_db'],
+        )    
+        mean_level_est = np.round(np.mean(np.abs(data[-128:])))
+
+        assert (abs(mean_level_est - reference_level) < 1E-1) == expected
+        assert (type(data) == data_type) == expected
+        assert (data.dtype == torchsig_complex_data_type) == expected

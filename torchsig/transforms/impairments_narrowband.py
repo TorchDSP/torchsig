@@ -22,22 +22,22 @@ from torchsig.transforms.impairments import Impairments
 from torchsig.transforms.base_transforms import RandomApply
 from torchsig.transforms.signal_transforms import (
     IQImbalanceSignalTransform,
+    CarrierFrequencyDriftSignalTransform,
+    CarrierPhaseNoiseSignalTransform,
     CarrierPhaseOffsetSignalTransform,
     Fading,
     SpectralInversionSignalTransform,
-    FrequencyMixerPhaseNoiseSignalTransform,
-    FrequencyMixerFrequencyDriftSignalTransform,
     QuantizeSignalTransform,
     IntermodulationProductsSignalTransform
 )
 from torchsig.transforms.dataset_transforms import (
     IQImbalanceDatasetTransform,
+    CarrierFrequencyDriftDatasetTransform,    
+    CarrierPhaseNoiseDatasetTransform,
     CarrierPhaseOffsetDatasetTransform,
     SpectralInversionDatasetTransform,
-    FrequencyMixerPhaseNoiseDatasetTransform,
-    FrequencyMixerFrequencyDriftDatasetTransform,
     QuantizeDatasetTransform,
-    CoarseGainChangeDatasetTransform
+    CoarseGainChange
 )
 
 # Third Party
@@ -65,8 +65,8 @@ class NarrowbandImpairments(Impairments):
             RandomApply(Fading(), 0.5),
             RandomApply(CarrierPhaseOffsetSignalTransform(),1.0),
             RandomApply(SpectralInversionSignalTransform(), 0.25),
-            RandomApply(FrequencyMixerPhaseNoiseSignalTransform(), 0.5),
-            RandomApply(FrequencyMixerFrequencyDriftSignalTransform(), 0.5),
+            RandomApply(CarrierPhaseNoiseSignalTransform(), 0.5),
+            RandomApply(CarrierFrequencyDriftSignalTransform(), 0.5),
             RandomApply(QuantizeSignalTransform(), 0.5),
             RandomApply(IntermodulationProductsSignalTransform(), 0.5),
         ]
@@ -89,10 +89,10 @@ class NarrowbandImpairments(Impairments):
             RandomApply(IQImbalanceDatasetTransform(),0.5),
             RandomApply(CarrierPhaseOffsetDatasetTransform(), 1.0),
             RandomApply(SpectralInversionDatasetTransform(), 0.5),
-            RandomApply(FrequencyMixerPhaseNoiseDatasetTransform(), 0.5),
-            RandomApply(FrequencyMixerFrequencyDriftDatasetTransform(), 0.5),
+            RandomApply(CarrierPhaseNoiseDatasetTransform(), 0.5),
+            RandomApply(CarrierFrequencyDriftDatasetTransform(), 0.5),
             RandomApply(QuantizeDatasetTransform(), 1.0),
-            RandomApply(CoarseGainChangeDatasetTransform(),0.1)
+            RandomApply(CoarseGainChange(),0.1)
         ]
         
         DT_all_levels = [

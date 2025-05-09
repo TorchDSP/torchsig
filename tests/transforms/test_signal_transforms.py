@@ -4,14 +4,14 @@ from torchsig.transforms.signal_transforms import (
     SignalTransform,
     AdditiveNoiseSignalTransform,
     AdjacentChannelInterference,
-    CochannelInterference,    
+    CarrierFrequencyDriftSignalTransform,
+    CarrierPhaseNoiseSignalTransform,     
     CarrierPhaseOffsetSignalTransform,
+    CochannelInterference,
     DopplerSignalTransform,
     Fading,
     IntermodulationProductsSignalTransform,
     IQImbalanceSignalTransform,
-    LocalOscillatorFrequencyDriftSignalTransform,
-    LocalOscillatorPhaseNoiseSignalTransform,
     NonlinearAmplifierSignalTransform,
     PassbandRippleSignalTransform,  
     Shadowing,
@@ -213,6 +213,123 @@ def test_AdjacentChannelInterference(
         assert isinstance(T.filter_weights, np.ndarray) == expected
         assert isinstance(signal, Signal) == expected
         assert (signal.data.dtype == torchsig_complex_data_type) == expected
+        # no metadata impacts
+
+
+@pytest.mark.parametrize("signal, params, is_error", [
+    (
+        deepcopy(TEST_SIGNAL), 
+        {
+            'drift_ppm': (0.1, 1)
+        },
+        False
+    ),
+    (
+        deepcopy(TEST_SIGNAL), 
+        {
+            'drift_ppm': (0.1, 1), 
+        },
+        False
+    ),    
+])
+def test_CarrierFrequencyDriftSignalTransform(
+    signal: Signal,
+    params: dict, 
+    is_error: bool
+) -> None:
+    """Test CarrierFrequencyDriftSignalTransform with pytest.
+
+    Args:
+        signal (Signal): Input signal to transform.
+        params (dict): Transform call parameters (see description).
+        is_error (bool): Is a test error expected.
+
+    Raises:
+        AssertionError: If unexpected test outcome.
+
+    """      
+    drift_ppm = params['drift_ppm']
+
+    if is_error:
+        with pytest.raises(Exception, match=r".*"):   
+            T = CarrierFrequencyDriftSignalTransform(
+                drift_ppm = drift_ppm, 
+                seed = 42
+            )
+            signal = T(signal)
+    else:
+        signal_test = deepcopy(signal)
+        T = CarrierFrequencyDriftSignalTransform(
+            drift_ppm = drift_ppm, 
+            seed = 42
+        )
+        signal = T(signal)
+
+        assert isinstance(T, CarrierFrequencyDriftSignalTransform)
+        assert isinstance(T.drift_ppm_distribution(), float)
+        assert isinstance(signal, Signal)
+        assert len(signal.data) == len(signal_test.data)
+        assert type(signal.data) == type(signal_test.data)
+        assert signal.data.dtype == torchsig_complex_data_type
+        # no metadata impacts
+
+
+@pytest.mark.parametrize("signal, params, is_error", [
+    (
+        deepcopy(TEST_SIGNAL), 
+        {
+            'phase_noise_degrees': (0.25, 1), 
+        },
+        False
+    ),
+    (
+        deepcopy(TEST_SIGNAL), 
+        {
+            'phase_noise_degrees': (0.25, 1), 
+        },
+        False
+    ),    
+])
+def test_CarrierPhaseNoiseSignalTransform(
+    signal: Signal,
+    params: dict, 
+    is_error: bool
+) -> None:
+    """Test CarrierPhaseNoiseSignalTransform with pytest.
+
+    Args:
+        signal (Signal): Input signal to transform.
+        params (dict): Transform call parameters (see description).
+        is_error (bool): Is a test error expected.
+
+    Raises:
+        AssertionError: If unexpected test outcome.
+
+    """      
+    phase_noise_degrees = params['phase_noise_degrees']
+
+    if is_error:
+        with pytest.raises(Exception, match=r".*"):   
+            T = CarrierPhaseNoiseSignalTransform(
+                phase_noise_degrees = phase_noise_degrees,
+                seed = 42
+            )
+            signal = T(signal)
+    else:
+        signal_test = deepcopy(signal)
+        T = CarrierPhaseNoiseSignalTransform(
+            phase_noise_degrees = phase_noise_degrees,
+            seed = 42
+        )
+        signal = T(signal)
+
+        assert isinstance(T, CarrierPhaseNoiseSignalTransform)
+        assert isinstance(T.phase_noise_degrees, tuple)
+        assert isinstance(T.phase_noise_degrees_distribution(), float)
+        assert isinstance(signal, Signal)
+        assert len(signal.data) == len(signal_test.data)
+        assert type(signal.data) == type(signal_test.data)
+        assert signal.data.dtype == torchsig_complex_data_type
         # no metadata impacts
 
 
@@ -615,123 +732,6 @@ def test_IQImbalanceSignalTransform(
         assert isinstance(T.phase_imbalance_distribution(), float)
         assert isinstance(T.dc_offset_distribution(), np.ndarray)
         assert isinstance(signal, Signal)
-        assert type(signal.data) == type(signal_test.data)
-        assert signal.data.dtype == torchsig_complex_data_type
-        # no metadata impacts
-
-
-@pytest.mark.parametrize("signal, params, is_error", [
-    (
-        deepcopy(TEST_SIGNAL), 
-        {
-            'drift_ppm': (0.1, 1)
-        },
-        False
-    ),
-    (
-        deepcopy(TEST_SIGNAL), 
-        {
-            'drift_ppm': (0.1, 1), 
-        },
-        False
-    ),    
-])
-def test_LocalOscillatorFrequencyDriftSignalTransform(
-    signal: Signal,
-    params: dict, 
-    is_error: bool
-) -> None:
-    """Test LocalOscillatorFrequencyDriftSignalTransform with pytest.
-
-    Args:
-        signal (Signal): Input signal to transform.
-        params (dict): Transform call parameters (see description).
-        is_error (bool): Is a test error expected.
-
-    Raises:
-        AssertionError: If unexpected test outcome.
-
-    """      
-    drift_ppm = params['drift_ppm']
-
-    if is_error:
-        with pytest.raises(Exception, match=r".*"):   
-            T = LocalOscillatorFrequencyDriftSignalTransform(
-                drift_ppm = drift_ppm, 
-                seed = 42
-            )
-            signal = T(signal)
-    else:
-        signal_test = deepcopy(signal)
-        T = LocalOscillatorFrequencyDriftSignalTransform(
-            drift_ppm = drift_ppm, 
-            seed = 42
-        )
-        signal = T(signal)
-
-        assert isinstance(T, LocalOscillatorFrequencyDriftSignalTransform)
-        assert isinstance(T.drift_ppm_distribution(), float)
-        assert isinstance(signal, Signal)
-        assert len(signal.data) == len(signal_test.data)
-        assert type(signal.data) == type(signal_test.data)
-        assert signal.data.dtype == torchsig_complex_data_type
-        # no metadata impacts
-
-
-@pytest.mark.parametrize("signal, params, is_error", [
-    (
-        deepcopy(TEST_SIGNAL), 
-        {
-            'phase_noise_degrees': (0.25, 1), 
-        },
-        False
-    ),
-    (
-        deepcopy(TEST_SIGNAL), 
-        {
-            'phase_noise_degrees': (0.25, 1), 
-        },
-        False
-    ),    
-])
-def test_LocalOscillatorPhaseNoiseSignalTransform(
-    signal: Signal,
-    params: dict, 
-    is_error: bool
-) -> None:
-    """Test LocalOscillatorPhaseNoiseSignalTransform with pytest.
-
-    Args:
-        signal (Signal): Input signal to transform.
-        params (dict): Transform call parameters (see description).
-        is_error (bool): Is a test error expected.
-
-    Raises:
-        AssertionError: If unexpected test outcome.
-
-    """      
-    phase_noise_degrees = params['phase_noise_degrees']
-
-    if is_error:
-        with pytest.raises(Exception, match=r".*"):   
-            T = LocalOscillatorPhaseNoiseSignalTransform(
-                phase_noise_degrees = phase_noise_degrees,
-                seed = 42
-            )
-            signal = T(signal)
-    else:
-        signal_test = deepcopy(signal)
-        T = LocalOscillatorPhaseNoiseSignalTransform(
-            phase_noise_degrees = phase_noise_degrees,
-            seed = 42
-        )
-        signal = T(signal)
-
-        assert isinstance(T, LocalOscillatorPhaseNoiseSignalTransform)
-        assert isinstance(T.phase_noise_degrees, tuple)
-        assert isinstance(T.phase_noise_degrees_distribution(), float)
-        assert isinstance(signal, Signal)
-        assert len(signal.data) == len(signal_test.data)
         assert type(signal.data) == type(signal_test.data)
         assert signal.data.dtype == torchsig_complex_data_type
         # no metadata impacts

@@ -3,19 +3,19 @@
 from torchsig.transforms.dataset_transforms import (
     DatasetTransform,
     AdditiveNoiseDatasetTransform,
-    AGC,
     AWGN,
-    BlockAGC,
+    CarrierFrequencyDriftDatasetTransform,
+    CarrierPhaseNoiseDatasetTransform,
     CarrierPhaseOffsetDatasetTransform,
+    CoarseGainChange,
     IQImbalanceDatasetTransform,
-    LocalOscillatorFrequencyDriftDatasetTransform,
-    LocalOscillatorPhaseNoiseDatasetTransform,
     NonlinearAmplifierDatasetTransform,
     PassbandRippleDatasetTransform,    
     QuantizeDatasetTransform,
     SpectralInversionDatasetTransform,
     Spectrogram,
     TimeVaryingNoise,
+    TrackingAGC,
 
     # ML Transforms
     AddSlope,
@@ -23,7 +23,6 @@ from torchsig.transforms.dataset_transforms import (
     CutOut,
     PatchShuffle,
     RandomDropSamples,
-    RandomMagRescale,
     SpectrogramDropSamples,
     TimeReversal
 )
@@ -139,103 +138,6 @@ def test_AdditiveNoiseDatasetTransform(signal: DatasetSignal, params: dict, is_e
 
 
 @pytest.mark.parametrize("signal, params, is_error", [
-    (
-        deepcopy(TEST_DS_SIGNAL),
-        { 
-            'rand_scale'      : (1.0, 10.0),
-            'initial_gain_db' : 0.0,
-            'alpha_smooth'    : 0.00004,
-            'alpha_track'     : 0.0004,
-            'alpha_overflow'  : 0.3,
-            'alpha_acquire'   : 0.04,
-            'ref_level'       : 1.0,
-            'ref_level_db'    : np.log(1.0),
-            'track_range_db'  : 1.0,
-            'low_level_db'    : -80.0,
-            'high_level_db'   : 6.0
-        },
-        False
-    ),
-    (
-        deepcopy(TEST_DS_SIGNAL),
-        { 
-            'rand_scale'      : (1.0, 8.0),
-            'initial_gain_db' : 2.0,
-            'alpha_smooth'    : 0.1,
-            'alpha_track'     : np.log(1.1),
-            'alpha_overflow'  : np.log(1.1),
-            'alpha_acquire'   : np.log(1.1),
-            'ref_level'       : 10.0,
-            'ref_level_db'    : np.log(10.0),
-            'track_range_db'  : np.log(4.0),
-            'low_level_db'    : -200.0,
-            'high_level_db'   : 200.0
-        },
-        False
-    )
-])
-def test_AGC(signal: DatasetSignal, params: dict, is_error: bool) -> None:
-    """Test the AGC DatasetTransform with pytest.
-
-    Args:
-        signal (DatasetSignal): input dataset.
-        params (dict): AGC parameters (see AGC DatasetTransform description).
-        is_error (bool): Is a test error expected. 
-
-    Raises:
-        AssertionError: If unexpected test outcome.
-
-    """
-    if is_error:
-        with pytest.raises(Exception, match=r".*"):
-            T = AGC(
-                rand_scale      = params['rand_scale'],
-                initial_gain_db = params['initial_gain_db'],
-                alpha_smooth    = params['alpha_smooth'],
-                alpha_track     = params['alpha_track'],
-                alpha_overflow  = params['alpha_overflow'],
-                alpha_acquire   = params['alpha_acquire'],
-                ref_level_db    = params['ref_level_db'],
-                track_range_db  = params['track_range_db'],
-                low_level_db    = params['low_level_db'],
-                high_level_db   = params['high_level_db'],
-                seed = 42
-            )
-            signal = T(signal)
-    else:
-        T = AGC(
-            rand_scale      = params['rand_scale'],
-            initial_gain_db = params['initial_gain_db'],
-            alpha_smooth    = params['alpha_smooth'],
-            alpha_track     = params['alpha_track'],
-            alpha_overflow  = params['alpha_overflow'],
-            alpha_acquire   = params['alpha_acquire'],
-            ref_level_db    = params['ref_level_db'],
-            track_range_db  = params['track_range_db'],
-            low_level_db    = params['low_level_db'],
-            high_level_db   = params['high_level_db'],
-            seed = 42
-        )
-        signal_test = deepcopy(signal)
-        signal = T(signal)
-
-        assert isinstance(T, AGC)
-        assert isinstance(T.initial_gain_db, float)
-        assert isinstance(T.alpha_smooth, float)
-        assert isinstance(T.alpha_track, float)
-        assert isinstance(T.alpha_overflow, float)
-        assert isinstance(T.alpha_acquire, float)
-        assert isinstance(T.ref_level_db, float)
-        assert isinstance(T.track_range_db, float)
-        assert isinstance(T.low_level_db, float)
-        assert isinstance(T.high_level_db, float)   
-        assert isinstance(signal, DatasetSignal)
-        assert type(signal.data) == type(signal_test.data)
-        assert signal.data.dtype == torchsig_complex_data_type
-        assert np.not_equal(signal.data, signal_test.data).any()
-
-
-@pytest.mark.parametrize("signal, params, is_error", [
     ( deepcopy(TEST_DS_SIGNAL), {'noise_power_db': 3.0, 'measure': False}, False ),
     ( deepcopy(TEST_DS_SIGNAL), {'noise_power_db': 0.1, 'measure': False}, False ),
     ( deepcopy(TEST_DS_SIGNAL), {'noise_power_db': 0.5, 'measure': True}, False )
@@ -297,41 +199,120 @@ def test_AWGN(signal: DatasetSignal, params: dict, is_error: bool) -> None:
 
 
 @pytest.mark.parametrize("signal, params, is_error", [
-    ( deepcopy(TEST_DS_SIGNAL), {'max_gain_change_db': 3.0}, False ),
-    ( deepcopy(TEST_DS_SIGNAL), {'max_gain_change_db': 10.0}, False ),
+    (
+        deepcopy(TEST_DS_SIGNAL), 
+        {
+            'drift_ppm': (0.1, 1), 
+        },
+        False
+    ),
+    (
+        deepcopy(TEST_DS_SIGNAL), 
+        {
+            'drift_ppm': (0.1, 1), 
+        },
+        False
+    ),    
 ])
-def test_BlockAGC(signal: DatasetSignal, params: dict, is_error: bool) -> None:
-    """Test the BlockAGC DatasetTransform with pytest.
+def test_CarrierFrequencyDriftDatasetTransform(
+    signal: DatasetSignal,
+    params: dict, 
+    is_error: bool
+) -> None:
+    """Test CarrierFrequencyDriftDatasetTransform with pytest.
 
     Args:
-        signal (DatasetSignal): input dataset.
-        params (dict): BlockAGC parameters (see functional BlockAGC description).
-        is_error (bool): Is a test error expected. 
+        signal (Signal): Input signal to transform.
+        params (dict): Transform call parameters (see description).
+        is_error (bool): Is a test error expected.
 
     Raises:
-        AssertionError: If unexpected test output.
+        AssertionError: If unexpected test outcome.
 
-    """
+    """      
+    drift_ppm = params['drift_ppm']
+
     if is_error:
-        with pytest.raises(Exception, match=r".*"):    
-            T = BlockAGC(
-                max_gain_change_db = params['max_gain_change_db'],
+        with pytest.raises(Exception, match=r".*"):   
+            T = CarrierFrequencyDriftDatasetTransform(
+                drift_ppm = drift_ppm,
+                seed = 42
             )
             signal = T(signal)
     else:
-        T = BlockAGC(
-            max_gain_change_db = params['max_gain_change_db'],
+        signal_test = deepcopy(signal)
+        T = CarrierFrequencyDriftDatasetTransform(
+            drift_ppm = drift_ppm, 
+            seed = 42
         )
-        signal_test = deepcopy(signal) 
         signal = T(signal)
 
-        assert isinstance(T, BlockAGC)
-        assert isinstance(T.random_generator, np.random.Generator)
-        assert isinstance(T.gain_change_db_distribution(), float) 
+        assert isinstance(T, CarrierFrequencyDriftDatasetTransform)
+        assert isinstance(T.drift_ppm_distribution(), float)
         assert isinstance(signal, DatasetSignal)
+        assert len(signal.data) == len(signal_test.data)
         assert type(signal.data) == type(signal_test.data)
-        assert signal.data.dtype == signal_test.data.dtype
-        assert np.not_equal(signal.data, signal_test.data).any()
+        assert signal.data.dtype == torchsig_complex_data_type
+        # no metadata impacts
+
+
+@pytest.mark.parametrize("signal, params, is_error", [
+    (
+        deepcopy(TEST_DS_SIGNAL), 
+        {
+            'phase_noise_degrees': (0.25, 1)
+        },
+        False
+    ),
+    (
+        deepcopy(TEST_DS_SIGNAL), 
+        {
+            'phase_noise_degrees': (0.25, 1)
+        },
+        False
+    ),    
+])
+def test_CarrierPhaseNoiseDatasetTransform(
+    signal: DatasetSignal,
+    params: dict, 
+    is_error: bool
+) -> None:
+    """Test CarrierPhaseNoiseDatasetTransform with pytest.
+
+    Args:
+        signal (Signal): Input signal to transform.
+        params (dict): Transform call parameters (see description).
+        is_error (bool): Is a test error expected.
+
+    Raises:
+        AssertionError: If unexpected test outcome.
+
+    """      
+    phase_noise_degrees = params['phase_noise_degrees']
+
+    if is_error:
+        with pytest.raises(Exception, match=r".*"):   
+            T = CarrierPhaseNoiseDatasetTransform(
+                phase_noise_degrees = phase_noise_degrees,
+                seed = 42
+            )
+            signal = T(signal)
+    else:
+        signal_test = deepcopy(signal)
+        T = CarrierPhaseNoiseDatasetTransform(
+            phase_noise_degrees = phase_noise_degrees,
+            seed = 42
+        )
+        signal = T(signal)
+
+        assert isinstance(T, CarrierPhaseNoiseDatasetTransform)
+        assert isinstance(T.phase_noise_degrees, tuple)
+        assert isinstance(T.phase_noise_degrees_distribution(), float)
+        assert isinstance(signal, DatasetSignal)
+        assert len(signal.data) == len(signal_test.data)
+        assert type(signal.data) == type(signal_test.data)
+        assert signal.data.dtype == torchsig_complex_data_type
+        # no metadata impacts
 
 
 @pytest.mark.parametrize("signal, is_error", [
@@ -365,6 +346,44 @@ def test_CarrierPhaseOffsetDatasetTransform(signal: DatasetSignal, is_error: boo
         assert isinstance(T, CarrierPhaseOffsetDatasetTransform)
         assert isinstance(T.random_generator, np.random.Generator)
         assert isinstance(T.phase_offset_distribution(), float)
+        assert isinstance(signal, DatasetSignal)
+        assert type(signal.data) == type(signal_test.data)
+        assert signal.data.dtype == signal_test.data.dtype
+        assert np.not_equal(signal.data, signal_test.data).any()
+
+
+@pytest.mark.parametrize("signal, params, is_error", [
+    ( deepcopy(TEST_DS_SIGNAL), {'max_gain_change_db': 3.0}, False ),
+    ( deepcopy(TEST_DS_SIGNAL), {'max_gain_change_db': 10.0}, False ),
+])
+def test_CoarseGainChange(signal: DatasetSignal, params: dict, is_error: bool) -> None:
+    """Test the CoarseGainChange DatasetTransform with pytest.
+
+    Args:
+        signal (DatasetSignal): input dataset.
+        params (dict): CoarseGainChange parameters (see functional BlockAGC description).
+        is_error (bool): Is a test error expected. 
+
+    Raises:
+        AssertionError: If unexpected test output.
+
+    """
+    if is_error:
+        with pytest.raises(Exception, match=r".*"):    
+            T = CoarseGainChange(
+                max_gain_change_db = params['max_gain_change_db'],
+            )
+            signal = T(signal)
+    else:
+        T = CoarseGainChange(
+            max_gain_change_db = params['max_gain_change_db'],
+        )
+        signal_test = deepcopy(signal) 
+        signal = T(signal)
+
+        assert isinstance(T, CoarseGainChange)
+        assert isinstance(T.random_generator, np.random.Generator)
+        assert isinstance(T.gain_change_db_distribution(), float) 
         assert isinstance(signal, DatasetSignal)
         assert type(signal.data) == type(signal_test.data)
         assert signal.data.dtype == signal_test.data.dtype
@@ -435,123 +454,6 @@ def test_IQImbalanceDatasetTransform(signal: DatasetSignal, params: dict, is_err
         assert type(signal.data) == type(signal_test.data)
         assert signal.data.dtype == signal_test.data.dtype
         assert np.not_equal(signal.data, signal_test.data).any()
-
-
-@pytest.mark.parametrize("signal, params, is_error", [
-    (
-        deepcopy(TEST_DS_SIGNAL), 
-        {
-            'drift_ppm': (0.1, 1), 
-        },
-        False
-    ),
-    (
-        deepcopy(TEST_DS_SIGNAL), 
-        {
-            'drift_ppm': (0.1, 1), 
-        },
-        False
-    ),    
-])
-def test_LocalOscillatorFrequencyDriftDatasetTransform(
-    signal: DatasetSignal,
-    params: dict, 
-    is_error: bool
-) -> None:
-    """Test LocalOscillatorFrequencyDriftDatasetTransform with pytest.
-
-    Args:
-        signal (Signal): Input signal to transform.
-        params (dict): Transform call parameters (see description).
-        is_error (bool): Is a test error expected.
-
-    Raises:
-        AssertionError: If unexpected test outcome.
-
-    """      
-    drift_ppm = params['drift_ppm']
-
-    if is_error:
-        with pytest.raises(Exception, match=r".*"):   
-            T = LocalOscillatorFrequencyDriftDatasetTransform(
-                drift_ppm = drift_ppm,
-                seed = 42
-            )
-            signal = T(signal)
-    else:
-        signal_test = deepcopy(signal)
-        T = LocalOscillatorFrequencyDriftDatasetTransform(
-            drift_ppm = drift_ppm, 
-            seed = 42
-        )
-        signal = T(signal)
-
-        assert isinstance(T, LocalOscillatorFrequencyDriftDatasetTransform)
-        assert isinstance(T.drift_ppm_distribution(), float)
-        assert isinstance(signal, DatasetSignal)
-        assert len(signal.data) == len(signal_test.data)
-        assert type(signal.data) == type(signal_test.data)
-        assert signal.data.dtype == torchsig_complex_data_type
-        # no metadata impacts
-
-
-@pytest.mark.parametrize("signal, params, is_error", [
-    (
-        deepcopy(TEST_DS_SIGNAL), 
-        {
-            'phase_noise_degrees': (0.25, 1)
-        },
-        False
-    ),
-    (
-        deepcopy(TEST_DS_SIGNAL), 
-        {
-            'phase_noise_degrees': (0.25, 1)
-        },
-        False
-    ),    
-])
-def test_LocalOscillatorPhaseNoiseDatasetTransform(
-    signal: DatasetSignal,
-    params: dict, 
-    is_error: bool
-) -> None:
-    """Test LocalOscillatorPhaseNoiseDatasetTransform with pytest.
-
-    Args:
-        signal (Signal): Input signal to transform.
-        params (dict): Transform call parameters (see description).
-        is_error (bool): Is a test error expected.
-
-    Raises:
-        AssertionError: If unexpected test outcome.
-
-    """      
-    phase_noise_degrees = params['phase_noise_degrees']
-
-    if is_error:
-        with pytest.raises(Exception, match=r".*"):   
-            T = LocalOscillatorPhaseNoiseDatasetTransform(
-                phase_noise_degrees = phase_noise_degrees,
-                seed = 42
-            )
-            signal = T(signal)
-    else:
-        signal_test = deepcopy(signal)
-        T = LocalOscillatorPhaseNoiseDatasetTransform(
-            phase_noise_degrees = phase_noise_degrees,
-            seed = 42
-        )
-        signal = T(signal)
-
-        assert isinstance(T, LocalOscillatorPhaseNoiseDatasetTransform)
-        assert isinstance(T.phase_noise_degrees, tuple)
-        assert isinstance(T.phase_noise_degrees_distribution(), float)
-        assert isinstance(signal, DatasetSignal)
-        assert len(signal.data) == len(signal_test.data)
-        assert type(signal.data) == type(signal_test.data)
-        assert signal.data.dtype == torchsig_complex_data_type
-        # no metadata impacts
 
 
 @pytest.mark.parametrize("signal, params, is_error", [
@@ -1119,63 +1021,6 @@ def test_RandomDropSamples(signal: DatasetSignal, params: dict, is_error: bool) 
 
 
 @pytest.mark.parametrize("signal, params, is_error", [
-    ( deepcopy(TEST_DS_SIGNAL), {'start': [0.25], 'scale': [0.4]}, False ),
-    ( deepcopy(TEST_DS_SIGNAL), {'start': [0.42, 0.42],'scale': [0.17, 0.17, 0.17]}, False )
-])
-def test_RandomMagRescale(signal: DatasetSignal, params: dict, is_error: bool) -> None:
-    """Test the RandomMagRescale DatasetTransform with pytest.
-
-    Args:
-        signal (DatasetSignal): input dataset.
-        params (dict): RandomMagRescale parameters (see functional description).
-        is_error (bool): Is a test error expected. 
-
-    Raises:
-        AssertionError: If unexpected test output.
-
-    """
-    start = params['start']
-    scale = params['scale']
-    if is_error:
-        with pytest.raises(Exception, match=r".*"):
-            T = RandomMagRescale(
-                start = start, 
-                scale = scale,
-                seed = 42
-            )
-            signal = T(signal)
-    else:
-        T = RandomMagRescale(
-            start = start, 
-            scale = scale,
-            seed = 42
-        )
-        signal_test = deepcopy(signal)
-        signal = T(signal)            
-
-        assert isinstance(T, RandomMagRescale)
-        assert isinstance(T.random_generator, np.random.Generator)
-        assert isinstance(T.start_distribution(), float)
-        assert isinstance(T.scale_distribution(), float)
-        assert isinstance(signal, DatasetSignal)
-        assert type(signal) == type(signal_test)
-        assert signal.data.dtype == signal_test.data.dtype
-        assert np.not_equal(signal.data, signal_test.data).any()
-
-        if isinstance(start, list): # assume constant value list
-            start_ind = int(signal.data.shape[0] * start[0])
-        else:
-            start_ind = int(signal.data.shape[0] * start)
-
-        if isinstance(scale, list): # assume constant value list
-            sc = scale[0]
-        else:
-            sc = scale
-        
-        assert np.allclose(signal.data[start_ind:], sc * signal_test.data[start_ind:])
-
-
-@pytest.mark.parametrize("signal, params, is_error", [
     (
         deepcopy(TEST_DS_SIGNAL), 
         {'fft_size': 16, 'fft_stride': 4},
@@ -1340,3 +1185,100 @@ def test_TimeReversal(signal: DatasetSignal, params: dict, is_error: bool) -> No
         for idx, m in enumerate(signal.metadata):
             assert m.start_in_samples == num_data_samples - signal_test.metadata[idx].stop_in_samples
             assert m.center_freq == signal_test.metadata[idx].center_freq
+
+
+@pytest.mark.parametrize("signal, params, is_error", [
+    (
+        deepcopy(TEST_DS_SIGNAL),
+        { 
+            'rand_scale'      : (1.0, 10.0),
+            'initial_gain_db' : 0.0,
+            'alpha_smooth'    : 0.00004,
+            'alpha_track'     : 0.0004,
+            'alpha_overflow'  : 0.3,
+            'alpha_acquire'   : 0.04,
+            'ref_level'       : 1.0,
+            'ref_level_db'    : np.log(1.0),
+            'track_range_db'  : 1.0,
+            'low_level_db'    : -80.0,
+            'high_level_db'   : 6.0
+        },
+        False
+    ),
+    (
+        deepcopy(TEST_DS_SIGNAL),
+        { 
+            'rand_scale'      : (1.0, 8.0),
+            'initial_gain_db' : 2.0,
+            'alpha_smooth'    : 0.1,
+            'alpha_track'     : np.log(1.1),
+            'alpha_overflow'  : np.log(1.1),
+            'alpha_acquire'   : np.log(1.1),
+            'ref_level'       : 10.0,
+            'ref_level_db'    : np.log(10.0),
+            'track_range_db'  : np.log(4.0),
+            'low_level_db'    : -200.0,
+            'high_level_db'   : 200.0
+        },
+        False
+    )
+])
+def test_TrackingAGC(signal: DatasetSignal, params: dict, is_error: bool) -> None:
+    """Test the TrackingAGC DatasetTransform with pytest.
+
+    Args:
+        signal (DatasetSignal): input dataset.
+        params (dict): AGC parameters (see TrackingAGC DatasetTransform description).
+        is_error (bool): Is a test error expected. 
+
+    Raises:
+        AssertionError: If unexpected test outcome.
+
+    """
+    if is_error:
+        with pytest.raises(Exception, match=r".*"):
+            T = TrackingAGC(
+                rand_scale      = params['rand_scale'],
+                initial_gain_db = params['initial_gain_db'],
+                alpha_smooth    = params['alpha_smooth'],
+                alpha_track     = params['alpha_track'],
+                alpha_overflow  = params['alpha_overflow'],
+                alpha_acquire   = params['alpha_acquire'],
+                ref_level_db    = params['ref_level_db'],
+                track_range_db  = params['track_range_db'],
+                low_level_db    = params['low_level_db'],
+                high_level_db   = params['high_level_db'],
+                seed = 42
+            )
+            signal = T(signal)
+    else:
+        T = TrackingAGC(
+            rand_scale      = params['rand_scale'],
+            initial_gain_db = params['initial_gain_db'],
+            alpha_smooth    = params['alpha_smooth'],
+            alpha_track     = params['alpha_track'],
+            alpha_overflow  = params['alpha_overflow'],
+            alpha_acquire   = params['alpha_acquire'],
+            ref_level_db    = params['ref_level_db'],
+            track_range_db  = params['track_range_db'],
+            low_level_db    = params['low_level_db'],
+            high_level_db   = params['high_level_db'],
+            seed = 42
+        )
+        signal_test = deepcopy(signal)
+        signal = T(signal)
+
+        assert isinstance(T, TrackingAGC)
+        assert isinstance(T.initial_gain_db, float)
+        assert isinstance(T.alpha_smooth, float)
+        assert isinstance(T.alpha_track, float)
+        assert isinstance(T.alpha_overflow, float)
+        assert isinstance(T.alpha_acquire, float)
+        assert isinstance(T.ref_level_db, float)
+        assert isinstance(T.track_range_db, float)
+        assert isinstance(T.low_level_db, float)
+        assert isinstance(T.high_level_db, float)   
+        assert isinstance(signal, DatasetSignal)
+        assert type(signal.data) == type(signal_test.data)
+        assert signal.data.dtype == torchsig_complex_data_type
+        assert np.not_equal(signal.data, signal_test.data).any()

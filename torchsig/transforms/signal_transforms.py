@@ -4,15 +4,15 @@
 __all__ = [
     "SignalTransform",
     "AdditiveNoiseSignalTransform",
-    "AdjacentChannelInterference",   
+    "AdjacentChannelInterference",
+    "CarrierFrequencyDriftSignalTransform",
+    "CarrierPhaseNoiseSignalTransform",
     "CarrierPhaseOffsetSignalTransform",
     "CochannelInterference", 
     "DopplerSignalTransform",
     "Fading",
     "IntermodulationProductsSignalTransform",
     "IQImbalanceSignalTransform",
-    "FrequencyMixerFrequencyDriftSignalTransform",
-    "FrequencyMixerPhaseNoiseSignalTransform",
     "NonlinearAmplifierSignalTransform",
     "PassbandRippleSignalTransform",
     "QuantizeSignalTransform",
@@ -174,6 +174,67 @@ class AdjacentChannelInterference(SignalTransform):
             filter_weights = self.filter_weights,
             rng = self.random_generator
         )        
+        signal.data = signal.data.astype(torchsig_complex_data_type)
+        self.update(signal)
+        return signal
+
+
+class CarrierFrequencyDriftSignalTransform(SignalTransform):
+    """SignalTransform that applies LO frequency drift to Signal IQ data.
+
+    Attributes:
+        drift_ppm_range (Tuple[float, float]): Drift in parts per million (ppm). Default (0.1,1).
+        drift_ppm_distribution (Callable[[], float]): Random draw from drift_ppm_range distribution.
+        
+    """
+    def __init__(
+        self, 
+        drift_ppm: Tuple[float, float] = (0.1, 1),
+        **kwargs
+    ):
+        super().__init__(**kwargs)
+        self.drift_ppm = drift_ppm
+        self.drift_ppm_distribution = self.get_distribution(self.drift_ppm,'log10')
+    
+    def __call__(self, signal: Signal) -> Signal:
+        drift_ppm = self.drift_ppm_distribution()
+
+        signal.data = F.carrier_frequency_drift(
+            data = signal.data, 
+            drift_ppm = drift_ppm, 
+            rng = self.random_generator
+        )
+        signal.data = signal.data.astype(torchsig_complex_data_type)       
+        self.update(signal)
+        return signal
+
+
+class CarrierPhaseNoiseSignalTransform(SignalTransform):
+    """SignalTransform that applies LO phase noise to Signal IQ data.
+
+    Attributes:
+       phase_noise_degrees (Tuple[float, float]): Range for phase noise (in degrees). Defaults to (0.25, 1).
+       phase_noise_degrees_distribution (Callable[[], float]): Random draw from phase_noise_degrees distribution.
+        
+    """
+    def __init__(
+        self, 
+        phase_noise_degrees: Tuple[float, float] = (0.25, 1),
+        **kwargs
+    ):
+        super().__init__(**kwargs)
+        self.phase_noise_degrees = phase_noise_degrees
+        self.phase_noise_degrees_distribution = self.get_distribution(self.phase_noise_degrees)
+    
+    def __call__(self, signal: Signal) -> Signal:
+        phase_noise_degrees = self.phase_noise_degrees_distribution()
+
+        signal.data = F.carrier_phase_noise(
+            data = signal.data,
+            phase_noise_degrees = phase_noise_degrees,
+            rng = self.random_generator
+        )
+
         signal.data = signal.data.astype(torchsig_complex_data_type)
         self.update(signal)
         return signal
@@ -450,67 +511,6 @@ class IQImbalanceSignalTransform(SignalTransform):
         dc_offset = self.dc_offset_distribution()
 
         signal.data = F.iq_imbalance(signal.data, amplitude_imbalance, phase_imbalance, dc_offset)
-
-        signal.data = signal.data.astype(torchsig_complex_data_type)
-        self.update(signal)
-        return signal
-
-
-class FrequencyMixerFrequencyDriftSignalTransform(SignalTransform):
-    """SignalTransform that applies LO frequency drift to Signal IQ data.
-
-    Attributes:
-        drift_ppm_range (Tuple[float, float]): Drift in parts per million (ppm). Default (0.1,1).
-        drift_ppm_distribution (Callable[[], float]): Random draw from drift_ppm_range distribution.
-        
-    """
-    def __init__(
-        self, 
-        drift_ppm: Tuple[float, float] = (0.1, 1),
-        **kwargs
-    ):
-        super().__init__(**kwargs)
-        self.drift_ppm = drift_ppm
-        self.drift_ppm_distribution = self.get_distribution(self.drift_ppm,'log10')
-    
-    def __call__(self, signal: Signal) -> Signal:
-        drift_ppm = self.drift_ppm_distribution()
-
-        signal.data = F.frequency_mixer_frequency_drift(
-            data = signal.data, 
-            drift_ppm = drift_ppm, 
-            rng = self.random_generator
-        )
-        signal.data = signal.data.astype(torchsig_complex_data_type)       
-        self.update(signal)
-        return signal
-
-
-class FrequencyMixerPhaseNoiseSignalTransform(SignalTransform):
-    """SignalTransform that applies LO phase noise to Signal IQ data.
-
-    Attributes:
-       phase_noise_degrees (Tuple[float, float]): Range for phase noise (in degrees). Defaults to (0.25, 1).
-       phase_noise_degrees_distribution (Callable[[], float]): Random draw from phase_noise_degrees distribution.
-        
-    """
-    def __init__(
-        self, 
-        phase_noise_degrees: Tuple[float, float] = (0.25, 1),
-        **kwargs
-    ):
-        super().__init__(**kwargs)
-        self.phase_noise_degrees = phase_noise_degrees
-        self.phase_noise_degrees_distribution = self.get_distribution(self.phase_noise_degrees)
-    
-    def __call__(self, signal: Signal) -> Signal:
-        phase_noise_degrees = self.phase_noise_degrees_distribution()
-
-        signal.data = F.frequency_mixer_phase_noise(
-            data = signal.data,
-            phase_noise_degrees = phase_noise_degrees,
-            rng = self.random_generator
-        )
 
         signal.data = signal.data.astype(torchsig_complex_data_type)
         self.update(signal)

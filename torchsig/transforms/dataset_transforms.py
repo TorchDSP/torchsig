@@ -6,14 +6,13 @@ __all__ = [
 
     ### RF Transforms
     "AdditiveNoiseDatasetTransform"
-    "TrackingAGCDatasetTransform",
     "AWGN",
-    "CoarseGainChangeDatasetTransform",
+    "CarrierFrequencyDriftDatasetTransform",
+    "CarrierPhaseNoiseDatasetTransform",
     "CarrierPhaseOffsetDatasetTransform",
+    "CoarseGainChange",
     "ComplexTo2D",
     "IQImbalanceDatasetTransform",
-    "FrequencyMixerFrequencyDriftDatasetTransform"
-    "FrequencyMixerPhaseNoiseDatasetTransform",
     "NonlinearAmplifierDatasetTransform",
     "PassbandRippleDatasetTransform",
     "QuantizeDatasetTransform",
@@ -21,6 +20,7 @@ __all__ = [
     "SpectrogramImage",
     "SpectralInversionDatasetTransform",
     "TimeVaryingNoise",
+    "TrackingAGC",
 
     ### ML Tranforms
     "AddSlope",
@@ -28,8 +28,7 @@ __all__ = [
     "CutOut",
     # "DropSpectrogram",
     "PatchShuffle",
-    "RandomDropSamples",    
-    "RandomMagRescale",
+    "RandomDropSamples",
     "SpectrogramDropSamples",
     "TimeReversal"
 ]
@@ -139,99 +138,6 @@ class AdditiveNoiseDatasetTransform(DatasetTransform):
         signal.data = signal.data.astype(torchsig_complex_data_type)        
         self.update(signal)
         return signal
-
-
-class TrackingAGCDatasetTransform(DatasetTransform):
-    """Automatic Gain Control performing sample-by-sample AGC algorithm.
-
-    Attributes:
-        rand_scale (Tuple): setting the random scaling bounds for each sample update. 
-        rand_scale_distribution (Callable[[], float]): Random draw from rand_scale distribution.
-        initial_gain_db (float): Inital gain value in dB.
-        alpha_smooth (float): Alpha for avergaing the measure signal level `level_n = level_n * alpha + level_n-1(1-alpha)`
-        alpha_track (float): Amount to adjust gain when in tracking state.
-        alpha_overflow (float): Amount to adjust gain when in overflow state `[level_db + gain_db] >= max_level`.
-        alpha_acquire (float): Amount to adjust gain when in acquire state.
-        ref_level_db (float): Reference level goal for algorithm to achieve, in dB units. 
-        track_range_db (float): dB range for operating in tracking state.
-        low_level_db (float): minimum magnitude value (dB) to perform any gain control adjustment.
-        high_level_db (float): magnitude value (dB) to enter overflow state.
-
-    """
-    def __init__(
-        self,
-        rand_scale = (1.0, 10.0),
-        initial_gain_db: float = 0.0,
-        alpha_smooth: float = 0.00004,
-        alpha_track: float = 0.0004,
-        alpha_overflow: float = 0.3,
-        alpha_acquire: float = 0.04,
-        ref_level_db: float = 0.0,
-        track_range_db: float = 1.0,
-        low_level_db: float = -80.0,
-        high_level_db: float = 6.0,
-        **kwargs
-    ):
-        super().__init__(**kwargs)
-        self.rand_scale = rand_scale        
-        self.initial_gain_db = initial_gain_db
-        self.alpha_smooth = alpha_smooth
-        self.alpha_track = alpha_track
-        self.alpha_overflow = alpha_overflow
-        self.alpha_acquire = alpha_acquire
-        self.ref_level_db = ref_level_db
-        self.track_range_db = track_range_db
-        self.low_level_db = low_level_db
-        self.high_level_db = high_level_db
-
-        self.rand_scale_distribution = self.get_distribution(self.rand_scale )
-        
-
-    def __call__(self, signal: DatasetSignal) -> DatasetSignal:
-        rand_scale = self.rand_scale_distribution()
-
-        alpha_acquire = self.random_generator.uniform(
-            low = self.alpha_acquire / rand_scale,
-            high = self.alpha_acquire * rand_scale,
-            size = 1
-        )[0]
-        alpha_overflow = self.random_generator.uniform(
-            low = self.alpha_overflow / rand_scale,
-            high = self.alpha_overflow * rand_scale,
-            size = 1
-        )[0]
-        alpha_track = self.random_generator.uniform(
-            low = self.alpha_track / rand_scale,
-            high = self.alpha_track * rand_scale,
-            size = 1
-        )[0]
-        alpha_smooth = self.random_generator.uniform(
-            low = self.alpha_smooth / rand_scale,
-            high = self.alpha_smooth * rand_scale,
-            size = 1
-        )[0]
-        ref_level_db = self.random_generator.uniform(
-            low = -0.5 + self.ref_level_db,
-            high = 0.5 + self.ref_level_db,
-            size = 1
-        )[0]
-
-        signal.data = F.tracking_agc(
-            np.ascontiguousarray(signal.data, dtype=np.complex64),
-            np.float64(self.initial_gain_db),
-            np.float64(alpha_smooth),
-            np.float64(alpha_track),
-            np.float64(alpha_overflow),
-            np.float64(alpha_acquire),
-            np.float64(ref_level_db),
-            np.float64(self.track_range_db),
-            np.float64(self.low_level_db),
-            np.float64(self.high_level_db)
-        )
-
-        signal.data = signal.data.astype(torchsig_complex_data_type)
-        self.update(signal)
-        return signal
     
 
 class AWGN(DatasetTransform):
@@ -279,32 +185,60 @@ class AWGN(DatasetTransform):
         return signal
 
 
-class CoarseGainChangeDatasetTransform(DatasetTransform):
-    """Implements a large instantaneous jump in receiver gain.
+class CarrierFrequencyDriftDatasetTransform(DatasetTransform):
+    """Apply Carrier frequency drift to DatasetSignal.
 
     Attributes:
-        gain_change_db_range (Tuple): Sets the (min, max) gain change in dB.
-        gain_change_db_distribution (Callable[[], float]): Random draw from gain_change_db distribution.
+        drift_ppm (Tuple[float, float]): Drift in parts per million (ppm). Default (0.1, 1).
         
     """
     def __init__(
         self, 
-        gain_change_db: Tuple[float, float] = (-20, 20),
+        drift_ppm: Tuple[float, float] = (0.1, 1),
         **kwargs
     ):
         super().__init__(**kwargs)
-        self.gain_change_db_distribution = self.get_distribution(gain_change_db)
-        
+        self.drift_ppm = drift_ppm
+        self.drift_ppm_distribution = self.get_distribution(self.drift_ppm,'log10')
+    
     def __call__(self, signal: DatasetSignal) -> DatasetSignal:
-        # select a gain value change from distribution
-        gain_change_db = self.gain_change_db_distribution()
-        # determine which samples gain change will be applied to. minimum index is 1, and maximum
-        # index is second to last sample, such that at minimum the gain will be applied to one
-        # sample or at maximum it will be applied to all less 1 samples. applying to zero samples
-        # or to all samples does not have a practical effect for this specific transform.
-        start_index = self.random_generator.integers(1,len(signal.data)-1)
+        drift_ppm = self.drift_ppm_distribution()
+
+        signal.data = F.carrier_frequency_drift(
+            data = signal.data, 
+            drift_ppm = drift_ppm,
+            rng = self.random_generator
+        )
+
+        signal.data = signal.data.astype(torchsig_complex_data_type)
+        self.update(signal)
+        return signal
+
+
+class CarrierPhaseNoiseDatasetTransform(DatasetTransform):
+    """Applies Carrier phase noise to DatasetSignal.
+
+    Attributes:
+        phase_noise_degrees (Tuple[float, float]): Range of phase noise (in degrees). Defaults to (0.25,1).
         
-        signal.data = F.coarse_gain_change(signal.data, gain_change_db, start_index)
+    """
+    def __init__(
+        self, 
+        phase_noise_degrees: Tuple[float, float] = (0.25, 1),
+        **kwargs
+    ):
+        super().__init__(**kwargs)
+        self.phase_noise_degrees = phase_noise_degrees
+        self.phase_noise_degrees_distribution = self.get_distribution(self.phase_noise_degrees)
+    
+    def __call__(self, signal: DatasetSignal) -> DatasetSignal:
+        phase_noise_degrees = self.phase_noise_degrees_distribution()
+
+        signal.data = F.carrier_phase_noise(
+            data = signal.data,
+            phase_noise_degrees = phase_noise_degrees,
+            rng = self.random_generator
+        )
 
         signal.data = signal.data.astype(torchsig_complex_data_type)
         self.update(signal)
@@ -332,6 +266,38 @@ class CarrierPhaseOffsetDatasetTransform(DatasetTransform):
     def __call__(self, signal: DatasetSignal) -> DatasetSignal:
         phase_offset = self.phase_offset_distribution()
         signal.data = F.phase_offset(signal.data, phase_offset)
+        signal.data = signal.data.astype(torchsig_complex_data_type)
+        self.update(signal)
+        return signal
+
+
+class CoarseGainChange(DatasetTransform):
+    """Implements a large instantaneous jump in receiver gain.
+
+    Attributes:
+        gain_change_db_range (Tuple): Sets the (min, max) gain change in dB.
+        gain_change_db_distribution (Callable[[], float]): Random draw from gain_change_db distribution.
+        
+    """
+    def __init__(
+        self, 
+        gain_change_db: Tuple[float, float] = (-20, 20),
+        **kwargs
+    ):
+        super().__init__(**kwargs)
+        self.gain_change_db_distribution = self.get_distribution(gain_change_db)
+        
+    def __call__(self, signal: DatasetSignal) -> DatasetSignal:
+        # select a gain value change from distribution
+        gain_change_db = self.gain_change_db_distribution()
+        # determine which samples gain change will be applied to. minimum index is 1, and maximum
+        # index is second to last sample, such that at minimum the gain will be applied to one
+        # sample or at maximum it will be applied to all less 1 samples. applying to zero samples
+        # or to all samples does not have a practical effect for this specific transform.
+        start_index = self.random_generator.integers(1,len(signal.data)-1)
+        
+        signal.data = F.coarse_gain_change(signal.data, gain_change_db, start_index)
+
         signal.data = signal.data.astype(torchsig_complex_data_type)
         self.update(signal)
         return signal
@@ -380,66 +346,6 @@ class IQImbalanceDatasetTransform(DatasetTransform):
         dc_offset = self.dc_offset_distribution()
 
         signal.data = F.iq_imbalance(signal.data, amplitude_imbalance, phase_imbalance, dc_offset)
-
-        signal.data = signal.data.astype(torchsig_complex_data_type)
-        self.update(signal)
-        return signal
-
-
-class FrequencyMixerFrequencyDriftDatasetTransform(DatasetTransform):
-    """Apply LO frequency drift to DatasetSignal.
-
-    Attributes:
-        drift_ppm (Tuple[float, float]): Drift in parts per million (ppm). Default (0.1, 1).
-        
-    """
-    def __init__(
-        self, 
-        drift_ppm: Tuple[float, float] = (0.1, 1),
-        **kwargs
-    ):
-        super().__init__(**kwargs)
-        self.drift_ppm = drift_ppm
-        self.drift_ppm_distribution = self.get_distribution(self.drift_ppm,'log10')
-    
-    def __call__(self, signal: DatasetSignal) -> DatasetSignal:
-        drift_ppm = self.drift_ppm_distribution()
-
-        signal.data = F.frequency_mixer_frequency_drift(
-            data = signal.data, 
-            drift_ppm = drift_ppm,
-            rng = self.random_generator
-        )
-
-        signal.data = signal.data.astype(torchsig_complex_data_type)
-        self.update(signal)
-        return signal
-
-
-class FrequencyMixerPhaseNoiseDatasetTransform(DatasetTransform):
-    """Applies LO phase noise to DatasetSignal.
-
-    Attributes:
-        phase_noise_degrees (Tuple[float, float]): Range of phase noise (in degrees). Defaults to (0.25,1).
-        
-    """
-    def __init__(
-        self, 
-        phase_noise_degrees: Tuple[float, float] = (0.25, 1),
-        **kwargs
-    ):
-        super().__init__(**kwargs)
-        self.phase_noise_degrees = phase_noise_degrees
-        self.phase_noise_degrees_distribution = self.get_distribution(self.phase_noise_degrees)
-    
-    def __call__(self, signal: DatasetSignal) -> DatasetSignal:
-        phase_noise_degrees = self.phase_noise_degrees_distribution()
-
-        signal.data = F.frequency_mixer_phase_noise(
-            data = signal.data,
-            phase_noise_degrees = phase_noise_degrees,
-            rng = self.random_generator
-        )
 
         signal.data = signal.data.astype(torchsig_complex_data_type)
         self.update(signal)
@@ -1082,6 +988,100 @@ class TimeReversal(DatasetTransform):
         self.update(signal)
         return signal
 
+
+class TrackingAGC(DatasetTransform):
+    """Automatic Gain Control performing sample-by-sample AGC algorithm.
+
+    Attributes:
+        rand_scale (Tuple): setting the random scaling bounds for each sample update. 
+        rand_scale_distribution (Callable[[], float]): Random draw from rand_scale distribution.
+        initial_gain_db (float): Inital gain value in dB.
+        alpha_smooth (float): Alpha for avergaing the measure signal level `level_n = level_n * alpha + level_n-1(1-alpha)`
+        alpha_track (float): Amount to adjust gain when in tracking state.
+        alpha_overflow (float): Amount to adjust gain when in overflow state `[level_db + gain_db] >= max_level`.
+        alpha_acquire (float): Amount to adjust gain when in acquire state.
+        ref_level_db (float): Reference level goal for algorithm to achieve, in dB units. 
+        track_range_db (float): dB range for operating in tracking state.
+        low_level_db (float): minimum magnitude value (dB) to perform any gain control adjustment.
+        high_level_db (float): magnitude value (dB) to enter overflow state.
+
+    """
+    def __init__(
+        self,
+        rand_scale = (1.0, 10.0),
+        initial_gain_db: float = 0.0,
+        alpha_smooth: float = 0.00004,
+        alpha_track: float = 0.0004,
+        alpha_overflow: float = 0.3,
+        alpha_acquire: float = 0.04,
+        ref_level_db: float = 0.0,
+        track_range_db: float = 1.0,
+        low_level_db: float = -80.0,
+        high_level_db: float = 6.0,
+        **kwargs
+    ):
+        super().__init__(**kwargs)
+        self.rand_scale = rand_scale        
+        self.initial_gain_db = initial_gain_db
+        self.alpha_smooth = alpha_smooth
+        self.alpha_track = alpha_track
+        self.alpha_overflow = alpha_overflow
+        self.alpha_acquire = alpha_acquire
+        self.ref_level_db = ref_level_db
+        self.track_range_db = track_range_db
+        self.low_level_db = low_level_db
+        self.high_level_db = high_level_db
+
+        self.rand_scale_distribution = self.get_distribution(self.rand_scale )
+        
+
+    def __call__(self, signal: DatasetSignal) -> DatasetSignal:
+        rand_scale = self.rand_scale_distribution()
+
+        alpha_acquire = self.random_generator.uniform(
+            low = self.alpha_acquire / rand_scale,
+            high = self.alpha_acquire * rand_scale,
+            size = 1
+        )[0]
+        alpha_overflow = self.random_generator.uniform(
+            low = self.alpha_overflow / rand_scale,
+            high = self.alpha_overflow * rand_scale,
+            size = 1
+        )[0]
+        alpha_track = self.random_generator.uniform(
+            low = self.alpha_track / rand_scale,
+            high = self.alpha_track * rand_scale,
+            size = 1
+        )[0]
+        alpha_smooth = self.random_generator.uniform(
+            low = self.alpha_smooth / rand_scale,
+            high = self.alpha_smooth * rand_scale,
+            size = 1
+        )[0]
+        ref_level_db = self.random_generator.uniform(
+            low = -0.5 + self.ref_level_db,
+            high = 0.5 + self.ref_level_db,
+            size = 1
+        )[0]
+
+        signal.data = F.tracking_agc(
+            np.ascontiguousarray(signal.data, dtype=np.complex64),
+            np.float64(self.initial_gain_db),
+            np.float64(alpha_smooth),
+            np.float64(alpha_track),
+            np.float64(alpha_overflow),
+            np.float64(alpha_acquire),
+            np.float64(ref_level_db),
+            np.float64(self.track_range_db),
+            np.float64(self.low_level_db),
+            np.float64(self.high_level_db)
+        )
+
+        signal.data = signal.data.astype(torchsig_complex_data_type)
+        self.update(signal)
+        return signal
+
+
 class SpectrogramImage(DatasetTransform):
     """Transforms SignalData to spectrogram image
     """
@@ -1106,6 +1106,3 @@ class SpectrogramImage(DatasetTransform):
         )
         self.update(signal)
         return signal
-
-
-

@@ -20,9 +20,10 @@ __all__ = [
     "add_slope",
     "additive_noise",
     "adjacent_channel_interference",
-    "tracking_agc",
-    "coarse_gain_change",
+    "carrier_frequency_drift",
+    "carrier_phase_noise",
     "channel_swap",
+    "coarse_gain_change",
     "cochannel_interference",
     "complex_to_2d",
     "cut_out",
@@ -31,8 +32,6 @@ __all__ = [
     "fading",
     "intermodulation_products",
     "iq_imbalance",
-    "frequency_mixer_frequency_drift",
-    "frequency_mixer_phase_noise",
     "nonlinear_amplifier",
     "nonlinear_amplifier_table",
     "normalize",
@@ -46,7 +45,8 @@ __all__ = [
     "spectrogram_drop_samples",
     "spectrogram_image",
     "time_reversal",
-    "time_varying_noise"
+    "time_varying_noise",
+    "tracking_agc"    
 ]
 
 
@@ -68,66 +68,6 @@ def add_slope(
     slope = np.diff(data)
     slope = np.insert(slope, 0, 0)
     return (data + slope).astype(torchsig_complex_data_type)
-
-
-def tracking_agc(
-    data: np.ndarray,
-    initial_gain_db: float,
-    alpha_smooth: float,
-    alpha_track: float,
-    alpha_overflow: float,
-    alpha_acquire: float,
-    ref_level_db: float,
-    track_range_db: float,
-    low_level_db: float,
-    high_level_db: float,
-) -> np.ndarray:
-    """Automatic Gain Control algorithm (deterministic).
-
-    Args:
-        data (np.ndarray): IQ data samples.
-        initial_gain_db (float): Inital gain value in dB.
-        alpha_smooth (float): Alpha for avergaing the measure signal level `level_n = level_n * alpha + level_n-1(1-alpha)`
-        alpha_track (float): Amount to adjust gain when in tracking state.
-        alpha_overflow (float): Amount to adjust gain when in overflow state `[level_db + gain_db] >= max_level`.
-        alpha_acquire (float): Amount to adjust gain when in acquire state.
-        ref_level_db (float): Reference level goal for algorithm to achieve, in dB units. 
-        track_range_db (float): dB range for operating in tracking state.
-        low_level_db (float): minimum magnitude value (dB) to perform any gain control adjustment.
-        high_level_db (float): magnitude value (dB) to enter overflow state.
-
-    Returns:
-        np.ndarray: IQ data adjusted sample-by-sample by the AGC algorithm.
-
-    """
-    output = np.zeros_like(data)
-    gain_db = initial_gain_db
-    level_db = 0.0
-    for sample_idx, sample in enumerate(data):
-        if not np.abs(sample): # sample == 0
-            level_db = -200
-        elif not sample_idx:  # first sample == 0, no smoothing
-            level_db = np.log(np.abs(sample))
-        else:
-            level_db = level_db * alpha_smooth + np.log(np.abs(sample)) * (
-                1 - alpha_smooth
-            )
-        output_db = level_db + gain_db
-        diff_db = ref_level_db - output_db
-
-        if level_db <= low_level_db:
-            alpha_adjust = 0.0
-        elif output_db >= high_level_db:
-            alpha_adjust = alpha_overflow
-        elif abs(diff_db) > track_range_db:
-            alpha_adjust = alpha_acquire
-        else:
-            alpha_adjust = alpha_track
-
-        gain_db += diff_db * alpha_adjust
-        output[sample_idx] = data[sample_idx] * np.exp(gain_db)
-
-    return output.astype(torchsig_complex_data_type)
 
 
 def additive_noise(
@@ -236,30 +176,6 @@ def awgn(data: np.ndarray,
     return (data + (10.0 ** (noise_power_db / 20.0)) * (real_noise + 1j * imag_noise) / np.sqrt(2)).astype(torchsig_complex_data_type)
 
 
-def coarse_gain_change(
-    data: np.ndarray,
-    gain_change_db: float,
-    start_idx: int
-) -> np.ndarray:
-    """Implements a large instantaneous jump in receiver gain.
-
-    Args:
-        data (np.ndarray): IQ data.
-        gain_change_db (float): Gain value to change in dB.
-        start_idx (np.ndarray): Start index for IQ data.
-
-    Returns:
-        np.ndarray: IQ data with instantaneous gain change applied.
-
-    """    
-    # convert db to linear units
-    gain_change_linear = 10**(gain_change_db/10)
-
-    data[start_idx:] *= gain_change_linear
-
-    return data.astype(torchsig_complex_data_type)
-
-
 def channel_swap(
     data: np.ndarray
 ) -> np.ndarray:
@@ -310,6 +226,30 @@ def cochannel_interference(
     est_power = np.sum(np.abs(shaped_noise)**2)/len(shaped_noise)
     interference = np.sqrt(power / est_power) * shaped_noise 
     return (data + interference).astype(torchsig_complex_data_type)
+
+
+def coarse_gain_change(
+    data: np.ndarray,
+    gain_change_db: float,
+    start_idx: int
+) -> np.ndarray:
+    """Implements a large instantaneous jump in receiver gain.
+
+    Args:
+        data (np.ndarray): IQ data.
+        gain_change_db (float): Gain value to change in dB.
+        start_idx (np.ndarray): Start index for IQ data.
+
+    Returns:
+        np.ndarray: IQ data with instantaneous gain change applied.
+
+    """    
+    # convert db to linear units
+    gain_change_linear = 10**(gain_change_db/10)
+
+    data[start_idx:] *= gain_change_linear
+
+    return data.astype(torchsig_complex_data_type)
 
 
 def complex_to_2d(data: np.ndarray) -> np.ndarray:
@@ -623,12 +563,13 @@ def iq_imbalance(
     return data.astype(torchsig_complex_data_type)
 
 
-def frequency_mixer_frequency_drift(
+# TODO: correct the ppm implementation from random phase to oscillator frequency stability ppm
+def carrier_frequency_drift(
     data: np.ndarray,
     drift_ppm: float = 1,
     rng: np.random.Generator = np.random.default_rng(seed=None)
 ) -> np.ndarray:
-    """Mixes data with a frequency drifting Local Oscillator (LO), with drift modeled as a random walk.
+    """Carrier frequency drift from a Local Oscillator (LO), with drift modeled as accumulated gaussian random phase.
 
     Args:
         data (np.ndarray): Complex valued IQ data samples.
@@ -659,12 +600,13 @@ def frequency_mixer_frequency_drift(
     return data.astype(torchsig_complex_data_type)
 
 
-def frequency_mixer_phase_noise(
+# TODO: implement additive phase noise frequency profile
+def carrier_phase_noise(
     data: np.ndarray,
     phase_noise_degrees: float = 1.0,
     rng: np.random.Generator = np.random.default_rng(seed=None)
 ) -> np.ndarray:
-    """Mixes data with a Local Oscillator (LO) with phase noise modeled as a Gaussian RV.
+    """Carrier phase noise from a Local Oscillator (LO) with the noise modeled as a Gaussian RV.
 
     Args:
         data (np.ndarray): Complex valued IQ data samples.
@@ -1174,6 +1116,34 @@ def spectrogram_drop_samples(
     return new_data
 
 
+def spectrogram_image(
+    data: np.ndarray,
+    fft_size:int,
+    fft_stride:int,
+    black_hot: bool = True
+) -> np.ndarray:
+    """Creates spectrogram from IQ samples
+
+    Args:
+        data (numpy.ndarray): IQ samples
+        black_hot (bool, optional): toggles black hot spectrogram. Defaults to False (white-hot).
+
+    """
+
+    # compute the spectrogram in dB
+    spectrogram_dB = spectrogram(data, fft_size=fft_size, fft_stride=fft_stride)
+
+    # convert to grey-scale image
+    img = np.zeros((spectrogram_dB.shape[0], spectrogram_dB.shape[1], 3), dtype=np.float32)
+    img = cv2.normalize(spectrogram_dB, img, 0, 255, cv2.NORM_MINMAX)
+    img = cv2.cvtColor(img.astype(np.uint8), cv2.COLOR_GRAY2BGR)
+    
+    if black_hot:
+        img = cv2.bitwise_not(img, img)
+
+    return img
+
+
 def time_reversal(
     data: np.ndarray
 ) -> np.ndarray:
@@ -1245,31 +1215,63 @@ def time_varying_noise(
     return ( data + (10.0 ** (noise_power / 20.0)) * (real_noise + 1j * imag_noise) / np.sqrt(2) ).astype(torchsig_complex_data_type)
 
 
-def spectrogram_image(
+def tracking_agc(
     data: np.ndarray,
-    fft_size:int,
-    fft_stride:int,
-    black_hot: bool = True
+    initial_gain_db: float,
+    alpha_smooth: float,
+    alpha_track: float,
+    alpha_overflow: float,
+    alpha_acquire: float,
+    ref_level_db: float,
+    track_range_db: float,
+    low_level_db: float,
+    high_level_db: float,
 ) -> np.ndarray:
-    """Creates spectrogram from IQ samples
+    """Automatic Gain Control algorithm (deterministic).
 
     Args:
-        data (numpy.ndarray): IQ samples
-        black_hot (bool, optional): toggles black hot spectrogram. Defaults to False (white-hot).
+        data (np.ndarray): IQ data samples.
+        initial_gain_db (float): Inital gain value in dB.
+        alpha_smooth (float): Alpha for avergaing the measure signal level `level_n = level_n * alpha + level_n-1(1-alpha)`
+        alpha_track (float): Amount to adjust gain when in tracking state.
+        alpha_overflow (float): Amount to adjust gain when in overflow state `[level_db + gain_db] >= max_level`.
+        alpha_acquire (float): Amount to adjust gain when in acquire state.
+        ref_level_db (float): Reference level goal for algorithm to achieve, in dB units. 
+        track_range_db (float): dB range for operating in tracking state.
+        low_level_db (float): minimum magnitude value (dB) to perform any gain control adjustment.
+        high_level_db (float): magnitude value (dB) to enter overflow state.
+
+    Returns:
+        np.ndarray: IQ data adjusted sample-by-sample by the AGC algorithm.
 
     """
+    output = np.zeros_like(data)
+    gain_db = initial_gain_db
+    level_db = 0.0
+    for sample_idx, sample in enumerate(data):
+        if not np.abs(sample): # sample == 0
+            level_db = -200
+        elif not sample_idx:  # first sample == 0, no smoothing
+            level_db = np.log(np.abs(sample))
+        else:
+            level_db = level_db * alpha_smooth + np.log(np.abs(sample)) * (
+                1 - alpha_smooth
+            )
+        output_db = level_db + gain_db
+        diff_db = ref_level_db - output_db
 
-    # compute the spectrogram in dB
-    spectrogram_dB = spectrogram(data, fft_size=fft_size, fft_stride=fft_stride)
+        if level_db <= low_level_db:
+            alpha_adjust = 0.0
+        elif output_db >= high_level_db:
+            alpha_adjust = alpha_overflow
+        elif abs(diff_db) > track_range_db:
+            alpha_adjust = alpha_acquire
+        else:
+            alpha_adjust = alpha_track
 
-    # convert to grey-scale image
-    img = np.zeros((spectrogram_dB.shape[0], spectrogram_dB.shape[1], 3), dtype=np.float32)
-    img = cv2.normalize(spectrogram_dB, img, 0, 255, cv2.NORM_MINMAX)
-    img = cv2.cvtColor(img.astype(np.uint8), cv2.COLOR_GRAY2BGR)
-    
-    if black_hot:
-        img = cv2.bitwise_not(img, img)
+        gain_db += diff_db * alpha_adjust
+        output[sample_idx] = data[sample_idx] * np.exp(gain_db)
 
-    return img
+    return output.astype(torchsig_complex_data_type)
 
 
