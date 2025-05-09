@@ -717,7 +717,6 @@ class StaticTorchSigDataset(Dataset):
     Args:
         root (str): The root directory where the dataset is stored.
         impairment_level (int): Defines impairment level 0, 1, 2.
-        dataset_type (str): Type of the dataset, either "narrowband" or "wideband".
         transforms (list, optional): Transforms to apply to the data (default: []).
         target_transforms (list, optional): Target transforms to apply (default: []).
         file_handler_class (TorchSigFileHandler, optional): Class used for reading the dataset (default: ZarrFileHandler).
@@ -727,7 +726,6 @@ class StaticTorchSigDataset(Dataset):
         self,
         root: str,
         impairment_level: int,
-        dataset_type: str,
         transforms: list = [],
         target_transforms: list = [],
         file_handler_class: TorchSigFileHandler = ZarrFileHandler,
@@ -736,7 +734,6 @@ class StaticTorchSigDataset(Dataset):
     ):
         self.root = Path(root)
         self.impairment_level = impairment_level
-        self.dataset_type = dataset_type
         self.transforms = transforms
         self.target_transforms = target_transforms
         self.file_handler = file_handler_class
@@ -745,7 +742,6 @@ class StaticTorchSigDataset(Dataset):
         # create filepath to saved dataset
         # e.g., root/torchsig_narrowband_clean/
         self.full_root = dataset_full_path(
-            dataset_type = self.dataset_type,
             impairment_level = self.impairment_level,
             train = self.train
         )
@@ -844,14 +840,8 @@ class StaticTorchSigDataset(Dataset):
                 if len(self.target_transforms) == 0:
                     # no target transform applied
                     targets = sample.metadata
-                elif self.dataset_type == 'narrowband':
-                    # only one signal in list for narrowband
-                    # unwrap targets
-                    targets = [item[0] if len(item) == 1 else item for row in targets for item in row]
-                    # unwrap any target transform output that produced a tuple
-                    targets = targets[0] if len(targets) == 1 else tuple(targets)
                 else:
-                    # wideband
+                    # list of targets
                     targets = [tuple([item[0] if len(item) == 1 else item for item in row]) for row in targets]
                     # unwrap any target transform output that produced a tuple
                     targets = [row[0] if len(row) == 1 else row for row in targets]
