@@ -383,10 +383,10 @@ class DatasetMetadata(Seedable):
         # organize fields by area
 
         required = {
-            'dataset_type': self._dataset_type,
             'num_iq_samples_dataset': self._num_iq_samples_dataset,
             'impairment_level': self._impairment_level,
-            'fft_size': self._fft_size
+            'fft_size': self._fft_size,
+            'num_signals_max': self._num_signals_max
         }
 
         overrides = {
@@ -410,7 +410,6 @@ class DatasetMetadata(Seedable):
 
         # dataset information
         dataset_info = {
-            'dataset_type': self._dataset_type,
             'num_samples': "infinite" if self._num_samples is None else self._num_samples,
             'num_iq_samples_dataset': self._num_iq_samples_dataset,
             'fft_size': self._fft_size,
@@ -451,8 +450,6 @@ class DatasetMetadata(Seedable):
             'signals': signal_gen,
         }
 
-        if self._dataset_type == "wideband":
-            required["num_signals_max"] = self._num_signals_max
 
         return {
             'required': required,
@@ -777,15 +774,6 @@ class DatasetMetadata(Seedable):
             int: The number of samples in the dataset, or a representation of infinite samples if set to `None`.
         """
         return self._num_samples
-
-    @property
-    def dataset_type(self) -> str:
-        """Type of dataset.
-
-        Returns:
-            str: Dataset type name
-        """        
-        return self._dataset_type
 
     @property
     def noise_power_db(self) -> float:
