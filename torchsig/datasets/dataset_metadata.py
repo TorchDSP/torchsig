@@ -67,7 +67,7 @@ class DatasetMetadata(Seedable):
         impairment_level: int,
         num_signals_max: int, 
         sample_rate: float = 10e6, 
-        num_signals_min: int = 0,
+        num_signals_min: int = 1,
         num_signals_distribution: np.ndarray | List[float]= None,
         snr_db_min: float = 0.0,
         snr_db_max: float = 50.0,
@@ -92,7 +92,7 @@ class DatasetMetadata(Seedable):
             fft_size (int): Size of FFT (number of bins) to be used in spectrogram.
             impairment_level (int): Signal impairment level.
             sample_rate (float, optional): Sample rate for dataset. Defaults to 10e6.
-            num_signals_min (int, optional): Minimum number of signals per sample. Defaults to 0.
+            num_signals_min (int, optional): Minimum number of signals per sample. Defaults to 1.
             num_signals_max (int): Maximum number of signals per sample in dataset.
             num_signals_distribution (np.ndarray | List[float], optional): Probability to generate sample with N signals 
                 for each value in `[num_signals_min, num_signals_max]`. Defaults to None (uniform).
