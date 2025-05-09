@@ -169,7 +169,10 @@ def to_dataset_metadata(dataset_metadata: DatasetMetadata | str | dict):
         # check that yaml file has minimum required params
         if "required" not in dataset_metadata.keys():
             raise ValueError("Invalid dataset_metadata. Does not have required field.")
-        
+
+        # create metadata object
+        metadata = DatasetMetadata
+
         # Validate minimum parameters given in yaml to instantiate
         for min_param in metadata.minimum_params:
             if min_param not in dataset_metadata['required'].keys():
