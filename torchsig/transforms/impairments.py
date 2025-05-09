@@ -3,8 +3,7 @@
 
 # TorchSig
 from torchsig.transforms.base_transforms import Compose, Transform
-from torchsig.transforms.signal_transforms import SignalTransform
-from torchsig.transforms.dataset_transforms import DatasetTransform
+from torchsig.transforms.transforms import SignalTransform
 
 # Built-In
 from typing import List
@@ -36,7 +35,6 @@ class Impairments(Transform):
     def __init__(
         self, 
         all_levels_signal_transforms: List[SignalTransform], 
-        all_levels_dataset_transforms: List[DatasetTransform],
         level: int, 
         **kwargs
     ): 
@@ -46,5 +44,5 @@ class Impairments(Transform):
 
         self.signal_transforms = Compose(transforms = all_levels_signal_transforms[self.level])
         self.signal_transforms.add_parent(self)
-        self.dataset_transforms = Compose(transforms = all_levels_dataset_transforms[self.level])
+        self.dataset_transforms = Compose(transforms = all_levels_signal_transforms[self.level])
         self.dataset_transforms.add_parent(self)

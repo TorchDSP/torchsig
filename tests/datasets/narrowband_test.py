@@ -15,7 +15,7 @@ from torchsig.transforms.target_transforms import (
     SNR,
     YOLOLabel
 )
-from torchsig.transforms.dataset_transforms import Spectrogram
+from torchsig.transforms.transforms import Spectrogram
 
 import numpy as np
 import matplotlib.pyplot as plt

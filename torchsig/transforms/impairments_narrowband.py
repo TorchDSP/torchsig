@@ -20,24 +20,16 @@ Example:
 # TorchSig
 from torchsig.transforms.impairments import Impairments
 from torchsig.transforms.base_transforms import RandomApply
-from torchsig.transforms.signal_transforms import (
-    IQImbalanceSignalTransform,
-    CarrierFrequencyDriftSignalTransform,
-    CarrierPhaseNoiseSignalTransform,
-    CarrierPhaseOffsetSignalTransform,
+from torchsig.transforms.transforms import (
+    CarrierFrequencyDrift,
+    CarrierPhaseNoise,
+    CarrierPhaseOffset,    
+    CoarseGainChange,
     Fading,
-    SpectralInversionSignalTransform,
-    QuantizeSignalTransform,
-    IntermodulationProductsSignalTransform
-)
-from torchsig.transforms.dataset_transforms import (
-    IQImbalanceDatasetTransform,
-    CarrierFrequencyDriftDatasetTransform,    
-    CarrierPhaseNoiseDatasetTransform,
-    CarrierPhaseOffsetDatasetTransform,
-    SpectralInversionDatasetTransform,
-    QuantizeDatasetTransform,
-    CoarseGainChange
+    IntermodulationProducts,
+    IQImbalance,
+    Quantize,
+    SpectralInversion
 )
 
 # Third Party
@@ -57,18 +49,18 @@ class NarrowbandImpairments(Impairments):
         # Narrowband Signal Transforms
         ST_level_0 = []
         ST_level_1 = [
-            IQImbalanceSignalTransform(),
-            CarrierPhaseOffsetSignalTransform()
+            IQImbalance(),
+            CarrierPhaseOffset()
         ]
         ST_level_2 = [
-            RandomApply(IQImbalanceSignalTransform(),0.25),
+            RandomApply(IQImbalance(),0.25),
             RandomApply(Fading(), 0.5),
-            RandomApply(CarrierPhaseOffsetSignalTransform(),1.0),
-            RandomApply(SpectralInversionSignalTransform(), 0.25),
-            RandomApply(CarrierPhaseNoiseSignalTransform(), 0.5),
-            RandomApply(CarrierFrequencyDriftSignalTransform(), 0.5),
-            RandomApply(QuantizeSignalTransform(), 0.5),
-            RandomApply(IntermodulationProductsSignalTransform(), 0.5),
+            RandomApply(CarrierPhaseOffset(),1.0),
+            RandomApply(SpectralInversion(), 0.25),
+            RandomApply(CarrierPhaseNoise(), 0.5),
+            RandomApply(CarrierFrequencyDrift(), 0.5),
+            RandomApply(Quantize(), 0.5),
+            RandomApply(IntermodulationProducts(), 0.5),
         ]
         
         ST_all_levels = [
@@ -82,16 +74,16 @@ class NarrowbandImpairments(Impairments):
         
         ]
         DT_level_1 = [
-            IQImbalanceDatasetTransform(),
-            CarrierPhaseOffsetDatasetTransform()
+            IQImbalance(),
+            CarrierPhaseOffset()
         ]
         DT_level_2 = [
-            RandomApply(IQImbalanceDatasetTransform(),0.5),
-            RandomApply(CarrierPhaseOffsetDatasetTransform(), 1.0),
-            RandomApply(SpectralInversionDatasetTransform(), 0.5),
-            RandomApply(CarrierPhaseNoiseDatasetTransform(), 0.5),
-            RandomApply(CarrierFrequencyDriftDatasetTransform(), 0.5),
-            RandomApply(QuantizeDatasetTransform(), 1.0),
+            RandomApply(IQImbalance(),0.5),
+            RandomApply(CarrierPhaseOffset(), 1.0),
+            RandomApply(SpectralInversion(), 0.5),
+            RandomApply(CarrierPhaseNoise(), 0.5),
+            RandomApply(CarrierFrequencyDrift(), 0.5),
+            RandomApply(Quantize(), 1.0),
             RandomApply(CoarseGainChange(),0.1)
         ]
         

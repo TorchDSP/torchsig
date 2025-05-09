@@ -20,7 +20,7 @@ from torchsig.utils.printing import generate_repr_str
 
 # Third Party
 from abc import ABC
-from typing import Callable, List, Literal, Optional
+from typing import Callable, List, Literal, Optional, Union
 
 
 class Transform(ABC, Seedable):
@@ -36,7 +36,7 @@ class Transform(ABC, Seedable):
         self.measure = measure  # optional measurement mode
         Seedable.__init__(self, **kwargs)
 
-    def update(self, signal: Signal | DatasetSignal) -> None:   
+    def update(self, signal: Union[Signal, DatasetSignal]) -> None:   
         """Update bookeeping for signals
 
         Args:
@@ -47,7 +47,7 @@ class Transform(ABC, Seedable):
         """         
         raise NotImplementedError
 
-    def __call__(self, signal: Signal | DatasetSignal) -> Signal | DatasetSignal:
+    def __call__(self, signal: Union[Signal, DatasetSignal]) -> Union[Signal, DatasetSignal]:
         """Performs transforms
 
         Args:

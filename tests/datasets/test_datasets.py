@@ -16,7 +16,7 @@ from torchsig.transforms.target_transforms import (
     YOLOLabel,
     FamilyName,
 )
-from torchsig.transforms.dataset_transforms import Spectrogram
+from torchsig.transforms.transforms import Spectrogram
 from torchsig.utils.dsp import (
     torchsig_complex_data_type,
     torchsig_float_data_type
