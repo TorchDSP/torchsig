@@ -21,7 +21,6 @@ from torchsig.utils.printing import (
 )
 from torchsig.transforms.impairments import Impairments
 from torchsig.transforms.impairments_wideband import WidebandImpairments
-from torchsig.transforms.impairments_narrowband import NarrowbandImpairments
 
 # Third Party
 import numpy as np
