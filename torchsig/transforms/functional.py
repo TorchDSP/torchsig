@@ -494,7 +494,7 @@ def fading(
 
 def intermodulation_products(
     data: np.ndarray,
-    coeffs: np.ndarray = np.array([1.0, 0.0, 1.0])
+    coeffs: np.ndarray = np.array([1.0, 0.0, 0.1])
 ) -> np.ndarray:
     """Pass IQ data through an optimized memoryless nonlinear response model
     that creates local intermodulation distortion (IMD) products. Note that
