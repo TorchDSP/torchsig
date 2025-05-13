@@ -909,8 +909,12 @@ def quantize(
     quant_level_distance = quant_levels[1]-quant_levels[0]
 
     # determine threshold levels
-    threshold_levels = quant_levels + (quant_level_distance/2) # ceiling
-    # threshold_levels = quant_levels - (quant_level_distance/2) # floor # TODO: enable switch!
+    if (rounding_mode == 'floor'):
+        threshold_levels = quant_levels + (quant_level_distance/2)
+    elif (rounding_mode == 'ceiling'):
+        threshold_levels = quant_levels - (quant_level_distance/2) # ceiling # TODO: enable switch!
+    else:
+        raise ValueError(f'quantize() rounding mode is: {rounding_mode}, must be ceiling or floor')
 
     # determine maximum value of signal amplitude
     max_value_signal_real = np.max(np.abs(data.real))
