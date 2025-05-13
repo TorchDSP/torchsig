@@ -15,6 +15,8 @@ from scipy import signal as sp
 import numpy as np
 from scipy.constants import c
 import cv2
+from copy import copy
+
 
 __all__ = [
     "add_slope",
@@ -992,8 +994,8 @@ def spectral_inversion(
         np.ndarray: Spectrally inverted data.
 
     """
-    data.imag *= -1
-    return data
+    # apply conjugation to perform spectral inversion
+    return np.conj(data)
 
 
 def spectrogram(
