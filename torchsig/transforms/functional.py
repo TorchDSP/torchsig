@@ -873,7 +873,8 @@ def phase_offset(
 def quantize(
     data: np.ndarray,
     num_bits: int,
-    ref_level_adjustment_db: float = 0.0
+    ref_level_adjustment_db: float = 0.0,
+    rounding_mode: str = 'floor'
 ) -> np.ndarray:
     """Quantize input to number of levels specified.
 
@@ -885,6 +886,7 @@ def quantize(
         ref_level_adjustment_db (float): Changes the relative scaling of the input. For example, ref_level_adjustment_db = 3.0,
             the average power is now 3 dB *above* full scale and into saturation. For ref_level_adjustment_db = -3.0, the average
             power is now 3 dB *below* full scale and simulates a loss of dynamic range. Default is 0.
+        rouding_mode (str): Represents either rounding to 'floor' or 'ceiling'. Default is 'floor'.
 
     Raises:
         ValueError: Invalid round type.
@@ -894,6 +896,9 @@ def quantize(
 
     """
 
+    if (not isinstance(num_bits,int)):
+        raise ValueError('quantize() num_bits must be an integer.')
+
     # calculate number of levels
     num_levels = int(2**num_bits)
 
@@ -902,6 +907,14 @@ def quantize(
 
     # the distance between two quantization levels
     quant_level_distance = quant_levels[1]-quant_levels[0]
+
+    # determine threshold levels
+    if (rounding_mode == 'floor'):
+        threshold_levels = quant_levels + (quant_level_distance/2)
+    elif (rounding_mode == 'ceiling'):
+        threshold_levels = quant_levels - (quant_level_distance/2) # ceiling # TODO: enable switch!
+    else:
+        raise ValueError(f'quantize() rounding mode is: {rounding_mode}, must be ceiling or floor')
 
     # determine maximum value of signal amplitude
     max_value_signal_real = np.max(np.abs(data.real))
@@ -924,30 +937,30 @@ def quantize(
     input_signal_scaled_imag = input_signal_scaled.imag
 
     # check for saturated values minimum
-    real_saturation_neg_index = np.where(input_signal_scaled_real <= quant_levels[0])[0]
-    imag_saturation_neg_index = np.where(input_signal_scaled_imag <= quant_levels[0])[0]
+    real_saturation_neg_index = np.where(input_signal_scaled_real <= threshold_levels[0])[0]
+    imag_saturation_neg_index = np.where(input_signal_scaled_imag <= threshold_levels[0])[0]
     quant_signal_real[real_saturation_neg_index] = quant_levels[0]
     quant_signal_imag[imag_saturation_neg_index] = quant_levels[0]
 
     # check for saturated values maximum
-    real_saturation_pos_index = np.where(input_signal_scaled_real >= quant_levels[-1])[0]
-    imag_saturation_pos_index = np.where(input_signal_scaled_imag >= quant_levels[-1])[0]
+    real_saturation_pos_index = np.where(input_signal_scaled_real >= threshold_levels[-1])[0]
+    imag_saturation_pos_index = np.where(input_signal_scaled_imag >= threshold_levels[-1])[0]
     quant_signal_real[real_saturation_pos_index] = quant_levels[-1]
     quant_signal_imag[imag_saturation_pos_index] = quant_levels[-1]
 
     # calculate which remaining indicies have not yet been quantized
     all_index = np.arange(0,len(data))
-    remaining_index = np.setdiff1d(all_index,       real_saturation_neg_index)
-    remaining_index = np.setdiff1d(remaining_index, imag_saturation_neg_index)
-    remaining_index = np.setdiff1d(remaining_index, real_saturation_pos_index)
-    remaining_index = np.setdiff1d(remaining_index, imag_saturation_pos_index)
+    remaining_real_index = np.setdiff1d(all_index,            real_saturation_neg_index)
+    remaining_real_index = np.setdiff1d(remaining_real_index, real_saturation_pos_index)
+    remaining_imag_index = np.setdiff1d(all_index,            imag_saturation_neg_index)
+    remaining_imag_index = np.setdiff1d(remaining_imag_index, imag_saturation_pos_index)
 
     # quantize all other levels. by default implements "ceiling"
-    real_index_subset = np.digitize( input_signal_scaled_real[remaining_index], quant_levels)
-    imag_index_subset = np.digitize( input_signal_scaled_imag[remaining_index], quant_levels)
+    real_index_subset = np.digitize( input_signal_scaled_real[remaining_real_index], threshold_levels)
+    imag_index_subset = np.digitize( input_signal_scaled_imag[remaining_imag_index], threshold_levels)
 
-    quant_signal_real[remaining_index] = quant_levels[real_index_subset]
-    quant_signal_imag[remaining_index] = quant_levels[imag_index_subset]
+    quant_signal_real[remaining_real_index] = quant_levels[real_index_subset]
+    quant_signal_imag[remaining_imag_index] = quant_levels[imag_index_subset]
 
     # form the quantized IQ samples
     quantized_data = quant_signal_real + 1j*quant_signal_imag

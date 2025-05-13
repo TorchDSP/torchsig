@@ -973,15 +973,16 @@ class Quantize(SignalTransform):
     Attributes:
         num_levels: Number of quantization levels.
         num_levels_distribution (Callable[[], int]): Random draw from num_levels distribution.
-        round_type (str, List[str]): Quantization rounding method. Must be 'floor', 
-                'nearest' or 'ceiling'. Defaults to 'ceiling'.
-        round_type_distribution (Callable[[], str]): Random draw from round_type distribution.
+        rounding_mode (str, List[str]): Quantization rounding method. Must be 'floor'
+                or 'ceiling'.
+        rounding_mode_distribution (Callable[[], str]): Random draw from rounding_mode distribution.
     
     """
     def __init__(
         self,
         num_bits:  Tuple[int, int] = (6, 18),
         ref_level_adjustment_db:  Tuple[float, float] = (-10, 3),
+        rounding_mode: List[str] = ['floor', 'ceiling'],
         **kwargs
     ):
         super().__init__(**kwargs)
@@ -989,16 +990,20 @@ class Quantize(SignalTransform):
         self.num_bits_distribution = self.get_distribution(self.num_bits)
         self.ref_level_adjustment_db = ref_level_adjustment_db
         self.ref_level_adjustment_db_distribution = self.get_distribution(self.ref_level_adjustment_db)
+        self.rounding_mode = rounding_mode
+        self.rounding_mode_distribution = self.get_distribution(self.rounding_mode)
         
     def __call__(self, signal: Union[Signal, DatasetSignal]) -> Union[Signal, DatasetSignal]:
-        num_bits = self.num_bits_distribution()
+        num_bits = int(self.num_bits_distribution())
         ref_level_adjustment_db = self.ref_level_adjustment_db_distribution()
+        rounding_mode = self.rounding_mode_distribution()
 
         # apply quantization
         signal.data = F.quantize(
             data = signal.data,
             num_bits = num_bits,
-            ref_level_adjustment_db = ref_level_adjustment_db
+            ref_level_adjustment_db = ref_level_adjustment_db,
+            rounding_mode = rounding_mode,
         )
         signal.data = signal.data.astype(torchsig_complex_data_type)
         self.update(signal)
