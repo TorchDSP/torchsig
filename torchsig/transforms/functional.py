@@ -249,9 +249,11 @@ def coarse_gain_change(
     # convert db to linear units
     gain_change_linear = 10**(gain_change_db/10)
 
-    data[start_idx:] *= gain_change_linear
+    # create copy of signal
+    output_data = copy(data)
+    output_data[start_idx:] *= gain_change_linear
 
-    return data.astype(torchsig_complex_data_type)
+    return output_data.astype(torchsig_complex_data_type)
 
 
 def complex_to_2d(data: np.ndarray) -> np.ndarray:
