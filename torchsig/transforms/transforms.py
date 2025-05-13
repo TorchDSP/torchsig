@@ -724,7 +724,7 @@ class IntermodulationProducts(SignalTransform):
     def __init__(
         self,
         model_order: List[int] = [3, 5],
-        coeffs_range: Tuple[float, float] = (1e-7, 1e-5),
+        coeffs_range: Tuple[float, float] = (1e-4, 1e-1),
         **kwargs
     ):  
         super().__init__(**kwargs)
