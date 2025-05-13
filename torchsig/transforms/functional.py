@@ -896,6 +896,9 @@ def quantize(
 
     """
 
+    if (not isinstance(num_bits,int)):
+        raise ValueError('quantize() num_bits must be an integer.')
+
     # calculate number of levels
     num_levels = int(2**num_bits)
 
