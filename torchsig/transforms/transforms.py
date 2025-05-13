@@ -991,7 +991,7 @@ class Quantize(SignalTransform):
         self.ref_level_adjustment_db_distribution = self.get_distribution(self.ref_level_adjustment_db)
         
     def __call__(self, signal: Union[Signal, DatasetSignal]) -> Union[Signal, DatasetSignal]:
-        num_bits = self.num_bits_distribution()
+        num_bits = int(self.num_bits_distribution())
         ref_level_adjustment_db = self.ref_level_adjustment_db_distribution()
 
         # apply quantization
