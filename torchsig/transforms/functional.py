@@ -873,7 +873,8 @@ def phase_offset(
 def quantize(
     data: np.ndarray,
     num_bits: int,
-    ref_level_adjustment_db: float = 0.0
+    ref_level_adjustment_db: float = 0.0,
+    rounding_mode: str = 'floor'
 ) -> np.ndarray:
     """Quantize input to number of levels specified.
 
@@ -885,6 +886,7 @@ def quantize(
         ref_level_adjustment_db (float): Changes the relative scaling of the input. For example, ref_level_adjustment_db = 3.0,
             the average power is now 3 dB *above* full scale and into saturation. For ref_level_adjustment_db = -3.0, the average
             power is now 3 dB *below* full scale and simulates a loss of dynamic range. Default is 0.
+        rouding_mode (str): Represents either rounding to 'floor' or 'ceiling'. Default is 'floor'.
 
     Raises:
         ValueError: Invalid round type.
@@ -935,19 +937,33 @@ def quantize(
     quant_signal_real[real_saturation_pos_index] = quant_levels[-1]
     quant_signal_imag[imag_saturation_pos_index] = quant_levels[-1]
 
-    # calculate which remaining indicies have not yet been quantized
-    all_index = np.arange(0,len(data))
-    remaining_index = np.setdiff1d(all_index,       real_saturation_neg_index)
-    remaining_index = np.setdiff1d(remaining_index, imag_saturation_neg_index)
-    remaining_index = np.setdiff1d(remaining_index, real_saturation_pos_index)
-    remaining_index = np.setdiff1d(remaining_index, imag_saturation_pos_index)
+    # loop over all quantization levels
+    for quant_index in range(len(quant_levels)-1):
 
-    # quantize all other levels. by default implements "ceiling"
-    real_index_subset = np.digitize( input_signal_scaled_real[remaining_index], quant_levels)
-    imag_index_subset = np.digitize( input_signal_scaled_imag[remaining_index], quant_levels)
+        # pick the lower and upper quant levels
+        lower_level = quant_levels[quant_index]
+        upper_level = quant_levels[quant_index+1]
 
-    quant_signal_real[remaining_index] = quant_levels[real_index_subset]
-    quant_signal_imag[remaining_index] = quant_levels[imag_index_subset]
+        # find which real samples are within range
+        real_above_lower_index = np.where(input_signal_scaled_real >= lower_level)[0]
+        real_below_upper_index = np.where(input_signal_scaled_real <= upper_level)[0]
+        real_index = np.intersect1d(real_above_lower_index,real_below_upper_index)
+        #print('real index = ' + str(real_index))
+
+        # find which imag samples are within range
+        imag_above_lower_index = np.where(input_signal_scaled_imag >= lower_level)[0]
+        imag_below_upper_index = np.where(input_signal_scaled_imag <= upper_level)[0]
+        imag_index = np.intersect1d(imag_above_lower_index,imag_below_upper_index)
+
+        # set the quantization level
+        if (rounding_mode.lower() == 'ceiling'):
+            quant_signal_real[real_index] = upper_level
+            quant_signal_imag[imag_index] = upper_level
+        elif (rounding_mode.lower() == 'floor'):
+            quant_signal_real[real_index] = lower_level
+            quant_signal_imag[imag_index] = lower_level
+        else:
+            raise ValueError('Quantization rounding_mode must be ceiling or floor.')
 
     # form the quantized IQ samples
     quantized_data = quant_signal_real + 1j*quant_signal_imag
