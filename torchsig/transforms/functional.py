@@ -909,8 +909,8 @@ def quantize(
     quant_level_distance = quant_levels[1]-quant_levels[0]
 
     # determine threshold levels
-    threshold_levels = quant_levels + (quant_level_distance/2)
-    # threshold_levels = quant_levels - (quant_level_distance/2) # TODO: enable switch!
+    threshold_levels = quant_levels + (quant_level_distance/2) # ceiling
+    # threshold_levels = quant_levels - (quant_level_distance/2) # floor # TODO: enable switch!
 
     # determine maximum value of signal amplitude
     max_value_signal_real = np.max(np.abs(data.real))
@@ -946,17 +946,17 @@ def quantize(
 
     # calculate which remaining indicies have not yet been quantized
     all_index = np.arange(0,len(data))
-    remaining_index = np.setdiff1d(all_index,       real_saturation_neg_index)
-    remaining_index = np.setdiff1d(remaining_index, imag_saturation_neg_index)
-    remaining_index = np.setdiff1d(remaining_index, real_saturation_pos_index)
-    remaining_index = np.setdiff1d(remaining_index, imag_saturation_pos_index)
+    remaining_real_index = np.setdiff1d(all_index,            real_saturation_neg_index)
+    remaining_real_index = np.setdiff1d(remaining_real_index, real_saturation_pos_index)
+    remaining_imag_index = np.setdiff1d(all_index,            imag_saturation_neg_index)
+    remaining_imag_index = np.setdiff1d(remaining_imag_index, imag_saturation_pos_index)
 
     # quantize all other levels. by default implements "ceiling"
-    real_index_subset = np.digitize( input_signal_scaled_real[remaining_index], threshold_levels)
-    imag_index_subset = np.digitize( input_signal_scaled_imag[remaining_index], threshold_levels)
+    real_index_subset = np.digitize( input_signal_scaled_real[remaining_real_index], threshold_levels)
+    imag_index_subset = np.digitize( input_signal_scaled_imag[remaining_imag_index], threshold_levels)
 
-    quant_signal_real[remaining_index] = quant_levels[real_index_subset]
-    quant_signal_imag[remaining_index] = quant_levels[imag_index_subset]
+    quant_signal_real[remaining_real_index] = quant_levels[real_index_subset]
+    quant_signal_imag[remaining_imag_index] = quant_levels[imag_index_subset]
 
     # form the quantized IQ samples
     quantized_data = quant_signal_real + 1j*quant_signal_imag
