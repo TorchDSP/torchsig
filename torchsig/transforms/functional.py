@@ -588,14 +588,14 @@ def carrier_frequency_drift(
     # convert drift PPM units
     drift = drift_ppm * 1e-6
 
-    # generate a random phase with appropriate standard deviation
-    random_phase = rng.normal(0,drift,N)
+    # randomize the instantaneous change in frequency
+    frequency_drift = rng.normal(0,drift,N)
 
-    # accumulate the phase into a frequency
-    frequency = np.cumsum(random_phase)
+    # accumulate the changes into the frequency
+    carrier_phase = np.cumsum(frequency_drift)
 
     # frequency drift effect now contained within the complex sinusoid
-    drift_effect = np.exp(2j * np.pi * frequency)
+    drift_effect = np.exp(2j * np.pi * carrier_phase)
 
     # apply frequency drift effect
     data = data * drift_effect
