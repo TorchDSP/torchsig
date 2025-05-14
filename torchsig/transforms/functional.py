@@ -604,7 +604,6 @@ def carrier_frequency_drift(
     return data.astype(torchsig_complex_data_type)
 
 
-# TODO: implement additive phase noise frequency profile
 def carrier_phase_noise(
     data: np.ndarray,
     phase_noise_degrees: float = 1.0,
@@ -625,7 +624,7 @@ def carrier_phase_noise(
     N = data.size
 
     # generate phase noise with given standard deviation
-    phase_noise_degrees_array = rng.normal(0,phase_noise_degrees,N)
+    phase_noise_degrees_array = rng.normal(0,phase_noise_degrees/2,N)
 
     # convert to radians
     phase_noise_radians_array = phase_noise_degrees_array * np.pi / 180
