@@ -911,7 +911,7 @@ def quantize(
     if (rounding_mode == 'floor'):
         threshold_levels = quant_levels + (quant_level_distance/2)
     elif (rounding_mode == 'ceiling'):
-        threshold_levels = quant_levels - (quant_level_distance/2) # ceiling # TODO: enable switch!
+        threshold_levels = quant_levels - (quant_level_distance/2)
     else:
         raise ValueError(f'quantize() rounding mode is: {rounding_mode}, must be ceiling or floor')
 
@@ -923,7 +923,7 @@ def quantize(
     # convert the reference level adjustment into a linear value.
     # +3 dB -> 3 dB above max scaling (saturation)
     # -3 dB -> 3 dB below max scaling (dynamic range loss)
-    ref_level_adjustment_linear = 10**(ref_level_adjustment_db/10)
+    ref_level_adjustment_linear = 10**(ref_level_adjustment_db/20)
  
     # scale the input signal
     input_signal_scaled = data * ref_level_adjustment_linear / max_value_signal
