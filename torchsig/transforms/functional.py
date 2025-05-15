@@ -1233,15 +1233,15 @@ def time_varying_noise(
 
 def digital_agc(
     data: np.ndarray,
-    initial_gain_db: float,
-    alpha_smooth: float,
-    alpha_track: float,
-    alpha_overflow: float,
-    alpha_acquire: float,
-    ref_level_db: float,
-    track_range_db: float,
-    low_level_db: float,
-    high_level_db: float,
+    initial_gain_db: float = 0.0,
+    alpha_smooth: float = 1e-4,
+    alpha_track: float = 1e-3,
+    alpha_overflow: float = 0.1,
+    alpha_acquire: float = 1e-3,
+    ref_level_db: float = 0.0,
+    track_range_db: float = 1.0,
+    low_level_db: float = -80,
+    high_level_db: float = 10
 ) -> np.ndarray:
     """Automatic Gain Control algorithm (deterministic).
 
