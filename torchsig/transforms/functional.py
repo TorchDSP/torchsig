@@ -48,7 +48,7 @@ __all__ = [
     "spectrogram_image",
     "time_reversal",
     "time_varying_noise",
-    "tracking_agc"    
+    "digital_agc"    
 ]
 
 
@@ -1231,7 +1231,7 @@ def time_varying_noise(
     return ( data + (10.0 ** (noise_power / 20.0)) * (real_noise + 1j * imag_noise) / np.sqrt(2) ).astype(torchsig_complex_data_type)
 
 
-def tracking_agc(
+def digital_agc(
     data: np.ndarray,
     initial_gain_db: float,
     alpha_smooth: float,

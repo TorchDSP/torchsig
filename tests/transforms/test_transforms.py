@@ -30,7 +30,7 @@ from torchsig.transforms.transforms import (
     SpectrogramImage,
     TimeReversal,
     TimeVaryingNoise,
-    TrackingAGC
+    DigitalAGC
 )
 from torchsig.signals.signal_types import Signal, DatasetSignal
 from torchsig.utils.dsp import (
@@ -1806,16 +1806,16 @@ def test_TimeVaryingNoise(
         False
     )
 ])
-def test_TrackingAGC(
+def test_DigitalAGC(
     signal: Union[Signal, DatasetSignal], 
     params: dict, 
     is_error: bool
 ) -> None:
-    """Test the TrackingAGC transform with pytest.
+    """Test the DigitalAGC transform with pytest.
 
     Args:
         signal (Union[Signal, DatasetSignal]): input dataset.
-        params (dict): AGC parameters (see TrackingAGC description).
+        params (dict): AGC parameters (see DigitalAGC description).
         is_error (bool): Is a test error expected. 
 
     Raises:
@@ -1824,7 +1824,7 @@ def test_TrackingAGC(
     """
     if is_error:
         with pytest.raises(Exception, match=r".*"):
-            T = TrackingAGC(
+            T = DigitalAGC(
                 rand_scale      = params['rand_scale'],
                 initial_gain_db = params['initial_gain_db'],
                 alpha_smooth    = params['alpha_smooth'],
@@ -1839,7 +1839,7 @@ def test_TrackingAGC(
             )
             signal = T(signal)
     else:
-        T = TrackingAGC(
+        T = DigitalAGC(
             rand_scale      = params['rand_scale'],
             initial_gain_db = params['initial_gain_db'],
             alpha_smooth    = params['alpha_smooth'],
@@ -1855,7 +1855,7 @@ def test_TrackingAGC(
         signal_test = deepcopy(signal)
         signal = T(signal)
 
-        assert isinstance(T, TrackingAGC)
+        assert isinstance(T, DigitalAGC)
         assert isinstance(T.initial_gain_db, float)
         assert isinstance(T.alpha_smooth, float)
         assert isinstance(T.alpha_track, float)

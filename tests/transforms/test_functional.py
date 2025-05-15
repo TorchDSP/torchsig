@@ -30,7 +30,7 @@ from torchsig.transforms.functional import (
     spectrogram_drop_samples,
     time_reversal,
     time_varying_noise,
-    tracking_agc,
+    digital_agc,
 )
 from test_transforms_utils import (
     generate_test_signal,
@@ -1774,7 +1774,7 @@ def test_time_varying_noise(
         False
     )
 ])
-def test_tracking_agc(
+def test_digital_agc(
     data: Any, 
     params: dict, 
     expected: bool | TypeError, 
@@ -1794,7 +1794,7 @@ def test_tracking_agc(
     """
     if is_error:
         with pytest.raises(expected): 
-            data = tracking_agc(
+            data = digital_agc(
                 data,
                 initial_gain_db = params['initial_gain_db'],
                 alpha_smooth    = params['alpha_smooth'],
@@ -1810,7 +1810,7 @@ def test_tracking_agc(
         reference_level = params['ref_level']
         data_type = type(data)
 
-        data = tracking_agc(
+        data = digital_agc(
             data,
             initial_gain_db = params['initial_gain_db'],
             alpha_smooth    = params['alpha_smooth'],

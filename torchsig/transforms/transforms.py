@@ -31,7 +31,7 @@ __all__ = [
     "SpectrogramImage",
     "TimeReversal",
     "TimeVaryingNoise",
-    "TrackingAGC"
+    "DigitalAGC"
 ]
 
 # TorchSig
@@ -1375,7 +1375,7 @@ class TimeVaryingNoise(SignalTransform):
         return signal
 
 
-class TrackingAGC(SignalTransform):
+class DigitalAGC(SignalTransform):
     """Automatic Gain Control performing sample-by-sample AGC algorithm.
 
     Attributes:
@@ -1450,7 +1450,7 @@ class TrackingAGC(SignalTransform):
             size = 1
         )[0]
 
-        signal.data = F.tracking_agc(
+        signal.data = F.digital_agc(
             np.ascontiguousarray(signal.data, dtype=np.complex64),
             np.float64(self.initial_gain_db),
             np.float64(alpha_smooth),
