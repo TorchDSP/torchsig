@@ -1774,34 +1774,24 @@ def test_TimeVaryingNoise(
     (
         new_test_signal(),
         { 
-            'rand_scale'      : (1.0, 10.0),
-            'initial_gain_db' : 0.0,
-            'alpha_smooth'    : 0.00004,
-            'alpha_track'     : 0.0004,
-            'alpha_overflow'  : 0.3,
-            'alpha_acquire'   : 0.04,
-            'ref_level'       : 1.0,
-            'ref_level_db'    : np.log(1.0),
-            'track_range_db'  : 1.0,
-            'low_level_db'    : -80.0,
-            'high_level_db'   : 6.0
+            'initial_gain_db' : (-3,3),
+            'alpha_smooth'    : (1e-5,1e-3),
+            'alpha_track'     : (1e-4,1e-2),
+            'alpha_overflow'  : (1e-1,3e-1),
+            'alpha_acquire'   : (1e-4,1e-3),
+            'track_range_db'  : (0.5,2),
         },
         False
     ),
     (
         new_test_ds_signal(),
         { 
-            'rand_scale'      : (1.0, 8.0),
-            'initial_gain_db' : 2.0,
-            'alpha_smooth'    : 0.1,
-            'alpha_track'     : np.log(1.1),
-            'alpha_overflow'  : np.log(1.1),
-            'alpha_acquire'   : np.log(1.1),
-            'ref_level'       : 10.0,
-            'ref_level_db'    : np.log(10.0),
-            'track_range_db'  : np.log(4.0),
-            'low_level_db'    : -200.0,
-            'high_level_db'   : 200.0
+            'initial_gain_db' : (-3,3),
+            'alpha_smooth'    : (1e-5,1e-3),
+            'alpha_track'     : (1e-4,1e-2),
+            'alpha_overflow'  : (1e-1,3e-1),
+            'alpha_acquire'   : (1e-4,1e-3),
+            'track_range_db'  : (0.5,2),
         },
         False
     )
@@ -1825,46 +1815,29 @@ def test_DigitalAGC(
     if is_error:
         with pytest.raises(Exception, match=r".*"):
             T = DigitalAGC(
-                rand_scale      = params['rand_scale'],
                 initial_gain_db = params['initial_gain_db'],
                 alpha_smooth    = params['alpha_smooth'],
                 alpha_track     = params['alpha_track'],
                 alpha_overflow  = params['alpha_overflow'],
                 alpha_acquire   = params['alpha_acquire'],
-                ref_level_db    = params['ref_level_db'],
                 track_range_db  = params['track_range_db'],
-                low_level_db    = params['low_level_db'],
-                high_level_db   = params['high_level_db'],
                 seed = 42
             )
             signal = T(signal)
     else:
         T = DigitalAGC(
-            rand_scale      = params['rand_scale'],
             initial_gain_db = params['initial_gain_db'],
             alpha_smooth    = params['alpha_smooth'],
             alpha_track     = params['alpha_track'],
             alpha_overflow  = params['alpha_overflow'],
             alpha_acquire   = params['alpha_acquire'],
-            ref_level_db    = params['ref_level_db'],
             track_range_db  = params['track_range_db'],
-            low_level_db    = params['low_level_db'],
-            high_level_db   = params['high_level_db'],
             seed = 42
         )
         signal_test = deepcopy(signal)
         signal = T(signal)
 
         assert isinstance(T, DigitalAGC)
-        assert isinstance(T.initial_gain_db, float)
-        assert isinstance(T.alpha_smooth, float)
-        assert isinstance(T.alpha_track, float)
-        assert isinstance(T.alpha_overflow, float)
-        assert isinstance(T.alpha_acquire, float)
-        assert isinstance(T.ref_level_db, float)
-        assert isinstance(T.track_range_db, float)
-        assert isinstance(T.low_level_db, float)
-        assert isinstance(T.high_level_db, float)   
         assert isinstance(signal, (Signal, DatasetSignal))
         assert type(signal.data) == type(signal_test.data)
         assert signal.data.dtype == torchsig_complex_data_type

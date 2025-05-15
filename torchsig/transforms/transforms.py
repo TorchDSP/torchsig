@@ -1379,88 +1379,103 @@ class DigitalAGC(SignalTransform):
     """Automatic Gain Control performing sample-by-sample AGC algorithm.
 
     Attributes:
-        rand_scale (Tuple): setting the random scaling bounds for each sample update. 
-        rand_scale_distribution (Callable[[], float]): Random draw from rand_scale distribution.
         initial_gain_db (float): Inital gain value in dB.
         alpha_smooth (float): Alpha for avergaing the measure signal level `level_n = level_n * alpha + level_n-1(1-alpha)`
         alpha_track (float): Amount to adjust gain when in tracking state.
         alpha_overflow (float): Amount to adjust gain when in overflow state `[level_db + gain_db] >= max_level`.
         alpha_acquire (float): Amount to adjust gain when in acquire state.
-        ref_level_db (float): Reference level goal for algorithm to achieve, in dB units. 
         track_range_db (float): dB range for operating in tracking state.
-        low_level_db (float): minimum magnitude value (dB) to perform any gain control adjustment.
-        high_level_db (float): magnitude value (dB) to enter overflow state.
 
     """
     def __init__(
         self,
-        rand_scale = (1.0, 10.0),
-        initial_gain_db: float = 0.0,
-        alpha_smooth: float = 0.00004,
-        alpha_track: float = 0.0004,
-        alpha_overflow: float = 0.3,
-        alpha_acquire: float = 0.04,
-        ref_level_db: float = 0.0,
-        track_range_db: float = 1.0,
-        low_level_db: float = -80.0,
-        high_level_db: float = 6.0,
+        initial_gain_db: Tuple[float] = (-3,3),
+        alpha_smooth: Tuple[float] = (1e-5, 1e-3),
+        alpha_track: Tuple[float] = (1e-4, 1e-2),
+        alpha_overflow: Tuple[float] = (1e-1, 3e-1),
+        alpha_acquire: Tuple[float] = (1e-4, 1e-3),
+        track_range_db: Tuple[float] = (0.5, 2),
         **kwargs
     ):
         super().__init__(**kwargs)
-        self.rand_scale = rand_scale        
         self.initial_gain_db = initial_gain_db
         self.alpha_smooth = alpha_smooth
         self.alpha_track = alpha_track
         self.alpha_overflow = alpha_overflow
         self.alpha_acquire = alpha_acquire
-        self.ref_level_db = ref_level_db
         self.track_range_db = track_range_db
-        self.low_level_db = low_level_db
-        self.high_level_db = high_level_db
 
-        self.rand_scale_distribution = self.get_distribution(self.rand_scale )
-        
+        self.initial_gain_db_distribution = self.get_distribution(self.initial_gain_db)
+        self.alpha_smooth_distribution = self.get_distribution(self.alpha_smooth,'log10')
+        self.alpha_track_distribution = self.get_distribution(self.alpha_track,'log10')
+        self.alpha_overflow_distribution = self.get_distribution(self.alpha_track,'log10')
+        self.alpha_acquire_distribution = self.get_distribution(self.alpha_acquire,'log10')
+        self.track_range_db_distribution = self.get_distribution(self.track_range_db)
 
     def __call__(self, signal: DatasetSignal) -> DatasetSignal:
-        rand_scale = self.rand_scale_distribution()
 
-        alpha_acquire = self.random_generator.uniform(
-            low = self.alpha_acquire / rand_scale,
-            high = self.alpha_acquire * rand_scale,
-            size = 1
-        )[0]
-        alpha_overflow = self.random_generator.uniform(
-            low = self.alpha_overflow / rand_scale,
-            high = self.alpha_overflow * rand_scale,
-            size = 1
-        )[0]
-        alpha_track = self.random_generator.uniform(
-            low = self.alpha_track / rand_scale,
-            high = self.alpha_track * rand_scale,
-            size = 1
-        )[0]
-        alpha_smooth = self.random_generator.uniform(
-            low = self.alpha_smooth / rand_scale,
-            high = self.alpha_smooth * rand_scale,
-            size = 1
-        )[0]
-        ref_level_db = self.random_generator.uniform(
-            low = -0.5 + self.ref_level_db,
-            high = 0.5 + self.ref_level_db,
-            size = 1
-        )[0]
+        initial_gain_db = self.initial_gain_db_distribution()
+        alpha_smooth = self.alpha_smooth_distribution()
+        alpha_track = self.alpha_track_distribution()
+        alpha_overflow = self.alpha_overflow_distribution()
+        alpha_acquire = self.alpha_acquire_distribution()
+        track_range_db = self.track_range_db_distribution()
+
+        # calculate derived parameters for AGC
+
+        # create a copy of the input data since it may need to be
+        # modified in order to avoid a log10(0)
+        receive_signal = copy(signal.data)
+
+        # get linear magnitude
+        receive_signal_mag = np.abs(receive_signal)
+
+        # find and replace all zeros
+        zero_sample_index = np.where(receive_signal_mag == 0)[0]
+
+        # calculate all other values
+        non_zero_sample_index = np.setdiff1d(np.arange(0,len(receive_signal)),zero_sample_index)
+
+        # calculate the non-zero minimum
+        smallest_non_zero_value = np.min(receive_signal_mag[non_zero_sample_index])
+
+        # scale to get the "epsilon" to replace the zero values
+        epsilon = smallest_non_zero_value * 1e-6
+
+        # replace zero values
+        receive_signal[zero_sample_index] = epsilon
+
+        # determine min/max range for input in dB
+        receive_signal_db = np.log(np.abs(receive_signal))
+        receive_signal_max_db = np.max(receive_signal_db)
+        receive_signal_min_db = np.min(receive_signal_db)
+
+        # calculate ranges for how to set AGC reference level.
+        # it is set (roughly) within range of data to provide
+        # a slight AGC effect
+        ref_level_max_db = receive_signal_max_db+10
+        ref_level_min_db = receive_signal_min_db-10
+
+        # randomly select the reference level the AGC will set
+        #print('** rev level min = ' + str(ref_level_min_db))
+        #print('** rev level max = ' + str(ref_level_max_db))
+        ref_level_db = self.random_generator.uniform(ref_level_min_db,ref_level_max_db)
+
+        # define the operating bounds of the AGC
+        low_level_db = ref_level_min_db-10
+        high_level_db = ref_level_max_db+10
 
         signal.data = F.digital_agc(
             np.ascontiguousarray(signal.data, dtype=np.complex64),
-            np.float64(self.initial_gain_db),
+            np.float64(initial_gain_db),
             np.float64(alpha_smooth),
             np.float64(alpha_track),
             np.float64(alpha_overflow),
             np.float64(alpha_acquire),
             np.float64(ref_level_db),
-            np.float64(self.track_range_db),
-            np.float64(self.low_level_db),
-            np.float64(self.high_level_db)
+            np.float64(track_range_db),
+            np.float64(low_level_db),
+            np.float64(high_level_db)
         )
         signal.data = signal.data.astype(torchsig_complex_data_type)
         self.update(signal)
