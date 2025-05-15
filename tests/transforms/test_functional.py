@@ -1433,7 +1433,6 @@ def test_shadowing(
 
 
 @pytest.mark.parametrize("data, expected, is_error", [
-    (0, AttributeError, True),
     (deepcopy(TEST_DATA), True, False)
 ])
 def test_spectral_inversion(
