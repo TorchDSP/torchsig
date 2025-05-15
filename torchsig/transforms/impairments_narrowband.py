@@ -29,7 +29,8 @@ from torchsig.transforms.transforms import (
     IntermodulationProducts,
     IQImbalance,
     Quantize,
-    SpectralInversion
+    SpectralInversion,
+    DigitalAGC
 )
 
 # Third Party
@@ -84,7 +85,8 @@ class NarrowbandImpairments(Impairments):
             RandomApply(CarrierPhaseNoise(), 0.5),
             RandomApply(CarrierFrequencyDrift(), 0.5),
             RandomApply(Quantize(), 1.0),
-            RandomApply(CoarseGainChange(),0.1)
+            RandomApply(CoarseGainChange(),0.1),
+            RandomApply(DigitalAGC(),0.2)
         ]
         
         DT_all_levels = [

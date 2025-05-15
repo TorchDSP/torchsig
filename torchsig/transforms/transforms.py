@@ -796,8 +796,9 @@ class IQImbalance(SignalTransform):
         self.amplitude_imbalance_distribution = self.get_distribution(self.amplitude_imbalance)
         self.phase_imbalance_distribution = self.get_distribution(self.phase_imbalance)
         self.dc_offset_distribution = self.get_distribution(self.dc_offset)
-        
+
     def __call__(self, signal: Union[Signal, DatasetSignal]) -> Union[Signal, DatasetSignal]:
+
         amplitude_imbalance = self.amplitude_imbalance_distribution()
         phase_imbalance = self.phase_imbalance_distribution()
         dc_offset = self.dc_offset_distribution()
@@ -1389,11 +1390,11 @@ class DigitalAGC(SignalTransform):
     """
     def __init__(
         self,
-        initial_gain_db: Tuple[float] = (-3,3),
-        alpha_smooth: Tuple[float] = (1e-5, 1e-3),
-        alpha_track: Tuple[float] = (1e-4, 1e-2),
+        initial_gain_db: Tuple[float] = (0,0),
+        alpha_smooth: Tuple[float] = (1e-7, 1e-6),
+        alpha_track: Tuple[float] = (1e-6, 1e-5),
         alpha_overflow: Tuple[float] = (1e-1, 3e-1),
-        alpha_acquire: Tuple[float] = (1e-4, 1e-3),
+        alpha_acquire: Tuple[float] = (1e-6, 1e-5),
         track_range_db: Tuple[float] = (0.5, 2),
         **kwargs
     ):
@@ -1445,20 +1446,17 @@ class DigitalAGC(SignalTransform):
         # replace zero values
         receive_signal[zero_sample_index] = epsilon
 
-        # determine min/max range for input in dB
+        # determine average range for input in dB
         receive_signal_db = np.log(np.abs(receive_signal))
-        receive_signal_max_db = np.max(receive_signal_db)
-        receive_signal_min_db = np.min(receive_signal_db)
+        receive_signal_mean_db = np.mean(receive_signal_db)
 
         # calculate ranges for how to set AGC reference level.
         # it is set (roughly) within range of data to provide
         # a slight AGC effect
-        ref_level_max_db = receive_signal_max_db+10
-        ref_level_min_db = receive_signal_min_db-10
+        ref_level_max_db = receive_signal_mean_db+5
+        ref_level_min_db = receive_signal_mean_db-5
 
         # randomly select the reference level the AGC will set
-        #print('** rev level min = ' + str(ref_level_min_db))
-        #print('** rev level max = ' + str(ref_level_max_db))
         ref_level_db = self.random_generator.uniform(ref_level_min_db,ref_level_max_db)
 
         # define the operating bounds of the AGC
@@ -1479,4 +1477,4 @@ class DigitalAGC(SignalTransform):
         )
         signal.data = signal.data.astype(torchsig_complex_data_type)
         self.update(signal)
-        return signal    
+        return signal
