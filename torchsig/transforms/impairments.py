@@ -35,6 +35,7 @@ class Impairments(Transform):
     def __init__(
         self, 
         all_levels_signal_transforms: List[SignalTransform], 
+        all_levels_dataset_transforms: List[SignalTransform], 
         level: int, 
         **kwargs
     ): 
@@ -44,5 +45,5 @@ class Impairments(Transform):
 
         self.signal_transforms = Compose(transforms = all_levels_signal_transforms[self.level])
         self.signal_transforms.add_parent(self)
-        self.dataset_transforms = Compose(transforms = all_levels_signal_transforms[self.level])
+        self.dataset_transforms = Compose(transforms = all_levels_dataset_transforms[self.level])
         self.dataset_transforms.add_parent(self)
