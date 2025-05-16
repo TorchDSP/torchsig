@@ -29,6 +29,7 @@ __all__ = [
     "cochannel_interference",
     "complex_to_2d",
     "cut_out",
+    "digital_agc"    
     "doppler",
     "drop_samples",
     "fading",
@@ -48,7 +49,6 @@ __all__ = [
     "spectrogram_image",
     "time_reversal",
     "time_varying_noise",
-    "digital_agc"    
 ]
 
 
