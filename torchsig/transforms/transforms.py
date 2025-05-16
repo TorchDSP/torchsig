@@ -15,6 +15,7 @@ __all__ = [
     "CochannelInterference",
     "ComplexTo2D",
     "CutOut",
+    "DigitalAGC"
     "Doppler",
     "Fading",
     "IntermodulationProducts",
@@ -31,7 +32,6 @@ __all__ = [
     "SpectrogramImage",
     "TimeReversal",
     "TimeVaryingNoise",
-    "DigitalAGC"
 ]
 
 # TorchSig
@@ -1478,3 +1478,4 @@ class DigitalAGC(SignalTransform):
         signal.data = signal.data.astype(torchsig_complex_data_type)
         self.update(signal)
         return signal
+
