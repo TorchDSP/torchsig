@@ -1291,3 +1291,75 @@ def digital_agc(
     return output.astype(torchsig_complex_data_type)
 
 
+def spurs(
+    data: np.ndarray,
+    sample_rate: float = 1,
+    center_freqs = [0.25],
+    relative_power_db =  [3],
+) -> np.ndarray:
+    """Adds in spurs
+
+    Args:
+        data (np.ndarray): IQ data samples.
+        sample_rate (float): Sample rate associated with the samples
+        center_freqs (List[float]): Center frequencies for the spurs. Defaults to [-0.125, 0.125, 0.25].
+        relative_power_db (List[float]): Relative power of spurs in dB to noise floor. Defaults to [3, 7, 5].
+    Returns:
+        np.ndarray: IQ data with spurs (tones)
+
+    """
+
+    # convert center_freqs and relative_power to arrays if received as scalars
+    if (np.isscalar(center_freqs)):
+        center_freqs_array = np.array([center_freqs])
+    else:
+        center_freqs_array = center_freqs
+
+    if (np.isscalar(relative_power_db)):
+        relative_power_db_array = np.array([relative_power_db])
+    else:
+        relative_power_db_array = relative_power_db
+
+    # error checking
+    if ((np.array(center_freqs_array) >= sample_rate/2).any()):
+        raise ValueError(f'center_freqs must be < sample rate / 2 = {sample_rate/2}')
+    elif ((np.array(center_freqs_array) <= -sample_rate/2).any()):
+        raise ValueError(f'center_freqs must be >= -sample rate / 2 = {-sample_rate/2}')
+    elif (len(relative_power_db_array) != len(center_freqs_array)):
+        raise ValueError(f'len(center_freqs) = {len(center_freqs_array)}, must be same length as len(relative_power_db) = {len(relative_power_db_array)}')
+
+    # create copy of data since it will be modified
+    output = copy(data)
+
+    # compute FFT of receive signal
+    data_fft_db = 20*np.log10(np.abs(np.fft.fft(data)))
+    # apply smoothing
+    avg_len = int(len(data_fft_db)/8)
+    if (np.mod(avg_len,2) == 0):
+        avg_len += 1
+    avg = np.ones(avg_len)/avg_len
+    data_fft_db = sp.convolve(data_fft_db,avg)[avg_len:-avg_len]
+
+    # estimate noise floor
+    noise_floor_db = np.min(data_fft_db)
+
+    # generate spurs
+    for spur_index in range(len(center_freqs_array)):
+        # create the spur
+        spur = np.exp(2j*np.pi*(center_freqs_array[spur_index]/sample_rate)*np.arange(0,len(data)))
+        # compute FFT of spur
+        spur_fft_db = 20*np.log10(np.abs(np.fft.fft(spur)))
+        #ax.plot(spur_fft_db)
+        # calculate peak value
+        spur_max_db = np.max(spur_fft_db)
+        # calculate change to set spur power properly
+        gain_change_db = (noise_floor_db-spur_max_db)+relative_power_db_array[spur_index]
+        # scale spur power accordingly
+        gain_change = 10**(gain_change_db/20)
+        spur *= gain_change
+        # add spur to signal
+        output += spur
+
+    return output.astype(torchsig_complex_data_type)
+
+
