@@ -29,6 +29,7 @@ from torchsig.transforms.functional import (
     spectral_inversion,
     spectrogram,
     spectrogram_drop_samples,
+    spurs,
     time_reversal,
     time_varying_noise,
 )
@@ -1717,6 +1718,67 @@ def test_spectrogram_drop_samples(
         
         assert (type(spec_data) == type(spec_test)) == expected
         assert (spec_data.dtype == spec_test.dtype) == expected
+
+
+@pytest.mark.parametrize("data, params, expected, is_error", [
+    (
+        TEST_DATA, 
+        {'sample_rate': 1, 'center_freqs': [-0.3, 0.1], 'relative_power_db': [5, 10]},
+        TEST_DATA,
+        False
+    ),
+    (
+        TEST_DATA, 
+        {'sample_rate': 1, 'center_freqs': [-3, 2], 'relative_power_db': [5, 10]},
+        ValueError,
+        True
+    ),
+    (
+        TEST_DATA, 
+        {'sample_rate': 1, 'center_freqs': [-3], 'relative_power_db': [5, 10]},
+        ValueError,
+        True
+    ),
+])
+def test_spurs(
+    data: Any,
+    params: dict,
+    expected: np.ndarray | TypeError | ValueError, 
+    is_error: bool
+    ) -> None:
+    """Test the spurs functional with pytest.
+
+    Args:
+        data (Any): Data input, nominally np.ndarray.
+        params (dict): Function call parameters (see description).
+        expected (np.ndarray | TypeError | ValueError): Expected test result.
+        is_error (bool): Is a test error expected.
+
+    Raises:
+        AssertionError: If unexpected test outcome.
+
+    """ 
+    sample_rate = params['sample_rate']
+    center_freqs = params['center_freqs']
+    relative_power_db = params['relative_power_db']
+
+    if is_error:
+        with pytest.raises(expected):      
+            data = spurs(
+                data,
+                sample_rate  = sample_rate,
+                center_freqs = center_freqs,
+                relative_power_db = relative_power_db
+            )
+    else:
+        data = spurs(
+            data,
+            sample_rate  = sample_rate,
+            center_freqs = center_freqs,
+            relative_power_db = relative_power_db
+        )
+
+        assert data.dtype == torchsig_complex_data_type
 
 
 @pytest.mark.parametrize("data, expected, is_error", [
