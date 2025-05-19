@@ -1486,7 +1486,9 @@ class Spurs(SignalTransform):
     """Simulates spurs by adding tones into the receive signal
 
     Attributes:
-    
+        num_spurs (int): The range of numbers of spurs to add. Defaults to (1,4).
+        relative_power_db (Tuple[float]): The range of relative power for  the spurs. The power is
+            relative to the noise floor. Defaults to (5,15).
     """
     def __init__(
         self,
