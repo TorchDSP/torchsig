@@ -15,7 +15,7 @@ from torchsig.datasets.dataset_utils import collate_fn as default_collate_fn
 from torchsig.utils.yaml import write_dict_to_yaml
 
 # Third Party
-from tqdm import tqdm
+from tqdm.auto import tqdm
 import yaml
 import numpy as np
 from time import time
