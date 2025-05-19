@@ -20,6 +20,7 @@ __all__ = [
     "Fading",
     "IntermodulationProducts",
     "IQImbalance",
+    "InterleaveComplex",
     "NonlinearAmplifier",
     "PassbandRipple",
     "PatchShuffle",
@@ -41,7 +42,7 @@ from torchsig.signals.signal_types import Signal, DatasetSignal, SignalMetadata
 import torchsig.transforms.functional as F
 from torchsig.utils.dsp import (
     torchsig_complex_data_type,
-    torchsig_float_data_type,
+    torchsig_real_data_type,
     low_pass
 )
 
@@ -494,7 +495,7 @@ class ComplexTo2D(SignalTransform):
     """
     def __call__(self, signal: Union[Signal, DatasetSignal]) -> Union[Signal, DatasetSignal]:
         signal.data = F.complex_to_2d(signal.data)
-        signal.data = signal.data.astype(torchsig_float_data_type)
+        signal.data = signal.data.astype(torchsig_real_data_type)
         self.update(signal)
         return signal
 
@@ -913,6 +914,23 @@ class IQImbalance(SignalTransform):
         return signal
 
 
+class InterleaveComplex(SignalTransform):
+    """Transforms a complex-valued array into a real-valued array of interleaved IQ values.
+    """
+    def __init__(
+        self,
+        **kwargs
+    ):  
+        super().__init__(**kwargs)
+
+    def __call__(self, signal: Union[Signal, DatasetSignal]) -> Union[Signal, DatasetSignal]:
+
+        signal.data = F.interleave_complex(signal.data)
+        signal.data = signal.data.astype(torchsig_real_data_type)
+        self.update(signal)
+        return signal
+
+
 class NonlinearAmplifier(SignalTransform):
     """Apply a memoryless nonlinear amplifier model to a signal.
 
@@ -1259,7 +1277,7 @@ class Spectrogram(SignalTransform):
             self.fft_size, 
             self.fft_stride, 
         )
-        signal.data = signal.data.astype(torchsig_float_data_type)
+        signal.data = signal.data.astype(torchsig_real_data_type)
         self.update(signal)
         return signal
 
@@ -1337,7 +1355,7 @@ class SpectrogramDropSamples(SignalTransform):
                 drop_sizes,
                 fill,
             )
-            signal.data = signal.data.astype(torchsig_float_data_type)
+            signal.data = signal.data.astype(torchsig_real_data_type)
             
             # SpectrogramDropSamples can have complicated signal feature effects in practice.
             # Any desired metadata updates should be made manually.

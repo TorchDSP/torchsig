@@ -19,7 +19,7 @@ from torchsig.transforms.target_transforms import (
 from torchsig.transforms.transforms import Spectrogram
 from torchsig.utils.dsp import (
     torchsig_complex_data_type,
-    torchsig_float_data_type
+    torchsig_real_data_type
 )
 
 # Third Party
@@ -432,7 +432,7 @@ def test_NarrowbandDatasets(params: dict, is_error: bool) -> None:
             data1, meta1 = NB1[i] # reproducible copy
 
             assert type(data0) == np.ndarray
-            assert data0.dtype == torchsig_float_data_type
+            assert data0.dtype == torchsig_real_data_type
             assert type(meta0) == tuple
             assert meta0 == meta1
             assert np.allclose(data0, data1, RTOL)
@@ -445,7 +445,7 @@ def test_NarrowbandDatasets(params: dict, is_error: bool) -> None:
             data1, meta1 = NBS1[i] # reproducible copy
 
             assert type(data0) == np.ndarray
-            assert data0.dtype == torchsig_float_data_type
+            assert data0.dtype == torchsig_real_data_type
             assert type(meta0) == tuple
             assert meta0 == meta1
             assert np.allclose(data0, data1, RTOL)
@@ -580,7 +580,7 @@ def test_WidebandDatasets(params: dict, is_error: bool) -> None:
             data1, meta1 = WB1[i] # reproducible copy
             
             assert type(data0) == np.ndarray
-            assert data0.dtype == torchsig_float_data_type
+            assert data0.dtype == torchsig_real_data_type
             assert type(meta0) == list
             assert meta0 == meta1
             assert np.allclose(data0, data1, RTOL)
@@ -593,7 +593,7 @@ def test_WidebandDatasets(params: dict, is_error: bool) -> None:
             data1, meta1 = WBS1[i] # reproducible copy
             
             assert type(data0) == np.ndarray
-            assert data0.dtype == torchsig_float_data_type
+            assert data0.dtype == torchsig_real_data_type
             assert type(meta0) == list
             assert meta0 == meta1
             assert np.allclose(data0, data1, RTOL)

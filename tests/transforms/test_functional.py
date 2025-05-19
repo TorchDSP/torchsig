@@ -18,6 +18,7 @@ from torchsig.transforms.functional import (
     fading,
     intermodulation_products,
     iq_imbalance,
+    interleave_complex,
     nonlinear_amplifier,
     nonlinear_amplifier_table,
     normalize,
@@ -40,6 +41,7 @@ from test_transforms_utils import (
 import torchsig.utils.dsp as dsp
 from torchsig.utils.dsp import (
     torchsig_complex_data_type,
+    torchsig_real_data_type,
     compute_spectrogram,
 )
 
@@ -1022,6 +1024,45 @@ def test_iq_imbalance(
         assert (abs(np.mean(restored_data - data_test)) < 1E-1) == expected
         assert (type(data) == type(data_test)) == expected
         assert (data.dtype == torchsig_complex_data_type) == expected
+
+
+@pytest.mark.parametrize("data, params, expected, is_error", [
+    (
+        TEST_DATA,
+        {},
+        True,
+        False
+    ),
+])
+def test_interleave_complex(
+    data: Any,
+    params: dict,
+    expected: bool, 
+    is_error: bool
+    ) -> None:
+    """Test the interleave_complex functional with pytest.
+
+    Args:
+        data (Any): Data input, nominally np.ndarray.
+        params (dict): Function call parameters (see description).
+        expected (bool): Expected test result.
+        is_error (bool): Is a test error expected.
+
+    Raises:
+        AssertionError: If unexpected test outcome.
+
+    """ 
+    
+    if is_error:
+        with pytest.raises(expected):     
+            data = interleave_complex(data)
+    else:
+        data_test = deepcopy(data)
+
+        data = interleave_complex(data_test)
+
+        assert (data.dtype == torchsig_real_data_type) == expected
+        assert (len(data) == len(data_test)*2) == expected
 
 
 @pytest.mark.parametrize("data, params, expected, is_error", [

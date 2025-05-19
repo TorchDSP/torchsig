@@ -6,7 +6,7 @@ from typing import Literal, Optional, Tuple
 import torchsig.utils.dsp as dsp
 from torchsig.utils.dsp import (
     torchsig_complex_data_type,
-    torchsig_float_data_type
+    torchsig_real_data_type
 )
 
 # Third Party
@@ -35,6 +35,7 @@ __all__ = [
     "fading",
     "intermodulation_products",
     "iq_imbalance",
+    "interleave_complex",
     "nonlinear_amplifier",
     "nonlinear_amplifier_table",
     "normalize",
@@ -626,6 +627,25 @@ def iq_imbalance(
 
     return data.astype(torchsig_complex_data_type)
 
+def interleave_complex(
+    data: np.ndarray, 
+) -> np.ndarray:
+    """Converts complex vectors into real interleaved IQ vector
+
+    Args:
+        data: Input array of complex samples
+
+
+    Returns:
+        np.ndarray: Real-valued array of interleaved IQ samples
+
+    """
+
+    output = np.empty(len(data)*2)
+    output[::2] = np.real(data)
+    output[1::2] = np.imag(data)
+    return output.astype(torchsig_real_data_type)
+
 
 # TODO: correct the ppm implementation from random phase to oscillator frequency stability ppm
 def carrier_frequency_drift(
@@ -989,8 +1009,8 @@ def quantize(
     input_signal_scaled = data * ref_level_adjustment_linear / max_value_signal
 
     # quantize real and imag seperately
-    quant_signal_real = np.zeros(len(data),dtype=torchsig_float_data_type)
-    quant_signal_imag = np.zeros(len(data),dtype=torchsig_float_data_type)
+    quant_signal_real = np.zeros(len(data),dtype=torchsig_real_data_type)
+    quant_signal_imag = np.zeros(len(data),dtype=torchsig_real_data_type)
 
     input_signal_scaled_real = input_signal_scaled.real
     input_signal_scaled_imag = input_signal_scaled.imag

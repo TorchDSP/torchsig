@@ -38,7 +38,7 @@ from torchsig.utils.dsp import (
     compute_spectrogram,
     low_pass,
     torchsig_complex_data_type,
-    torchsig_float_data_type
+    torchsig_real_data_type
 )
 from test_transforms_utils import (
     generate_test_signal,
@@ -763,7 +763,7 @@ def test_ComplexTo2D(
         
         assert isinstance(T, ComplexTo2D)
         assert isinstance(signal, (Signal, DatasetSignal))
-        assert (signal.data.dtype == torchsig_float_data_type) 
+        assert (signal.data.dtype == torchsig_real_data_type) 
 
 
 @pytest.mark.parametrize("signal, is_error", [

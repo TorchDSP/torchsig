@@ -16,7 +16,7 @@ torchsig_complex_data_type = np.complex64
 
 # common reference for the float data type to allow for
 # standardization across the different algorithms
-torchsig_float_data_type = np.float32
+torchsig_real_data_type = np.float32
 
 
 def slice_tail_to_length(input_signal:np.ndarray, num_samples:int) -> np.ndarray:
@@ -1153,8 +1153,8 @@ def noise_generator(
          raise ValueError(f"Noise power must be greater than or equal to 0.")
 
     if continuous:
-        noise_source = (   rng.standard_normal((N,), dtype=torchsig_float_data_type) + 
-                        1j*rng.standard_normal((N,), dtype=torchsig_float_data_type)) / np.sqrt(2) # continous white noise (1.0 W)
+        noise_source = (   rng.standard_normal((N,), dtype=torchsig_real_data_type) + 
+                        1j*rng.standard_normal((N,), dtype=torchsig_real_data_type)) / np.sqrt(2) # continous white noise (1.0 W)
     else: # impulsive
         noise_source = np.zeros((N,), dtype=torchsig_complex_data_type)
         impulse_ind = rng.integers(0,N,dtype=int)   # random impulse location
