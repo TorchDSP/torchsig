@@ -12,6 +12,7 @@ from torchsig.transforms.functional import (
     coarse_gain_change,
     cochannel_interference,    
     cut_out,
+    digital_agc,
     doppler,    
     drop_samples,
     fading,
@@ -30,7 +31,6 @@ from torchsig.transforms.functional import (
     spectrogram_drop_samples,
     time_reversal,
     time_varying_noise,
-    digital_agc,
 )
 from test_transforms_utils import (
     generate_test_signal,
@@ -605,6 +605,97 @@ def test_cut_out(
             assert duration_samples == cut_inds[-1] - cut_inds[0] + 1
 
         assert (type(data) == type(data_test)) == expected
+        assert (data.dtype == torchsig_complex_data_type) == expected
+
+
+@pytest.mark.parametrize("data, params, expected, is_error", [
+    (
+        0, 
+        {  
+            'initial_gain_db' : 0.,
+            'alpha_smooth'    : 0.,
+            'alpha_track'     : np.log(0.1),
+            'alpha_overflow'  : np.log(0.1),
+            'alpha_acquire'   : np.log(0.1),
+            'ref_level'       : 0.,
+            'ref_level_db'    : np.log(0.1),
+            'track_range_db'  : np.log(0.1),
+            'low_level_db'    : 0.,
+            'high_level_db'   : 0.
+        },
+        TypeError,
+        True
+    ),
+    (
+        0.2 + generate_test_signal(num_iq_samples = 1024, scale = 0.01).data,
+        {  
+            'initial_gain_db' : 0.0,
+            'alpha_smooth'    : 0.1,
+            'alpha_track'     : np.log(1.1),
+            'alpha_overflow'  : np.log(1.1),
+            'alpha_acquire'   : np.log(1.1),
+            'ref_level'       : 10.0,
+            'ref_level_db'    : np.log(10.0),
+            'track_range_db'  : np.log(4.0),
+            'low_level_db'    : -200.0,
+            'high_level_db'   : 200.0
+        },
+        True,
+        False
+    )
+])
+def test_digital_agc(
+    data: Any, 
+    params: dict, 
+    expected: bool | TypeError, 
+    is_error: bool
+    ) -> None:
+    """Test the agc functional with pytest.
+
+    Args:
+        data (Any): Data input, nominally np.ndarray.
+        params (dict): Function call parameters (see description).
+        expected (bool | TypeError): Expected test result.
+        is_error (bool): Is a test error expected.
+
+    Raises:
+        AssertionError: If unexpected test outcome.
+
+    """
+    if is_error:
+        with pytest.raises(expected): 
+            data = digital_agc(
+                data,
+                initial_gain_db = params['initial_gain_db'],
+                alpha_smooth    = params['alpha_smooth'],
+                alpha_track     = params['alpha_track'],
+                alpha_overflow  = params['alpha_overflow'],
+                alpha_acquire   = params['alpha_acquire'],
+                ref_level_db    = params['ref_level_db'],
+                track_range_db  = params['track_range_db'],
+                low_level_db    = params['low_level_db'],
+                high_level_db   = params['high_level_db'],
+            ) 
+    else:    
+        reference_level = params['ref_level']
+        data_type = type(data)
+
+        data = digital_agc(
+            data,
+            initial_gain_db = params['initial_gain_db'],
+            alpha_smooth    = params['alpha_smooth'],
+            alpha_track     = params['alpha_track'],
+            alpha_overflow  = params['alpha_overflow'],
+            alpha_acquire   = params['alpha_acquire'],
+            ref_level_db    = params['ref_level_db'],
+            track_range_db  = params['track_range_db'],
+            low_level_db    = params['low_level_db'],
+            high_level_db   = params['high_level_db'],
+        )    
+        mean_level_est = np.round(np.mean(np.abs(data[-128:])))
+
+        assert (abs(mean_level_est - reference_level) < 1E-1) == expected
+        assert (type(data) == data_type) == expected
         assert (data.dtype == torchsig_complex_data_type) == expected
 
 
@@ -1738,92 +1829,3 @@ def test_time_varying_noise(
         assert (data.dtype == torchsig_complex_data_type) == expected
 
 
-@pytest.mark.parametrize("data, params, expected, is_error", [
-    (
-        0, 
-        {  
-            'initial_gain_db' : 0.,
-            'alpha_smooth'    : 0.,
-            'alpha_track'     : np.log(0.1),
-            'alpha_overflow'  : np.log(0.1),
-            'alpha_acquire'   : np.log(0.1),
-            'ref_level'       : 0.,
-            'ref_level_db'    : np.log(0.1),
-            'track_range_db'  : np.log(0.1),
-            'low_level_db'    : 0.,
-            'high_level_db'   : 0.
-        },
-        TypeError,
-        True
-    ),
-    (
-        0.2 + generate_test_signal(num_iq_samples = 1024, scale = 0.01).data,
-        {  
-            'initial_gain_db' : 0.0,
-            'alpha_smooth'    : 0.1,
-            'alpha_track'     : np.log(1.1),
-            'alpha_overflow'  : np.log(1.1),
-            'alpha_acquire'   : np.log(1.1),
-            'ref_level'       : 10.0,
-            'ref_level_db'    : np.log(10.0),
-            'track_range_db'  : np.log(4.0),
-            'low_level_db'    : -200.0,
-            'high_level_db'   : 200.0
-        },
-        True,
-        False
-    )
-])
-def test_digital_agc(
-    data: Any, 
-    params: dict, 
-    expected: bool | TypeError, 
-    is_error: bool
-    ) -> None:
-    """Test the agc functional with pytest.
-
-    Args:
-        data (Any): Data input, nominally np.ndarray.
-        params (dict): Function call parameters (see description).
-        expected (bool | TypeError): Expected test result.
-        is_error (bool): Is a test error expected.
-
-    Raises:
-        AssertionError: If unexpected test outcome.
-
-    """
-    if is_error:
-        with pytest.raises(expected): 
-            data = digital_agc(
-                data,
-                initial_gain_db = params['initial_gain_db'],
-                alpha_smooth    = params['alpha_smooth'],
-                alpha_track     = params['alpha_track'],
-                alpha_overflow  = params['alpha_overflow'],
-                alpha_acquire   = params['alpha_acquire'],
-                ref_level_db    = params['ref_level_db'],
-                track_range_db  = params['track_range_db'],
-                low_level_db    = params['low_level_db'],
-                high_level_db   = params['high_level_db'],
-            ) 
-    else:    
-        reference_level = params['ref_level']
-        data_type = type(data)
-
-        data = digital_agc(
-            data,
-            initial_gain_db = params['initial_gain_db'],
-            alpha_smooth    = params['alpha_smooth'],
-            alpha_track     = params['alpha_track'],
-            alpha_overflow  = params['alpha_overflow'],
-            alpha_acquire   = params['alpha_acquire'],
-            ref_level_db    = params['ref_level_db'],
-            track_range_db  = params['track_range_db'],
-            low_level_db    = params['low_level_db'],
-            high_level_db   = params['high_level_db'],
-        )    
-        mean_level_est = np.round(np.mean(np.abs(data[-128:])))
-
-        assert (abs(mean_level_est - reference_level) < 1E-1) == expected
-        assert (type(data) == data_type) == expected
-        assert (data.dtype == torchsig_complex_data_type) == expected
