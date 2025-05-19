@@ -29,6 +29,7 @@ __all__ = [
     "cochannel_interference",
     "complex_to_2d",
     "cut_out",
+    "digital_agc"    
     "doppler",
     "drop_samples",
     "fading",
@@ -46,9 +47,9 @@ __all__ = [
     "spectrogram",
     "spectrogram_drop_samples",
     "spectrogram_image",
+    "spurs",
     "time_reversal",
     "time_varying_noise",
-    "digital_agc"    
 ]
 
 
@@ -333,6 +334,65 @@ def cut_out(
     data[cut_start : cut_start + cut_mask_length] = cut_mask
 
     return data.astype(torchsig_complex_data_type)
+
+def digital_agc(
+    data: np.ndarray,
+    initial_gain_db: float = 0.0,
+    alpha_smooth: float = 1e-4,
+    alpha_track: float = 1e-3,
+    alpha_overflow: float = 0.1,
+    alpha_acquire: float = 1e-3,
+    ref_level_db: float = 0.0,
+    track_range_db: float = 1.0,
+    low_level_db: float = -80,
+    high_level_db: float = 10
+) -> np.ndarray:
+    """Automatic Gain Control algorithm (deterministic).
+
+    Args:
+        data (np.ndarray): IQ data samples.
+        initial_gain_db (float): Inital gain value in dB.
+        alpha_smooth (float): Alpha for avergaing the measure signal level `level_n = level_n * alpha + level_n-1(1-alpha)`
+        alpha_track (float): Amount to adjust gain when in tracking state.
+        alpha_overflow (float): Amount to adjust gain when in overflow state `[level_db + gain_db] >= max_level`.
+        alpha_acquire (float): Amount to adjust gain when in acquire state.
+        ref_level_db (float): Reference level goal for algorithm to achieve, in dB units. 
+        track_range_db (float): dB range for operating in tracking state.
+        low_level_db (float): minimum magnitude value (dB) to perform any gain control adjustment.
+        high_level_db (float): magnitude value (dB) to enter overflow state.
+
+    Returns:
+        np.ndarray: IQ data adjusted sample-by-sample by the AGC algorithm.
+
+    """
+    output = np.zeros_like(data)
+    gain_db = initial_gain_db
+    level_db = 0.0
+    for sample_idx, sample in enumerate(data):
+        if not np.abs(sample): # sample == 0
+            level_db = -200
+        elif not sample_idx:  # first sample == 0, no smoothing
+            level_db = np.log(np.abs(sample))
+        else:
+            level_db = level_db * alpha_smooth + np.log(np.abs(sample)) * (
+                1 - alpha_smooth
+            )
+        output_db = level_db + gain_db
+        diff_db = ref_level_db - output_db
+
+        if level_db <= low_level_db:
+            alpha_adjust = 0.0
+        elif output_db >= high_level_db:
+            alpha_adjust = alpha_overflow
+        elif abs(diff_db) > track_range_db:
+            alpha_adjust = alpha_acquire
+        else:
+            alpha_adjust = alpha_track
+
+        gain_db += diff_db * alpha_adjust
+        output[sample_idx] = data[sample_idx] * np.exp(gain_db)
+
+    return output.astype(torchsig_complex_data_type)
 
 
 # TODO: improved time-scaling interpolator
@@ -1160,6 +1220,79 @@ def spectrogram_image(
     return img
 
 
+def spurs(
+    data: np.ndarray,
+    sample_rate: float = 1,
+    center_freqs = [0.25],
+    relative_power_db =  [3],
+) -> np.ndarray:
+    """Adds in spurs
+
+    Args:
+        data (np.ndarray): IQ data samples.
+        sample_rate (float): Sample rate associated with the samples
+        center_freqs (List[float]): Center frequencies for the spurs. Defaults to [-0.125, 0.125, 0.25].
+        relative_power_db (List[float]): Relative power of spurs in dB to noise floor. Defaults to [3, 7, 5].
+    Returns:
+        np.ndarray: IQ data with spurs (tones)
+
+    """
+
+    # convert center_freqs and relative_power to arrays if received as scalars
+    if (np.isscalar(center_freqs)):
+        center_freqs_array = np.array([center_freqs])
+    else:
+        center_freqs_array = center_freqs
+
+    if (np.isscalar(relative_power_db)):
+        relative_power_db_array = np.array([relative_power_db])
+    else:
+        relative_power_db_array = relative_power_db
+
+    # error checking
+    if ((np.array(center_freqs_array) >= sample_rate/2).any()):
+        raise ValueError(f'center_freqs must be < sample rate / 2 = {sample_rate/2}')
+    elif ((np.array(center_freqs_array) <= -sample_rate/2).any()):
+        raise ValueError(f'center_freqs must be >= -sample rate / 2 = {-sample_rate/2}')
+    elif (len(relative_power_db_array) != len(center_freqs_array)):
+        raise ValueError(f'len(center_freqs) = {len(center_freqs_array)}, must be same length as len(relative_power_db) = {len(relative_power_db_array)}')
+
+    # create copy of data since it will be modified
+    output = copy(data)
+
+    # compute FFT of receive signal
+    data_fft_db = 20*np.log10(np.abs(np.fft.fft(data)))
+    # apply smoothing
+    avg_len = int(len(data_fft_db)/8)
+    if (np.mod(avg_len,2) == 0):
+        avg_len += 1
+    avg = np.ones(avg_len)/avg_len
+    data_fft_db = sp.convolve(data_fft_db,avg)[avg_len:-avg_len]
+
+    # estimate noise floor
+    noise_floor_db = np.min(data_fft_db)
+
+    # generate spurs
+    for spur_index in range(len(center_freqs_array)):
+        # create the spur
+        spur = np.exp(2j*np.pi*(center_freqs_array[spur_index]/sample_rate)*np.arange(0,len(data)))
+        # compute FFT of spur
+        spur_fft_db = 20*np.log10(np.abs(np.fft.fft(spur)))
+        #ax.plot(spur_fft_db)
+        # calculate peak value
+        spur_max_db = np.max(spur_fft_db)
+        # calculate change to set spur power properly
+        gain_change_db = (noise_floor_db-spur_max_db)+relative_power_db_array[spur_index]
+        # scale spur power accordingly
+        gain_change = 10**(gain_change_db/20)
+        spur *= gain_change
+        # add spur to signal
+        output += spur
+
+    return output.astype(torchsig_complex_data_type)
+
+
+
 def time_reversal(
     data: np.ndarray
 ) -> np.ndarray:
@@ -1231,63 +1364,6 @@ def time_varying_noise(
     return ( data + (10.0 ** (noise_power / 20.0)) * (real_noise + 1j * imag_noise) / np.sqrt(2) ).astype(torchsig_complex_data_type)
 
 
-def digital_agc(
-    data: np.ndarray,
-    initial_gain_db: float = 0.0,
-    alpha_smooth: float = 1e-4,
-    alpha_track: float = 1e-3,
-    alpha_overflow: float = 0.1,
-    alpha_acquire: float = 1e-3,
-    ref_level_db: float = 0.0,
-    track_range_db: float = 1.0,
-    low_level_db: float = -80,
-    high_level_db: float = 10
-) -> np.ndarray:
-    """Automatic Gain Control algorithm (deterministic).
 
-    Args:
-        data (np.ndarray): IQ data samples.
-        initial_gain_db (float): Inital gain value in dB.
-        alpha_smooth (float): Alpha for avergaing the measure signal level `level_n = level_n * alpha + level_n-1(1-alpha)`
-        alpha_track (float): Amount to adjust gain when in tracking state.
-        alpha_overflow (float): Amount to adjust gain when in overflow state `[level_db + gain_db] >= max_level`.
-        alpha_acquire (float): Amount to adjust gain when in acquire state.
-        ref_level_db (float): Reference level goal for algorithm to achieve, in dB units. 
-        track_range_db (float): dB range for operating in tracking state.
-        low_level_db (float): minimum magnitude value (dB) to perform any gain control adjustment.
-        high_level_db (float): magnitude value (dB) to enter overflow state.
-
-    Returns:
-        np.ndarray: IQ data adjusted sample-by-sample by the AGC algorithm.
-
-    """
-    output = np.zeros_like(data)
-    gain_db = initial_gain_db
-    level_db = 0.0
-    for sample_idx, sample in enumerate(data):
-        if not np.abs(sample): # sample == 0
-            level_db = -200
-        elif not sample_idx:  # first sample == 0, no smoothing
-            level_db = np.log(np.abs(sample))
-        else:
-            level_db = level_db * alpha_smooth + np.log(np.abs(sample)) * (
-                1 - alpha_smooth
-            )
-        output_db = level_db + gain_db
-        diff_db = ref_level_db - output_db
-
-        if level_db <= low_level_db:
-            alpha_adjust = 0.0
-        elif output_db >= high_level_db:
-            alpha_adjust = alpha_overflow
-        elif abs(diff_db) > track_range_db:
-            alpha_adjust = alpha_acquire
-        else:
-            alpha_adjust = alpha_track
-
-        gain_db += diff_db * alpha_adjust
-        output[sample_idx] = data[sample_idx] * np.exp(gain_db)
-
-    return output.astype(torchsig_complex_data_type)
 
 

@@ -14,6 +14,7 @@ from torchsig.transforms.transforms import (
     CochannelInterference,
     ComplexTo2D,
     CutOut,
+    DigitalAGC,
     Doppler,
     Fading,
     IntermodulationProducts,
@@ -28,9 +29,9 @@ from torchsig.transforms.transforms import (
     Spectrogram,
     SpectrogramDropSamples,
     SpectrogramImage,
+    Spurs,
     TimeReversal,
     TimeVaryingNoise,
-    DigitalAGC
 )
 from torchsig.signals.signal_types import Signal, DatasetSignal
 from torchsig.utils.dsp import (
@@ -798,6 +799,79 @@ def test_CutOut(
         assert isinstance(signal, (Signal, DatasetSignal))
         assert len(signal.data) == len(signal_test.data)
         assert (signal.data.dtype == torchsig_complex_data_type) 
+
+@pytest.mark.parametrize("signal, params, is_error", [
+    (
+        new_test_signal(),
+        { 
+            'initial_gain_db' : (-3,3),
+            'alpha_smooth'    : (1e-5,1e-3),
+            'alpha_track'     : (1e-4,1e-2),
+            'alpha_overflow'  : (1e-1,3e-1),
+            'alpha_acquire'   : (1e-4,1e-3),
+            'track_range_db'  : (0.5,2),
+        },
+        False
+    ),
+    (
+        new_test_ds_signal(),
+        { 
+            'initial_gain_db' : (-3,3),
+            'alpha_smooth'    : (1e-5,1e-3),
+            'alpha_track'     : (1e-4,1e-2),
+            'alpha_overflow'  : (1e-1,3e-1),
+            'alpha_acquire'   : (1e-4,1e-3),
+            'track_range_db'  : (0.5,2),
+        },
+        False
+    )
+])
+def test_DigitalAGC(
+    signal: Union[Signal, DatasetSignal], 
+    params: dict, 
+    is_error: bool
+) -> None:
+    """Test the DigitalAGC transform with pytest.
+
+    Args:
+        signal (Union[Signal, DatasetSignal]): input dataset.
+        params (dict): AGC parameters (see DigitalAGC description).
+        is_error (bool): Is a test error expected. 
+
+    Raises:
+        AssertionError: If unexpected test outcome.
+
+    """
+    if is_error:
+        with pytest.raises(Exception, match=r".*"):
+            T = DigitalAGC(
+                initial_gain_db = params['initial_gain_db'],
+                alpha_smooth    = params['alpha_smooth'],
+                alpha_track     = params['alpha_track'],
+                alpha_overflow  = params['alpha_overflow'],
+                alpha_acquire   = params['alpha_acquire'],
+                track_range_db  = params['track_range_db'],
+                seed = 42
+            )
+            signal = T(signal)
+    else:
+        T = DigitalAGC(
+            initial_gain_db = params['initial_gain_db'],
+            alpha_smooth    = params['alpha_smooth'],
+            alpha_track     = params['alpha_track'],
+            alpha_overflow  = params['alpha_overflow'],
+            alpha_acquire   = params['alpha_acquire'],
+            track_range_db  = params['track_range_db'],
+            seed = 42
+        )
+        signal_test = deepcopy(signal)
+        signal = T(signal)
+
+        assert isinstance(T, DigitalAGC)
+        assert isinstance(signal, (Signal, DatasetSignal))
+        assert type(signal.data) == type(signal_test.data)
+        assert signal.data.dtype == torchsig_complex_data_type
+        assert np.not_equal(signal.data, signal_test.data).any()
 
 
 @pytest.mark.parametrize("signal, params, is_error", [
@@ -1649,6 +1723,68 @@ def test_SpectrogramImage(
         assert isinstance(signal, (Signal, DatasetSignal))
         assert (signal.data.dtype == 'uint8') 
 
+@pytest.mark.parametrize("signal, params, is_error", [
+    (
+        new_test_signal(), 
+        {
+            'num_spurs': [1,4],
+            'relative_power_db': [5,15]
+        },
+        False
+    ),
+    (
+        new_test_ds_signal(), 
+        {
+            'num_spurs': [3,10],
+            'relative_power_db': [0,20]
+        },
+        False
+    )
+])
+def test_Spurs(
+    signal: DatasetSignal, 
+    params: dict, 
+    is_error: bool
+    ) -> None:
+    """Test the Spurs transform with pytest.
+
+    Args:
+        signal (DatasetSignal): input dataset.
+        params (dict): Spurs parameters (see functional description).
+        is_error (bool): Is a test error expected. 
+
+    Raises:
+        AssertionError: If unexpected test output.
+
+    """
+    num_spurs = params['num_spurs']
+    relative_power_db = params['relative_power_db']
+    if is_error:
+        with pytest.raises(Exception, match=r".*"):
+            T = Spurs(
+                num_spurs = num_spurs,
+                relative_power_db = relative_power_db,
+                seed = 42
+            )
+            signal = T(signal)
+    else:
+        T = Spurs(
+            num_spurs = num_spurs,
+            relative_power_db = relative_power_db,
+            seed = 42
+        )
+        signal_test = deepcopy(signal)
+        signal = T(signal)
+
+        assert isinstance(T, Spurs)
+        assert isinstance(T.random_generator, np.random.Generator)
+        assert isinstance(T.num_spurs_distribution(), np.int_)
+        assert isinstance(signal, (Signal, DatasetSignal))
+        assert type(signal.data) == type(signal_test.data)
+        assert signal.data.dtype == signal_test.data.dtype
+        assert np.not_equal(signal.data, signal_test.data).any()
+
+
 
 @pytest.mark.parametrize("signal, params, is_error", [
     (new_test_signal(), {'allow_spectral_inversion': False}, False ),
@@ -1770,75 +1906,3 @@ def test_TimeVaryingNoise(
         assert np.not_equal(signal.data, signal_test.data).any()
 
 
-@pytest.mark.parametrize("signal, params, is_error", [
-    (
-        new_test_signal(),
-        { 
-            'initial_gain_db' : (-3,3),
-            'alpha_smooth'    : (1e-5,1e-3),
-            'alpha_track'     : (1e-4,1e-2),
-            'alpha_overflow'  : (1e-1,3e-1),
-            'alpha_acquire'   : (1e-4,1e-3),
-            'track_range_db'  : (0.5,2),
-        },
-        False
-    ),
-    (
-        new_test_ds_signal(),
-        { 
-            'initial_gain_db' : (-3,3),
-            'alpha_smooth'    : (1e-5,1e-3),
-            'alpha_track'     : (1e-4,1e-2),
-            'alpha_overflow'  : (1e-1,3e-1),
-            'alpha_acquire'   : (1e-4,1e-3),
-            'track_range_db'  : (0.5,2),
-        },
-        False
-    )
-])
-def test_DigitalAGC(
-    signal: Union[Signal, DatasetSignal], 
-    params: dict, 
-    is_error: bool
-) -> None:
-    """Test the DigitalAGC transform with pytest.
-
-    Args:
-        signal (Union[Signal, DatasetSignal]): input dataset.
-        params (dict): AGC parameters (see DigitalAGC description).
-        is_error (bool): Is a test error expected. 
-
-    Raises:
-        AssertionError: If unexpected test outcome.
-
-    """
-    if is_error:
-        with pytest.raises(Exception, match=r".*"):
-            T = DigitalAGC(
-                initial_gain_db = params['initial_gain_db'],
-                alpha_smooth    = params['alpha_smooth'],
-                alpha_track     = params['alpha_track'],
-                alpha_overflow  = params['alpha_overflow'],
-                alpha_acquire   = params['alpha_acquire'],
-                track_range_db  = params['track_range_db'],
-                seed = 42
-            )
-            signal = T(signal)
-    else:
-        T = DigitalAGC(
-            initial_gain_db = params['initial_gain_db'],
-            alpha_smooth    = params['alpha_smooth'],
-            alpha_track     = params['alpha_track'],
-            alpha_overflow  = params['alpha_overflow'],
-            alpha_acquire   = params['alpha_acquire'],
-            track_range_db  = params['track_range_db'],
-            seed = 42
-        )
-        signal_test = deepcopy(signal)
-        signal = T(signal)
-
-        assert isinstance(T, DigitalAGC)
-        assert isinstance(signal, (Signal, DatasetSignal))
-        assert type(signal.data) == type(signal_test.data)
-        assert signal.data.dtype == torchsig_complex_data_type
-        assert np.not_equal(signal.data, signal_test.data).any()

@@ -33,14 +33,15 @@ from torchsig.transforms.transforms import (
     CarrierPhaseOffset,
     ChannelSwap,
     CoarseGainChange,
+    DigitalAGC,
     Fading,
     IntermodulationProducts,
     IQImbalance,
     Quantize,
     RandomDropSamples,
     SpectralInversion,
+    Spurs,
     TimeReversal,
-    DigitalAGC
 )
 
 # Third Party
@@ -93,6 +94,7 @@ class WidebandImpairments(Impairments):
             RandomApply(CarrierPhaseNoise(),0.5),
             RandomApply(CarrierFrequencyDrift(),0.5),
             RandomApply(DigitalAGC(),0.2),
+            RandomApply(Spurs(),0.5),
             RandAugment(
                 transforms= [
                     RandomDropSamples(
