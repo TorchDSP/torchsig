@@ -122,14 +122,14 @@ class TorchsigIterableDataset(IterableDataset, Seedable):
         if len(self.dataset_metadata.target_transforms) == 0:
             # no target transform applied
             targets = sample.metadata
-        elif self.dataset_metadata.dataset_type == 'narrowband':
-            # only one signal in list for narrowband
+        elif self.dataset_metadata.num_signals_max == 1 and len(targets) == 1:
+            # only one signal and only one target
             # unwrap targets
             targets = [item[0] if len(item) == 1 else item for row in targets for item in row]
             # unwrap any target transform output that produced a tuple
             targets = targets[0] if len(targets) == 1 else tuple(targets)
         else:
-            # wideband
+            # multiple signals and/or multiple targets
             targets = [tuple([item[0] if len(item) == 1 else item for item in row]) for row in targets]
             # unwrap any target transform output that produced a tuple
             targets = [row[0] if len(row) == 1 else row for row in targets]
@@ -668,14 +668,14 @@ class NewTorchSigDataset(Dataset, Seedable):
         if len(self.dataset_metadata.target_transforms) == 0:
             # no target transform applied
             targets = sample.metadata
-        elif self.dataset_metadata.dataset_type == 'narrowband':
-            # only one signal in list for narrowband
+        elif self.dataset_metadata.num_signals_max == 1 and len(targets) == 1:
+            # only one signal and only one target
             # unwrap targets
             targets = [item[0] if len(item) == 1 else item for row in targets for item in row]
             # unwrap any target transform output that produced a tuple
             targets = targets[0] if len(targets) == 1 else tuple(targets)
         else:
-            # wideband
+            # multiple signals and/or multiple targets
             targets = [tuple([item[0] if len(item) == 1 else item for item in row]) for row in targets]
             # unwrap any target transform output that produced a tuple
             targets = [row[0] if len(row) == 1 else row for row in targets]
@@ -844,14 +844,14 @@ class StaticTorchSigDataset(Dataset):
                 if len(self.target_transforms) == 0:
                     # no target transform applied
                     targets = sample.metadata
-                elif self.dataset_type == 'narrowband':
-                    # only one signal in list for narrowband
+                elif self.dataset_metadata.num_signals_max == 1 and len(targets) == 1:
+                    # only one signal and only one target
                     # unwrap targets
                     targets = [item[0] if len(item) == 1 else item for row in targets for item in row]
                     # unwrap any target transform output that produced a tuple
                     targets = targets[0] if len(targets) == 1 else tuple(targets)
                 else:
-                    # wideband
+                    # multiple signals and/or multiple targets
                     targets = [tuple([item[0] if len(item) == 1 else item for item in row]) for row in targets]
                     # unwrap any target transform output that produced a tuple
                     targets = [row[0] if len(row) == 1 else row for row in targets]
