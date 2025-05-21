@@ -418,7 +418,7 @@ class WidebandDataModule(TorchSigDataModule):
             file_handler = file_handler,
             transforms = transforms,
             target_transforms = target_transforms,
-            overwrite = False
+            overwrite = overwrite
         )
 
 
