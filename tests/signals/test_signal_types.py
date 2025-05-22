@@ -38,18 +38,6 @@ sample_rate = 10e6
 snr_db_min = 0.0
 snr_db_max = 50.0
 
-def narrowband_metadata():
-    from torchsig.datasets.dataset_metadata import NarrowbandMetadata
-
-    return NarrowbandMetadata(
-        num_iq_samples_dataset=num_iq_samples_dataset,
-        fft_size=fft_size,
-        impairment_level=0,
-        sample_rate=sample_rate,
-        snr_db_max=snr_db_max,
-        snr_db_min=snr_db_min
-    )
-
 def wideband_metadata():
     from torchsig.datasets.dataset_metadata import WidebandMetadata
 
@@ -138,8 +126,6 @@ def run_SignalMetadata_test(
 
 
 test_signalmetadata_params_valid = list(itertools.product(
-    # dataset_type
-    ['narrowband', 'wideband'],
     # center_freq
     [0.0, 0.5, -0.5],
     # bandwidth
@@ -156,11 +142,10 @@ test_signalmetadata_params_valid = list(itertools.product(
     [1, 2]
 ))
 @pytest.mark.parametrize(
-    "dataset_type, center_freq, bandwidth, start_in_samples, duration_in_samples, snr_db, class_name, class_index", 
+    "center_freq, bandwidth, start_in_samples, duration_in_samples, snr_db, class_name, class_index", 
     test_signalmetadata_params_valid
 )
 def test_valid_SignalMetadata(
-    dataset_type: str,
     center_freq: float, 
     bandwidth: float, 
     start_in_samples: int, 
@@ -180,10 +165,7 @@ def test_valid_SignalMetadata(
 
     )
 
-    if dataset_type == 'narrowband':
-        dataset_metadata = narrowband_metadata()
-    else:
-        dataset_metadata = wideband_metadata()
+    dataset_metadata = wideband_metadata()
 
     edge_cases = dict(
         # center_freq
@@ -221,14 +203,8 @@ def test_valid_SignalMetadata(
             run_SignalMetadata_test(**signal_metadata)
 
 
-@pytest.mark.parametrize("dataset_type", ('narrowband', 'wideband'))
-def test_invalid_SignalMetadata(
-    dataset_type: str
-):
-    if dataset_type == 'narrowband':
-        dataset_metadata = narrowband_metadata()
-    else:
-        dataset_metadata = wideband_metadata()
+def test_invalid_SignalMetadata():
+    dataset_metadata = wideband_metadata()
 
     bad_params = dict(
         # dataset_metadata
@@ -306,7 +282,7 @@ def test_invalid_SignalMetadata(
 def test_Signal(data: np.ndarray, is_error: bool):
 
     signal_metadata = deepcopy(good_signal_metadata)
-    signal_metadata['dataset_metadata'] = narrowband_metadata()
+    signal_metadata['dataset_metadata'] = wideband_metadata()
     if is_error:
         with pytest.raises(Exception):
             
@@ -345,7 +321,7 @@ good_signal_metadata = dict(
 ])
 def test_DatasetSignal(data: np.ndarray, is_error: bool):
     signal_metadata = deepcopy(good_signal_metadata)
-    signal_metadata['dataset_metadata'] = narrowband_metadata()
+    signal_metadata['dataset_metadata'] = wideband_metadata()
     s1 = Signal(
         data = np.ones((good_signal_metadata['duration_in_samples']), dtype=torchsig_complex_data_type),
         metadata = SignalMetadata(**signal_metadata)
@@ -387,7 +363,7 @@ def test_DatasetSignal(data: np.ndarray, is_error: bool):
 
 def test_DatasetDict():
     signal_metadata = deepcopy(good_signal_metadata)
-    signal_metadata['dataset_metadata'] = narrowband_metadata()
+    signal_metadata['dataset_metadata'] = wideband_metadata()
     s1 = Signal(
         data = np.ones((good_signal_metadata['duration_in_samples']), dtype=torchsig_complex_data_type),
         metadata = SignalMetadata(**signal_metadata)
