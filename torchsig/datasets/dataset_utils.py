@@ -1,7 +1,7 @@
 """Dataset Utilities
 """
 
-from torchsig.datasets.dataset_metadata import DatasetMetadata, NarrowbandMetadata, WidebandMetadata
+from torchsig.datasets.dataset_metadata import DatasetMetadata, WidebandMetadata
 from torchsig.signals.signal_types import Signal
 from torchsig.utils.dsp import (
     frequency_shift,
