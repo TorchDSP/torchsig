@@ -1,4 +1,4 @@
-"""Dataset Metadata class for Narrowband and Wideband
+"""Dataset Metadata class for Wideband
 """
 
 from __future__ import annotations

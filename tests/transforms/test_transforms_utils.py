@@ -1,7 +1,7 @@
 """Utility functions for transforms testing.
 """
 from torchsig.signals.signal_types import Signal, DatasetSignal, DatasetDict
-from torchsig.datasets.dataset_metadata import NarrowbandMetadata
+from torchsig.datasets.dataset_metadata import WidebandMetadata
 from torchsig.signals.builders.constellation import ConstellationSignalBuilder
 from torchsig.signals.builders.tone import ToneSignalBuilder
 import torchsig.transforms.functional as F
@@ -34,12 +34,13 @@ def generate_test_dataset_signal(num_iq_samples: int = 64, scale: float = 1.0) -
 
     # build a test scaled QPSK Signal component
     sample_rate = 10e6
-    md_qpsk = NarrowbandMetadata(
+    md_qpsk = WidebandMetadata(
         num_iq_samples_dataset = num_iq_samples,
         fft_size = 4,
         impairment_level = 0,
         sample_rate = 10e6,
         num_signals_min = 1,
+        num_signals_max = 1,
         num_signals_distribution = [1.0],
         snr_db_min = 100.0,
         snr_db_max = 100.0,
@@ -64,12 +65,13 @@ def generate_test_dataset_signal(num_iq_samples: int = 64, scale: float = 1.0) -
     qpsk_signal = qpsk_builder.build()
 
     # build a test scaled BPSK Signal component
-    md_bpsk = NarrowbandMetadata(
+    md_bpsk = WidebandMetadata(
         num_iq_samples_dataset = num_iq_samples,
         fft_size = 4,
         impairment_level = 0,
         sample_rate = 10e6,
         num_signals_min = 1,
+        num_signals_max = 1,
         num_signals_distribution = [1.0],
         snr_db_min = 100.0,
         snr_db_max = 100.0,
@@ -134,12 +136,13 @@ def generate_test_signal(num_iq_samples: int = 10, scale: float = 1.0) -> Signal
 
     """
     sample_rate = 10e6
-    md = NarrowbandMetadata(
+    md = WidebandMetadata(
         num_iq_samples_dataset = num_iq_samples,
         fft_size = 4,
         impairment_level = 0,
         sample_rate = sample_rate,
         num_signals_min = 1,
+        num_signals_max = 1,
         num_signals_distribution = [1.0],
         snr_db_min = 100.0,
         snr_db_max = 100.0,
@@ -183,12 +186,13 @@ def generate_tone_signal(num_iq_samples: int = 10, scale: float = 1.0) -> Signal
 
     """
     sample_rate = 10e6
-    md = NarrowbandMetadata(
+    md = WidebandMetadata(
         num_iq_samples_dataset = num_iq_samples,
         fft_size = 4,
         impairment_level = 0,
         sample_rate = sample_rate,
         num_signals_min = 1,
+        num_signals_max = 1,
         num_signals_distribution = [1.0],
         snr_db_min = 100.0,
         snr_db_max = 100.0,

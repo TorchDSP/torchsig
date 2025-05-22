@@ -153,7 +153,7 @@ def to_dataset_metadata(dataset_metadata: DatasetMetadata | str | dict):
             - A dictionary representing the dataset metadata.
 
     Returns:
-        DatasetMetadata: The corresponding `NarrowbandMetadata` or `WidebandMetadata` object initialized with the provided parameters.
+        DatasetMetadata: The corresponding `WidebandMetadata` object initialized with the provided parameters.
 
     Raises:
         ValueError: If the input `dataset_metadata` is not valid or if required fields are missing from the metadata.
@@ -183,9 +183,7 @@ def to_dataset_metadata(dataset_metadata: DatasetMetadata | str | dict):
         
         # use appropriate dataset metadata type
         metadata = None
-        if dataset_type == "narrowband":
-            metadata = NarrowbandMetadata
-        elif dataset_type == "wideband":
+        if dataset_type == "wideband":
             metadata = WidebandMetadata
         else:
             raise ValueError("Invalid dataset_type in dataset_metadata")

@@ -3,7 +3,6 @@
 
 # TorchSig
 from torchsig.datasets.dataset_metadata import DatasetMetadata
-from torchsig.datasets.narrowband import NewNarrowband
 from torchsig.datasets.wideband import NewWideband
 from torchsig.utils.writer import DatasetCreator
 
@@ -38,10 +37,10 @@ def generate(
     """
     
     create_dataset = None
-    if dataset_metadata.dataset_type == "narrowband":
-        create_dataset = NewNarrowband(dataset_metadata=dataset_metadata)
-    elif dataset_metadata.dataset_type == "wideband":
+    if dataset_metadata.dataset_type == "wideband":
         create_dataset = NewWideband(dataset_metadata=dataset_metadata)
+    else:
+        raise ValueError('Dataset type must be wideband, instead is: {dataset_metadata.dataset_type}')
 
     creator = DatasetCreator(
         dataset=create_dataset,

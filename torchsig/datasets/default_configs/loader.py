@@ -1,4 +1,4 @@
-""" Loads default yaml configs for Narrowband and Widebands
+""" Loads default yaml configs for Wideband
 """
 
 # Built-In
@@ -40,7 +40,7 @@ def get_default_yaml_config(
         # Load the default configuration for an impaired wideband dataset for validation and get the config path
         config, path = get_default_yaml_config('wideband', 2, False, ret_config_path=True)
     """
-    if dataset_type not in ["narrowband", "wideband"]:
+    if dataset_type not in ["wideband"]:
         raise ValueError(f"Invalid dataset type {dataset_type}")
 
     if impairment_level == 1:

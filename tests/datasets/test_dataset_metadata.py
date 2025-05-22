@@ -2,12 +2,11 @@
 
 Classes:
 - DatasetMetadata
-- NarrowbandMetadata
 - WidebandMetadata
 """
 
 # TorchSig
-from torchsig.datasets.dataset_metadata import DatasetMetadata, NarrowbandMetadata, WidebandMetadata
+from torchsig.datasets.dataset_metadata import DatasetMetadata, WidebandMetadata
 from torchsig.signals.signal_lists import TorchSigSignalLists
 
 # Third Party
@@ -43,15 +42,6 @@ def test_DatasetMetadata():
             num_signals_max=5,
         )
         md.to_dict()
-
-def test_NarrowbandMetadata():
-    md = NarrowbandMetadata(
-        num_iq_samples_dataset=num_iq_samples_dataset,
-        sample_rate=narrowband_sample_rate,
-        fft_size=fft_size,
-        impairment_level=0,
-    )
-    md.to_dict()
 
 def test_WidebandMetadata():
     md = WidebandMetadata(

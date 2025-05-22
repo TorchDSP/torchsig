@@ -1,6 +1,5 @@
 
 from torchsig.datasets.wideband import NewWideband, StaticWideband
-from torchsig.datasets.narrowband import NewNarrowband, StaticNarrowband
 import yaml
 import numpy as np
 from torchsig.utils.writer import DatasetCreator
@@ -52,44 +51,8 @@ def wideband():
         breakpoint()
     print("Success.")
 
-def narrowband():
-    yaml_file = f"{narrowband_filename}.yaml"
-
-    NB = NewNarrowband(yaml_file)
-    # print(NB)
-
-    test_idx = np.random.randint(len(NB))
-
-    dc = DatasetCreator(
-        NB,
-        narrowband_filename,
-        overwrite=True
-    )
-
-    dc.create()
-
-    NBS = StaticNarrowband(
-        root = narrowband_filename,
-        impaired = True,
-        raw = True,
-    )
-
-    # print(NBS)
-
-    NBS2 = StaticNarrowband(
-        root = narrowband_filename,
-        impaired = True,
-        raw = True,
-    )
-
-    match = compare(NBS[test_idx], NBS2[test_idx])
-    if not match:
-        print("Does not match.")
-        breakpoint()
-    print("Success.")
 
 if __name__=='__main__':
-    narrowband()
     wideband()
     
 

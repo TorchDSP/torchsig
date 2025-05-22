@@ -227,7 +227,7 @@ class SignalBuilder(Builder, Seedable):
 
         # randomly set bandwidth between a minimum and max
         bw = self.random_generator.uniform(self.dataset_metadata.signal_bandwidth_min,self.dataset_metadata.signal_bandwidth_max)
-        # center frequency always zero, will be randomized within the Narrowband() or Wideband() datasets themselves
+        # center frequency always zero, will be randomized within Wideband() dataset
         # due to the need to apply impairments at complex baseband first before upconversion to the IF
         center_freq = 0
         # randomly select SNR

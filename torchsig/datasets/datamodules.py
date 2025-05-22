@@ -1,4 +1,4 @@
-"""PyTorch Lightning DataModules for Narrowband and Wideband
+"""PyTorch Lightning DataModules for Wideband
 
 Learn More: https://lightning.ai/docs/pytorch/stable/data/datamodule.html
 
@@ -317,7 +317,7 @@ class WidebandDataModule(TorchSigDataModule):
 
 
 
-### DataModules for Official Narrowband and Wideband Datasets
+### DataModules for Official Wideband Datasets
 ### uses default YAML configs in torchsig/datasets/default_configs
 
 class OfficialTorchSigDataModdule(TorchSigDataModule):
