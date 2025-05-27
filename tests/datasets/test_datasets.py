@@ -1,4 +1,4 @@
-"""Unit Tests for narrowband and wideband datasets
+"""Unit Tests for wideband datasets
 """
 from torchsig.datasets.dataset_metadata import WidebandMetadata
 from torchsig.datasets.wideband import NewWideband, StaticWideband
@@ -38,32 +38,24 @@ import itertools
 
 RTOL = 1E-6
 
-nb_data_dir =  Path.joinpath(Path(__file__).parent,'data/narrowband_data')
-nb_image_dir = Path.joinpath(Path(__file__).parent,'data/narrowband_images')
 wb_data_dir =  Path.joinpath(Path(__file__).parent,'data/wideband_data')
 wb_image_dir = Path.joinpath(Path(__file__).parent,'data/wideband_images')
 getitem_dir = Path.joinpath(Path(__file__).parent,'data/getitem_data')
 
 # directory for test data
 def setup_module(module):
-    if os.path.exists(nb_data_dir):
-        shutil.rmtree(nb_data_dir)
-    if os.path.exists(nb_image_dir):
-        shutil.rmtree(nb_image_dir) 
     if os.path.exists(wb_data_dir):
         shutil.rmtree(wb_data_dir)
     if os.path.exists(wb_image_dir):
         shutil.rmtree(wb_image_dir) 
 
-    os.makedirs(nb_data_dir)
-    os.makedirs(nb_image_dir)
     os.makedirs(wb_data_dir)
     os.makedirs(wb_image_dir)
 
 
 test_dataset_getitem_params = list(itertools.product(
-    # datasets
-    ["narrowband", "wideband"],
+    # num_signals_max
+    [1, 2, 3],
     # target transforms to test
     [
         [],
@@ -79,7 +71,7 @@ test_dataset_getitem_params = list(itertools.product(
 num_check = 5
 
 
-def verify_getitem_targets(dataset_type: str, target_transforms: List[TargetTransform], targets: Any) -> None:
+def verify_getitem_targets(num_signals_max: int, target_transforms: List[TargetTransform], targets: Any) -> None:
     # no TT -> list of dicts
     if len(target_transforms) == 0:
         required_keys = [
@@ -114,7 +106,7 @@ def verify_getitem_targets(dataset_type: str, target_transforms: List[TargetTran
     #   signal 2 output
     # ]
     if len(target_transforms) == 1:
-        if dataset_type == 'narrowband':
+        if num_signals_max == 1:
             assert not isinstance(targets, dict)
             assert not isinstance(targets, list)
             if isinstance(targets, tuple):
@@ -149,7 +141,7 @@ def verify_getitem_targets(dataset_type: str, target_transforms: List[TargetTran
     #   ...
     # ]
     if len(target_transforms) > 1:
-        if dataset_type == 'narrowband':
+        if num_signals_max == 1:
             assert isinstance(targets, tuple)
             for item in targets:
                 if isinstance(item, tuple):
@@ -175,65 +167,59 @@ def verify_getitem_targets(dataset_type: str, target_transforms: List[TargetTran
                         assert isinstance(item, str) or not isinstance(item, Iterable)
 
 # @pytest.mark.skip(reason="ere")
-@pytest.mark.parametrize("dataset_type, target_transforms, impairment_level", test_dataset_getitem_params)
-def test_NewDataset_getitem(dataset_type: str, target_transforms: List[TargetTransform], impairment_level: int):
+@pytest.mark.parametrize("num_signals_max, target_transforms, impairment_level", test_dataset_getitem_params)
+def test_NewDataset_getitem(num_signals_max: int, target_transforms: List[TargetTransform], impairment_level: int):
     """ Tests targets from target transform are properly returned from dataset's getitem
 
     >>> pytest test_datasets.py -s
 
     Args:
-        dataset_type (str): Dataset to test. Either "narrowband" or "wideband".
+        num_signals_max (str): Maximum number of signals.
         target_transforms (List[TargetTransform]): target transforms to test.
     """    
-    print(f"\n{dataset_type}, {target_transforms}, level {impairment_level}")
+    print(f"\n{num_signals_max}, {target_transforms}, level {impairment_level}")
     dataset = None
     fft_size = 64
 
-    if dataset_type == 'wideband':
-        dm = WidebandMetadata(
-            num_iq_samples_dataset=fft_size**2,
-            fft_size=fft_size,
-            impairment_level=impairment_level,
-            num_signals_max=3,
-            target_transforms=target_transforms
-        )
-        dataset = NewWideband(dataset_metadata=dm)
-    else:
-        raise ValueError('invalid dataset type')
+    dm = WidebandMetadata(
+        num_iq_samples_dataset=fft_size**2,
+        fft_size=fft_size,
+        impairment_level=impairment_level,
+        num_signals_max=num_signals_max,
+        target_transforms=target_transforms
+    )
+    dataset = NewWideband(dataset_metadata=dm)
 
     for i in range(num_check):
         data, targets = dataset[i]
 
-        verify_getitem_targets(dataset_type, target_transforms, targets)
+        verify_getitem_targets(num_signals_max, target_transforms, targets)
 
 # @pytest.mark.skip(reason="ere")
-@pytest.mark.parametrize("dataset_type, target_transforms, impairment_level", test_dataset_getitem_params)
-def test_StaticDataset_getitem(dataset_type: str, target_transforms: List[TargetTransform], impairment_level: int):
+@pytest.mark.parametrize("num_signals_max, target_transforms, impairment_level", test_dataset_getitem_params)
+def test_StaticDataset_getitem(num_signals_max: int, target_transforms: List[TargetTransform], impairment_level: int):
     """ Tests targets from target transform are properly returned from dataset's getitem
 
     >>> pytest test_datasets.py -s
 
     Args:
-        dataset_type (str): Dataset to test. Either "narrowband" or "wideband".
+        num_signals_max (int): Maximum number of signals.
         target_transforms (List[TargetTransform]): target transforms to test.
     """    
-    print(f"\n{dataset_type}, {target_transforms}, level {impairment_level}")
+    print(f"\n{num_signals_max}, {target_transforms}, level {impairment_level}")
     new_dataset = None
     fft_size = 64
     root = getitem_dir
     num_generate = num_check * 2
 
-    if dataset_type == 'wideband':
-        dm = WidebandMetadata(
-            num_iq_samples_dataset=fft_size**2,
-            fft_size=fft_size,
-            impairment_level=impairment_level,
-            num_signals_max=3,
-            num_samples=num_generate
-        )
-        new_dataset = NewWideband(dataset_metadata=dm)
-    else:
-        raise ValueError('unknown dataset type.')
+    dm = WidebandMetadata(
+        num_iq_samples_dataset=fft_size**2,
+        fft_size=fft_size,
+        impairment_level=impairment_level,
+        num_signals_max=num_signals_max,
+        num_samples=num_generate
+    )
+    new_dataset = NewWideband(dataset_metadata=dm)
 
     dc = DatasetCreator(
         new_dataset,
@@ -245,20 +231,17 @@ def test_StaticDataset_getitem(dataset_type: str, target_transforms: List[Target
 
     static_dataset = None
 
-    if dataset_type == 'wideband':
-        static_dataset = StaticWideband(
-            root = root,
-            impairment_level = impairment_level,
-            target_transforms=target_transforms,
-        )
-    else:
-        raise ValueError('unsupported dataset type.')
+    static_dataset = StaticWideband(
+        root = root,
+        impairment_level = impairment_level,
+        target_transforms=target_transforms,
+    )
 
     for i in range(num_check):
         idx = np.random.randint(len(static_dataset))
         data, targets = static_dataset[idx]
 
-        verify_getitem_targets(dataset_type, target_transforms, targets)
+        verify_getitem_targets(num_signals_max, target_transforms, targets)
     
 
 
@@ -392,7 +375,10 @@ def test_WidebandDatasets(params: dict, is_error: bool) -> None:
             
             assert type(data0) == np.ndarray
             assert data0.dtype == torchsig_real_data_type
-            assert type(meta0) == list
+            if (num_signals_max == 1):
+                assert type(meta0) == tuple
+            else:
+                assert type(meta0) == list
             assert meta0 == meta1
             assert np.allclose(data0, data1, RTOL)
 
@@ -405,7 +391,10 @@ def test_WidebandDatasets(params: dict, is_error: bool) -> None:
             
             assert type(data0) == np.ndarray
             assert data0.dtype == torchsig_real_data_type
-            assert type(meta0) == list
+            if (num_signals_max == 1):
+                assert type(meta0) == tuple
+            else:
+                assert type(meta0) == list
             assert meta0 == meta1
             assert np.allclose(data0, data1, RTOL)
         
