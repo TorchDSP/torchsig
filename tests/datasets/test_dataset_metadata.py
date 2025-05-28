@@ -27,17 +27,16 @@ class_list = TorchSigSignalLists.all_signals
 
 
 def test_DatasetMetadata():
-    with pytest.raises(NotImplementedError):
-        md = DatasetMetadata(
-            num_iq_samples_dataset=num_iq_samples_dataset,
-            sample_rate=10e6,
-            fft_size = 64,
-            num_signals_min=0,
-            transforms=transforms,
-            target_transforms=target_transforms,
-            impairment_level=1,
-            class_list=class_list,
-            num_signals_max=5,
-        )
-        md.to_dict()
+    md = DatasetMetadata(
+        num_iq_samples_dataset=num_iq_samples_dataset,
+        sample_rate=10e6,
+        fft_size = 64,
+        num_signals_min=0,
+        transforms=transforms,
+        target_transforms=target_transforms,
+        impairment_level=1,
+        class_list=class_list,
+        num_signals_max=5,
+    )
+    md.to_dict()
 

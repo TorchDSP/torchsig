@@ -1,8 +1,8 @@
-"""Tests for Wideband Generation Scripts
+"""Tests for Generation Scripts
 """
 
 from torchsig.utils.generate import generate
-from torchsig.datasets.dataset_metadata import WidebandMetadata
+from torchsig.datasets.dataset_metadata import DatasetMetadata
 
 import pytest
 
@@ -39,7 +39,7 @@ def test_generate_wideband(
 ):
     print(num_signals, num_samples, num_iq_samples, impaired)
     sample_rate=100e6
-    dataset_metadata = WidebandMetadata(
+    dataset_metadata = DatasetMetadata(
         num_signals_max=num_signals,
         sample_rate=sample_rate,
         num_samples = num_samples,

@@ -3,7 +3,7 @@
 
 import pytest
 
-from torchsig.datasets.dataset_metadata import WidebandMetadata
+from torchsig.datasets.dataset_metadata import DatasetMetadata
 from torchsig.datasets.datasets import TorchsigIterableDataset
 from torchsig.utils.data_loading import WorkerSeedingDataLoader
 
@@ -11,7 +11,7 @@ def test_dataset_seeds_correctly():
     num_iq_samples_dataset = 4096 # 64^2
     fft_size = 64
     impairment_level = 0 # clean
-    narrowband_metadata = WidebandMetadata(
+    narrowband_metadata = DatasetMetadata(
         num_iq_samples_dataset = num_iq_samples_dataset, # 64^2
         fft_size = fft_size,
         impairment_level = impairment_level, # clean
@@ -40,7 +40,7 @@ def test_dataloader_seeds_correctly():
     num_iq_samples_dataset = 4096 # 64^2
     fft_size = 64
     impairment_level = 0 # clean
-    narrowband_metadata = WidebandMetadata(
+    narrowband_metadata = DatasetMetadata(
         num_iq_samples_dataset = num_iq_samples_dataset, # 64^2
         fft_size = fft_size,
         impairment_level = impairment_level, # clean

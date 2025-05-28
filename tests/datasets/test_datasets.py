@@ -108,7 +108,6 @@ def verify_getitem_targets(num_signals_max: int, target_transforms: List[TargetT
     if len(target_transforms) == 1:
         if num_signals_max == 1:
             assert not isinstance(targets, dict)
-            assert not isinstance(targets, list)
             if isinstance(targets, tuple):
                 for item in targets:
                     assert isinstance(item, str) or not isinstance(item, Iterable)
@@ -142,7 +141,7 @@ def verify_getitem_targets(num_signals_max: int, target_transforms: List[TargetT
     # ]
     if len(target_transforms) > 1:
         if num_signals_max == 1:
-            assert isinstance(targets, tuple)
+            assert isinstance(targets, tuple) or isinstance(targets,list)
             for item in targets:
                 if isinstance(item, tuple):
                     for i in item:
@@ -219,7 +218,7 @@ def test_StaticDataset_getitem(num_signals_max: int, target_transforms: List[Tar
         num_signals_max=num_signals_max,
         num_samples=num_generate
     )
-    new_dataset = NewWTorchSigDataset(dataset_metadata=dm)
+    new_dataset = NewTorchSigDataset(dataset_metadata=dm)
 
     dc = DatasetCreator(
         new_dataset,

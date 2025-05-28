@@ -1,7 +1,7 @@
 """Utility functions for transforms testing.
 """
 from torchsig.signals.signal_types import Signal, DatasetSignal, DatasetDict
-from torchsig.datasets.dataset_metadata import WidebandMetadata
+from torchsig.datasets.dataset_metadata import DatasetMetadata
 from torchsig.signals.builders.constellation import ConstellationSignalBuilder
 from torchsig.signals.builders.tone import ToneSignalBuilder
 import torchsig.transforms.functional as F
@@ -34,7 +34,7 @@ def generate_test_dataset_signal(num_iq_samples: int = 64, scale: float = 1.0) -
 
     # build a test scaled QPSK Signal component
     sample_rate = 10e6
-    md_qpsk = WidebandMetadata(
+    md_qpsk = DatasetMetadata(
         num_iq_samples_dataset = num_iq_samples,
         fft_size = 4,
         impairment_level = 0,
@@ -65,7 +65,7 @@ def generate_test_dataset_signal(num_iq_samples: int = 64, scale: float = 1.0) -
     qpsk_signal = qpsk_builder.build()
 
     # build a test scaled BPSK Signal component
-    md_bpsk = WidebandMetadata(
+    md_bpsk = DatasetMetadata(
         num_iq_samples_dataset = num_iq_samples,
         fft_size = 4,
         impairment_level = 0,
@@ -136,7 +136,7 @@ def generate_test_signal(num_iq_samples: int = 10, scale: float = 1.0) -> Signal
 
     """
     sample_rate = 10e6
-    md = WidebandMetadata(
+    md = DatasetMetadata(
         num_iq_samples_dataset = num_iq_samples,
         fft_size = 4,
         impairment_level = 0,
@@ -186,7 +186,7 @@ def generate_tone_signal(num_iq_samples: int = 10, scale: float = 1.0) -> Signal
 
     """
     sample_rate = 10e6
-    md = WidebandMetadata(
+    md = DatasetMetadata(
         num_iq_samples_dataset = num_iq_samples,
         fft_size = 4,
         impairment_level = 0,
