@@ -209,7 +209,7 @@ class TorchSigDataModule(pl.LightningDataModule):
 ### DataModules for Official Dataset
 ### uses default YAML configs in torchsig/datasets/default_configs
 
-class OfficialTorchSigDataModdule(TorchSigDataModule):
+class OfficialTorchSigDataModule(TorchSigDataModule):
     """
     A PyTorch Lightning DataModule for official TorchSignal datasets.
     
