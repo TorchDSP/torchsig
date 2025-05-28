@@ -1,4 +1,4 @@
-"""Dataset Metadata class for Wideband
+"""Dataset Metadata class
 """
 
 from __future__ import annotations
@@ -82,7 +82,6 @@ class DatasetMetadata(Seedable):
         class_list: List[str] = None,
         class_distribution: np.ndarray | List[float]= None,
         num_samples: int = None,
-        dataset_type: str = "wideband",
         **kwargs
     ):
         """Initializes Dataset Metadata
@@ -110,7 +109,6 @@ class DatasetMetadata(Seedable):
             class_list (List[str], optional): Signal class name list. Defaults to TorchSigSignalLists.all_signals.
             class_distribution (np.ndarray | List[float], optional): Probabilities for each class in `class_list`. Defaults to None (uniform).
             num_samples (int, optional): Set dataset size. For infinite dataset, set to None, Defaults to None.
-            dataset_type (str, optional): Dataset type name. Defaults to "None".
 
         Raises:
             ValueError: If any of the provided parameters are invalid or incompatible.
@@ -133,7 +131,6 @@ class DatasetMetadata(Seedable):
         self._class_list = TorchSigSignalLists.all_signals if class_list is None else class_list
         self._class_distribution = class_distribution
 
-        self._dataset_type = dataset_type
         self._num_samples = num_samples
 
 
@@ -167,14 +164,6 @@ class DatasetMetadata(Seedable):
         Raises:
             ValueError: If any dataset configuration is invalid.
         """
-
-        # check dataset type
-        self._dataset_type = verify_str(
-            s = self._dataset_type,
-            name = "dataset_type",
-            valid = ["narrowband", "wideband"],
-            str_format = "lower"
-        )
 
         # Transforms
         self._transforms = verify_transforms(self._transforms)
@@ -379,13 +368,13 @@ class DatasetMetadata(Seedable):
         return dataset_metadata_str(self)
 
     def __repr__(self) -> str:
-        """Returns a string representation of the WidebandMetadata instance.
+        """Returns a string representation of the DatasetMetadata instance.
         
         This provides a concise summary of the key parameters such as `num_iq_samples_dataset`, 
         `sample_rate`, `num_signals_max`, and `fft_size`.
         
         Returns:
-            str: String representation of the WidebandMetadata instance.
+            str: String representation of the DatasetMetadata instance.
         """
         return f"{self.__class__.__name__}(num_iq_samples_dataset={self.num_iq_samples_dataset}, sample_rate={self.sample_rate}, num_signals_max={self.num_signals_max}, fft_size={self.fft_size})"
     
@@ -401,10 +390,10 @@ class DatasetMetadata(Seedable):
         # organize fields by area
 
         required = {
-            'dataset_type': self._dataset_type,
             'num_iq_samples_dataset': self._num_iq_samples_dataset,
             'impairment_level': self._impairment_level,
-            'fft_size': self._fft_size
+            'fft_size': self._fft_size,
+            'num_signals_max': self._num_signals_max
         }
 
         overrides = {
@@ -428,7 +417,6 @@ class DatasetMetadata(Seedable):
 
         # dataset information
         dataset_info = {
-            'dataset_type': self._dataset_type,
             'num_samples': "infinite" if self._num_samples is None else self._num_samples,
             'num_iq_samples_dataset': self._num_iq_samples_dataset,
             'fft_size': self._fft_size,
@@ -469,8 +457,6 @@ class DatasetMetadata(Seedable):
             'signals': signal_gen,
         }
 
-        if self._dataset_type == "wideband":
-            required["num_signals_max"] = self._num_signals_max
 
         return {
             'required': required,
@@ -695,7 +681,7 @@ class DatasetMetadata(Seedable):
     def num_signals_max(self) -> int:
         """Max number of signals in each sample in the dataset
 
-        Returns the number of distinct signals in the wideband dataset
+        Returns the number of distinct signals dataset
 
         Returns:
             int: max number of signals
@@ -797,15 +783,6 @@ class DatasetMetadata(Seedable):
         return self._num_samples
 
     @property
-    def dataset_type(self) -> str:
-        """Type of dataset.
-
-        Returns:
-            str: Dataset type name
-        """        
-        return self._dataset_type
-
-    @property
     def noise_power_db(self) -> float:
         """Reference noise power (dB) for the dataset
 
@@ -869,7 +846,7 @@ class DatasetMetadata(Seedable):
     def fft_size(self) -> int:
         """The size of FFT (number of bins) to be used in spectrogram.
 
-        The FFT size used to compute the spectrogram for the wideband dataset.
+        The FFT size used to compute the spectrogram for the dataset.
 
         Returns:
             int: FFT size
