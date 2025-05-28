@@ -221,4 +221,4 @@ def to_dataset_metadata(dataset_metadata: DatasetMetadata | str | dict):
 
     # else:
     # If the input is neither DatasetMetadata, str, nor dict     
-    raise ValueError("Invalid dataset_metadata.")
+    raise ValueError(f"Invalid dataset_metadata, type is {type(dataset_metadata)}.")
