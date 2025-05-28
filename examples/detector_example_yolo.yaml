@@ -57,6 +57,6 @@ names:
   55: chirpss
   56: tone
 nc: 57
-path: wideband_detector_example
+path: detector_example
 train: images/train
 val: images/val
