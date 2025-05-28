@@ -1,7 +1,7 @@
 """Dataset Utilities
 """
 
-from torchsig.datasets.dataset_metadata import DatasetMetadata, WidebandMetadata
+from torchsig.datasets.dataset_metadata import DatasetMetadata
 from torchsig.signals.signal_types import Signal
 from torchsig.utils.dsp import (
     frequency_shift,
@@ -153,7 +153,7 @@ def to_dataset_metadata(dataset_metadata: DatasetMetadata | str | dict):
             - A dictionary representing the dataset metadata.
 
     Returns:
-        DatasetMetadata: The corresponding `WidebandMetadata` object initialized with the provided parameters.
+        DatasetMetadata: The corresponding `DatasetMetadata` object initialized with the provided parameters.
 
     Raises:
         ValueError: If the input `dataset_metadata` is not valid or if required fields are missing from the metadata.
@@ -182,11 +182,7 @@ def to_dataset_metadata(dataset_metadata: DatasetMetadata | str | dict):
             raise ValueError("num_signals_max defined in required params but dataset_type is narrowband. Should dataset_type be wideband?")
         
         # use appropriate dataset metadata type
-        metadata = None
-        if dataset_type == "wideband":
-            metadata = WidebandMetadata
-        else:
-            raise ValueError("Invalid dataset_type in dataset_metadata")
+        metadata = DatasetMetadata
 
         # Validate minimum parameters given in yaml to instantiate
         for min_param in metadata.minimum_params:

@@ -10,7 +10,7 @@ from __future__ import annotations
 
 # TorchSig
 from torch.utils.data import DataLoader
-from torchsig.datasets.dataset_metadata import DatasetMetadata, WidebandMetadata
+from torchsig.datasets.dataset_metadata import DatasetMetadata
 from torchsig.datasets.wideband import NewWideband, StaticWideband
 from torchsig.datasets.dataset_utils import to_dataset_metadata
 from torchsig.utils.writer import DatasetCreator
@@ -215,7 +215,7 @@ class WidebandDataModule(TorchSigDataModule):
 
     Args:
         root (str): The root directory where datasets are stored or created.
-        dataset_metadata (WidebandMetadata | str | dict): Metadata for the wideband dataset.
+        dataset_metadata (DatasetMetadata | str | dict): Metadata for the wideband dataset.
         num_samples_train (int): The number of training samples.
         num_samples_val (int, optional): The number of validation samples. Defaults to 10% of training samples if not provided.
         batch_size (int, optional): The batch size for data loading. Defaults to 1.
@@ -232,7 +232,7 @@ class WidebandDataModule(TorchSigDataModule):
         self,
         root: str,
         # dataset params
-        dataset_metadata: WidebandMetadata | str | dict,
+        dataset_metadata: DatasetMetadata | str | dict,
         num_samples_train: int,
         num_samples_val: int = None,
         # dataloader params
@@ -253,7 +253,7 @@ class WidebandDataModule(TorchSigDataModule):
 
         base = to_dataset_metadata(dataset_metadata)
 
-        train_metadata = WidebandMetadata(
+        train_metadata = DatasetMetadata(
             num_iq_samples_dataset = base.num_iq_samples_dataset,
             fft_size = base.num_iq_samples_dataset,
             impairment_level = base.impairment_level,
@@ -276,7 +276,7 @@ class WidebandDataModule(TorchSigDataModule):
             num_samples = num_samples_train,
         )
 
-        val_metadata = WidebandMetadata(
+        val_metadata = DatasetMetadata(
             num_iq_samples_dataset = base.num_iq_samples_dataset,
             fft_size = base.num_iq_samples_dataset,
             impairment_level = base.impairment_level,
