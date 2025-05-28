@@ -6,7 +6,7 @@ Classes:
 """
 
 from torchsig.signals.signal_types import Signal, DatasetSignal, DatasetDict
-from torchsig.datasets.dataset_metadata import WidebandMetadata
+from torchsig.datasets.dataset_metadata import DatasetMetadata
 from torchsig.signals.builders.constellation import ConstellationSignalBuilder
 import torchsig.transforms.functional as F
 from torchsig.utils.dsp import torchsig_complex_data_type
@@ -19,7 +19,7 @@ rng = np.random.default_rng(42)
 
 for i in range(3):
     # build a test scaled QPSK Signal component
-    md_qpsk = WidebandMetadata(
+    md_qpsk = DatasetMetadata(
         num_iq_samples_dataset = 1024,
         fft_size = 128,
         impairment_level = 0,

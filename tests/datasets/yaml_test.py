@@ -1,12 +1,10 @@
 
-from torchsig.datasets.wideband import NewWideband, StaticWideband
+from torchsig.datasets.datasets import NewTorchSigDataset, StaticTorchSigDataset
 import yaml
 import numpy as np
 from torchsig.utils.writer import DatasetCreator
+import pathlib
 
-yaml_filename = "yaml_test"
-wideband_filename = f"{yaml_filename}_wideband"
-narrowband_filename = f"{yaml_filename}_narrowband"
 
 def compare(s1, s2):
     d1, t1 = s1
@@ -17,44 +15,39 @@ def compare(s1, s2):
 
     return data_matches and targets_match
 
-def wideband():
-    yaml_file = f"{wideband_filename}.yaml"
+dataset_name = f"yaml_test_dataset"
+directory_path = pathlib.Path(__file__).parent.resolve()
+yaml_path = str(directory_path.joinpath(f"{dataset_name}.yaml"))
+dataset_path = str(directory_path.joinpath(f"{dataset_name}"))
 
-    WB = NewWideband(yaml_file)
-    # print(WB)
+DS = NewTorchSigDataset(yaml_path)
 
-    test_idx = np.random.randint(len(WB))
+test_idx = np.random.randint(len(DS))
 
-    dc = DatasetCreator(
-        WB,
-        wideband_filename,
-        overwrite=True
-    )
+dc = DatasetCreator(
+    DS,
+    dataset_path,
+    overwrite=True
+)
 
-    dc.create()
+dc.create()
 
-    WBS = StaticWideband(
-        root = wideband_filename,
-        impaired = False,
-        raw = False,
-    )
+SDS = StaticTorchSigDataset(
+    root = dataset_path,
+    impairment_level = 0
+)
 
-    WBS2 = StaticWideband(
-        root = wideband_filename,
-        impaired = False,
-        raw = False,
-    )
+SDS2 = StaticTorchSigDataset(
+    root = dataset_path,
+    impairment_level = 0
+)
 
-    match = compare(WBS[test_idx], WBS2[test_idx])
-    if not match:
-        print("Does not match.")
-        breakpoint()
-    print("Success.")
+match = compare(SDS[test_idx], SDS2[test_idx])
+if not match:
+    print("Does not match.")
+    breakpoint()
+print("Success.")
 
 
-if __name__=='__main__':
-    wideband()
     
-
-    # breakpoint()
 

@@ -1,7 +1,7 @@
-"""Unit Tests for wideband datasets
+"""Unit Tests for datasets
 """
-from torchsig.datasets.dataset_metadata import WidebandMetadata
-from torchsig.datasets.wideband import NewWideband, StaticWideband
+from torchsig.datasets.dataset_metadata import DatasetMetadata
+from torchsig.datasets.datasets import NewTorchSigDataset, StaticTorchSigDataset
 from torchsig.utils.writer import DatasetCreator
 from torchsig.signals.signal_lists import TorchSigSignalLists
 from torchsig.transforms.target_transforms import (
@@ -38,8 +38,8 @@ import itertools
 
 RTOL = 1E-6
 
-wb_data_dir =  Path.joinpath(Path(__file__).parent,'data/wideband_data')
-wb_image_dir = Path.joinpath(Path(__file__).parent,'data/wideband_images')
+wb_data_dir =  Path.joinpath(Path(__file__).parent,'data/dataset_data')
+wb_image_dir = Path.joinpath(Path(__file__).parent,'data/dataset_images')
 getitem_dir = Path.joinpath(Path(__file__).parent,'data/getitem_data')
 
 # directory for test data
@@ -98,9 +98,9 @@ def verify_getitem_targets(num_signals_max: int, target_transforms: List[TargetT
             assert set(required_keys) == set(t.keys())
 
     # 1 TT
-    # narrowband: single item
+    # num_signals_max == 1: single item
     #   signal 1 output
-    # wideband: list of single items 
+    # num_signals_max > 1: list of single items 
     # [
     #   signal 1 output, 
     #   signal 2 output
@@ -126,10 +126,10 @@ def verify_getitem_targets(num_signals_max: int, target_transforms: List[TargetT
                     assert isinstance(t, str) or not isinstance(t, Iterable)
 
     # 2+ TT
-    # narrowband: a (sorta) single tuple
+    # num_signals_max == 1: a (sorta) single tuple
     #   (signal 1 output)
     #   (class name, (x, y, w, h))
-    # wideband: list of tuples 
+    # num_signals_max > 1: list of tuples 
     # [
     #   (signal 1 output),
     #   (signal 2 output), 
@@ -181,14 +181,14 @@ def test_NewDataset_getitem(num_signals_max: int, target_transforms: List[Target
     dataset = None
     fft_size = 64
 
-    dm = WidebandMetadata(
+    dm = DatasetMetadata(
         num_iq_samples_dataset=fft_size**2,
         fft_size=fft_size,
         impairment_level=impairment_level,
         num_signals_max=num_signals_max,
         target_transforms=target_transforms
     )
-    dataset = NewWideband(dataset_metadata=dm)
+    dataset = NewTorchSigDataset(dataset_metadata=dm)
 
     for i in range(num_check):
         data, targets = dataset[i]
@@ -212,14 +212,14 @@ def test_StaticDataset_getitem(num_signals_max: int, target_transforms: List[Tar
     root = getitem_dir
     num_generate = num_check * 2
 
-    dm = WidebandMetadata(
+    dm = DatasetMetadata(
         num_iq_samples_dataset=fft_size**2,
         fft_size=fft_size,
         impairment_level=impairment_level,
         num_signals_max=num_signals_max,
         num_samples=num_generate
     )
-    new_dataset = NewWideband(dataset_metadata=dm)
+    new_dataset = NewWTorchSigDataset(dataset_metadata=dm)
 
     dc = DatasetCreator(
         new_dataset,
@@ -231,7 +231,7 @@ def test_StaticDataset_getitem(num_signals_max: int, target_transforms: List[Tar
 
     static_dataset = None
 
-    static_dataset = StaticWideband(
+    static_dataset = StaticTorchSigDataset(
         root = root,
         impairment_level = impairment_level,
         target_transforms=target_transforms,
@@ -252,8 +252,8 @@ def test_StaticDataset_getitem(num_signals_max: int, target_transforms: List[Tar
         False
     )
 ])
-def test_WidebandDatasets(params: dict, is_error: bool) -> None:
-    """Test Wideband datasets with pytest - NewWideband and StaticWideband.
+def test_datasets(params: dict, is_error: bool) -> None:
+    """Test datasets with pytest - NewTorchSigDataset and StaticTorchSigDataset.
 
     Args:
         is_error (bool): Is a test error expected.
@@ -312,8 +312,8 @@ def test_WidebandDatasets(params: dict, is_error: bool) -> None:
         SNR()
     ]
     
-    # build the wideband metadata
-    md = WidebandMetadata(
+    # build the dataset metadata
+    md = DatasetMetadata(
         num_iq_samples_dataset=num_iq_samples_dataset,
         sample_rate=sample_rate,
         fft_size=fft_size,
@@ -332,46 +332,46 @@ def test_WidebandDatasets(params: dict, is_error: bool) -> None:
 
     if is_error:
         with pytest.raises(Exception, match=r".*"):
-            WB = NewWideband(dataset_metadata=md)
+            DS = NewTorchSigDataset(dataset_metadata=md)
             dc = DatasetCreator(
-                WB,
+                DS,
                 root = wb_data_dir,
                 overwrite = True
             )
             dc.create()
-            WBS = StaticWideband(
+            SDS = StaticTorchSigDataset(
                 root = wb_data_dir,
                 impairment_level = impairment_level,
             )
     else:
-        # create the wideband object, derived from the metadata object
-        WB0 = NewWideband(dataset_metadata=deepcopy(md), seed=seed)
-        WB1 = NewWideband(dataset_metadata=deepcopy(md), seed=seed) # reproducible copy
+        # create the dataset object, derived from the metadata object
+        DS0 = NewTorchSigDataset(dataset_metadata=deepcopy(md), seed=seed)
+        DS1 = NewTorchSigDataset(dataset_metadata=deepcopy(md), seed=seed) # reproducible copy
 
         # save dataset to disk
         dc = DatasetCreator(
-            WB0,
+            DS0,
             root = wb_data_dir,
             overwrite = True
         )
         dc.create()
 
         # load dataset from disk
-        WBS0 = StaticWideband(
+        SDS0 = StaticTorchSigDataset(
             root = wb_data_dir,
             impairment_level = impairment_level,
         )
-        WBS1 = StaticWideband(
+        SDS1 = StaticTorchSigDataset(
             root = wb_data_dir,
             impairment_level = impairment_level,
         )
             
-        # wideband dataset
-        assert isinstance(WB0, NewWideband)
-        assert len(WB0) == num_samples
+        # dataset
+        assert isinstance(DS0, NewTorchSigDataset)
+        assert len(DS0) == num_samples
         for i in range(num_samples):
-            data0, meta0 = WB0[i]
-            data1, meta1 = WB1[i] # reproducible copy
+            data0, meta0 = DS0[i]
+            data1, meta1 = DS1[i] # reproducible copy
             
             assert type(data0) == np.ndarray
             assert data0.dtype == torchsig_real_data_type
@@ -382,12 +382,12 @@ def test_WidebandDatasets(params: dict, is_error: bool) -> None:
             assert meta0 == meta1
             assert np.allclose(data0, data1, RTOL)
 
-        # static wideband dataset
-        assert isinstance(WBS0, StaticWideband)
-        assert len(WBS0) == num_samples
+        # static dataset
+        assert isinstance(SDS0, StaticTorchSigDataset)
+        assert len(SDS0) == num_samples
         for i in range(num_samples):
-            data0, meta0 = WBS0[i]
-            data1, meta1 = WBS1[i] # reproducible copy
+            data0, meta0 = SDS0[i]
+            data1, meta1 = SDS1[i] # reproducible copy
             
             assert type(data0) == np.ndarray
             assert data0.dtype == torchsig_real_data_type
