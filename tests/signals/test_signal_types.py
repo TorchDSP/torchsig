@@ -39,9 +39,9 @@ snr_db_min = 0.0
 snr_db_max = 50.0
 
 def wideband_metadata():
-    from torchsig.datasets.dataset_metadata import WidebandMetadata
+    from torchsig.datasets.dataset_metadata import DatasetMetadata
 
-    return WidebandMetadata(
+    return DatasetMetadata(
         num_iq_samples_dataset=num_iq_samples_dataset,
         fft_size=fft_size,
         impairment_level=0,

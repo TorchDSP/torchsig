@@ -216,6 +216,7 @@ def test_StaticDataset_getitem(num_signals_max: int, target_transforms: List[Tar
         fft_size=fft_size,
         impairment_level=impairment_level,
         num_signals_max=num_signals_max,
+        num_signals_min = 1,
         num_samples=num_generate
     )
     new_dataset = NewTorchSigDataset(dataset_metadata=dm)

@@ -11,22 +11,23 @@ def test_dataset_seeds_correctly():
     num_iq_samples_dataset = 4096 # 64^2
     fft_size = 64
     impairment_level = 0 # clean
-    narrowband_metadata = DatasetMetadata(
+    metadata = DatasetMetadata(
         num_iq_samples_dataset = num_iq_samples_dataset, # 64^2
         fft_size = fft_size,
         impairment_level = impairment_level, # clean
-        num_signals_max = 1
+        num_signals_max = 1,
+        num_signals_min = 1,
     )
 
-    narrowband_dataset = TorchsigIterableDataset(narrowband_metadata)
+    narrowband_dataset = TorchsigIterableDataset(metadata)
     narrowband_dataset.seed(42)
     test_value11 = next(narrowband_dataset)[0][0]
     test_value12 = next(narrowband_dataset)[0][0]
-    narrowband_dataset = TorchsigIterableDataset(narrowband_metadata)
+    narrowband_dataset = TorchsigIterableDataset(metadata)
     narrowband_dataset.seed(42)
     test_value21 = next(narrowband_dataset)[0][0]
     test_value22 = next(narrowband_dataset)[0][0]
-    narrowband_dataset = TorchsigIterableDataset(narrowband_metadata)
+    narrowband_dataset = TorchsigIterableDataset(metadata)
     narrowband_dataset.seed(7)
     test_value31 = next(narrowband_dataset)[0][0]
     test_value32 = next(narrowband_dataset)[0][0]
@@ -40,14 +41,15 @@ def test_dataloader_seeds_correctly():
     num_iq_samples_dataset = 4096 # 64^2
     fft_size = 64
     impairment_level = 0 # clean
-    narrowband_metadata = DatasetMetadata(
+    metadata = DatasetMetadata(
         num_iq_samples_dataset = num_iq_samples_dataset, # 64^2
         fft_size = fft_size,
         impairment_level = impairment_level, # clean
-        num_signals_max = 1
+        num_signals_max = 1,
+        num_signals_min = 1,
     )
 
-    narrowband_dataset = TorchsigIterableDataset(narrowband_metadata)
+    narrowband_dataset = TorchsigIterableDataset(metadata)
     dataloader = WorkerSeedingDataLoader(narrowband_dataset, batch_size=8, num_workers=2)
     dataloader.seed(42)
     test_value1 = next(iter(dataloader))[0][-1][0]
