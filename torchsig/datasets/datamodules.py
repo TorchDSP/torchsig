@@ -11,7 +11,7 @@ from __future__ import annotations
 # TorchSig
 from torch.utils.data import DataLoader
 from torchsig.datasets.dataset_metadata import DatasetMetadata
-from torchsig.datasets.wideband import NewWideband, StaticWideband
+from torchsig.datasets.datasets import NewTorchSigDataset, StaticTorchSigDataset
 from torchsig.datasets.dataset_utils import to_dataset_metadata
 from torchsig.utils.writer import DatasetCreator
 from torchsig.utils.file_handlers.base_handler import TorchSigFileHandler
@@ -50,7 +50,6 @@ class TorchSigDataModule(pl.LightningDataModule):
     def __init__(
         self,
         root: str,
-        dataset: str,
         train_metadata: DatasetMetadata | str | dict,
         val_metadata: DatasetMetadata | str | dict,
         # dataloader params
@@ -71,7 +70,6 @@ class TorchSigDataModule(pl.LightningDataModule):
 
         Args:
             root (str): The root directory where datasets are stored or created.
-            dataset (str): The name of the dataset (either 'narrowband' or 'wideband').
             train_metadata (DatasetMetadata | str | dict): Metadata for the training dataset.
             val_metadata (DatasetMetadata | str | dict): Metadata for the validation dataset.
             batch_size (int, optional): The batch size for data loading. Defaults to 1.
@@ -87,13 +85,12 @@ class TorchSigDataModule(pl.LightningDataModule):
         super().__init__()
 
         self.root = Path(root)
-        self.dataset = dataset
         self.train_metadata = to_dataset_metadata(train_metadata)
         self.val_metadata = to_dataset_metadata(val_metadata)
         self.impairment_level = self.train_metadata.impairment_level
 
-        self.new_dataset_class = NewWideband
-        self.static_dataset_class = StaticWideband
+        self.new_dataset_class = NewTorchSigDataset
+        self.static_dataset_class = StaticTorchSigDataset
 
         self.transforms = transforms
         self.target_transforms = target_transforms
@@ -137,7 +134,7 @@ class TorchSigDataModule(pl.LightningDataModule):
             num_workers = self.create_num_workers,
             train = True,
         )
-        print(f"Train Dataset: {self.dataset.title()}, Impairment Level {self.train_metadata.impairment_level}, {self.train_metadata.num_samples} samples")
+        print(f"Train Dataset: Impairment Level {self.train_metadata.impairment_level}, {self.train_metadata.num_samples} samples")
         train_creator.create()
 
         val_dataset = self.new_dataset_class(
@@ -152,7 +149,7 @@ class TorchSigDataModule(pl.LightningDataModule):
             num_workers = self.create_num_workers,
             train = False,
         )
-        print(f"Val Dataset: {self.dataset.title()}, Impairment Level {self.val_metadata.impairment_level}, {self.val_metadata.num_samples} samples")
+        print(f"Val Dataset: Impairment Level {self.val_metadata.impairment_level}, {self.val_metadata.num_samples} samples")
         val_creator.create()
 
     def setup(self, stage: str = 'train') -> None:
@@ -209,113 +206,6 @@ class TorchSigDataModule(pl.LightningDataModule):
 
 
 
-class WidebandDataModule(TorchSigDataModule):
-    """
-    DataModule for creating and managing wideband datasets.
-
-    Args:
-        root (str): The root directory where datasets are stored or created.
-        dataset_metadata (DatasetMetadata | str | dict): Metadata for the wideband dataset.
-        num_samples_train (int): The number of training samples.
-        num_samples_val (int, optional): The number of validation samples. Defaults to 10% of training samples if not provided.
-        batch_size (int, optional): The batch size for data loading. Defaults to 1.
-        num_workers (int, optional): The number of worker processes for data loading. Defaults to 1.
-        collate_fn (Callable, optional): A function to collate data into batches.
-        create_batch_size (int, optional): The batch size used during dataset creation. Defaults to 8.
-        create_num_workers (int, optional): The number of workers used during dataset creation. Defaults to 4.
-        file_handler (TorchSigFileHandler, optional): The file handler for managing data storage. Defaults to ZarrFileHandler.
-        overwrite (bool, optional): Overwrites data on disk. Defaults to False.
-        transforms (Transform | List[Callable | Transform], optional): A list of transformations to apply to the input data.
-        target_transforms (TargetTransform | List[Callable | TargetTransform], optional): A list of transformations to apply to the target labels.
-    """
-    def __init__(
-        self,
-        root: str,
-        # dataset params
-        dataset_metadata: DatasetMetadata | str | dict,
-        num_samples_train: int,
-        num_samples_val: int = None,
-        # dataloader params
-        batch_size: int = 1,
-        num_workers: int = 1,
-        collate_fn: Callable = None,
-        # dataset creator params
-        create_batch_size: int = 8,
-        create_num_workers: int = 4,
-        file_handler: TorchSigFileHandler = ZarrFileHandler,
-        overwrite: bool = False,
-        # applied after dataset written to disk
-        transforms: Transform | List[Callable | Transform]  = [],
-        target_transforms: TargetTransform | List[Callable | TargetTransform] = [],
-    ):
-
-        num_samples_val = int(0.10 * num_samples_train) if num_samples_val is None else num_samples_val
-
-        base = to_dataset_metadata(dataset_metadata)
-
-        train_metadata = DatasetMetadata(
-            num_iq_samples_dataset = base.num_iq_samples_dataset,
-            fft_size = base.num_iq_samples_dataset,
-            impairment_level = base.impairment_level,
-            num_signals_max = base.num_signals_max,
-            sample_rate = base.sample_rate,
-            num_signals_min = base.num_signals_min,
-            num_signals_distribution = base.num_signals_distribution,
-            snr_db_min = base.snr_db_min,
-            snr_db_max = base.snr_db_max,
-            signal_duration_min = base.signal_duration_min,
-            signal_duration_max = base.signal_duration_max,
-            signal_bandwidth_min = base.signal_bandwidth_min,
-            signal_bandwidth_max = base.signal_bandwidth_max,
-            signal_center_freq_min = base.signal_center_freq_min,
-            signal_center_freq_max = base.signal_center_freq_max,
-            transforms = base.transforms,
-            target_transforms = base.target_transforms,
-            class_list = base.class_list,
-            class_distribution = base.class_distribution,
-            num_samples = num_samples_train,
-        )
-
-        val_metadata = DatasetMetadata(
-            num_iq_samples_dataset = base.num_iq_samples_dataset,
-            fft_size = base.num_iq_samples_dataset,
-            impairment_level = base.impairment_level,
-            num_signals_max = base.num_signals_max,
-            sample_rate = base.sample_rate,
-            num_signals_min = base.num_signals_min,
-            num_signals_distribution = base.num_signals_distribution,
-            snr_db_min = base.snr_db_min,
-            snr_db_max = base.snr_db_max,
-            signal_duration_min = base.signal_duration_min,
-            signal_duration_max = base.signal_duration_max,
-            signal_bandwidth_min = base.signal_bandwidth_min,
-            signal_bandwidth_max = base.signal_bandwidth_max,
-            signal_center_freq_min = base.signal_center_freq_min,
-            signal_center_freq_max = base.signal_center_freq_max,
-            transforms = base.transforms,
-            target_transforms = base.target_transforms,
-            class_list = base.class_list,
-            class_distribution = base.class_distribution,
-            num_samples = num_samples_val,
-        )
-
-        super().__init__(
-            root = root,
-            dataset = 'wideband',
-            train_metadata = train_metadata,
-            val_metadata = val_metadata,
-            batch_size = batch_size,
-            num_workers = num_workers,
-            collate_fn = collate_fn,
-            create_batch_size = create_batch_size,
-            create_num_workers = create_num_workers,
-            file_handler = file_handler,
-            transforms = transforms,
-            target_transforms = target_transforms,
-            overwrite = overwrite
-        )
-
-
 
 ### DataModules for Official Wideband Datasets
 ### uses default YAML configs in torchsig/datasets/default_configs
@@ -365,7 +255,7 @@ class OfficialTorchSigDataModdule(TorchSigDataModule):
         train_metadata = get_default_yaml_config(
             dataset_type = dataset,
             impairment_level = impairment_level,
-            train = True
+            rain = True
         )
 
         val_metadata = get_default_yaml_config(
@@ -390,53 +280,3 @@ class OfficialTorchSigDataModdule(TorchSigDataModule):
         )
 
 
-class OfficialWidebandDataModule(OfficialTorchSigDataModdule):
-    """
-    A DataModule for the official Wideband dataset.
-    
-    This class extends `OfficialTorchSigDataModdule` and sets the dataset type to 'wideband'.
-    It initializes the necessary parameters for the dataset and loads the train and validation metadata 
-    accordingly.
-
-    Args:
-        root (str): Root directory where the dataset is stored.
-        impairment_level (int): Defines the impairment level of the dataset.
-        batch_size (int, optional): Batch size for the dataloaders. Default is 1.
-        num_workers (int, optional): Number of workers for data loading. Default is 1.
-        collate_fn (Callable, optional): Function to merge a list of samples into a batch. Default is None.
-        create_batch_size (int, optional): Batch size used during dataset creation. Default is 8.
-        create_num_workers (int, optional): Number of workers used during dataset creation. Default is 4.
-        file_handler (TorchSigFileHandler, optional): File handler used to read/write dataset. Default is ZarrFileHandler.
-        transforms (list, optional): List of transforms applied to dataset. Default is empty list.
-        target_transforms (list, optional): List of transforms applied to targets. Default is empty list.
-    """
-    def __init__(
-        self,
-        root: str,
-        impairment_level: int,
-        # dataloader params
-        batch_size: int = 1,
-        num_workers: int = 1,
-        collate_fn: Callable = None,
-        # dataset creator params
-        create_batch_size: int = 8,
-        create_num_workers: int = 4,
-        file_handler: TorchSigFileHandler = ZarrFileHandler,
-        # applied after dataset written to disk
-        transforms: list = [],
-        target_transforms: list = [],
-    ):
-        # read from yaml or dataset metadata or code inputs
-        super().__init__(
-            root = root,
-            dataset = 'wideband',
-            impairment_level = impairment_level,
-            batch_size = batch_size,
-            num_workers = num_workers,
-            collate_fn = collate_fn,
-            create_batch_size = create_batch_size,
-            create_num_workers = create_num_workers,
-            file_handler = file_handler,
-            transforms = transforms,
-            target_transforms = target_transforms,
-        )
