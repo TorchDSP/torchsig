@@ -175,7 +175,7 @@ class ZarrFileHandler(TorchSigFileHandler):
         if isinstance(targets, tuple) or isinstance(targets, list):
             # target has multiple outputs
             if isinstance(targets[0], list):
-                # convert `wideband targets (2D list) to a list of tuples
+                # convert targets (2D list) to a list of tuples
                 # also convert any nested lists into tuples
                 targets = list(
                     tuple(item if not isinstance(item, list) else tuple(item) for item in target)
