@@ -1,4 +1,4 @@
-"""PyTorch Lightning DataModules for Wideband
+"""PyTorch Lightning DataModules
 
 Learn More: https://lightning.ai/docs/pytorch/stable/data/datamodule.html
 
@@ -34,7 +34,6 @@ class TorchSigDataModule(pl.LightningDataModule):
 
     Args:
         root (str): The root directory where datasets are stored or created.
-        dataset (str): The name of the dataset (either 'narrowband' or 'wideband').
         train_metadata (DatasetMetadata | str | dict): Metadata for the training dataset.
         val_metadata (DatasetMetadata | str | dict): Metadata for the validation dataset.
         batch_size (int, optional): The batch size for data loading. Defaults to 1.
@@ -207,7 +206,7 @@ class TorchSigDataModule(pl.LightningDataModule):
 
 
 
-### DataModules for Official Wideband Datasets
+### DataModules for Official Dataset
 ### uses default YAML configs in torchsig/datasets/default_configs
 
 class OfficialTorchSigDataModdule(TorchSigDataModule):
@@ -221,7 +220,6 @@ class OfficialTorchSigDataModdule(TorchSigDataModule):
 
     Args:
         root (str): Root directory where the dataset is stored.
-        dataset (str): Name of the dataset.
         impairment_level (int): Defines the impairment level of the dataset.
         batch_size (int, optional): Batch size for the dataloaders. Default is 1.
         num_workers (int, optional): Number of workers for data loading. Default is 1.
@@ -236,7 +234,6 @@ class OfficialTorchSigDataModdule(TorchSigDataModule):
     def __init__(
         self,
         root: str,
-        dataset: str,
         impairment_level: int,
         # dataloader params
         batch_size: int = 1,
@@ -253,20 +250,17 @@ class OfficialTorchSigDataModdule(TorchSigDataModule):
         # sets train and val metadata
 
         train_metadata = get_default_yaml_config(
-            dataset_type = dataset,
             impairment_level = impairment_level,
             rain = True
         )
 
         val_metadata = get_default_yaml_config(
-            dataset_type = dataset,
             impairment_level = impairment_level,
             train = False
         )
 
         super().__init__(
             root = root,
-            dataset = dataset,
             train_metadata = train_metadata,
             val_metadata = val_metadata,
             batch_size = batch_size,

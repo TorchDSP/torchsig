@@ -1,5 +1,4 @@
 required:
-  dataset_type: wideband
   num_iq_samples_dataset: 1048576 # 1024^2
   fft_size: 1024
   num_signals_max: 5
