@@ -38,7 +38,7 @@ import warnings
 if TYPE_CHECKING:
     from torchsig.utils.file_handlers.zarr import TorchSigFileHandler
 
-class TorchsigIterableDataset(IterableDataset, Seedable):
+class TorchSigIterableDataset(IterableDataset, Seedable):
     """Creates a new TorchSig dataset that generates data infinitely unless `num_samples` inside `dataset_metadata` is defined.
     
     This base class provides the functionality to generate signals and write them to disk if necessary. The dataset will continue 
