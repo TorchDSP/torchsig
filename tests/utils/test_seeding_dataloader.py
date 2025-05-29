@@ -4,7 +4,7 @@
 import pytest
 
 from torchsig.datasets.dataset_metadata import DatasetMetadata
-from torchsig.datasets.datasets import TorchsigIterableDataset
+from torchsig.datasets.datasets import TorchSigIterableDataset
 from torchsig.utils.data_loading import WorkerSeedingDataLoader
 
 def test_dataset_seeds_correctly():
@@ -19,15 +19,15 @@ def test_dataset_seeds_correctly():
         num_signals_min = 1,
     )
 
-    narrowband_dataset = TorchsigIterableDataset(metadata)
+    narrowband_dataset = TorchSigIterableDataset(metadata)
     narrowband_dataset.seed(42)
     test_value11 = next(narrowband_dataset)[0][0]
     test_value12 = next(narrowband_dataset)[0][0]
-    narrowband_dataset = TorchsigIterableDataset(metadata)
+    narrowband_dataset = TorchSigIterableDataset(metadata)
     narrowband_dataset.seed(42)
     test_value21 = next(narrowband_dataset)[0][0]
     test_value22 = next(narrowband_dataset)[0][0]
-    narrowband_dataset = TorchsigIterableDataset(metadata)
+    narrowband_dataset = TorchSigIterableDataset(metadata)
     narrowband_dataset.seed(7)
     test_value31 = next(narrowband_dataset)[0][0]
     test_value32 = next(narrowband_dataset)[0][0]
@@ -49,7 +49,7 @@ def test_dataloader_seeds_correctly():
         num_signals_min = 1,
     )
 
-    narrowband_dataset = TorchsigIterableDataset(metadata)
+    narrowband_dataset = TorchSigIterableDataset(metadata)
     dataloader = WorkerSeedingDataLoader(narrowband_dataset, batch_size=8, num_workers=2)
     dataloader.seed(42)
     test_value1 = next(iter(dataloader))[0][-1][0]
