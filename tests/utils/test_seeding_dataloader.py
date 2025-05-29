@@ -16,7 +16,6 @@ def test_dataset_seeds_correctly():
         fft_size = fft_size,
         impairment_level = impairment_level, # clean
         num_signals_max = 1,
-        num_signals_min = 1,
     )
 
     narrowband_dataset = TorchSigIterableDataset(metadata)
@@ -46,7 +45,6 @@ def test_dataloader_seeds_correctly():
         fft_size = fft_size,
         impairment_level = impairment_level, # clean
         num_signals_max = 1,
-        num_signals_min = 1,
     )
 
     narrowband_dataset = TorchSigIterableDataset(metadata)
