@@ -165,7 +165,6 @@ def verify_getitem_targets(num_signals_max: int, target_transforms: List[TargetT
                         # should not be iterable/nested lists
                         assert isinstance(item, str) or not isinstance(item, Iterable)
 
-# @pytest.mark.skip(reason="ere")
 @pytest.mark.parametrize("num_signals_max, target_transforms, impairment_level", test_dataset_getitem_params)
 def test_NewDataset_getitem(num_signals_max: int, target_transforms: List[TargetTransform], impairment_level: int):
     """ Tests targets from target transform are properly returned from dataset's getitem
@@ -194,7 +193,6 @@ def test_NewDataset_getitem(num_signals_max: int, target_transforms: List[Target
 
         verify_getitem_targets(num_signals_max, target_transforms, targets)
 
-# @pytest.mark.skip(reason="ere")
 @pytest.mark.parametrize("num_signals_max, target_transforms, impairment_level", test_dataset_getitem_params)
 def test_StaticDataset_getitem(num_signals_max: int, target_transforms: List[TargetTransform], impairment_level: int):
     """ Tests targets from target transform are properly returned from dataset's getitem
@@ -245,7 +243,6 @@ def test_StaticDataset_getitem(num_signals_max: int, target_transforms: List[Tar
     
 
 
-# @pytest.mark.skip(reason="ere")
 @pytest.mark.parametrize("params, is_error", [
     (
         {'num_samples': 10, 'impairment_level': 2},
