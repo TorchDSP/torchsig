@@ -205,7 +205,7 @@ def verify_str(
 
     
     if len(valid) > 0 and s not in valid:
-        raise ValueError(f"Invalid {name}. Must be in {valid}")
+        raise ValueError(f"Invalid {name}: {s}. Must be in {valid}")
 
     return s
 

@@ -206,7 +206,7 @@ class ConstellationSignalBuilder(SignalBuilder):
     def _update_data(self) -> None:
         """Creates the IQ samples for the constellation waveform based on the signal metadata fields.
         """        
-        # wideband params
+        # dataset params
         sample_rate = self.dataset_metadata.sample_rate
 
         # signal params

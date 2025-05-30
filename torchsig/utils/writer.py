@@ -95,7 +95,6 @@ class DatasetCreator:
 
         # e.g., root/torchsig_narrowband_clean
         full_root = dataset_full_path(
-            dataset_type = dataset.dataset_metadata.dataset_type,
             impairment_level = dataset.dataset_metadata.impairment_level,
             train = train,
         )
@@ -118,7 +117,7 @@ class DatasetCreator:
             dataset.dataset_metadata.target_transforms
         ) else "processed"
 
-        self.tqdm_desc = f"Generating {self.dataloader.dataset.dataset_metadata.dataset_type.title()}" if tqdm_desc is None else tqdm_desc
+        self.tqdm_desc = f"Generating Dataset:" if tqdm_desc is None else tqdm_desc
 
         # limit in gigabytes for remaining space on disk for which writer stops writing
         self.minimum_remaining_disk_gigabytes = 1

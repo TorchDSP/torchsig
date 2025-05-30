@@ -1,4 +1,4 @@
-"""Dataset Metadata class for Narrowband and Wideband
+"""Dataset Metadata class
 """
 
 from __future__ import annotations
@@ -21,7 +21,6 @@ from torchsig.utils.printing import (
 )
 from torchsig.transforms.impairments import Impairments
 from torchsig.transforms.impairments_wideband import WidebandImpairments
-from torchsig.transforms.impairments_narrowband import NarrowbandImpairments
 
 # Third Party
 import numpy as np
@@ -83,7 +82,6 @@ class DatasetMetadata(Seedable):
         class_list: List[str] = None,
         class_distribution: np.ndarray | List[float]= None,
         num_samples: int = None,
-        dataset_type: str = "None",
         **kwargs
     ):
         """Initializes Dataset Metadata
@@ -111,7 +109,6 @@ class DatasetMetadata(Seedable):
             class_list (List[str], optional): Signal class name list. Defaults to TorchSigSignalLists.all_signals.
             class_distribution (np.ndarray | List[float], optional): Probabilities for each class in `class_list`. Defaults to None (uniform).
             num_samples (int, optional): Set dataset size. For infinite dataset, set to None, Defaults to None.
-            dataset_type (str, optional): Dataset type name. Defaults to "None".
 
         Raises:
             ValueError: If any of the provided parameters are invalid or incompatible.
@@ -134,21 +131,20 @@ class DatasetMetadata(Seedable):
         self._class_list = TorchSigSignalLists.all_signals if class_list is None else class_list
         self._class_distribution = class_distribution
 
-        self._dataset_type = dataset_type
         self._num_samples = num_samples
 
 
         self._snr_db_max = snr_db_max
         self._snr_db_min = snr_db_min
 
-        self._signal_duration_min = signal_duration_min
-        self._signal_duration_max = signal_duration_max
+        self._signal_duration_min = signal_duration_min if signal_duration_min != None else 0.10*self._num_iq_samples_dataset/sample_rate
+        self._signal_duration_max = signal_duration_max if signal_duration_max != None else 0.20*self._num_iq_samples_dataset/sample_rate
 
-        self._signal_bandwidth_min = signal_bandwidth_min
-        self._signal_bandwidth_max = signal_bandwidth_max
+        self._signal_bandwidth_min = signal_bandwidth_min if signal_bandwidth_min != None else self._sample_rate/20
+        self._signal_bandwidth_max = signal_bandwidth_max if signal_bandwidth_max != None else self._sample_rate/10
 
-        self._signal_center_freq_min = signal_center_freq_min
-        self._signal_center_freq_max = signal_center_freq_max
+        self._signal_center_freq_min = signal_center_freq_min if signal_center_freq_min != None else self.frequency_min
+        self._signal_center_freq_max = signal_center_freq_max if signal_center_freq_max != None else self.frequency_max
 
         self._cochannel_overlap_probability = cochannel_overlap_probability
 
@@ -168,14 +164,6 @@ class DatasetMetadata(Seedable):
         Raises:
             ValueError: If any dataset configuration is invalid.
         """
-
-        # check dataset type
-        self._dataset_type = verify_str(
-            s = self._dataset_type,
-            name = "dataset_type",
-            valid = ["narrowband", "wideband"],
-            str_format = "lower"
-        )
 
         # Transforms
         self._transforms = verify_transforms(self._transforms)
@@ -364,25 +352,31 @@ class DatasetMetadata(Seedable):
             exclude_low = True
         )
 
-    def _initialize_impairments(self) -> Impairments:
-        """Initializes the dataset impairments (not implemented).
-
-        This method is intended to be implemented by subclasses to initialize dataset-specific impairments.
-        For now, it raises a NotImplementedError since the actual impairment logic will be defined in subclasses.
-
-        Returns:
-            Impairments: The initialized impairments object.
+    def _initialize_impairments(self) -> WidebandImpairments:
+        """Initializes and returns an instance of the WidebandImpairments class.
         
-        Raises:
-            NotImplementedError: This method should be implemented by subclasses.
+        This method creates and returns an instance of the `WidebandImpairments` class 
+        initialized with the current `impairment_level` of the dataset. It models 
+        the impairments applied to the wideband signals.
+        
+        Returns:
+            WidebandImpairments: A new instance of the `WidebandImpairments` class.
         """
-        raise NotImplementedError
+        return WidebandImpairments(self.impairment_level)
 
     def __str__(self) -> str:
         return dataset_metadata_str(self)
 
     def __repr__(self) -> str:
-        return dataset_metadata_repr(self)
+        """Returns a string representation of the DatasetMetadata instance.
+        
+        This provides a concise summary of the key parameters such as `num_iq_samples_dataset`, 
+        `sample_rate`, `num_signals_max`, and `fft_size`.
+        
+        Returns:
+            str: String representation of the DatasetMetadata instance.
+        """
+        return f"{self.__class__.__name__}(num_iq_samples_dataset={self.num_iq_samples_dataset}, sample_rate={self.sample_rate}, num_signals_max={self.num_signals_max}, fft_size={self.fft_size})"
     
     def to_dict(self) -> Dict[str, Any]:
         """Converts the dataset metadata into a dictionary format.
@@ -396,10 +390,10 @@ class DatasetMetadata(Seedable):
         # organize fields by area
 
         required = {
-            'dataset_type': self._dataset_type,
             'num_iq_samples_dataset': self._num_iq_samples_dataset,
             'impairment_level': self._impairment_level,
-            'fft_size': self._fft_size
+            'fft_size': self._fft_size,
+            'num_signals_max': self._num_signals_max
         }
 
         overrides = {
@@ -423,7 +417,6 @@ class DatasetMetadata(Seedable):
 
         # dataset information
         dataset_info = {
-            'dataset_type': self._dataset_type,
             'num_samples': "infinite" if self._num_samples is None else self._num_samples,
             'num_iq_samples_dataset': self._num_iq_samples_dataset,
             'fft_size': self._fft_size,
@@ -464,8 +457,6 @@ class DatasetMetadata(Seedable):
             'signals': signal_gen,
         }
 
-        if self._dataset_type == "wideband":
-            required["num_signals_max"] = self._num_signals_max
 
         return {
             'required': required,
@@ -690,7 +681,7 @@ class DatasetMetadata(Seedable):
     def num_signals_max(self) -> int:
         """Max number of signals in each sample in the dataset
 
-        Returns the number of distinct signals in the wideband dataset
+        Returns the number of distinct signals dataset
 
         Returns:
             int: max number of signals
@@ -792,15 +783,6 @@ class DatasetMetadata(Seedable):
         return self._num_samples
 
     @property
-    def dataset_type(self) -> str:
-        """Type of dataset.
-
-        Returns:
-            str: Dataset type name
-        """        
-        return self._dataset_type
-
-    @property
     def noise_power_db(self) -> float:
         """Reference noise power (dB) for the dataset
 
@@ -864,7 +846,7 @@ class DatasetMetadata(Seedable):
     def fft_size(self) -> int:
         """The size of FFT (number of bins) to be used in spectrogram.
 
-        The FFT size used to compute the spectrogram for the wideband dataset.
+        The FFT size used to compute the spectrogram for the dataset.
 
         Returns:
             int: FFT size
@@ -957,289 +939,6 @@ class DatasetMetadata(Seedable):
         epsilon = 1e-10
         return (self.sample_rate/2)*(1-epsilon)
 
-
-
-### Narrowband Metadata
-
-class NarrowbandMetadata(DatasetMetadata):
-    """Narrowband Dataset Metadata Class
-
-    This class encapsulates the metadata for a narrowband dataset, extending the
-    base `DatasetMetadata` class. It provides useful information about the dataset 
-    such as the number of samples, the sample rate, the FFT size, the impairment level, 
-    and signal-related parameters. Additionally, it handles specific properties for 
-    narrowband signals, such as oversampling rates and center frequency offset 
-    (CFO) error percentage.
-
-    Attributes:
-        minimum_params (List[str]): List of minimum required parameters for the narrowband dataset. 
-
-    """
-
-    minimum_params: List[str] = [
-        'num_iq_samples_dataset',
-        'fft_size',
-        'impairment_level'
-    ] 
-    
-    def __init__(
-        self, 
-        num_iq_samples_dataset: int, 
-        fft_size: int,
-        impairment_level: int,
-        sample_rate: float = 10e6,
-        num_signals_min: int = None,
-        num_signals_distribution: np.ndarray | List[float]= None,
-        snr_db_min: float = 0.0,
-        snr_db_max: float = 50.0,
-        signal_duration_min: float = None,
-        signal_duration_max: float = None,
-        signal_bandwidth_min: float = None,
-        signal_bandwidth_max: float = None,
-        signal_center_freq_min: float = None,
-        signal_center_freq_max: float = None,
-        transforms: list = [],
-        target_transforms: list = [],
-        class_list: List[str] = TorchSigSignalLists.all_signals,
-        class_distribution = None,
-        num_samples: int = None,
-        **kwargs,
-    ):
-        """Initializes Narrowband Metadata. Sets `dataset_type="narrowband`.
-
-        Args:
-            num_iq_samples_dataset (int): The length of I/Q array per sample in the dataset.
-            fft_size (int): The size of FFT (number of bins) to be used in spectrogram calculation.
-            impairment_level (int): Signal impairment level.
-            sample_rate (float, optional): The sample rate for the dataset (default is 10e6).
-            num_signals_min (int, optional): Minimum number of signals per sample (default is 0).
-            num_signals_distribution (np.ndarray | List[float], optional): The probability distribution 
-                for generating samples with a specific number of signals. Defaults to uniform distribution if None.
-            snr_db_min (float, optional): Minimum SNR (Signal-to-Noise Ratio) for the signals (default is 0.0).
-            snr_db_max (float, optional): Maximum SNR for the signals (default is 50.0).
-            signal_duration_min (float, optional): Minimum duration of a signal (Default is None).
-            signal_duration_max (float, optional): Maximum duration of a signal (Default is None).
-            signal_bandwidth_min (float, optional): Minimum bandwidth of a signal. Default is None.
-            signal_bandwidth_max (float, optional): Maximum bandwidth of a signal. Default is None.
-            signal_center_freq_min (float, optional): Minimum center frequency of a signal. Default is None.
-            signal_center_freq_max (float, optional): Maximum center frequency of a signal. Default is None.
-            transforms (list, optional): Transforms to apply on the dataset (default in []).
-            target_transforms (list, optional): Transforms for targets (default is an empty list).
-            class_list (List[str], optional): List of signal class names (default is all signals from TorchSigSignalLists).
-            class_distribution (np.ndarray | List[float], optional): Probability distribution for classes (default is None).
-            num_samples (int, optional): Length of the dataset. If None, an infinite dataset is assumed (default is None).
-
-            
-        """
-
-        if (signal_duration_min == None):
-            signal_duration_min = 0.80*num_iq_samples_dataset/sample_rate
-
-        if (signal_duration_max == None):
-            signal_duration_max = 1.00*num_iq_samples_dataset/sample_rate
-
-        if (signal_bandwidth_min == None):
-            signal_bandwidth_min = sample_rate/8
-
-        if (signal_bandwidth_max == None):
-            signal_bandwidth_max = sample_rate/4
-
-        if (signal_center_freq_min == None):
-            signal_center_freq_min = -0.1*sample_rate
-
-        if (signal_center_freq_max == None):
-            signal_center_freq_max = 0.1*sample_rate
-
-
-        super().__init__(
-            num_iq_samples_dataset=num_iq_samples_dataset, 
-            sample_rate=sample_rate,
-            fft_size=fft_size,
-            impairment_level=impairment_level,
-            num_signals_max=1,
-            num_signals_min=num_signals_min,
-            num_signals_distribution=num_signals_distribution,
-            snr_db_min=snr_db_min,
-            snr_db_max=snr_db_max,
-            signal_duration_min=signal_duration_min,
-            signal_duration_max=signal_duration_max,
-            signal_bandwidth_min=signal_bandwidth_min,
-            signal_bandwidth_max=signal_bandwidth_max,
-            signal_center_freq_min=signal_center_freq_min,
-            signal_center_freq_max=signal_center_freq_max,
-            transforms=transforms, 
-            target_transforms=target_transforms, 
-            class_list=class_list,
-            class_distribution=class_distribution,
-            num_samples = num_samples,
-            dataset_type="narrowband",
-            **kwargs
-        )
-
-    def _initialize_impairments(self) -> NarrowbandImpairments:
-        """Initializes and returns an instance of the NarrowbandImpairments class.
-
-        This method is responsible for creating an instance of the `NarrowbandImpairments` 
-        class using the current `impairment_level` of the dataset. It allows for modeling 
-        the impairments applied to narrowband signals within the dataset. The `parent` 
-        argument of the `NarrowbandImpairments` class is set to the current instance 
-        of the class, establishing a reference for interaction with other components.
-
-        Returns:
-            NarrowbandImpairments: A new instance of the `NarrowbandImpairments` class 
-            initialized with the current `impairment_level` and parent dataset instance.
-        """
-        return NarrowbandImpairments(self.impairment_level)
-
-
-
-
-### Wideband Metadata
-
-class WidebandMetadata(DatasetMetadata):
-    """Wideband Dataset Metadata Class
-    
-    This class encapsulates all useful metadata for a wideband dataset, extending 
-    the `DatasetMetadata` class. It adds functionality to manage the FFT size used 
-    to compute the spectrogram, along with additional parameters specific to wideband 
-    signals like bandwidth, center frequency, and impairments.
-
-    Attributes:
-        minimum_params (List[str]): List of the minimum parameters required for the dataset.
-
-    """
-
-    minimum_params: List[str] = [
-        'num_iq_samples_dataset',
-        'fft_size',
-        'num_signals_max',
-        'impairment_level'
-    ]
-    
-    def __init__(
-        self, 
-        num_iq_samples_dataset: int, 
-        fft_size: int,
-        impairment_level: int,
-        num_signals_max: int, 
-        sample_rate: float = 100e6, 
-        num_signals_min: int = None,
-        num_signals_distribution: np.ndarray | List[float]= None,
-        snr_db_min: float = 0.0,
-        snr_db_max: float = 50.0,
-        signal_duration_min: float = None,
-        signal_duration_max: float = None,
-        signal_bandwidth_min: float = None,
-        signal_bandwidth_max: float = None,
-        signal_center_freq_min: float = None,
-        signal_center_freq_max: float = None,
-        cochannel_overlap_probability: float = 0.1,
-        transforms: list = [],
-        target_transforms: list = [],
-        class_list: List[str] = TorchSigSignalLists.all_signals,
-        class_distribution = None,
-        num_samples: int = None,
-        **kwargs,
-    ):
-        """Initializes the Wideband Metadata class, setting `dataset_type="wideband"`.
-        
-        Args:
-            num_iq_samples_dataset (int): Length of I/Q array per sample in the dataset.
-            fft_size (int): Size of FFT (number of bins) used in spectrogram.
-            impairment_level (int): Impairment level for the signals.
-            num_signals_max (int): Maximum number of signals per sample in the dataset.
-            sample_rate (float): Sample rate for the dataset.
-            num_signals_min (int, optional): Minimum number of signals per sample (default is 0).
-            num_signals_distribution (np.ndarray | List[float], optional): Distribution of signals for each value 
-                in `[num_signals_min, num_signals_max]`. Defaults to None (uniform).
-            snr_db_min (float, optional): Minimum SNR of signals (default is 0.0).
-            snr_db_max (float, optional): Maximum SNR of signals (default is 50.0).
-            signal_duration_min (float, optional): Minimum signal duration (default is None).
-            signal_duration_max (float, optional): Maximum signal duration (default is None).
-            signal_bandwidth_min (float, optional): Minimum signal bandwidth (default is None).
-            signal_bandwidth_max (float, optional): Maximum signal bandwidth (default is None).
-            signal_center_freq_min (float, optional): Minimum signal center frequency (default is None).
-            signal_center_freq_max (float, optional): Maximum signal center frequency (default is None).
-            cochannel_overlap_probability (float, optional): Probability to allow co-channel interference per signal. (default is 0.1).
-            transforms (list): Transforms applied to the dataset (default in []).
-            target_transforms (list, optional): Target transforms applied (default is []).
-            class_list (List[str], optional): List of signal class names (default is `TorchSigSignalLists.all_signals`).
-            class_distribution (np.ndarray | List[float], optional): Probabilities for each class.
-            num_samples (int, optional): Number of samples in the dataset (default is None, infinite dataset).
-            **kwargs: Additional parameters to pass to the parent class.
-        """  
-
-        if (signal_duration_min == None):
-            signal_duration_min = 0.10*num_iq_samples_dataset/sample_rate
-
-        if (signal_duration_max == None):
-            signal_duration_max = 0.20*num_iq_samples_dataset/sample_rate
-
-        if (signal_bandwidth_min == None):
-            signal_bandwidth_min = sample_rate/20
-
-        if (signal_bandwidth_max == None):
-            signal_bandwidth_max = sample_rate/10
-
-        if (signal_center_freq_min == None):
-            signal_center_freq_min = -sample_rate/2
-
-        if (signal_center_freq_max == None):
-            signal_center_freq_max = (sample_rate/2)-1
-
-
-        super().__init__(
-            num_iq_samples_dataset=num_iq_samples_dataset, 
-            sample_rate=sample_rate, 
-            fft_size=fft_size,
-            impairment_level=impairment_level,
-            num_signals_max=num_signals_max, 
-            num_signals_min=num_signals_min,
-            num_signals_distribution=num_signals_distribution,
-            snr_db_max=snr_db_max,
-            snr_db_min=snr_db_min,
-            signal_duration_max=signal_duration_max,
-            signal_duration_min=signal_duration_min,
-            signal_bandwidth_min=signal_bandwidth_min,
-            signal_bandwidth_max=signal_bandwidth_max,
-            signal_center_freq_min=signal_center_freq_min,
-            signal_center_freq_max=signal_center_freq_max,
-            cochannel_overlap_probability=cochannel_overlap_probability,
-            transforms=transforms, 
-            target_transforms=target_transforms, 
-            class_list=class_list,
-            class_distribution=class_distribution,
-            # root = root,
-            # save_type = save_type,
-            # overwrite = overwrite,
-            num_samples= num_samples,
-            dataset_type="wideband",
-            **kwargs,
-        ) 
-
-    
-    def __repr__(self) -> str:
-        """Returns a string representation of the WidebandMetadata instance.
-        
-        This provides a concise summary of the key parameters such as `num_iq_samples_dataset`, 
-        `sample_rate`, `num_signals_max`, and `fft_size`.
-        
-        Returns:
-            str: String representation of the WidebandMetadata instance.
-        """
-        return f"{self.__class__.__name__}(num_iq_samples_dataset={self.num_iq_samples_dataset}, sample_rate={self.sample_rate}, num_signals_max={self.num_signals_max}, fft_size={self.fft_size})"
-
-    def _initialize_impairments(self) -> WidebandImpairments:
-        """Initializes and returns an instance of the WidebandImpairments class.
-        
-        This method creates and returns an instance of the `WidebandImpairments` class 
-        initialized with the current `impairment_level` of the dataset. It models 
-        the impairments applied to the wideband signals.
-        
-        Returns:
-            WidebandImpairments: A new instance of the `WidebandImpairments` class.
-        """
-        return WidebandImpairments(self.impairment_level)
 
 
 

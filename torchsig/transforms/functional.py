@@ -403,7 +403,7 @@ def doppler(
     propagation_speed: float = c,
     sampling_rate: float = 1.0
 ) -> np.ndarray:
-    """Applies wideband Doppler effect through time scaling.
+    """Applies Doppler effect through time scaling.
 
     Args:
         data (np.ndarray): Complex valued IQ data samples.
@@ -412,7 +412,7 @@ def doppler(
         sampling_rate (float): Data sampling rate. Default 1.0.
 
     Returns:
-        np.ndarray: Data with wideband Doppler.
+        np.ndarray: Data with Doppler.
 
     """
     N = data.size

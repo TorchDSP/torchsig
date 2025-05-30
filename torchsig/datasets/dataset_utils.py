@@ -1,7 +1,7 @@
 """Dataset Utilities
 """
 
-from torchsig.datasets.dataset_metadata import DatasetMetadata, NarrowbandMetadata, WidebandMetadata
+from torchsig.datasets.dataset_metadata import DatasetMetadata
 from torchsig.signals.signal_types import Signal
 from torchsig.utils.dsp import (
     frequency_shift,
@@ -19,11 +19,10 @@ writer_yaml_name = "writer_info.yaml"
 
 
 
-def dataset_full_path(dataset_type: str, impairment_level: int, train: bool = None) -> str:
+def dataset_full_path(impairment_level: int, train: bool = None) -> str:
     """Generates the full path for a dataset based on its type, impairment level, and whether it is for training.
 
     Args:
-        dataset_type (str): Type of dataset (e.g., 'narrowband', 'wideband').
         impairment_level (int): The impairment level for the dataset (0 = clean, 1 = level 1, 2 = impaired).
         train (bool, optional): Whether the dataset is for training (True) or validation (False). Defaults to None.
 
@@ -42,7 +41,7 @@ def dataset_full_path(dataset_type: str, impairment_level: int, train: bool = No
     impaired = impaired_names[impairment_level]
     
     # e.g., torchsig_narrowband_clean
-    full_root = f"torchsig_{dataset_type}_{impaired}"
+    full_root = f"torchsig_{impaired}"
 
 
     if train is not None:
@@ -153,7 +152,7 @@ def to_dataset_metadata(dataset_metadata: DatasetMetadata | str | dict):
             - A dictionary representing the dataset metadata.
 
     Returns:
-        DatasetMetadata: The corresponding `NarrowbandMetadata` or `WidebandMetadata` object initialized with the provided parameters.
+        DatasetMetadata: The corresponding `DatasetMetadata` object initialized with the provided parameters.
 
     Raises:
         ValueError: If the input `dataset_metadata` is not valid or if required fields are missing from the metadata.
@@ -171,24 +170,8 @@ def to_dataset_metadata(dataset_metadata: DatasetMetadata | str | dict):
         if "required" not in dataset_metadata.keys():
             raise ValueError("Invalid dataset_metadata. Does not have required field.")
         
-        # validate dataset_type exists
-        if "dataset_type" not in dataset_metadata['required'].keys():
-            raise ValueError("Invalid dataset_metadata. Does not have dataset_type field under required.")
-        # get dataset_type
-        dataset_type = dataset_metadata['required']['dataset_type'].lower()
-
-        # check if accidentally set dataset_type wrong
-        if "num_signals_max" in dataset_metadata['required'].keys() and dataset_type == "narrowband":
-            raise ValueError("num_signals_max defined in required params but dataset_type is narrowband. Should dataset_type be wideband?")
-        
         # use appropriate dataset metadata type
-        metadata = None
-        if dataset_type == "narrowband":
-            metadata = NarrowbandMetadata
-        elif dataset_type == "wideband":
-            metadata = WidebandMetadata
-        else:
-            raise ValueError("Invalid dataset_type in dataset_metadata")
+        metadata = DatasetMetadata
 
         # Validate minimum parameters given in yaml to instantiate
         for min_param in metadata.minimum_params:
@@ -198,9 +181,6 @@ def to_dataset_metadata(dataset_metadata: DatasetMetadata | str | dict):
         
         # Put parameters into a flattened dictionary
         init_params_dict = dataset_metadata['required']
-
-        # Remove dataset_type from the parameters
-        del dataset_metadata['required']['dataset_type']
 
         # Remove transforms if they exist
         if "transforms" in dataset_metadata['overrides'].keys():
@@ -241,4 +221,4 @@ def to_dataset_metadata(dataset_metadata: DatasetMetadata | str | dict):
 
     # else:
     # If the input is neither DatasetMetadata, str, nor dict     
-    raise ValueError("Invalid dataset_metadata.")
+    raise ValueError(f"Invalid dataset_metadata, type is {type(dataset_metadata)}.")

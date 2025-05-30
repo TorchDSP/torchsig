@@ -3,8 +3,7 @@
 
 # TorchSig
 from torchsig.datasets.dataset_metadata import DatasetMetadata
-from torchsig.datasets.narrowband import NewNarrowband
-from torchsig.datasets.wideband import NewWideband
+from torchsig.datasets.datasets import NewTorchSigDataset
 from torchsig.utils.writer import DatasetCreator
 
 # Third Party
@@ -20,9 +19,8 @@ def generate(
 ):
     """Generates and saves a dataset to disk.
 
-    This function selects the dataset type ('narrowband' or 'wideband') based 
-    on the provided metadata and then calls the `DatasetCreator` class to 
-    generate the dataset and save it to disk. It writes the dataset in batches 
+    This function calls the `DatasetCreator` class to generate the 
+    dataset and save it to disk. It writes the dataset in batches 
     using the specified batch size and number of workers.
 
     Args:
@@ -37,11 +35,7 @@ def generate(
         ValueError: If the dataset type is unknown or invalid.
     """
     
-    create_dataset = None
-    if dataset_metadata.dataset_type == "narrowband":
-        create_dataset = NewNarrowband(dataset_metadata=dataset_metadata)
-    elif dataset_metadata.dataset_type == "wideband":
-        create_dataset = NewWideband(dataset_metadata=dataset_metadata)
+    create_dataset = NewTorchSigDataset(dataset_metadata=dataset_metadata)
 
     creator = DatasetCreator(
         dataset=create_dataset,

@@ -38,7 +38,7 @@ import warnings
 if TYPE_CHECKING:
     from torchsig.utils.file_handlers.zarr import TorchSigFileHandler
 
-class TorchsigIterableDataset(IterableDataset, Seedable):
+class TorchSigIterableDataset(IterableDataset, Seedable):
     """Creates a new TorchSig dataset that generates data infinitely unless `num_samples` inside `dataset_metadata` is defined.
     
     This base class provides the functionality to generate signals and write them to disk if necessary. The dataset will continue 
@@ -519,7 +519,7 @@ class NewTorchSigDataset(Dataset, Seedable):
         # determine number of signals in sample
         num_signals_to_generate = self.random_generator.integers(low=self.dataset_metadata.num_signals_min, high = self.dataset_metadata.num_signals_max+1)
 
-        # list of rectangles representing the individual signals within wideband cut
+        # list of rectangles representing the individual signals within the dataset IQ
         signal_rectangle_list = []
 
         # counter to avoid stuck in infinite loop
@@ -717,7 +717,6 @@ class StaticTorchSigDataset(Dataset):
     Args:
         root (str): The root directory where the dataset is stored.
         impairment_level (int): Defines impairment level 0, 1, 2.
-        dataset_type (str): Type of the dataset, either "narrowband" or "wideband".
         transforms (list, optional): Transforms to apply to the data (default: []).
         target_transforms (list, optional): Target transforms to apply (default: []).
         file_handler_class (TorchSigFileHandler, optional): Class used for reading the dataset (default: ZarrFileHandler).
@@ -727,7 +726,6 @@ class StaticTorchSigDataset(Dataset):
         self,
         root: str,
         impairment_level: int,
-        dataset_type: str,
         transforms: list = [],
         target_transforms: list = [],
         file_handler_class: TorchSigFileHandler = ZarrFileHandler,
@@ -736,7 +734,6 @@ class StaticTorchSigDataset(Dataset):
     ):
         self.root = Path(root)
         self.impairment_level = impairment_level
-        self.dataset_type = dataset_type
         self.transforms = transforms
         self.target_transforms = target_transforms
         self.file_handler = file_handler_class
@@ -745,7 +742,6 @@ class StaticTorchSigDataset(Dataset):
         # create filepath to saved dataset
         # e.g., root/torchsig_narrowband_clean/
         self.full_root = dataset_full_path(
-            dataset_type = self.dataset_type,
             impairment_level = self.impairment_level,
             train = self.train
         )
