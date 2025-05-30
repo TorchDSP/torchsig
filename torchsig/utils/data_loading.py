@@ -1,26 +1,10 @@
-from torch.utils.data import DataLoader
-from torchsig.utils.random import Seedable
-
-class WorkerSeedingDataLoader(DataLoader, Seedable):
-    """
-    A Custom DaaLoader for torchsig that seeds workers differently on worker init based on a shared initial seed;
-    """
-
-    def __init__(self, dataset, **kwargs):
-        DataLoader.__init__(self, dataset, **kwargs)
-        Seedable.__init__(self, **kwargs)
-        if self.worker_init_fn:
-            raise ValueError("No worker_init_fn should be given to WorkerSeedingDataLoader; it will set it's own worker_init_fn.")
-        self.worker_init_fn = self.init_worker_seed
-
-    def init_worker_seed(self, worker_id):
-        from torch.utils.data import get_worker_info
-        get_worker_info().dataset.seed(int(self.random_generator.random()*100 + 1) * (worker_id + 1))
-
 
 from torch import tensor
 import warnings
 import numpy as np
+
+from torch.utils.data import DataLoader
+from torchsig.utils.random import Seedable
 
 def metadata_padding_collate_fn(batch):
 
@@ -68,7 +52,23 @@ def metadata_padding_collate_fn(batch):
         except:
             warnings.warn("Dropping key value: '"+key+"' because it contained invalid tensor values")
 
-    
-        
     return tensor(np.array(iqs)), final_tensor_obj
-    
+
+class WorkerSeedingDataLoader(DataLoader, Seedable):
+    """
+    A Custom DaaLoader for torchsig that seeds workers differently on worker init based on a shared initial seed;
+    """
+
+    def __init__(self, dataset, collate_fn=metadata_padding_collate_fn, **kwargs):
+        DataLoader.__init__(self, dataset, collate_fn=collate_fn, **kwargs)
+        Seedable.__init__(self, **kwargs)
+        if self.worker_init_fn:
+            raise ValueError("No worker_init_fn should be given to WorkerSeedingDataLoader; it will set it's own worker_init_fn.")
+        self.worker_init_fn = self.init_worker_seed
+
+    def init_worker_seed(self, worker_id):
+        from torch.utils.data import get_worker_info
+        get_worker_info().dataset.seed(int(self.random_generator.random()*100 + 1) * (worker_id + 1))
+
+
+
