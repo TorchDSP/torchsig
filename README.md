@@ -13,7 +13,7 @@
 
 ## Prerequisites
 - Ubuntu &ge; 22.04
-- Hard drive storage with 10 TB
+- Hard drive storage with 1 TB
 - CPU with &ge; 4 cores
 - GPU with &ge; 16 GB storage (recommended)
 - Python &ge; 3.10
