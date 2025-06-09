@@ -257,9 +257,6 @@ class DatasetCreator:
                 # Wait for all futures to complete
                 concurrent.futures.wait(futures)
 
-                # update progress bar message
-                self._update_tqdm_message(pbar,batch_idx)
-        
         else:
             # single threaded writing
             for batch_idx, batch in tqdm(enumerate(self.dataloader), total = len(self.dataloader)):
