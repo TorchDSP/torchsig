@@ -13,9 +13,7 @@
 
 ## Prerequisites
 - Ubuntu &ge; 22.04
-- Hard drive storage with:
-  - &ge; 500 GB for Narrowband
-  - &ge; 10 TB for Wideband
+- Hard drive storage with 10 TB
 - CPU with &ge; 4 cores
 - GPU with &ge; 16 GB storage (recommended)
 - Python &ge; 3.10
@@ -37,14 +35,10 @@ TorchSig has a series of Jupyter notebooks in the `examples/` directory. View th
 
 # Usage
 
-## Generating the Datasets with Command Line
-To create the narrowband dataset:
+## Generating the Official Dataset with Command Line
+To create the official dataset:
 ```
-python ./scripts/generate_narrowband.py <path to root> --num_samples=10 --num_iq_samples=100 --impaired
-```
-To create the wideband dataset:
-```
-python .scripts/generate_wideband.py <path to root> --num_signals=3 --num_samples=10 --num_iq_samples=100 --impaired
+python3 ./scripts/generate_official_dataset.py <path to root> --train
 ```
 
 ## Generating the Datasets in Docker
