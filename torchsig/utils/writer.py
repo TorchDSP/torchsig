@@ -256,10 +256,12 @@ class DatasetCreator:
 
                 # Wait for all futures to complete
                 concurrent.futures.wait(futures)
+
+                # update progress bar message
+                self._update_tqdm_message(pbar,batch_idx)
         
         else:
             # single threaded writing
-
             for batch_idx, batch in tqdm(enumerate(self.dataloader), total = len(self.dataloader)):
 
                 # write to disk
@@ -290,8 +292,11 @@ class DatasetCreator:
         # compute elapsed time since last run
         elapsed_time = time() - self._msg_timer
 
-        # run every 5 seconds
-        if (batch_idx == 0 or elapsed_time > 5):
+        # run every second
+        if (batch_idx == 0 or elapsed_time > 1):
+
+            # update timer
+            self._msg_timer = time()
 
             # get the amount of disk space remaining
             disk_size_available_bytes = disk_usage(self.writer.root)[2]
@@ -310,6 +315,9 @@ class DatasetCreator:
             # concatenate disk size for progress bar message
             updated_tqdm_desc = f'{self.tqdm_desc}, dataset remaining to create = {dataset_size_remaining_gigabytes} GB, remaining disk = {disk_size_available_gigabytes} GB'
 
+            # set the progress bar message
+            pbar.set_description(updated_tqdm_desc)
+
             # avoid crashing by stopping write process
             if disk_size_available_gigabytes < self.minimum_remaining_disk_gigabytes:
                 # remaining disk size is below a hard cutoff value to avoid crashing operating system
@@ -318,11 +326,8 @@ class DatasetCreator:
                 # projected size of dataset too large for available disk space
                 raise ValueError(f'Not enough disk space. Projected dataset size is {dataset_size_remaining_gigabytes} GB. Remaining space is {disk_size_available_gigabytes} GB. Please reduce dataset size or make space before continuing.')
 
-            # set the progress bar message
-            pbar.set_description(updated_tqdm_desc)
 
-            # update timer
-            self._msg_timer = time()
+
 
     def _get_directory_size_gigabytes ( self, start_path ):
         """
