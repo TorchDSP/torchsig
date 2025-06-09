@@ -1,12 +1,10 @@
-"""Profile Dataset generation and writing
-"""
+"""Profile Dataset generation and writing """
 
 # TorchSig
-from torchsig.datasets.dataset_metadata import WidebandMetadata, NarrowbandMetadata
-from torchsig.datasets.wideband import NewWideband, StaticWideband
-from torchsig.datasets.narrowband import NewNarrowband, StaticNarrowband
+from torchsig.datasets.dataset_metadata import DatasetMetadata
+from torchsig.datasets.datasets import NewTorchSigDataset, StaticTorchSigDataset
 from torchsig.utils.writer import DatasetCreator
-from torchsig.transforms.dataset_transforms import Spectrogram
+from torchsig.transforms.transforms import Spectrogram
 from torchsig.transforms.target_transforms import (
     ClassName,
     Start,
@@ -51,9 +49,9 @@ target_transform = [
     SNR()
 ]
 
-def wideband_infinite_generation(transforms = []):
+def dataset_infinite_generation(transforms = []):
 
-    print(f"\nProfiling wideband infinite dataset for {num_samples} samples..................")
+    print(f"\nProfiling infinite dataset for {num_samples} samples..................")
 
     print(f"IQ Array Size: {num_iq_samples_dataset}")
     print(f"Impairment Level: {impairment_level}")
@@ -63,7 +61,7 @@ def wideband_infinite_generation(transforms = []):
     profiler = cProfile.Profile()
 
     # Ininitialize dataset
-    md = WidebandMetadata(
+    md = DatasetMetadata(
         num_iq_samples_dataset=num_iq_samples_dataset,
         fft_size=fft_size,
         impairment_level=impairment_level,
@@ -72,11 +70,11 @@ def wideband_infinite_generation(transforms = []):
         transforms=transforms
     )
 
-    wideband = NewWideband(dataset_metadata=md)
+    dataset = NewTorchSigDataset(dataset_metadata=md)
     
     profiler.enable()
     for i in tqdm(range(num_samples), disable = not enable_tqdm):
-        data, targets = wideband[i]
+        data, targets = dataset[i]
     profiler.disable()
     print("Profile done.")
 
@@ -88,90 +86,9 @@ def wideband_infinite_generation(transforms = []):
     total_time = stats.total_tt
     print(f"Average rate: {num_samples / total_time} samples/sec")
 
-def narrowband_infinite_generation(transforms = []):
+def dataset_finite_writing(transforms = []):
 
-    print(f"Profiling narrowband infinite dataset for {num_samples} samples..................")
-
-    print(f"IQ Array Size: {num_iq_samples_dataset}")
-    print(f"Impairment Level: {impairment_level}")
-
-    # initialize profiler
-    profiler = cProfile.Profile()
-
-    # Ininitialize dataset
-    md = NarrowbandMetadata(
-        num_iq_samples_dataset=num_iq_samples_dataset,
-        fft_size=fft_size,
-        impairment_level=impairment_level,
-        transforms=transforms
-    )
-
-    narrowband = NewNarrowband(dataset_metadata=md)
-
-    profiler.enable()
-    for i in tqdm(range(num_samples), disable = not enable_tqdm):
-        data, targets = narrowband[i]
-    profiler.disable()
-    print("Profile done.")
-
-    stats = pstats.Stats(profiler)
-    stats.strip_dirs()
-    stats.sort_stats('cumtime')
-    stats.print_stats(20)
-
-    total_time = stats.total_tt
-    print(f"Average rate: {num_samples / total_time} samples/sec")
-
-
-
-def narrowband_finite_writing(transforms = []):
-
-    print(f"\nProfiling narrowband writing finite dataset for {num_samples} samples..................")
-
-    print(f"IQ Array Size: {num_iq_samples_dataset}")
-    print(f"Impairment Level: {impairment_level}")
-
-    # initialize profiler
-    profiler = cProfile.Profile()
-
-    # Ininitialize dataset
-    md = NarrowbandMetadata(
-        num_iq_samples_dataset=num_iq_samples_dataset,
-        fft_size=fft_size,
-        impairment_level=impairment_level,
-        num_samples=num_samples,
-        transforms = transforms,
-    )
-
-    narrowband = NewNarrowband(dataset_metadata=md)
-
-    dc = DatasetCreator(
-        dataset = narrowband,
-        root = root,
-        overwrite=True,
-        batch_size=batch_size,
-        num_workers=num_workers
-    )
-
-    profiler.enable()
-
-    dc.create()
-
-    profiler.disable()
-    print("Profile done.")
-
-    stats = pstats.Stats(profiler)
-    stats.strip_dirs()
-
-    stats.sort_stats('cumtime')
-    stats.print_stats(20)
-
-    total_time = stats.total_tt
-    print(f"Average rate: {num_samples / total_time} samples/sec")
-
-def wideband_finite_writing(transforms = []):
-
-    print(f"\nProfiling wideband writing finite dataset for {num_samples} samples..................")
+    print(f"\nProfiling dataset writing finite dataset for {num_samples} samples..................")
 
     print(f"IQ Array Size: {num_iq_samples_dataset}")
     print(f"Impairment Level: {impairment_level}")
@@ -181,7 +98,7 @@ def wideband_finite_writing(transforms = []):
     profiler = cProfile.Profile()
 
     # Ininitialize dataset
-    md = WidebandMetadata(
+    md = DatasetMetadata(
         num_iq_samples_dataset=num_iq_samples_dataset,
         fft_size=fft_size,
         impairment_level=impairment_level,
@@ -191,10 +108,10 @@ def wideband_finite_writing(transforms = []):
         transforms = transforms,
     )
 
-    wideband = NewWideband(dataset_metadata=md)
+    dataset = NewTorchSigDataset(dataset_metadata=md)
 
     dc = DatasetCreator(
-        dataset = wideband,
+        dataset = dataset,
         root = root,
         overwrite=True,
         batch_size=batch_size,
@@ -218,9 +135,9 @@ def wideband_finite_writing(transforms = []):
     print(f"Average rate: {num_samples / total_time} samples/sec")
 
 
-def wideband_finite_reading(transforms = []):
+def dataset_finite_reading(transforms = []):
 
-    print(f"\nProfiling wideband reading finite dataset for {num_samples} samples..................")
+    print(f"\nProfiling dataset reading finite dataset for {num_samples} samples..................")
 
     print(f"IQ Array Size: {num_iq_samples_dataset}")
     print(f"Impairment Level: {impairment_level}")
@@ -230,7 +147,7 @@ def wideband_finite_reading(transforms = []):
     profiler = cProfile.Profile()
 
     # Ininitialize dataset
-    static_wideband = StaticWideband(
+    static_dataset = StaticDataset(
         root = root,
         impairment_level = impairment_level,
         transforms = Spectrogram(fft_size = fft_size),
@@ -240,42 +157,7 @@ def wideband_finite_reading(transforms = []):
     profiler.enable()
 
     for i in tqdm(range(num_samples), disable = not enable_tqdm):
-        data, targets = static_wideband[i]
-
-    profiler.disable()
-    print("Profile done.")
-
-    stats = pstats.Stats(profiler)
-    stats.strip_dirs()
-
-    stats.sort_stats('cumtime')
-    stats.print_stats(20)
-
-    total_time = stats.total_tt
-    print(f"Average rate: {num_samples / total_time} samples/sec")
-
-def narrowband_finite_reading(transforms = []):
-
-    print(f"\nProfiling narrowband reading finite dataset for {num_samples} samples..................")
-
-    print(f"IQ Array Size: {num_iq_samples_dataset}")
-    print(f"Impairment Level: {impairment_level}")
-
-    # initialize profiler
-    profiler = cProfile.Profile()
-
-    # Ininitialize dataset
-    static_narrowband = StaticNarrowband(
-        root = root,
-        impairment_level = impairment_level,
-        transforms = Spectrogram(fft_size = fft_size),
-        target_transforms = target_transform,
-    )
-
-    profiler.enable()
-
-    for i in tqdm(range(num_samples), disable = not enable_tqdm):
-        data, targets = static_narrowband[i]
+        data, targets = static_dataset[i]
 
     profiler.disable()
     print("Profile done.")
@@ -301,14 +183,9 @@ def main():
         now = datetime.datetime.now()
         print("Profile Run at: ", now.strftime("%Y-%m-%d %H:%M:%S"))
 
-        wideband_infinite_generation(transforms = Spectrogram(fft_size=fft_size))
-        wideband_finite_writing(transforms = Spectrogram(fft_size=fft_size))
-        wideband_finite_reading(transforms = Spectrogram(fft_size=fft_size))
-
-        narrowband_infinite_generation(transforms = Spectrogram(fft_size=fft_size))
-        narrowband_finite_writing(transforms = Spectrogram(fft_size=fft_size))
-        narrowband_finite_reading(transforms = Spectrogram(fft_size=fft_size))
-
+        dataset_infinite_generation(transforms = Spectrogram(fft_size=fft_size))
+        dataset_finite_writing(transforms = Spectrogram(fft_size=fft_size))
+        dataset_finite_reading(transforms = Spectrogram(fft_size=fft_size))
 
 if __name__ == "__main__":
     main()
