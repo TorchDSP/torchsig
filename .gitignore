@@ -53,6 +53,7 @@ examples/*
 examples/datasets
 !examples/old_examples
 !examples/*.ipynb
+!examples/transforms/*.ipynb
 !examples/*.py
 !examples/*.yaml
 !examples/diagrams
