@@ -330,9 +330,9 @@ def verify_numpy_array(
         raise ValueError(f"{name} is not required length {exact_length}: {len(n)}")
     
     if data_type is not None:
-        for i,item in enumerate(n):
-            if not isinstance(item, data_type):
-                raise ValueError(f"{name}[{i}] is not correct dtype {data_type}: {type(item)}")
+        item = n[0]
+        if not isinstance(item, data_type):
+            raise ValueError(f"{name}[{i}] is not correct dtype {data_type}: {type(item)}")
 
     # check for np.nan's
     if (np.isnan(n).any()):
