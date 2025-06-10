@@ -26,19 +26,19 @@ from pathlib import Path
 import sys
 import datetime
 
-fft_size = 512
+fft_size = 1024
 num_iq_samples_dataset = fft_size ** 2
 impairment_level = 2
-num_signals_max = 5
-num_signals_min = 5
+num_signals_max = 10
+num_signals_min = 0
 
 num_samples = 100
 
 enable_tqdm = True
 
 root = Path.joinpath(Path(__file__).parent,'profile')
-batch_size = 1
-num_workers = 1
+batch_size = 2
+num_workers = 2
 
 target_transform = [
     ClassName(),
@@ -147,7 +147,7 @@ def dataset_finite_reading(transforms = []):
     profiler = cProfile.Profile()
 
     # Ininitialize dataset
-    static_dataset = StaticDataset(
+    static_dataset = StaticTorchSigDataset(
         root = root,
         impairment_level = impairment_level,
         transforms = Spectrogram(fft_size = fft_size),
