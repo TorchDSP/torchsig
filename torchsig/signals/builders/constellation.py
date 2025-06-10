@@ -110,6 +110,9 @@ def constellation_modulator_baseband ( class_name:str, pulse_shape_name:str, max
         constellation_signal_baseband = slice_tail_to_length ( constellation_signal_baseband, max_num_samples )
     # else: signal correct length, do nothing
 
+    # ensure proper data type
+    constellation_signal_baseband = constellation_signal_baseband.astype(torchsig_complex_data_type)
+
     return constellation_signal_baseband
 
 def constellation_modulator ( class_name:str, pulse_shape_name:str, bandwidth:float, sample_rate:float, num_samples:int, alpha_rolloff:float=None, rng=np.random.default_rng() ) -> np.ndarray:
