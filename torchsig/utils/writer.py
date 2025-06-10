@@ -310,7 +310,7 @@ class DatasetCreator:
             dataset_size_remaining_gigabytes = np.round(dataset_size_per_sample_gigabytes*num_samples_remaining,2)
 
             # concatenate disk size for progress bar message
-            updated_tqdm_desc = f'{self.tqdm_desc}, dataset remaining to create = {dataset_size_remaining_gigabytes} GB, remaining disk = {disk_size_available_gigabytes} GB'
+            updated_tqdm_desc = f'{self.tqdm_desc} dataset remaining to create = {dataset_size_remaining_gigabytes} GB, remaining disk = {disk_size_available_gigabytes} GB'
 
             # set the progress bar message
             pbar.set_description(updated_tqdm_desc)
