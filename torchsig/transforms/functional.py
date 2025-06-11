@@ -721,11 +721,13 @@ def nonlinear_amplifier(
     data: np.ndarray,
     gain: float = 1.0,
     psat_backoff: float = 10.0,
-    phi_rad: float = 0.0,
+    phi_max: float = 0.1,
+    phi_slope: float = 0.01,
     auto_scale: bool = True
 ) -> np.ndarray:
     """A memoryless AM/AM, AM/PM nonlinear amplifier function-based model using a
-    hyperbolic tangent output power response defined by gain and saturation power.
+    hyperbolic tangent output power response defined by gain and saturation power,
+    and a hyperbolic tangent phase response defined by maximum relative phase shift.
 
     Args:
         data (np.ndarray): Complex valued IQ data samples.
@@ -733,8 +735,8 @@ def nonlinear_amplifier(
         psat_backoff (float): Saturated output power factor relative to the input signal 
             mean power. For example, operating at a 2.0 psat_backoff factor with a 1 W 
             mean power signal has saturation power level at 2.0 W. Default 10.0.
-        phi_rad (float): Signal relative phase shift at saturation (radians). Modeled
-            to vary linearly from (0.0 rad, 0.0 power). Default 0.0 rad.
+        phi_max (float): Signal maximum relative phase shift in saturation (radians). Default 0.1. 
+        phi_slope (float): Absolute slope of relative phase linear response region (W/radian). Default 0.01.
         auto_scale (bool): Automatically rescale output power to match full-scale peak 
             input power prior to transform, based on peak estimates. Default True.
 
@@ -755,16 +757,17 @@ def nonlinear_amplifier(
     scale_factor = psat / gain
     out_power = psat * np.tanh(in_power / scale_factor)
     out_magnitude = out_power**0.5
-   
-    # amplitude-to-phase modulation (AM/PM)
-    # linear phase shift from origin to Psat
-    out_phase_shift_rad = np.zeros((N,))
-    if phi_rad != 0.:
-        Pin = np.array([0.0, psat])
-        Phi = np.array([0.0, phi_rad])
-        out_phase_shift_rad = np.interp(in_power, Pin, Phi)
 
-    amp_data = out_magnitude * np.exp(1j * (phase + out_phase_shift_rad))
+    # amplitude-to-phase modulation (AM/PM)
+    # hyperbolic tangent phase response approaches
+    # zero relative phase shift at low power input
+    # and approaches phimax phase shift in saturation
+    phi_origin = 0.5 * psat             # place linear phase shift regime
+    pin_origin = np.arctanh(phi_origin) # corresponding input power
+    phi_shift = (phi_max/2) * (np.tanh( (in_power - pin_origin) / phi_slope) + np.sign(phi_slope))
+
+    # reconstruct complex valued data format
+    amp_data = out_magnitude * np.exp(1j * (phase + phi_shift))
     
     # auto_scale: rescale output power to match full-scale input power
     # by estimating peaks for input and output power

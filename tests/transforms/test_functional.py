@@ -1071,7 +1071,8 @@ def test_interleave_complex(
         {
             'gain': 1.0,
             'psat_backoff' : 10.0,
-            'phi_rad': 0.0,
+            'phi_max': 0.02,
+            'phi_slope': 0.1,
             'auto_scale': True
         }, 
         True, 
@@ -1082,7 +1083,8 @@ def test_interleave_complex(
         {
             'gain': 7.4,
             'psat_backoff' : 3.0,
-            'phi_rad': 0.2,
+            'phi_max': -0.1,
+            'phi_slope': 0.01,
             'auto_scale': False
         }, 
         True, 
@@ -1109,7 +1111,8 @@ def test_nonlinear_amplifier(
     """
     gain = params['gain']
     psat_backoff = params['psat_backoff']
-    phi_rad = params['phi_rad']
+    phi_max = params['phi_max']
+    phi_slope = params['phi_slope']
     auto_scale = params['auto_scale']
     
     if is_error:
@@ -1118,7 +1121,8 @@ def test_nonlinear_amplifier(
                 data = data,
                 gain = gain,
                 psat_backoff = psat_backoff,
-                phi_rad = phi_rad,
+                phi_max = phi_max,
+                phi_slope = phi_slope,
                 auto_scale = auto_scale
             )
     else:
@@ -1128,7 +1132,8 @@ def test_nonlinear_amplifier(
             data = data,
             gain = gain,
             psat_backoff = psat_backoff,
-            phi_rad = phi_rad,
+            phi_max = phi_max,
+            phi_slope = phi_slope,
             auto_scale = auto_scale
         )
 
@@ -1143,7 +1148,7 @@ def test_nonlinear_amplifier(
             assert (abs(output_power - input_power) < 10**(0.1/10)) == expected
         else:
             assert (np.all(output_power <= psat)) == expected
-        assert (phase_diff <= (abs(phi_rad) + RTOL)) == expected
+        assert (phase_diff <= (abs(phi_max) + RTOL)) == expected
         assert (type(data) == type(data_test)) == expected
         assert (data.dtype == torchsig_complex_data_type) == expected
 

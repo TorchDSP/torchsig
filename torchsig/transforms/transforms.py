@@ -939,10 +939,13 @@ class NonlinearAmplifier(SignalTransform):
         gain_distribution (Callable[[], float]): Random draw from gain distribution.
         psat_backoff_range (Tuple[float, float]): Psat backoff factor (linear) reflecting saturated
             power level (Psat) relative to input signal mean power. Defaults to (5.0, 20.0).
-        past_backoff_distribution (Callable[[], float]): Random draw from psat_backoff distribution.   
-        phi_range (Tuple[float, float]): Maximum signal relative phase shift at 
-            saturation power level (radians). Defaults to (0.0, 0.0).
-        phi_distribution (Callable[[], float]): Random draw from phi distribution.        
+        psat_backoff_distribution (Callable[[], float]): Random draw from psat_backoff distribution.   
+        phi_max_range (Tuple[float, float]): Maximum signal relative phase shift at 
+            saturation power level (radians). Defaults to (-0.05, 0.05).
+        phi_max_distribution (Callable[[], float]): Random draw from phi_max distribution. 
+        phi_slope_range (Tuple[float, float]): Slope of relative phase shift response 
+            (W/radians). Defaults to (-0.1, 0.01).
+        phi_slope_distribution (Callable[[], float]): Random draw from phi_max distribution.
         auto_scale (bool): Automatically rescale output power to match full-scale peak 
             input power prior to transform, based on peak estimates. Default True.
         
@@ -951,7 +954,8 @@ class NonlinearAmplifier(SignalTransform):
         self,
         gain_range: Tuple[float, float] = (1.0, 4.0),
         psat_backoff_range: Tuple[float, float] = (5.0, 20.0),
-        phi_range: Tuple[float, float] = (0.0, 0.0),
+        phi_max_range: Tuple[float, float] = (-0.05, 0.05),
+        phi_slope_range: Tuple[float, float] = (-0.1, 0.1),
         auto_scale: bool = True,
         **kwargs
     ):  
@@ -960,20 +964,24 @@ class NonlinearAmplifier(SignalTransform):
         self.gain_distribution = self.get_distribution(self.gain_range)
         self.psat_backoff_range = psat_backoff_range
         self.psat_backoff_distribution = self.get_distribution(self.psat_backoff_range)        
-        self.phi_range = phi_range
-        self.phi_distribution = self.get_distribution(self.phi_range)
+        self.phi_max_range = phi_max_range
+        self.phi_max_distribution = self.get_distribution(self.phi_max_range)
+        self.phi_slope_range = phi_slope_range
+        self.phi_slope_distribution = self.get_distribution(self.phi_slope_range)
         self.auto_scale = auto_scale
     
     def __call__(self, signal: Union[Signal, DatasetSignal]) -> Union[Signal, DatasetSignal]:
         gain = self.gain_distribution()
         psat_backoff = self.psat_backoff_distribution()
-        phi = self.phi_distribution()
+        phi_max = self.phi_max_distribution()
+        phi_slope = self.phi_slope_distribution()
 
         signal.data = F.nonlinear_amplifier(
             data = signal.data,
             gain = gain,
             psat_backoff = psat_backoff,
-            phi_rad = phi,
+            phi_max = phi_max,
+            phi_slope = phi_slope,
             auto_scale = self.auto_scale
         )
         signal.data = signal.data.astype(torchsig_complex_data_type)
