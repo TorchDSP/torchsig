@@ -1,6 +1,6 @@
 """Unit Tests for transforms/impairments_narrowband and impairments_wideband.py
 """
-from torchsig.transforms.impairments_wideband import WidebandImpairments
+from torchsig.transforms.impairments import Impairments
 from torchsig.transforms.base_transforms import Transform
 
 import numpy as np
@@ -13,8 +13,8 @@ import pytest
     ( {'level' : 2}, False ),
     ( {'level' : 42}, True ),
 ])
-def test_WidebandImpairments(params: dict, is_error: bool) -> None:
-    """Test WidebandImpairments with pytest.
+def test_Impairments(params: dict, is_error: bool) -> None:
+    """Test Impairments with pytest.
 
     Args:
         params (dict): Parameter specifying impairment level.
@@ -28,17 +28,17 @@ def test_WidebandImpairments(params: dict, is_error: bool) -> None:
 
     if is_error:
         with pytest.raises(Exception, match=r".*"):
-            T = WidebandImpairments(
+            T = Impairments(
                 level = level,
                 seed = 42
             )
     else:
-        T = WidebandImpairments(
+        T = Impairments(
             level = level,
             seed = 42
         )
 
-        assert isinstance(T, WidebandImpairments) 
+        assert isinstance(T, Impairments) 
         assert isinstance(T.level, int) 
         assert isinstance(T.random_generator, np.random.Generator)
         for t in T.signal_transforms.transforms:
