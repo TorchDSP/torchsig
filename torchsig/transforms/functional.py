@@ -602,7 +602,8 @@ def iq_imbalance(
     data: np.ndarray, 
     amplitude_imbalance: float, 
     phase_imbalance: float, 
-    dc_offset: Tuple[float, float]
+    dc_offset_db: float,
+    dc_offset_phase_rads: float,
 ) -> np.ndarray:
     """Applies IQ imbalance to IQ data.
 
@@ -610,12 +611,14 @@ def iq_imbalance(
         data (np.ndarray): IQ data.
         amplitude_imbalance (float): IQ amplitude imbalance in dB.
         phase_imbalance (float): IQ phase imbalance in radians [-pi, pi].
-        dc_offset (Tuple[float, float]): IQ DC (linear) offsets (In-Phase, Quadrature).
+        dc_offset_db (float): Relative power of additive DC offset in dB
+        dc_offset_phase_rads (float): Phase of additive DC offset in radians
 
     Returns:
         np.ndarray: IQ data with IQ Imbalance applied.
 
     """
+
     # amplitude imbalance
     data = 10 ** (amplitude_imbalance / 10.0) * np.real(data) + 1j * 10 ** (amplitude_imbalance / 10.0) * np.imag(data)
 
@@ -623,7 +626,33 @@ def iq_imbalance(
     data = np.exp(-1j * phase_imbalance / 2.0) * np.real(data) + np.exp(1j * (np.pi / 2.0 + phase_imbalance / 2.0)) * np.imag(data)
 
     # DC offset
-    data = (dc_offset[0] + np.real(data)) + 1j * (dc_offset[1] + np.imag(data))
+
+    # compute FFT of receive signal
+    data_fft_db = 20*np.log10(np.abs(np.fft.fft(data)))
+    # apply smoothing
+    avg_len = int(len(data_fft_db)/8)
+    if (np.mod(avg_len,2) == 0):
+        avg_len += 1
+    avg = np.ones(avg_len)/avg_len
+    data_fft_db = sp.convolve(data_fft_db,avg)[avg_len:-avg_len]
+
+    # estimate noise floor
+    noise_floor_db = np.min(data_fft_db)
+
+    # create the DC offset
+    dc_offset_tone = np.ones(len(data))*np.exp(1j*dc_offset_phase_rads)
+    # compute FFT of DC offset
+    dc_offset_tone_fft_db = 20*np.log10(np.abs(np.fft.fft(dc_offset_tone)))
+    # calculate peak value
+    dc_offset_tone_max_db = np.max(dc_offset_tone_fft_db)
+    # calculate change to set DC offset power properly
+    gain_change_db = (noise_floor_db-dc_offset_tone_max_db)+dc_offset_db
+    # scale spur power accordingly
+    gain_change = 10**(gain_change_db/20)
+    dc_offset_tone *= gain_change
+
+    # add DC offset to signal
+    data += dc_offset_tone
 
     return data.astype(torchsig_complex_data_type)
 

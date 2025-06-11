@@ -890,25 +890,35 @@ class IQImbalance(SignalTransform):
         self,
         amplitude_imbalance = (-1., 1.),
         phase_imbalance = (-5.0 * np.pi / 180.0, 5.0 * np.pi / 180.0),
-        dc_offset = ((-0.1, 0.1),(-0.1, 0.1)),
+        dc_offset_db = (0,20),
+        dc_offset_rads = (0, 2*np.pi),
         **kwargs
     ):  
         super().__init__(**kwargs)
         self.amplitude_imbalance = amplitude_imbalance
         self.phase_imbalance = phase_imbalance
-        self.dc_offset = dc_offset 
+        self.dc_offset_db = dc_offset_db
+        self.dc_offset_rads = dc_offset_rads
         
         self.amplitude_imbalance_distribution = self.get_distribution(self.amplitude_imbalance)
         self.phase_imbalance_distribution = self.get_distribution(self.phase_imbalance)
-        self.dc_offset_distribution = self.get_distribution(self.dc_offset)
+        self.dc_offset_db_distribution = self.get_distribution(self.dc_offset_db)
+        self.dc_offset_rads_distribution = self.get_distribution(self.dc_offset_rads)
 
     def __call__(self, signal: Union[Signal, DatasetSignal]) -> Union[Signal, DatasetSignal]:
 
         amplitude_imbalance = self.amplitude_imbalance_distribution()
         phase_imbalance = self.phase_imbalance_distribution()
-        dc_offset = self.dc_offset_distribution()
+        dc_offset_db = self.dc_offset_db_distribution()
+        dc_offset_rads = self.dc_offset_rads_distribution()
 
-        signal.data = F.iq_imbalance(signal.data, amplitude_imbalance, phase_imbalance, dc_offset)
+        signal.data = F.iq_imbalance(
+            signal.data,
+            amplitude_imbalance,
+            phase_imbalance,
+            dc_offset_db,
+            dc_offset_rads
+        )
         signal.data = signal.data.astype(torchsig_complex_data_type)
         self.update(signal)
         return signal
