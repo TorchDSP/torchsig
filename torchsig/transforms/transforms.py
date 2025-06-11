@@ -882,8 +882,10 @@ class IQImbalance(SignalTransform):
         amplitude_imbalance_distribution (Callable[[], float]): Random draw from amplitude imbalance distribution.
         phase_imbalance (optional): Range bounds of IQ phase imbalance (radians).        
         phase_imbalance (Callable[[], float]): Random draw from phase imbalance distribution.
-        dc_offset (Tuple, optional): Range bounds for I and Q component DC offsets.
-        dc_offset (Callable[[], (float, float)]): Random draw from dc_offset distribution.
+        dc_offset_db (Tuple, optional): Range bounds for DC offset in relative power
+        dc_offset_db_distribution (Callable[[], (float, float)]): Random draw from dc_offset_db distribution.
+        dc_offset_phase_rads (Tuple, optional): Range bounds for phase of DC offset
+        dc_offset_phase_rads_distribution (Callable[[], (float, float)]): Random draw from dc_offset_phase_rads distribution.
         
     """
     def __init__(
