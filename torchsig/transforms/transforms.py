@@ -905,14 +905,14 @@ class IQImbalance(SignalTransform):
         self.amplitude_imbalance_distribution = self.get_distribution(self.amplitude_imbalance)
         self.phase_imbalance_distribution = self.get_distribution(self.phase_imbalance)
         self.dc_offset_db_distribution = self.get_distribution(self.dc_offset_db)
-        self.dc_offset_rads_distribution = self.get_distribution(self.dc_offset_rads)
+        self.dc_offset_phase_rads_distribution = self.get_distribution(self.dc_offset_rads)
 
     def __call__(self, signal: Union[Signal, DatasetSignal]) -> Union[Signal, DatasetSignal]:
 
         amplitude_imbalance = self.amplitude_imbalance_distribution()
         phase_imbalance = self.phase_imbalance_distribution()
         dc_offset_db = self.dc_offset_db_distribution()
-        dc_offset_rads = self.dc_offset_rads_distribution()
+        dc_offset_rads = self.dc_offset_phase_rads_distribution()
 
         signal.data = F.iq_imbalance(
             signal.data,
