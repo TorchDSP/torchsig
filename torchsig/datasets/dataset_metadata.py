@@ -20,7 +20,6 @@ from torchsig.utils.printing import (
     dataset_metadata_repr,
 )
 from torchsig.transforms.impairments import Impairments
-from torchsig.transforms.impairments_wideband import WidebandImpairments
 
 # Third Party
 import numpy as np
@@ -352,17 +351,17 @@ class DatasetMetadata(Seedable):
             exclude_low = True
         )
 
-    def _initialize_impairments(self) -> WidebandImpairments:
-        """Initializes and returns an instance of the WidebandImpairments class.
+    def _initialize_impairments(self) -> Impairments:
+        """Initializes and returns an instance of the Impairments class.
         
-        This method creates and returns an instance of the `WidebandImpairments` class 
+        This method creates and returns an instance of the `Impairments` class 
         initialized with the current `impairment_level` of the dataset. It models 
         the impairments applied to the wideband signals.
         
         Returns:
-            WidebandImpairments: A new instance of the `WidebandImpairments` class.
+            Impairments: A new instance of the `Impairments` class.
         """
-        return WidebandImpairments(self.impairment_level)
+        return Impairments(self.impairment_level)
 
     def __str__(self) -> str:
         return dataset_metadata_str(self)
