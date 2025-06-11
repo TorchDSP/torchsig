@@ -118,6 +118,8 @@ class Impairments(Transform):
             RandomApply(SpectralInversion(), 0.5),
             RandomApply(CarrierPhaseNoise(),0.5),
             RandomApply(CarrierFrequencyDrift(),0.5),
+            RandomApply(Quantize(), 0.5),
+            RandomApply(IntermodulationProducts(), 0.5),
             RandomApply(DigitalAGC(),0.2),
             RandomApply(Spurs(),0.5),
             RandAugment(
