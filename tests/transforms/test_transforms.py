@@ -1144,7 +1144,8 @@ def test_IQImbalance(
         {
             'gain_range': (1.0, 4.0),
             'psat_backoff_range': (5.0, 20.0),
-            'phi_range': (0.0, 0.0),
+            'phi_max_range': (0.0, 0.0),
+            'phi_slope_range': (0.0001, 0.0001),
             'auto_scale': True
         },
         False
@@ -1154,7 +1155,8 @@ def test_IQImbalance(
         {
             'gain_range': (0.5, 17.2),
             'psat_backoff_range': (0.0, 7.0),
-            'phi_range': (-np.deg2rad(10.0), np.deg2rad(17.0)),
+            'phi_max_range': (-np.deg2rad(10.0), np.deg2rad(17.0)),
+            'phi_slope_range': (-0.1, 0.1),
             'auto_scale': True
         },
         False
@@ -1178,7 +1180,8 @@ def test_NonlinearAmplifier(
     """      
     gain_range = params['gain_range']
     psat_backoff_range = params['psat_backoff_range']
-    phi_range = params['phi_range']
+    phi_max_range = params['phi_max_range']
+    phi_slope_range = params['phi_slope_range']
     auto_scale = params['auto_scale']
     
     if is_error:
@@ -1186,7 +1189,8 @@ def test_NonlinearAmplifier(
                 T = NonlinearAmplifier(
                     gain_range  = gain_range,
                     psat_backoff_range = psat_backoff_range,
-                    phi_range = phi_range,
+                    phi_max_range = phi_max_range,
+                    phi_slope_range = phi_slope_range,
                     auto_scale = auto_scale,
                     seed = 42
                 )
@@ -1195,7 +1199,8 @@ def test_NonlinearAmplifier(
         T = NonlinearAmplifier(
             gain_range  = gain_range,
             psat_backoff_range = psat_backoff_range,
-            phi_range = phi_range,
+            phi_max_range = phi_max_range,
+            phi_slope_range = phi_slope_range,
             auto_scale = auto_scale,
             seed = 42
         )
@@ -1204,7 +1209,8 @@ def test_NonlinearAmplifier(
         assert isinstance(T, NonlinearAmplifier)
         assert isinstance(T.gain_distribution(), float)
         assert isinstance(T.psat_backoff_distribution(), float)
-        assert isinstance(T.phi_distribution(), float)
+        assert isinstance(T.phi_max_distribution(), float)
+        assert isinstance(T.phi_slope_distribution(), float)
         assert isinstance(signal, (Signal, DatasetSignal))
         assert (signal.data.dtype == torchsig_complex_data_type)
 
