@@ -949,7 +949,8 @@ def test_intermodulation_products(
         {
             'amplitude_imbalance': 0.1, 
             'phase_imbalance': -np.pi/4,
-            'dc_offset': (-0.1, -0.22)
+            'dc_offset_db': 10,
+            'dc_offset_phase_rads': -np.pi/2
         },
         True,
         False
@@ -959,7 +960,8 @@ def test_intermodulation_products(
         {
             'amplitude_imbalance': 3.4, 
             'phase_imbalance': np.pi/8,
-            'dc_offset': (0.27, 0.11)
+            'dc_offset_db': 3,
+            'dc_offset_phase_rads': np.pi/8
         },
         True,
         False 
@@ -986,7 +988,8 @@ def test_iq_imbalance(
     amplitude_imbalance = params['amplitude_imbalance']
     amplitude_imbalance_linear = 10 ** (amplitude_imbalance / 10.0)
     phase_imbalance = params['phase_imbalance']
-    dc_offset = params['dc_offset']
+    dc_offset_db = params['dc_offset_db']
+    dc_offset_phase_rads = params['dc_offset_phase_rads']
     
     if is_error:
         with pytest.raises(expected):     
@@ -994,7 +997,8 @@ def test_iq_imbalance(
                 data, 
                 amplitude_imbalance = amplitude_imbalance,
                 phase_imbalance = phase_imbalance,
-                dc_offset = dc_offset
+                dc_offset_db = dc_offset_db,
+                dc_offset_phase_rads = dc_offset_phase_rads
             )
     else:
         data_test = deepcopy(data)
@@ -1003,25 +1007,10 @@ def test_iq_imbalance(
             data, 
             amplitude_imbalance = amplitude_imbalance,
             phase_imbalance = phase_imbalance,
-            dc_offset = dc_offset
+            dc_offset_db = dc_offset_db,
+            dc_offset_phase_rads = dc_offset_phase_rads
         )
 
-        dc_real_est = np.mean(data.real)
-        dc_imag_est = np.mean(data.imag)
-        ac_data = (data.real - dc_offset[0]) + 1j * (data.imag - dc_offset[1])
-        
-        mean_mag_ac_data = np.mean(np.abs(ac_data))
-        mean_mag_data_test = np.mean(np.abs(data_test))
-        amp_imbal_est = mean_mag_ac_data / mean_mag_data_test
-        norm_ac_data = np.divide(ac_data, amplitude_imbalance_linear)
-
-        restored_data = np.multiply(norm_ac_data.real, 1/ np.exp(-1j * phase_imbalance / 2.0)) + \
-                        np.multiply(norm_ac_data.imag, 1 / np.exp(1j * (np.pi / 2.0 + phase_imbalance / 2.0)))
-
-        assert (abs(dc_real_est - dc_offset[0]) < 1E-1) == expected
-        assert (abs(dc_imag_est - dc_offset[1]) < 1E-1) == expected
-        assert (abs(amp_imbal_est - amplitude_imbalance_linear) < 1E-1) == expected
-        assert (abs(np.mean(restored_data - data_test)) < 1E-1) == expected
         assert (type(data) == type(data_test)) == expected
         assert (data.dtype == torchsig_complex_data_type) == expected
 

@@ -1132,7 +1132,8 @@ def test_IQImbalance(
         assert isinstance(T, IQImbalance)
         assert isinstance(T.amplitude_imbalance_distribution(), float)
         assert isinstance(T.phase_imbalance_distribution(), float)
-        assert isinstance(T.dc_offset_distribution(), np.ndarray)
+        assert isinstance(T.dc_offset_db_distribution(), float)
+        assert isinstance(T.dc_offset_phase_rads_distribution(), float)
         assert isinstance(signal, (Signal, DatasetSignal))
         assert type(signal.data) == type(signal_test.data)
         assert signal.data.dtype == torchsig_complex_data_type
