@@ -105,6 +105,7 @@ class Impairments(Transform):
         rx_hw_impairments = [
             # RandomApply(,), # image rejection
             RandomApply(NonlinearAmplifier(),0.75),
+            RandomApply(CoarseGainChange(),0.25),
             RandomApply(Spurs(),0.75),
             RandomApply(CarrierPhaseNoise(),0.75),
             RandomApply(CarrierFrequencyDrift(),0.75),
