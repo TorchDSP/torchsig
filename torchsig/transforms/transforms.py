@@ -964,7 +964,7 @@ class NonlinearAmplifier(SignalTransform):
     """
     def __init__(
         self,
-        gain_range: Tuple[float, float] = (1.0, 4.0),
+        gain_range: Tuple[float, float] = (1.0, 1.0),
         psat_backoff_range: Tuple[float, float] = (5.0, 20.0),
         phi_max_range: Tuple[float, float] = (-0.05, 0.05),
         phi_slope_range: Tuple[float, float] = (-0.1, 0.1),
