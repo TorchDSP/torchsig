@@ -53,6 +53,7 @@ from torchsig.transforms.transforms import (
 
 # Built-In
 from typing import List
+from copy import copy
 
 class Impairments(Transform):
     """Applies signal and dataset transformations at specific impairment levels.
@@ -85,10 +86,8 @@ class Impairments(Transform):
 
         self.level = level
 
-        # Wideband Signal Transforms
-        ST_level_0 = []
-        ST_level_1 = []
-        ST_level_2 = [
+        # listing of transmit and receive HW impairments
+        tx_hw_impairments = [
             RandomApply(Quantize(),0.75),
             # RandomApply(,), # clock jitter
             # RandomApply(,), # clock drift
@@ -102,17 +101,8 @@ class Impairments(Transform):
             RandomApply(Spurs(),0.75),
             RandomApply(SpectralInversion(),0.25),
         ]
-        
-        ST_all_levels = [
-            ST_level_0,
-            ST_level_1,
-            ST_level_2
-        ]
-        
-        # Wideband Dataset Transforms
-        DT_level_0 = []
-        DT_level_1 = []
-        DT_level_2 = [
+
+        rx_hw_impairments = [
             # RandomApply(,), # image rejection
             RandomApply(NonlinearAmplifier(),0.75),
             RandomApply(Spurs(),0.75),
@@ -126,6 +116,10 @@ class Impairments(Transform):
             # RandomApply(,), # clock drift
             RandomApply(Quantize(),0.75),
             RandomApply(DigitalAGC(),0.25),
+        ]
+
+        # define ML transforms
+        ml_transforms = [
             RandAugment(
                 transforms= [
                     RandomDropSamples(
@@ -141,6 +135,28 @@ class Impairments(Transform):
                 replace=False
             )
         ]
+
+        # listing of channel models
+        channel_models = [
+            RandomApply(Fading(),0.25),
+        ]
+
+        # Signal (TX) Transforms
+        ST_level_0 = []                                # None
+        ST_level_1 = copy(tx_hw_impairments)           # TX impairments
+        ST_level_2 = copy(ST_level_1) + channel_models # TX impairments + channel models
+
+        ST_all_levels = [
+            ST_level_0,
+            ST_level_1,
+            ST_level_2
+        ]
+
+        # Dataset (RX) Transforms
+        DT_level_0 = copy(ml_transforms)            # ML Transforms
+        DT_level_1 = DT_level_0 + rx_hw_impairments # ML transforms + HW impairments
+        DT_level_2 = copy(DT_level_1)               # ML transforms + HW impairments
+
         DT_all_levels = [
             DT_level_0,
             DT_level_1,
