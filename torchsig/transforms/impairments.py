@@ -44,6 +44,7 @@ from torchsig.transforms.transforms import (
     NonlinearAmplifier,
     Quantize,
     RandomDropSamples,
+    Spurs,
     SpectralInversion,
     Spurs,
     TimeReversal,
@@ -86,20 +87,20 @@ class Impairments(Transform):
 
         # Wideband Signal Transforms
         ST_level_0 = []
-        ST_level_1 = [
-            IQImbalance(),
-            CarrierPhaseOffset()
-        ]
+        ST_level_1 = []
         ST_level_2 = [
-            RandomApply(IQImbalance(),0.25),
-            RandomApply(Fading(), 0.5),
+            RandomApply(Quantize(),0.75),
+            # RandomApply(,), # clock jitter
+            # RandomApply(,), # clock drift
+            # RandomApply(,), # passband ripple
+            RandomApply(CarrierPhaseNoise(),0.75),
+            RandomApply(CarrierFrequencyDrift(),0.75),
             RandomApply(CarrierPhaseOffset(),1.0),
-            RandomApply(SpectralInversion(), 0.25),
-            RandomApply(CarrierPhaseNoise(), 0.5),
-            RandomApply(CarrierFrequencyDrift(), 0.5),
-            RandomApply(Quantize(), 0.5),
-            RandomApply(NonlinearAmplifier(), 0.5),
-            RandomApply(IntermodulationProducts(), 0.5),
+            RandomApply(IntermodulationProducts(),0.5),
+            RandomApply(IQImbalance(),0.25),
+            RandomApply(NonlinearAmplifier(),0.75),
+            RandomApply(Spurs(),0.75),
+            RandomApply(SpectralInversion(),0.25),
         ]
         
         ST_all_levels = [
@@ -110,21 +111,21 @@ class Impairments(Transform):
         
         # Wideband Dataset Transforms
         DT_level_0 = []
-        DT_level_1 = [
-            IQImbalance(),
-            CarrierPhaseOffset()
-        ]
+        DT_level_1 = []
         DT_level_2 = [
+            # RandomApply(,), # image rejection
+            RandomApply(NonlinearAmplifier(),0.75),
+            RandomApply(Spurs(),0.75),
+            RandomApply(CarrierPhaseNoise(),0.75),
+            RandomApply(CarrierFrequencyDrift(),0.75),
+            RandomApply(CarrierPhaseOffset(),1.0),
+            RandomApply(IntermodulationProducts(),0.5),
             RandomApply(IQImbalance(),0.5),
-            RandomApply(CarrierPhaseOffset(), 1.0),
-            RandomApply(SpectralInversion(), 0.5),
-            RandomApply(CarrierPhaseNoise(),0.5),
-            RandomApply(CarrierFrequencyDrift(),0.5),
-            RandomApply(Quantize(), 0.5),
-            RandomApply(IntermodulationProducts(), 0.5),
-            RandomApply(NonlinearAmplifier(), 0.5),
-            RandomApply(DigitalAGC(),0.2),
-            RandomApply(Spurs(),0.5),
+            # RandomApply(,), # passband ripple
+            # RandomApply(,), # clock jitter
+            # RandomApply(,), # clock drift
+            RandomApply(Quantize(),0.75),
+            RandomApply(DigitalAGC(),0.25),
             RandAugment(
                 transforms= [
                     RandomDropSamples(
