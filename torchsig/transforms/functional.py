@@ -762,8 +762,9 @@ def nonlinear_amplifier(
         data (np.ndarray): Complex valued IQ data samples.
         gain (float): Small-signal linear gain. Default 1.0.
         psat_backoff (float): Saturated output power factor relative to the input signal 
-            mean power. For example, operating at a 2.0 psat_backoff factor with a 1 W 
-            mean power signal has saturation power level at 2.0 W. Default 10.0.
+            mean power. That is, Psat = psat_backoff * Pavg. For example, operating at 
+            a 2.0 psat_backoff factor with a 1 W mean power signal has saturation power 
+            level at 2.0 W. Default 10.0.
         phi_max (float): Signal maximum relative phase shift in saturation (radians). Default 0.1. 
         phi_slope (float): Absolute slope of relative phase linear response region (W/radian). Default 0.01.
         auto_scale (bool): Automatically rescale output power to match full-scale peak 
@@ -791,9 +792,17 @@ def nonlinear_amplifier(
     # hyperbolic tangent phase response approaches
     # zero relative phase shift at low power input
     # and approaches phimax phase shift in saturation
-    phi_origin = 0.5 * psat             # place linear phase shift regime
-    pin_origin = np.arctanh(phi_origin) # corresponding input power
-    phi_shift = (phi_max/2) * (np.tanh( (in_power - pin_origin) / phi_slope) + np.sign(phi_slope))
+    phi_shift = 0.0
+    if not (phi_max == 0.0) and not (phi_slope == 0.0):
+        phi_slope = np.abs(phi_slope)
+
+        # align AM and PM responses
+        # place linear phase shift regime origin where ideal
+        # amplifier linear gain would have output psat 
+        pin_origin = scale_factor # ie, psat / gain
+
+        # relative phase shift: tanh response on input power scale
+        phi_shift = (phi_max/2) * (np.tanh( (in_power - pin_origin) / phi_slope) + 1)
 
     # reconstruct complex valued data format
     amp_data = out_magnitude * np.exp(1j * (phase + phi_shift))
