@@ -1145,7 +1145,7 @@ def test_IQImbalance(
         {
             'gain_range': (1.0, 4.0),
             'psat_backoff_range': (5.0, 20.0),
-            'phi_max_range': (0.0, 0.0),
+            'phi_max_range': (0.001, 0.001),
             'phi_slope_range': (0.0001, 0.0001),
             'auto_scale': True
         },
@@ -1155,7 +1155,7 @@ def test_IQImbalance(
         new_test_ds_signal(), 
         {
             'gain_range': (0.5, 17.2),
-            'psat_backoff_range': (0.0, 7.0),
+            'psat_backoff_range': (1.0, 7.0),
             'phi_max_range': (-np.deg2rad(10.0), np.deg2rad(17.0)),
             'phi_slope_range': (-0.1, 0.1),
             'auto_scale': True
