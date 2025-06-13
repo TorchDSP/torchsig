@@ -91,7 +91,6 @@ class Impairments(Transform):
             RandomApply(Quantize(),0.75),
             # RandomApply(,), # clock jitter
             # RandomApply(,), # clock drift
-            # RandomApply(,), # passband ripple
             RandomApply(CarrierPhaseNoise(),0.75),
             RandomApply(CarrierFrequencyDrift(),0.75),
             RandomApply(CarrierPhaseOffset(),1.0),
@@ -112,7 +111,6 @@ class Impairments(Transform):
             RandomApply(CarrierPhaseOffset(),1.0),
             RandomApply(IntermodulationProducts(),0.5),
             RandomApply(IQImbalance(),0.5),
-            # RandomApply(,), # passband ripple
             # RandomApply(,), # band edge roll-off
             # RandomApply(,), # clock jitter
             # RandomApply(,), # clock drift
