@@ -4,15 +4,15 @@
 from __future__ import annotations
 
 # TorchSig
-from torch.utils.data import DataLoader
 from torchsig.datasets.datasets import NewTorchSigDataset
 from torchsig.datasets.dataset_utils import dataset_full_path, dataset_yaml_name, writer_yaml_name
 from torchsig.utils.file_handlers.base_handler import TorchSigFileHandler
 from torchsig.utils.file_handlers.zarr import ZarrFileHandler
 
 from torchsig.datasets.dataset_utils import save_type
-from torchsig.datasets.dataset_utils import collate_fn as default_collate_fn
 from torchsig.utils.yaml import write_dict_to_yaml
+
+from torchsig.datasets.dataset_utils import collate_fn as default_collate_fn
 
 # Third Party
 from tqdm.auto import tqdm
@@ -27,8 +27,9 @@ import os
 from shutil import disk_usage
 import concurrent.futures
 
+from torchsig.utils.data_loading import WorkerSeedingDataLoader
 
-class DatasetCreator:
+class DatasetCreator():
     """Class for creating a dataset and saving it to disk in batches.
 
     This class generates a dataset if it doesn't already exist on disk. 
@@ -58,6 +59,7 @@ class DatasetCreator:
         file_handler: TorchSigFileHandler = ZarrFileHandler,
         train: bool = None,
         multithreading: bool = True,
+        seed = None,
         **kwargs # any additional file handler args
     ):
         """Initializes the DatasetCreator.
@@ -86,12 +88,14 @@ class DatasetCreator:
         if dataset.dataset_metadata.num_samples is None:
             raise ValueError("Must specify num_samples as an integer number. Cannot write infinite dataset to disk.")
 
-        self.dataloader = DataLoader(
+        self.dataloader = WorkerSeedingDataLoader(
             dataset = dataset,
             num_workers = num_workers,
             batch_size = batch_size,
-            collate_fn = collate_fn
+            collate_fn = default_collate_fn
         )
+        if seed:
+            self.dataloader.seed(seed)
 
         # e.g., root/torchsig_narrowband_clean
         full_root = dataset_full_path(
