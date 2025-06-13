@@ -113,6 +113,7 @@ class Impairments(Transform):
             RandomApply(IntermodulationProducts(),0.5),
             RandomApply(IQImbalance(),0.5),
             # RandomApply(,), # passband ripple
+            # RandomApply(,), # band edge roll-off
             # RandomApply(,), # clock jitter
             # RandomApply(,), # clock drift
             RandomApply(Quantize(),0.75),
