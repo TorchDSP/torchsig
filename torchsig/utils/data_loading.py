@@ -70,5 +70,7 @@ class WorkerSeedingDataLoader(DataLoader, Seedable):
         from torch.utils.data import get_worker_info
         get_worker_info().dataset.seed(int(self.random_generator.random()*100 + 1) * (worker_id + 1))
 
+    def __len__(self):
+        return self.dataset.dataset_metadata.num_samples
 
 

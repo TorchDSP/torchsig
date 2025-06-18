@@ -4,7 +4,7 @@
 from __future__ import annotations
 
 # TorchSig
-from torchsig.datasets.datasets import NewTorchSigDataset
+from torchsig.datasets.datasets import TorchSigIterableDataset
 from torchsig.datasets.dataset_utils import dataset_full_path, dataset_yaml_name, writer_yaml_name
 from torchsig.utils.file_handlers.base_handler import TorchSigFileHandler
 from torchsig.utils.file_handlers.zarr import ZarrFileHandler
@@ -19,6 +19,7 @@ from tqdm.auto import tqdm
 import yaml
 import numpy as np
 from time import time
+from torch import Tensor
 
 # Built-In
 from typing import Callable, Dict, Any, List, Tuple
@@ -49,7 +50,7 @@ class DatasetCreator():
     """
     def __init__(
         self,
-        dataset: NewTorchSigDataset,
+        dataset: TorchSigIterableDataset,
         root: str,
         overwrite: bool = False, # will overwrite any existing dataset on disk
         batch_size: int = 1,
@@ -250,26 +251,32 @@ class DatasetCreator():
         self._update_tqdm_message(pbar)
 
         # write dataset
-
         if self.multithreading:
             # write each batch as its own thread
             # num_threads defaults to: min(32, os.cpu_count() + 4)
             with concurrent.futures.ThreadPoolExecutor() as executor:
-                # Submit each batch write task to the executor
-                futures = [executor.submit(self._write_batch, batch_idx, batch, pbar) for batch_idx, batch in tqdm(enumerate(self.dataloader), total = len(self.dataloader))]
+                futures = []
+                itr = iter(self.dataloader)
+                for batch_idx in tqdm(range(len(self.dataloader)), total = len(self.dataloader)):
+                    batch = next(itr)
+                    futures += [executor.submit(self._write_batch, batch_idx, batch, pbar)]
 
                 # Wait for all futures to complete
                 concurrent.futures.wait(futures)
 
         else:
             # single threaded writing
-            for batch_idx, batch in tqdm(enumerate(self.dataloader), total = len(self.dataloader)):
+            itr = iter(self.dataloader)
+            for batch_idx in tqdm(range(len(self.dataloader)), total = len(self.dataloader)):
+                batch = next(itr)
 
                 # write to disk
-                self.writer.write(batch_idx, batch)
+                self.writer.write(batch_idx, self._handle_batch_datatypes(batch))
 
                 # update progress bar message
                 self._update_tqdm_message(pbar,batch_idx)
+
+
 
         # update writer yaml
         # indicate writing dataset to disk was successful
@@ -277,6 +284,13 @@ class DatasetCreator():
         updated_writer_yaml['complete'] = True
         write_dict_to_yaml(f"{self.writer.root}/{writer_yaml_name}", updated_writer_yaml)
 
+    def _handle_batch_datatypes(self, batch):
+        bx, by = batch
+        if isinstance(bx, Tensor):
+            bx = bx.numpy()
+        if isinstance(by, Tensor):
+            by = by.numpy()
+        return (bx,by)
 
     def _update_tqdm_message( self, pbar=tqdm(), batch_idx:int = 0 ):
 

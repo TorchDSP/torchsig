@@ -3,7 +3,7 @@
 # testing dataset with randomized parameters
 
 from torchsig.datasets.dataset_metadata import DatasetMetadata
-from torchsig.datasets.datasets import NewTorchSigDataset, StaticTorchSigDataset
+from torchsig.datasets.datasets import TorchSigIterableDataset, StaticTorchSigDataset
 from torchsig.utils.writer import DatasetCreator
 from torchsig.signals.signal_lists import TorchSigSignalLists
 from torchsig.transforms.target_transforms import (
@@ -102,7 +102,7 @@ md = DatasetMetadata(
 )
 
 # create the wideband object, derived from the metadata object
-WB = NewTorchSigDataset(dataset_metadata=md)
+WB = TorchSigIterableDataset(dataset_metadata=md)
 
 
 # write dataset to disk
