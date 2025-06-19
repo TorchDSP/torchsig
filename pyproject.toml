@@ -32,7 +32,7 @@ dependencies = [
     "torchaudio",
     "timm",
     "pytorch_lightning",
-    "ultralytics",
+    "ultralytics==8.3.57",
     "jupyter_bbox_widget",
     "torchinfo",
     "sigmf",

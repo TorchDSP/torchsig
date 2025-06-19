@@ -1,5 +1,5 @@
 
-from torchsig.datasets.datasets import NewTorchSigDataset, StaticTorchSigDataset
+from torchsig.datasets.datasets import TorchSigIterableDataset, StaticTorchSigDataset
 import yaml
 import numpy as np
 from torchsig.utils.writer import DatasetCreator
@@ -20,9 +20,9 @@ directory_path = pathlib.Path(__file__).parent.resolve()
 yaml_path = str(directory_path.joinpath(f"{dataset_name}.yaml"))
 dataset_path = str(directory_path.joinpath(f"{dataset_name}"))
 
-DS = NewTorchSigDataset(yaml_path)
+DS = TorchSigIterableDataset(yaml_path)
 
-test_idx = np.random.randint(len(DS))
+test_idx = np.random.randint(DS.dataset_metadata.num_samples)
 
 dc = DatasetCreator(
     DS,

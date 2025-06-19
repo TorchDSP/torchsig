@@ -11,7 +11,7 @@ from __future__ import annotations
 # TorchSig
 from torch.utils.data import DataLoader
 from torchsig.datasets.dataset_metadata import DatasetMetadata
-from torchsig.datasets.datasets import NewTorchSigDataset, StaticTorchSigDataset
+from torchsig.datasets.datasets import TorchSigIterableDataset, StaticTorchSigDataset
 from torchsig.datasets.dataset_utils import to_dataset_metadata
 from torchsig.utils.writer import DatasetCreator
 from torchsig.utils.file_handlers.base_handler import TorchSigFileHandler
@@ -88,7 +88,7 @@ class TorchSigDataModule(pl.LightningDataModule):
         self.val_metadata = to_dataset_metadata(val_metadata)
         self.impairment_level = self.train_metadata.impairment_level
 
-        self.new_dataset_class = NewTorchSigDataset
+        self.new_dataset_class = TorchSigIterableDataset
         self.static_dataset_class = StaticTorchSigDataset
 
         self.transforms = transforms

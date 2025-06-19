@@ -3,7 +3,7 @@
 
 # TorchSig
 from torchsig.datasets.dataset_metadata import DatasetMetadata
-from torchsig.datasets.datasets import NewTorchSigDataset
+from torchsig.datasets.datasets import TorchSigIterableDataset
 from torchsig.utils.writer import DatasetCreator
 
 # Third Party
@@ -35,7 +35,7 @@ def generate(
         ValueError: If the dataset type is unknown or invalid.
     """
     
-    create_dataset = NewTorchSigDataset(dataset_metadata=dataset_metadata)
+    create_dataset = TorchSigIterableDataset(dataset_metadata=dataset_metadata)
 
     creator = DatasetCreator(
         dataset=create_dataset,

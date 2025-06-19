@@ -1,7 +1,7 @@
 """Unit Tests for datasets
 """
 from torchsig.datasets.dataset_metadata import DatasetMetadata
-from torchsig.datasets.datasets import NewTorchSigDataset, StaticTorchSigDataset
+from torchsig.datasets.datasets import TorchSigIterableDataset, StaticTorchSigDataset
 from torchsig.utils.writer import DatasetCreator
 from torchsig.signals.signal_lists import TorchSigSignalLists
 from torchsig.transforms.target_transforms import (
@@ -186,10 +186,10 @@ def test_NewDataset_getitem(num_signals_max: int, target_transforms: List[Target
         num_signals_max=num_signals_max,
         target_transforms=target_transforms
     )
-    dataset = NewTorchSigDataset(dataset_metadata=dm)
+    dataset = TorchSigIterableDataset(dataset_metadata=dm)
 
     for i in range(num_check):
-        data, targets = dataset[i]
+        data, targets = next(dataset)
 
         verify_getitem_targets(num_signals_max, target_transforms, targets)
 
@@ -217,7 +217,7 @@ def test_StaticDataset_getitem(num_signals_max: int, target_transforms: List[Tar
         num_signals_min = 1,
         num_samples=num_generate
     )
-    new_dataset = NewTorchSigDataset(dataset_metadata=dm)
+    new_dataset = TorchSigIterableDataset(dataset_metadata=dm)
 
     dc = DatasetCreator(
         new_dataset,
@@ -250,7 +250,7 @@ def test_StaticDataset_getitem(num_signals_max: int, target_transforms: List[Tar
     )
 ])
 def test_datasets(params: dict, is_error: bool) -> None:
-    """Test datasets with pytest - NewTorchSigDataset and StaticTorchSigDataset.
+    """Test datasets with pytest - TorchSigIterableDataset and StaticTorchSigDataset.
 
     Args:
         is_error (bool): Is a test error expected.
@@ -329,7 +329,7 @@ def test_datasets(params: dict, is_error: bool) -> None:
 
     if is_error:
         with pytest.raises(Exception, match=r".*"):
-            DS = NewTorchSigDataset(dataset_metadata=md)
+            DS = TorchSigIterableDataset(dataset_metadata=md)
             dc = DatasetCreator(
                 DS,
                 root = wb_data_dir,
@@ -342,8 +342,8 @@ def test_datasets(params: dict, is_error: bool) -> None:
             )
     else:
         # create the dataset object, derived from the metadata object
-        DS0 = NewTorchSigDataset(dataset_metadata=deepcopy(md), seed=seed)
-        DS1 = NewTorchSigDataset(dataset_metadata=deepcopy(md), seed=seed) # reproducible copy
+        DS0 = TorchSigIterableDataset(dataset_metadata=deepcopy(md), seed=seed)
+        DS1 = TorchSigIterableDataset(dataset_metadata=deepcopy(md), seed=seed) # reproducible copy
 
         # save dataset to disk
         dc = DatasetCreator(
@@ -364,12 +364,11 @@ def test_datasets(params: dict, is_error: bool) -> None:
         )
             
         # dataset
-        assert isinstance(DS0, NewTorchSigDataset)
-        assert len(DS0) == num_samples
+        assert isinstance(DS0, TorchSigIterableDataset)
         for i in range(num_samples):
-            data0, meta0 = DS0[i]
-            data1, meta1 = DS1[i] # reproducible copy
-            
+            data0, meta0 = next(DS0)
+            data1, meta1 = next(DS1) # reproducible copy
+
             assert type(data0) == np.ndarray
             assert data0.dtype == torchsig_real_data_type
             if (num_signals_max == 1):
