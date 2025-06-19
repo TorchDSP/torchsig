@@ -624,16 +624,16 @@ def iq_imbalance(
     # DC offset
 
     # compute FFT of receive signal
-    data_fft_db = 20*np.log10(np.abs(np.fft.fft(data)))
+    data_fft_linear = np.abs(np.fft.fft(data))
     # apply smoothing
-    avg_len = int(len(data_fft_db)/8)
+    avg_len = int(len(data_fft_linear)/8)
     if (np.mod(avg_len,2) == 0):
         avg_len += 1
     avg = np.ones(avg_len)/avg_len
-    data_fft_db = sp.convolve(data_fft_db,avg)[avg_len:-avg_len]
+    data_fft_linear = sp.convolve(data_fft_linear,avg)[avg_len:-avg_len]
 
     # estimate noise floor
-    noise_floor_db = np.min(data_fft_db)
+    noise_floor_db = 20*np.log10(np.min(data_fft_linear))
 
     # create the DC offset
     dc_offset_tone = np.ones(len(data))*np.exp(1j*dc_offset_phase_rads)
