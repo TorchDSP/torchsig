@@ -291,7 +291,7 @@ class CarrierFrequencyDrift(SignalTransform):
     """
     def __init__(
         self, 
-        drift_ppm: Tuple[float, float] = (0.1, 1),
+        drift_ppm: Tuple[float, float] = (0.1, 10),
         **kwargs
     ):
         super().__init__(**kwargs)
@@ -370,6 +370,7 @@ class CarrierPhaseOffset(SignalTransform):
         phase_offset = self.phase_offset_distribution()
 
         signal.data = F.phase_offset(signal.data, phase_offset)
+
         signal.data = signal.data.astype(torchsig_complex_data_type)
         self.update(signal)
         return signal
@@ -891,8 +892,8 @@ class IQImbalance(SignalTransform):
     def __init__(
         self,
         amplitude_imbalance = (-1., 1.),
-        phase_imbalance = (-5.0 * np.pi / 180.0, 5.0 * np.pi / 180.0),
-        dc_offset_db = (0,20),
+        phase_imbalance = (-2.0 * np.pi / 180.0, 2.0 * np.pi / 180.0),
+        dc_offset_db = (0,30),
         dc_offset_rads = (0, 2*np.pi),
         **kwargs
     ):  
@@ -1262,14 +1263,15 @@ class SpectralInversion(SignalTransform):
     def __call__(self, signal: Signal) -> Signal:
         signal.data = F.spectral_inversion(signal.data)
         signal.data = signal.data.astype(torchsig_complex_data_type)
-        
+
+
         # metadata
         if isinstance(signal, DatasetSignal):
             for m in signal.metadata:
                 m.center_freq *= -1
         else:
             signal.metadata.center_freq *= -1
-        
+
         self.update(signal)
         return signal
 
@@ -1531,7 +1533,7 @@ class Spurs(SignalTransform):
     def __init__(
         self,
         num_spurs: Tuple[int] = (1,4),
-        relative_power_db: Tuple[float] = (5,15),
+        relative_power_db: Tuple[float] = (0,30),
         **kwargs
     ):
         super().__init__(**kwargs)
