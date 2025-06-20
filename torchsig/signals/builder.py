@@ -225,8 +225,12 @@ class SignalBuilder(Builder, Seedable):
             # given duration, start is randomly set from 0 to rightmost time that the duration still fits inside the dataset iq samples
             start = self.random_generator.integers(low=0, high=self.dataset_metadata.num_iq_samples_dataset-duration,dtype=int)
 
-        # randomly set bandwidth between a minimum and max
-        bw = self.random_generator.uniform(self.dataset_metadata.signal_bandwidth_min,self.dataset_metadata.signal_bandwidth_max)
+        # randomly set bandwidth between a minimum and max. use a log10-scaling on the
+        # randomization there can be a large difference between the min and max bandwidth
+        bw_min_log10 = np.log10(self.dataset_metadata.signal_bandwidth_min)
+        bw_max_log10 = np.log10(self.dataset_metadata.signal_bandwidth_max)
+        bw = 10**(self.random_generator.uniform(bw_min_log10,bw_max_log10))
+
         # center frequency always zero, will be randomized within dataset
         # due to the need to apply impairments at complex baseband first 
         # before upconversion to the IF
