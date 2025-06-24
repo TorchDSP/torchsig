@@ -929,11 +929,14 @@ def convolve(signal: np.ndarray, taps: np.ndarray) -> np.ndarray:
     """
 
     filtered = sp.convolve(signal, taps, mode='full')
-    if is_even(len(taps)): # even-length filter
+    if (len(taps) == 2):
+        return filtered[1:]
+    elif is_even(len(taps)): # even-length filter
         slice_length = int(len(taps)/2)
+        return filtered[slice_length:-slice_length+1]
     else: # odd-length filter
         slice_length = int((len(taps)-1)/2)
-    return filtered[slice_length:-slice_length]
+        return filtered[slice_length:-slice_length]
 
 def low_pass(cutoff: float, transition_bandwidth: float, sample_rate:float, attenuation_db:float=120) -> np.ndarray:
     """Low-pass filter design

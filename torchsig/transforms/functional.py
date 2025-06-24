@@ -904,28 +904,45 @@ def normalize(
 
 def passband_ripple(
     data: np.ndarray,
-    filter_coeffs: np.ndarray,
-    normalize: bool = False
+    num_taps: int = 2,
+    coefficient_decay_rate: float = 1,
+    max_ripple_db: float = 2.0
 ) -> np.ndarray:
     """Functional for passband ripple transforms.
 
     Args:
         data (np.ndarray): Complex valued IQ data samples.
-        filter_coeffs (np.ndarray): FIR filter coeffecients with desired ripple characteristics.
-        normalize (bool): Normalize filter coefficients for energy preservation. Default False.
 
     Returns:
         np.ndarray: Filtered data.
 
     """
-    N = len(data)    
 
-    if normalize: # filter energy normalization
-        energy = np.sum(np.abs(filter_coeffs)**2)
-        filter_coeffs = filter_coeffs / np.sqrt(energy)
-    
-    data = np.convolve(data, filter_coeffs)
-    #data = data[-N:] # retain data size
+    # counter avoids infinite loop
+    counter = 0
+    max_counter = 1000
+    # initialize estimate such that it always enters loop
+    estimate_ripple_db = max_ripple_db + 1
+
+    while (estimate_ripple_db > max_ripple_db and counter < 1000):
+        # designs the weights: complex gaussian with exponential decay
+        gaussian = np.random.normal(0,1,num_taps) + 1j*np.random.normal(0,1,num_taps)
+        decay = np.exp(-coefficient_decay_rate*np.arange(0,num_taps))
+        weights = gaussian * decay
+        # scale weights to have average 0 dB level
+        weights /= np.max(np.abs(weights))
+        # determine if passband ripple meets spec
+        fft_db = 20*np.log10(np.abs(np.fft.fftshift(np.fft.fft(weights,1024))))
+        estimate_ripple_db = np.max(fft_db)-np.min(fft_db)
+        # increment counter
+        counter += 1
+
+    if (counter >= max_counter):
+        raise ValueError('Passband ripple was unable to meet ripple specs.')
+
+    # apply filter
+    data = dsp.convolve(data,weights)
+
     return data.astype(torchsig_complex_data_type)
 
 
