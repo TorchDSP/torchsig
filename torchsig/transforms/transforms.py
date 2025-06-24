@@ -1006,43 +1006,28 @@ class PassbandRipple(SignalTransform):
     """Models analog filter passband ripple response for a signal.
 
     Attributes:
-        passband_ripple_db (float): Desired passband ripple in dB. Default 1.0 dB.
-        cutoff (float): Passband cutoff frequency relative to Fs=1.0 sample rate. Default 0.25.
-        order (int): Desired filter order, which drives number of ripples present within
-            the passband. Default 5.
-        numtaps (int): Number of taps in filter. Default 63.
+        max_ripple_db (float): Maximum allowable ripple to simulate. Defaults to 2.0.
         
     """
     def __init__(
         self, 
-        passband_ripple_db: float = 1.0,
-        cutoff: float = 0.25,
-        order: int = 5,
-        numtaps: int = 63,
+        max_ripple_db: float = 2.0,
         **kwargs
     ):
-        super().__init__(**kwargs)
-        self.passband_ripple_db = passband_ripple_db
-        self.cutoff = cutoff
-        self.order = order
-        self.numtaps = numtaps
 
-        # design filter 
-        b, a = sp.signal.cheby1(
-            self.order, 
-            self.passband_ripple_db, 
-            self.cutoff, 
-            fs=1.0, 
-            btype='low'
-        )
-        _, h = sp.signal.dimpulse((b, a, 1/1.0), n=numtaps)
-        self.fir_coeffs = h[0].squeeze()
-    
+        super().__init__(**kwargs)
+        self.max_ripple_db = max_ripple_db
+
+        # randomize parameters internally
+        self.num_taps = np.random.randint(low=2,high=3+1)
+        self.coefficient_decay_rate = np.random.uniform(1,5)
+
     def __call__(self, signal: Union[Signal, DatasetSignal]) -> Union[Signal, DatasetSignal]:
         signal.data = F.passband_ripple(
             data = signal.data,
-            filter_coeffs = self.fir_coeffs,
-            normalize = True
+            num_taps = self.num_taps,
+            max_ripple_db = self.max_ripple_db,
+            coefficient_decay_rate = self.coefficient_decay_rate
         )
         signal.data = signal.data.astype(torchsig_complex_data_type)
         self.update(signal)

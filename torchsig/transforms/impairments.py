@@ -42,6 +42,7 @@ from torchsig.transforms.transforms import (
     IntermodulationProducts,
     IQImbalance,
     NonlinearAmplifier,
+    PassbandRipple,
     Quantize,
     RandomDropSamples,
     Spurs,
@@ -94,6 +95,7 @@ class Impairments(Transform):
             RandomApply(CarrierPhaseNoise(),0.75),
             RandomApply(CarrierFrequencyDrift(),0.75),
             RandomApply(CarrierPhaseOffset(),1.0),
+            RandomApply(PassbandRipple(),0.75),
             RandomApply(IntermodulationProducts(),0.5),
             RandomApply(IQImbalance(),0.25),
             RandomApply(NonlinearAmplifier(),0.75),
@@ -102,7 +104,6 @@ class Impairments(Transform):
         ]
 
         rx_hw_impairments = [
-            # RandomApply(,), # image rejection
             RandomApply(NonlinearAmplifier(),0.75),
             RandomApply(CoarseGainChange(),0.25),
             RandomApply(Spurs(),0.75),
@@ -111,7 +112,7 @@ class Impairments(Transform):
             RandomApply(CarrierPhaseOffset(),1.0),
             RandomApply(IntermodulationProducts(),0.5),
             RandomApply(IQImbalance(),0.5),
-            # RandomApply(,), # band edge roll-off
+            RandomApply(PassbandRipple(),0.75),
             # RandomApply(,), # clock jitter
             # RandomApply(,), # clock drift
             RandomApply(Quantize(),0.75),
