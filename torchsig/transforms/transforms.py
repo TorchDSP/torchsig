@@ -1011,23 +1011,31 @@ class PassbandRipple(SignalTransform):
     """
     def __init__(
         self, 
-        max_ripple_db: float = 2.0,
+        max_ripple_db: Tuple[float] = (1, 2),
+        num_taps: List[int] = [2,3],
+        coefficient_decay_rate: Tuple[float] = (1, 5),
         **kwargs
     ):
 
         super().__init__(**kwargs)
         self.max_ripple_db = max_ripple_db
-
-        # randomize parameters internally
-        self.num_taps = np.random.randint(low=2,high=3+1)
-        self.coefficient_decay_rate = np.random.uniform(1,5)
+        self.max_ripple_db_distribution = self.get_distribution(self.max_ripple_db)
+        self.num_taps = num_taps
+        self.num_taps_distribution = self.get_distribution(self.num_taps)
+        self.coefficient_decay_rate = coefficient_decay_rate
+        self.coefficient_decay_rate_distribution = self.get_distribution(coefficient_decay_rate)
 
     def __call__(self, signal: Union[Signal, DatasetSignal]) -> Union[Signal, DatasetSignal]:
+        max_ripple_db = self.max_ripple_db_distribution()
+        num_taps = int(np.round(self.num_taps_distribution()))
+        coefficient_decay_rate = self.coefficient_decay_rate_distribution()
+
         signal.data = F.passband_ripple(
             data = signal.data,
-            num_taps = self.num_taps,
-            max_ripple_db = self.max_ripple_db,
-            coefficient_decay_rate = self.coefficient_decay_rate
+            num_taps = num_taps,
+            max_ripple_db = max_ripple_db,
+            coefficient_decay_rate = coefficient_decay_rate,
+            rng = self.random_generator
         )
         signal.data = signal.data.astype(torchsig_complex_data_type)
         self.update(signal)

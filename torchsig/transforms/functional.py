@@ -907,6 +907,7 @@ def passband_ripple(
     num_taps: int = 2,
     max_ripple_db: float = 2.0,
     coefficient_decay_rate: float = 1,
+    rng: np.random.Generator = np.random.default_rng(seed=None)
 ) -> np.ndarray:
     """Functional for passband ripple transforms.
 
@@ -933,7 +934,7 @@ def passband_ripple(
 
     while (estimate_ripple_db > max_ripple_db and counter < 1000):
         # designs the weights: complex gaussian with exponential decay
-        gaussian = np.random.normal(0,1,num_taps) + 1j*np.random.normal(0,1,num_taps)
+        gaussian = rng.normal(0,1,num_taps) + 1j*rng.normal(0,1,num_taps)
         decay = np.exp(-coefficient_decay_rate*np.arange(0,num_taps))
         weights = gaussian * decay
         # scale weights to have average 0 dB level
