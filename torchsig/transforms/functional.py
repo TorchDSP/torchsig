@@ -905,13 +905,20 @@ def normalize(
 def passband_ripple(
     data: np.ndarray,
     num_taps: int = 2,
+    max_ripple_db: float = 2.0,
     coefficient_decay_rate: float = 1,
-    max_ripple_db: float = 2.0
 ) -> np.ndarray:
     """Functional for passband ripple transforms.
 
     Args:
         data (np.ndarray): Complex valued IQ data samples.
+        num_taps (int): Number of taps in simulated filter (Defaults to 2).
+        max_ripple_db (float): Maximum allowed ripple in the simulated filter (Defaults to 2.0).
+        coefficient_decay_rate (float): The decay rate of the exponential weighting in the filter,
+            (Defaults to 1.0).
+
+    Raises:
+        ValueError: When filter cannot meet ripple spec within a set number of iterations.
 
     Returns:
         np.ndarray: Filtered data.
