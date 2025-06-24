@@ -1006,8 +1006,10 @@ class PassbandRipple(SignalTransform):
     """Models analog filter passband ripple response for a signal.
 
     Attributes:
-        max_ripple_db (float): Maximum allowable ripple to simulate. Defaults to 2.0.
-        
+        max_ripple_db (Tuple[float]): Range for maximum allowable ripple to simulate. Defaults to (1,2).
+        num_taps (List[int]): List of number of taps in simulated filter. Defaults to [2,3].
+        coefficient_decay_rate: (Tuple[float]): Range for the rate at which the simulated
+            impulse response goes to zero. Defaults to (1, 5).
     """
     def __init__(
         self, 

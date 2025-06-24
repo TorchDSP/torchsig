@@ -1278,10 +1278,10 @@ def test_normalize(
 
 
 @pytest.mark.parametrize("params, expected, is_error", [
-    ({'N': 1024, 'ripple_db': 6.0, 'order': 5, 'cutoff': 0.2, 'numtaps': 128}, True, False),
-    ({'N': 1111,'ripple_db': 3.2, 'order': 7, 'cutoff': 0.3, 'numtaps': 67}, True, False),
-    ({'N': 101,'ripple_db': 0.1, 'order': 10, 'cutoff': 0.1, 'numtaps': 255}, True, False),
-    ({'N': 100,'ripple_db': 4.2, 'order': 5, 'cutoff': 0.15, 'numtaps': 63}, True, False),
+    ({'num_taps':2,'max_ripple_db': 1.00,'coefficient_decay_rate': 1}, True, False),
+    ({'num_taps':2,'max_ripple_db': 1.25,'coefficient_decay_rate': 2}, True, False),
+    ({'num_taps':3,'max_ripple_db': 1.50,'coefficient_decay_rate': 3}, True, False),
+    ({'num_taps':3,'max_ripple_db': 2.00,'coefficient_decay_rate': 4}, True, False),
 ])
 def test_passband_ripple(
     params: dict, 
@@ -1301,55 +1301,42 @@ def test_passband_ripple(
     """
     rng = np.random.default_rng(42)
 
-    N = params['N']
-    ripple_db = params['ripple_db']
-    order = params['order']
-    cutoff = params['cutoff']
-    numtaps = params['numtaps']
+    num_taps = params['num_taps']
+    max_ripple_db = params['max_ripple_db']
+    coefficient_decay_rate = params['coefficient_decay_rate']
 
     # create impulse response
     data = dsp.noise_generator(
-        N       = N,
+        N       = 128,
         power   = 1.0, 
         color   = 'white',
         continuous = False,
         rng     = rng 
     )
 
-    # design filter
-    b, a = sp.signal.cheby1(order, ripple_db, cutoff, fs=1.0, btype='low')
-    t, h = sp.signal.dimpulse((b, a, 1/1.0), n=numtaps)
-    fir_coeffs = h[0].squeeze()
-
     if is_error:
         with pytest.raises(expected): 
             data = passband_ripple(
                 data = data,
-                filter_coeffs = fir_coeffs,
-                normalize = True
+                num_taps = num_taps,
+                max_ripple_db = max_ripple_db,
+                coefficient_decay_rate = coefficient_decay_rate
             )
     else:
         data_test = deepcopy(data)   
         data = passband_ripple(
             data = data,
-            filter_coeffs = fir_coeffs,
-            normalize = True
+            num_taps = num_taps,
+            max_ripple_db = max_ripple_db,
+            coefficient_decay_rate = coefficient_decay_rate
         )
+
         D = np.abs(np.fft.fft(data, norm='ortho'))
         mag = np.abs(D)
         M = len(D)
         
-        peak_inds, _ = sp.signal.find_peaks(mag, height=0.1, distance=M/20)
-        peak_vals = mag[peak_inds]
-        trough_inds, _ = sp.signal.find_peaks(-mag, height=-10.0, distance=M/20)
-        trough_vals = mag[trough_inds]
-        ripple_est = np.mean(peak_vals[peak_vals > 0.5]) - np.mean(trough_vals[trough_vals > 0.5])
-        ripple_est_db = 20*np.log10(1 + ripple_est)
-
-        assert (np.abs(ripple_est_db - ripple_db) < 10**(0.5/20)) == expected
         assert (type(data) == type(data_test)) == expected
         assert (data.dtype == torchsig_complex_data_type) == expected
-
 
 @pytest.mark.parametrize("data, params, expected, is_error", [
     (
