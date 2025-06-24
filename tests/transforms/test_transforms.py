@@ -1220,24 +1220,23 @@ def test_NonlinearAmplifier(
     (
         new_test_signal(), 
         {
-            'passband_ripple_db': 1.0, 
-            'cutoff': 0.25, 
-            'order': 5, 
-            'numtaps': 63
+            'max_ripple_db': (1,2),
+            'num_taps': [2,3],
+            'coefficient_decay_rate': (1,5),
         },
         False
     ),
     (
         new_test_ds_signal(), 
         {
-            'passband_ripple_db': 4.2, 
-            'cutoff': 0.12, 
-            'order': 10, 
-            'numtaps': 127
+            'max_ripple_db': (1,2),
+            'num_taps': [2,3],
+            'coefficient_decay_rate': (1,5),
         },
         False
     ),    
 ])
+
 def test_PassbandRipple(
     signal: Union[Signal, DatasetSignal],
     params: dict, 
@@ -1253,37 +1252,28 @@ def test_PassbandRipple(
         AssertionError: If unexpected test outcome.
 
     """ 
-    passband_ripple_db = params['passband_ripple_db']
-    cutoff = params['cutoff']
-    order = params['order']
-    numtaps = params['numtaps']
+    max_ripple_db = params['max_ripple_db']
+    num_taps = params['num_taps']
+    coefficient_decay_rate = params['coefficient_decay_rate']
 
     if is_error:
         with pytest.raises(Exception, match=r".*"):
             T = PassbandRipple(
-                passband_ripple_db = passband_ripple_db,
-                cutoff = cutoff,
-                order = order,
-                numtaps = numtaps
+                max_ripple_db = max_ripple_db,
+                num_taps = num_taps,
+                coefficient_decay_rate = coefficient_decay_rate
             )
             signal = T(signal)
     else:
         signal_test = deepcopy(signal)
         T = PassbandRipple(
-            passband_ripple_db = passband_ripple_db,
-            cutoff = cutoff,
-            order = order,
-            numtaps = numtaps
+            max_ripple_db = max_ripple_db,
+            num_taps = num_taps,
+            coefficient_decay_rate = coefficient_decay_rate
         )
         signal = T(signal)
 
         assert isinstance(T, PassbandRipple)
-        assert isinstance(T.passband_ripple_db, float)
-        assert isinstance(T.cutoff, float)
-        assert isinstance(T.order, int)
-        assert isinstance(T.numtaps, int)
-        assert isinstance(T.fir_coeffs, np.ndarray)
-        assert len(T.fir_coeffs) ==  numtaps
         assert isinstance(signal, (Signal, DatasetSignal))
         assert type(signal.data) == type(signal_test.data)
         assert signal.data.dtype == torchsig_complex_data_type
