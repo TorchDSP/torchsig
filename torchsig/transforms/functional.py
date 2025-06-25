@@ -693,7 +693,7 @@ def carrier_frequency_drift(
     drift = drift_ppm * 1e-6
 
     # randomize the instantaneous change in frequency
-    frequency_drift = rng.normal(0,drift,N)
+    frequency_drift = rng.normal(0,np.sqrt(drift),N)
 
     # accumulate the changes into the frequency
     carrier_phase = np.cumsum(frequency_drift)
@@ -726,7 +726,7 @@ def carrier_phase_noise(
     N = data.size
 
     # generate phase noise with given standard deviation
-    phase_noise_degrees_array = rng.normal(0,phase_noise_degrees,N)
+    phase_noise_degrees_array = rng.normal(0,np.sqrt(phase_noise_degrees),N)
 
     # convert to radians
     phase_noise_radians_array = phase_noise_degrees_array * np.pi / 180
