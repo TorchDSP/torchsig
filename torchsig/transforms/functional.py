@@ -726,7 +726,7 @@ def carrier_phase_noise(
     N = data.size
 
     # generate phase noise with given standard deviation
-    phase_noise_degrees_array = rng.normal(0,phase_noise_degrees/2,N)
+    phase_noise_degrees_array = rng.normal(0,phase_noise_degrees,N)
 
     # convert to radians
     phase_noise_radians_array = phase_noise_degrees_array * np.pi / 180
