@@ -333,15 +333,16 @@ class DatasetCreator():
             # set the progress bar message
             pbar.set_description(updated_tqdm_desc)
 
-            # avoid crashing by stopping write process
-            if disk_size_available_gigabytes < self.minimum_remaining_disk_gigabytes:
-                # remaining disk size is below a hard cutoff value to avoid crashing operating system
-                raise ValueError(f'Disk nearly full! Remaining space is {disk_size_available_gigabytes} GB. Please make space before continuing.')
-            elif dataset_size_remaining_gigabytes > disk_size_available_gigabytes:
-                # projected size of dataset too large for available disk space
-                raise ValueError(f'Not enough disk space. Projected dataset size is {dataset_size_remaining_gigabytes} GB. Remaining space is {disk_size_available_gigabytes} GB. Please reduce dataset size or make space before continuing.')
-
-
+            # wait for 20 batches to be produced to get an accurate
+            # estimate of dataset size to be produced
+            if (batch_idx > 20):
+                # avoid crashing by stopping write process
+                if disk_size_available_gigabytes < self.minimum_remaining_disk_gigabytes:
+                    # remaining disk size is below a hard cutoff value to avoid crashing operating system
+                    raise ValueError(f'Disk nearly full! Remaining space is {disk_size_available_gigabytes} GB. Please make space before continuing.')
+                elif dataset_size_remaining_gigabytes > disk_size_available_gigabytes:
+                    # projected size of dataset too large for available disk space
+                    raise ValueError(f'Not enough disk space. Projected dataset size is {dataset_size_remaining_gigabytes} GB. Remaining space is {disk_size_available_gigabytes} GB. Please reduce dataset size or make space before continuing.')
 
 
     def _get_directory_size_gigabytes ( self, start_path ):
