@@ -32,16 +32,7 @@ pip install -e .
 
 TorchSig has a series of Jupyter notebooks in the `examples/` directory. View the README inside `examples/` to learn more.
 
-
-# Usage
-
-## Generating the Official Dataset with Command Line
-To create the official dataset:
-```
-python3 ./scripts/generate_official_dataset.py <path to root> --train
-```
-
-## Jupyter Notebook Examples with Docker and GPUs
+# Jupyter Notebook Examples with Docker and GPUs
 The example jupyter notebooks can be run within Docker with GPU support, try the command:
 
 ```
