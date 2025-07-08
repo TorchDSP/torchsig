@@ -69,7 +69,7 @@ class Seedable():
         Returns:
             int: New seed.
         """        
-        return seed + 13 # TODO do this right
+        return seed + 13
     
     def setup_rngs(self) -> None:
         """Initialize torch and numpy number generators, and update its children.
