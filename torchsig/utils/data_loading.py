@@ -56,7 +56,7 @@ def metadata_padding_collate_fn(batch):
 
 class WorkerSeedingDataLoader(DataLoader, Seedable):
     """
-    A Custom DaaLoader for torchsig that seeds workers differently on worker init based on a shared initial seed;
+    A Custom DataLoader for torchsig that seeds workers differently on worker init based on a shared initial seed;
     """
 
     def __init__(self, dataset, collate_fn=metadata_padding_collate_fn, **kwargs):
