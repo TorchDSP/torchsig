@@ -42,10 +42,11 @@ python3 ./scripts/generate_official_dataset.py <path to root> --train
 ```
 
 ## Generating the Datasets in Docker
-Docker can be used to generate the datasets without modifying your current Python environment. Build a Docker container:
+Docker can be used to generate the datasets without modifying your current Python environment. Build and run a Docker container:
 
 ```
 docker build -t torchsig -f Dockerfile .
+docker run torchsig
 ```
 
 To create the narrowband dataset with the Docker container:
