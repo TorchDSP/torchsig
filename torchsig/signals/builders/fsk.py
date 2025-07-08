@@ -80,7 +80,7 @@ def get_fsk_mod_index( class_name:str, rng=np.random.default_rng() ) -> float:
             # ... or something else (non-orthogonal). include
             # a modulation index both less than 1 and greater
             # than 1 to train over a variety of parameters
-            mod_idx = rng.uniform(0.7,1.1)
+            mod_idx = rng.uniform(0.7,1.01)
     return mod_idx
 
 def gaussian_taps(samples_per_symbol: int, bt:float, rng=np.random.default_rng()) -> np.ndarray:
