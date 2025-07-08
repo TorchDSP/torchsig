@@ -41,24 +41,6 @@ To create the official dataset:
 python3 ./scripts/generate_official_dataset.py <path to root> --train
 ```
 
-## Generating the Datasets in Docker
-Docker can be used to generate the datasets without modifying your current Python environment. Build and run a Docker container:
-
-```
-docker build -t torchsig -f Dockerfile .
-docker run torchsig
-```
-
-To create the narrowband dataset with the Docker container:
-```
-docker run -u $(id -u ${USER}):$(id -g ${USER}) -v `pwd`:/workspace/code/torchsig torchsig python3 torchsig/scripts/generate_narrowband.py <path to root> --num_samples=10 --num_iq_samples=100 --impaired
-```
-
-To create the wideband dataset with the Docker container:
-```
-docker run -u $(id -u ${USER}):$(id -g ${USER}) -v `pwd`:/workspace/code/torchsig torchsig python3 torchsig/scripts/generate_wideband.py <path to root> --num_signals=3 --num_samples=10 --num_iq_samples=100 --impaired
-```
-
 ## Jupyter Notebook Examples with Docker and GPUs
 The example jupyter notebooks can be run within Docker with GPU support, try the command:
 
