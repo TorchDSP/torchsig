@@ -46,7 +46,7 @@ docker run -d --rm --network=host --shm-size=32g --gpus all --name torchsig_work
 
 To run without GPU:
 ```
-docker run -d --rm --network=host --shm-size=32g --gpus all --name torchsig_workspace torchsig tail -f /dev/null
+docker run -d --rm --network=host --shm-size=32g --name torchsig_workspace torchsig tail -f /dev/null
 ```
 
 Run the Docker:
