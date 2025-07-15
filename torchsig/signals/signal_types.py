@@ -108,6 +108,12 @@ class SignalMetadata():
         self.class_name = class_name # class modulation name
         self.class_index = class_index # class index wrt class list
 
+
+        # needed to enable/disable bounds checking for signal's center frequency.
+        # since the center frequency will be set in TorchSigIterableDataset() after
+        # transforms are applied
+        self._center_freq_set = False
+
         self.applied_transforms = []
 
     @property
@@ -336,12 +342,16 @@ class SignalMetadata():
         if self._dataset_metadata is None:
             raise ValueError("dataset_metadata is None.")
 
-        self.center_freq = verify_float(
-            self.center_freq,
-            name = "center_freq",
-            low = self._dataset_metadata.signal_center_freq_min,
-            high = self._dataset_metadata.signal_center_freq_max
-        )
+        # only check the center frequency once it's been set. it is generated
+        # at baseband (f=0) first and then later updated once it reaches
+        # the dataset stage, when it can then be checked
+        if (self._center_freq_set):
+            self.center_freq = verify_float(
+                self.center_freq,
+                name = "center_freq",
+                low = self._dataset_metadata.signal_center_freq_min,
+                high = self._dataset_metadata.signal_center_freq_max
+            )
 
         self.bandwidth = verify_float(
             self.bandwidth,
