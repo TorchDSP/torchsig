@@ -32,8 +32,8 @@ pip install -e .
 
 TorchSig has a series of Jupyter notebooks in the `examples/` directory. View the README inside `examples/` to learn more.
 
-# Jupyter Notebook Examples with Docker
-The example jupyter notebooks can be run within Docker. Start by building the Docker container:
+# Docker
+One option for running TorchSig is within Docker. Start by building the Docker container:
 
 ```
 docker build -t torchsig -f Dockerfile .
@@ -44,14 +44,19 @@ To run with GPU support use `--gpus all`:
 docker run -d --rm --network=host --shm-size=32g --gpus all --name torchsig_workspace torchsig tail -f /dev/null
 ```
 
-To run without GPU:
+To run without GPU support:
 ```
-docker run -d --rm --network=host --shm-size=32g --gpus all --name torchsig_workspace torchsig tail -f /dev/null
+docker run -d --rm --network=host --shm-size=32g --name torchsig_workspace torchsig tail -f /dev/null
 ```
 
-Run the Docker:
+Run Jupyter Lab:
 ```
-docker exec torchsig_workspace jupyter notebook --allow-root --ip=0.0.0.0 --no-browser
+docker exec torchsig_workspace jupyter lab --allow-root --ip=0.0.0.0 --no-browser
+```
+
+To start an interactive shell:
+```
+docker exec -it torchsig_workspace bash
 ```
 
 Then use the URL in the output in your browser to run the examples and notebooks.

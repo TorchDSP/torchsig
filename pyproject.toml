@@ -12,7 +12,6 @@ readme = "README.md"
 requires-python = ">=3.10"
 license = {text = "MIT"}
 classifiers = [
-    "License :: OSI Approved :: MIT License",
     "Programming Language :: Python",
     "Programming Language :: Python :: 3",
 ]
@@ -32,13 +31,13 @@ dependencies = [
     "torchaudio",
     "timm",
     "pytorch_lightning",
-    "ultralytics==8.3.57",
     "jupyter_bbox_widget",
     "torchinfo",
+    "ultralytics",
     "sigmf",
     "pytest",
     "zarr==2.18.3",
-    "numcodecs==0.13.1",
+    "numcodecs",
     "pylint",
     "pytest-cov",
 ]
