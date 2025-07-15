@@ -56,7 +56,7 @@ docker exec torchsig_workspace jupyter lab --allow-root --ip=0.0.0.0 --no-browse
 
 To start an interactive shell:
 ```
-docker exec -it torchsig_dev bash
+docker exec -it torchsig_workspace bash
 ```
 
 Then use the URL in the output in your browser to run the examples and notebooks.
