@@ -39,12 +39,22 @@ One option for running TorchSig is within Docker. Start by building the Docker c
 docker build -t torchsig -f Dockerfile .
 ```
 
-Run the container:
+To run with GPU support use `--gpus all`:
 ```
-docker run -d -v "$(pwd):/workspace" --rm --network=host --shm-size=32g --name torchsig_dev torchsig tail -f /dev/null
+docker run -d --rm --network=host --shm-size=32g --gpus all --name torchsig_workspace torchsig tail -f /dev/null
 ```
 
-Start an interactive shell:
+To run without GPU support:
+```
+docker run -d --rm --network=host --shm-size=32g --name torchsig_workspace torchsig tail -f /dev/null
+```
+
+Run Jupyter Lab:
+```
+docker exec torchsig_workspace jupyter lab --allow-root --ip=0.0.0.0 --no-browser
+```
+
+To start an interactive shell:
 ```
 docker exec -it torchsig_dev bash
 ```
