@@ -27,6 +27,7 @@ from pathlib import Path
 import os
 from shutil import disk_usage
 import concurrent.futures
+import threading
 
 from torchsig.utils.data_loading import WorkerSeedingDataLoader
 
@@ -93,7 +94,10 @@ class DatasetCreator():
             dataset = dataset,
             num_workers = num_workers,
             batch_size = batch_size,
-            collate_fn = default_collate_fn
+            collate_fn = collate_fn,
+            persistent_workers = False,  # Don't keep workers alive between epochs
+            pin_memory = False,  # Disable pin_memory to reduce memory usage
+            prefetch_factor = 2 if num_workers > 0 else 2  # Reduce prefetch buffer
         )
         if seed:
             self.dataloader.seed(seed)
@@ -126,6 +130,9 @@ class DatasetCreator():
 
         # limit in gigabytes for remaining space on disk for which writer stops writing
         self.minimum_remaining_disk_gigabytes = 1
+
+        # Thread lock for updating tqdm message to avoid race conditions
+        self._tqdm_lock = threading.Lock()
 
     
     def get_writing_info_dict(self) -> Dict[str, Any]:
@@ -193,13 +200,15 @@ class DatasetCreator():
             batch (Any): batch
             pbar (_type_): tqdm bar to update
         """        
-        # write to disk
-        self.writer.write(batch_idx, batch)
+        try:
+            # write to disk
+            self.writer.write(batch_idx, batch)
+            # update progress bar message
+            self._update_tqdm_message(pbar,batch_idx)
+        finally:
+            # Clear batch reference to help garbage collection
+            del batch
 
-        # update progress bar message
-        self._update_tqdm_message(pbar,batch_idx)
-
-    
     def create(self) -> None:
         """Creates the dataset on disk by writing batches to the file handler.
 
@@ -255,28 +264,74 @@ class DatasetCreator():
             # write each batch as its own thread
             # num_threads defaults to: min(32, os.cpu_count() + 4)
             with concurrent.futures.ThreadPoolExecutor() as executor:
-                futures = []
-                itr = iter(self.dataloader)
-                for batch_idx in tqdm(range(len(self.dataloader)), total = len(self.dataloader)):
-                    batch = next(itr)
-                    futures += [executor.submit(self._write_batch, batch_idx, batch, pbar)]
 
-                # Wait for all futures to complete
-                concurrent.futures.wait(futures)
+                # Process batches in chunks to avoid memory buildup
+                batch_chunk_size = min(100, len(self.dataloader) // 10)  # Process in smaller chunks
+                if batch_chunk_size == 0:
+                    batch_chunk_size = 1
+
+                batch_iter = enumerate(self.dataloader)
+                processed_batches = 0
+                total_batches = len(self.dataloader)
+
+                # Process in chunks to manage memory
+                while processed_batches < total_batches:
+                    # Get next chunk of batches
+                    chunk_futures = []
+                    chunk_size = 0
+
+                    for _ in range(min(batch_chunk_size, total_batches - processed_batches)):
+                        try:
+                            batch_idx, batch = next(batch_iter)
+                            future = executor.submit(self._write_batch, batch_idx, batch, pbar)
+                            chunk_futures.append(future)
+                            chunk_size += 1
+                        except StopIteration:
+                            break
+
+                    # Only process if we have futures to process
+                    if chunk_futures:
+                        # Wait for chunk to complete before processing next chunk
+                        concurrent.futures.wait(chunk_futures)
+
+                        # Clear references to help garbage collection
+                        for future in chunk_futures:
+                            future.result()  # Ensure completion
+                        del chunk_futures
+
+                        processed_batches += chunk_size
+
+                        # Force garbage collection between chunks
+                        import gc
+                        gc.collect()
+
+                    else:
+                        # No more batches to process
+                        break
 
         else:
             # single threaded writing
             itr = iter(self.dataloader)
             for batch_idx in tqdm(range(len(self.dataloader)), total = len(self.dataloader)):
+
                 batch = next(itr)
 
-                # write to disk
-                self.writer.write(batch_idx, self._handle_batch_datatypes(batch))
+                try:
+                    # write to disk
+                    self.writer.write(batch_idx, batch)
 
-                # update progress bar message
-                self._update_tqdm_message(pbar,batch_idx)
+                    # update progress bar message
+                    self._update_tqdm_message(pbar,batch_idx)
 
+                finally:
+                    # Clear batch reference to help garbage collection
+                    del batch
 
+                    # Force garbage collection every 10 batches
+                    if batch_idx % 10 == 0:
+                        import gc
+
+                        gc.collect()
 
         # update writer yaml
         # indicate writing dataset to disk was successful
@@ -304,45 +359,47 @@ class DatasetCreator():
             ValueError: If the disk space remaining is below a threshold
         """
 
-        # compute elapsed time since last run
-        elapsed_time = time() - self._msg_timer
+        with self._tqdm_lock:
 
-        # run every second
-        if (batch_idx == 0 or elapsed_time > 1):
+            # compute elapsed time since last run
+            elapsed_time = time() - self._msg_timer
 
-            # update timer
-            self._msg_timer = time()
+            # run every second
+            if (batch_idx == 0 or elapsed_time > 1):
 
-            # get the amount of disk space remaining
-            disk_size_available_bytes = disk_usage(self.writer.root)[2]
-            # convert to GB and round to two decimal places
-            disk_size_available_gigabytes = np.round(disk_size_available_bytes/(1024**3),2)
+                # update timer
+                self._msg_timer = time()
 
-            # get size of dataset written so far
-            dataset_size_current_gigabytes = self._get_directory_size_gigabytes(self.writer.root)
-            # estimate size per sample
-            dataset_size_per_sample_gigabytes = dataset_size_current_gigabytes/(batch_idx+1)
-            # number of samples left
-            num_samples_remaining = len(self.dataloader)-(batch_idx+1)
-            # project estimated size
-            dataset_size_remaining_gigabytes = np.round(dataset_size_per_sample_gigabytes*num_samples_remaining,2)
+                # get the amount of disk space remaining
+                disk_size_available_bytes = disk_usage(self.writer.root)[2]
+                # convert to GB and round to two decimal places
+                disk_size_available_gigabytes = np.round(disk_size_available_bytes/(1024**3),2)
 
-            # concatenate disk size for progress bar message
-            updated_tqdm_desc = f'{self.tqdm_desc} dataset remaining to create = {dataset_size_remaining_gigabytes} GB, remaining disk = {disk_size_available_gigabytes} GB'
+                # get size of dataset written so far
+                dataset_size_current_gigabytes = self._get_directory_size_gigabytes(self.writer.root)
+                # estimate size per sample
+                dataset_size_per_sample_gigabytes = dataset_size_current_gigabytes/(batch_idx+1)
+                # number of samples left
+                num_samples_remaining = len(self.dataloader)-(batch_idx+1)
+                # project estimated size
+                dataset_size_remaining_gigabytes = np.round(dataset_size_per_sample_gigabytes*num_samples_remaining,2)
 
-            # set the progress bar message
-            pbar.set_description(updated_tqdm_desc)
+                # concatenate disk size for progress bar message
+                updated_tqdm_desc = f'{self.tqdm_desc} dataset remaining to create = {dataset_size_remaining_gigabytes} GB, remaining disk = {disk_size_available_gigabytes} GB'
 
-            # wait for 20 batches to be produced to get an accurate
-            # estimate of dataset size to be produced
-            if (batch_idx > 20):
-                # avoid crashing by stopping write process
-                if disk_size_available_gigabytes < self.minimum_remaining_disk_gigabytes:
-                    # remaining disk size is below a hard cutoff value to avoid crashing operating system
-                    raise ValueError(f'Disk nearly full! Remaining space is {disk_size_available_gigabytes} GB. Please make space before continuing.')
-                elif dataset_size_remaining_gigabytes > disk_size_available_gigabytes:
-                    # projected size of dataset too large for available disk space
-                    raise ValueError(f'Not enough disk space. Projected dataset size is {dataset_size_remaining_gigabytes} GB. Remaining space is {disk_size_available_gigabytes} GB. Please reduce dataset size or make space before continuing.')
+                # set the progress bar message
+                pbar.set_description(updated_tqdm_desc)
+
+                # wait for 20 batches to be produced to get an accurate
+                # estimate of dataset size to be produced
+                if (batch_idx > 20):
+                    # avoid crashing by stopping write process
+                    if disk_size_available_gigabytes < self.minimum_remaining_disk_gigabytes:
+                        # remaining disk size is below a hard cutoff value to avoid crashing operating system
+                        raise ValueError(f'Disk nearly full! Remaining space is {disk_size_available_gigabytes} GB. Please make space before continuing.')
+                    elif dataset_size_remaining_gigabytes > disk_size_available_gigabytes:
+                        # projected size of dataset too large for available disk space
+                        raise ValueError(f'Not enough disk space. Projected dataset size is {dataset_size_remaining_gigabytes} GB. Remaining space is {disk_size_available_gigabytes} GB. Please reduce dataset size or make space before continuing.')
 
 
     def _get_directory_size_gigabytes ( self, start_path ):
@@ -353,7 +410,13 @@ class DatasetCreator():
         for path, dirs, files in os.walk(start_path):
             for f in files:
                 fp = os.path.join(path, f)
-                total_size += os.path.getsize(fp)
+                #total_size += os.path.getsize(fp)
+                try:
+                    total_size += os.path.getsize(fp)
+                except (OSError, FileNotFoundError):
+                    # file might have been deleted/moved by another thread
+                    # skip it and continue
+                    continue
         
         total_size_GB = total_size/(1024**3)
         return total_size_GB
