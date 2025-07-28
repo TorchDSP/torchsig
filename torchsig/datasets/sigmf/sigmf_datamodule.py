@@ -1,15 +1,16 @@
 
 from pathlib import Path
-from typing import Callable, Literal, Optional
+from typing import Callable, Dict, Literal, Optional
+import yaml
 import pytorch_lightning as pl
 
 from torch.utils.data import DataLoader
 
 from torchsig.utils.file_handlers.base_handler import TorchSigFileHandler
 from torchsig.utils.file_handlers.zarr import ZarrFileHandler
-
 from torchsig.datasets.sigmf.sigmf_dataset_converter import SigMFDatasetConverter
 from torchsig.datasets.sigmf.custom_dataset import CustomSigmfStaticTorchSigDataset
+from torchsig.datasets.dataset_utils import dataset_yaml_name
 
 
 class SigmfDataModule(pl.LightningDataModule):
@@ -52,6 +53,7 @@ class SigmfDataModule(pl.LightningDataModule):
         self.train: Optional[CustomSigmfStaticTorchSigDataset] = None
         self.val: Optional[CustomSigmfStaticTorchSigDataset] = None
         self.test: Optional[CustomSigmfStaticTorchSigDataset] = None
+        self.label_mapping: Optional[Dict[int, str]] = None
 
     def prepare_data(self) -> None:
 
@@ -72,6 +74,8 @@ class SigmfDataModule(pl.LightningDataModule):
             file_handler_class=self.file_handler,
         )
 
+        self.label_mapping = self._load_label_mapping()
+
     def train_dataloader(self) -> DataLoader:
         """
         Returns the DataLoader for the training dataset.
@@ -86,3 +90,20 @@ class SigmfDataModule(pl.LightningDataModule):
             num_workers=self.num_workers,
             collate_fn=self.collate_fn
         )
+
+    def _load_label_mapping(self) -> Dict[int, str]:
+        """Load label mapping from the dataset YAML file."""
+        yaml_path = self.root / "torchsig" / dataset_yaml_name
+        if not yaml_path.exists():
+            raise FileNotFoundError(
+                f"Dataset YAML file not found: {yaml_path}")
+
+        with open(yaml_path, 'r') as f:
+            dataset_info = yaml.safe_load(f)
+            # Get class_list from read_only.signals section
+            class_list = dataset_info.get('read_only', {}).get(
+                'signals', {}).get('class_list', [])
+            # Create mapping from index to class name
+            label_mapping = {i: class_name for i,
+                             class_name in enumerate(class_list)}
+            return label_mapping
