@@ -11,9 +11,10 @@ from sigmf import SigMFFile
 from torchsig.utils.file_handlers.base_handler import TorchSigFileHandler
 from torchsig.utils.file_handlers.zarr import ZarrFileHandler
 from torchsig.datasets.dataset_utils import dataset_yaml_name
+from torchsig.utils.random import Seedable
 
 
-class SigMFDatasetConverter:
+class SigMFDatasetConverter(Seedable):
 
     def __init__(
         self,
@@ -24,8 +25,11 @@ class SigMFDatasetConverter:
         num_iq_samples: int = 512**2,
         file_handler: TorchSigFileHandler = ZarrFileHandler,
         batch_size: int = 1,
-        overlap_factor: float = 0.5,
+        overlap_factor: float = 0.5,  # only for wideband conversion
+        target_snr_db: float = 10.0,  # only for narrowband conversion
     ):
+        Seedable.__init__(self)
+
         self.root = Path(root)
 
         self.path_converted = self.root / "torchsig"
@@ -47,6 +51,7 @@ class SigMFDatasetConverter:
         self.sigmf_datasets = self._get_all_sigmf_datasets()
         self.label_mapping = self._create_label_mapping()
         self.sample_rate = self._get_dataset_sample_rate()
+        self.target_snr_db = target_snr_db
 
         self.dataset_stats = {
             'num_signals_per_chunk': [],
@@ -68,9 +73,385 @@ class SigMFDatasetConverter:
             raise ValueError(f"Unsupported dataset type: {self.dataset}")
 
     def _convert_narrowband(self) -> None:
-        raise NotImplementedError(
-            "Narrowband conversion is not implemented yet."
-        )
+        """Convert SigMF files to TorchSig narrowband format"""
+
+        if not self.sigmf_datasets:
+            raise FileNotFoundError(
+                f"No SigMF datasets found in {self.root}. Please ensure the directory contains .sigmf-meta and .sigmf-data files.")
+
+        if self.writer.exists() and not self.overwrite:
+            print(
+                f"Dataset already exists in {self.path_converted}. Skipping conversion.")
+            return
+
+        print(
+            f"Converting {len(self.sigmf_datasets)} SigMF files to narrowband Zarr format...")
+
+        # Create writer_info.yaml file
+        self._create_writer_info()
+
+        # Setup writer
+        self.writer._setup()
+
+        all_data = []
+        all_targets = []
+        batch_idx = 0
+        total_annotations = 0
+
+        for sigmf_base in self.sigmf_datasets:
+            print(f"Processing {sigmf_base}...")
+
+            # Load SigMF file
+            sigmf_file = sigmf.sigmffile.fromfile(
+                str(self.root / f"{sigmf_base}"))
+
+            # Read the data
+            samples = sigmf_file.read_samples()
+            annotations = sigmf_file.get_annotations()
+            sample_rate = sigmf_file.get_global_field(
+                SigMFFile.SAMPLE_RATE_KEY)
+
+            print(f"Found {len(annotations)} annotations")
+            total_annotations += len(annotations)
+
+            for ann_idx, ann in enumerate(annotations):
+                # Extract annotation boundaries
+                ann_start = ann.get('core:sample_start', 0)
+                ann_count = ann.get('core:sample_count', self.num_iq_samples)
+
+                # Skip if annotation goes beyond file
+                if ann_start >= len(samples):
+                    print(
+                        f"Warning: Annotation {ann_idx} starts beyond file length, skipping")
+                    continue
+
+                # Get frequency information for filtering
+                freq_lower = ann.get(SigMFFile.FLO_KEY)
+                freq_upper = ann.get(SigMFFile.FHI_KEY)
+
+                # Get capture info
+                capture = self._get_capture_for_sample(sigmf_file, ann_start)
+                if capture is None:
+                    print(
+                        f"Warning: No capture found for annotation at sample {ann_start}")
+                    continue
+
+                capture_center_freq = capture.get(SigMFFile.FREQUENCY_KEY, 0.0)
+
+                # Extract signal data with frequency filtering
+                signal_data = self._extract_narrowband_signal(
+                    samples,
+                    ann_start,
+                    ann_count,
+                    freq_lower=freq_lower,
+                    freq_upper=freq_upper,
+                    capture_center_freq=capture_center_freq,
+                    sample_rate=sample_rate
+                )
+
+                if signal_data is None:
+                    continue
+
+                # Create single annotation for this narrowband sample
+                torchsig_annotation = self._create_narrowband_annotation(
+                    sigmf_file, ann, signal_data)
+
+                if torchsig_annotation is None:
+                    continue
+
+                # Update statistics
+                self._update_dataset_stats([torchsig_annotation])
+
+                all_data.append(signal_data)
+                # Single annotation in a list
+                all_targets.append([torchsig_annotation])
+
+                # Write batch when full
+                if len(all_data) >= self.batch_size:
+                    self.writer.write(batch_idx, (all_data, all_targets))
+                    batch_idx += 1
+                    all_data = []
+                    all_targets = []
+
+        # Write remaining data
+        if all_data:
+            self.writer.write(batch_idx, (all_data, all_targets))
+
+        # Create YAML config
+        self._create_yaml()
+
+        total_samples = self.writer.size(str(self.path_converted))
+        print(
+            f"Conversion complete! Created {total_samples} narrowband samples from {total_annotations} annotations in {str(self.path_converted)}")
+
+    def _extract_narrowband_signal(
+        self,
+        samples: np.ndarray,
+        ann_start: int,
+        ann_count: int,
+        freq_lower: float = None,
+        freq_upper: float = None,
+        capture_center_freq: float = 0.0,
+        sample_rate: float = None
+    ) -> np.ndarray:
+        """
+        Extract and prepare narrowband signal data with optional frequency filtering.
+
+        Args:
+            samples: Full IQ sample array
+            ann_start: Annotation start index
+            ann_count: Annotation sample count
+            freq_lower: Lower frequency bound (Hz) for filtering
+            freq_upper: Upper frequency bound (Hz) for filtering
+            capture_center_freq: Capture center frequency (Hz)
+            sample_rate: Sample rate (Hz)
+
+        Returns:
+            Processed signal data of length num_iq_samples, or None if invalid
+        """
+        # Ensure we don't go beyond file boundaries
+        ann_end = min(ann_start + ann_count, len(samples))
+        actual_count = ann_end - ann_start
+
+        if actual_count <= 0:
+            return None
+
+        # Extract the actual signal
+        signal_segment = samples[ann_start:ann_end]
+
+        if (freq_lower is not None and freq_upper is not None and
+                sample_rate is not None):
+            signal_segment = self._apply_frequency_filter(
+                signal_segment,
+                freq_lower,
+                freq_upper,
+                capture_center_freq,
+                sample_rate
+            )
+
+        # Add the extracted signal to a realistic noise floor with SNR control
+        final_signal = self._prepare_signal_with_noise_floor(signal_segment)
+
+        return final_signal
+
+    def _prepare_signal_with_noise_floor(self, signal_segment: np.ndarray) -> np.ndarray:
+        """
+        Takes a signal segment, places it within a sample of `num_iq_samples`
+        (with padding or truncation), and adds it to a generated noise floor
+        with a target SNR.
+
+        Args:
+            signal_segment (np.ndarray): The extracted and filtered signal.
+
+        Returns:
+            np.ndarray: The final signal of length `num_iq_samples` with noise.
+        """
+        # 1. Generate noise floor
+        noise_floor = self._generate_noise_floor(self.num_iq_samples)
+        noise_power = np.mean(np.abs(noise_floor)**2)
+
+        # 2. Scale signal for target SNR
+        signal_power = np.mean(np.abs(signal_segment)**2)
+        if signal_power > 1e-12:  # Avoid division by zero
+            target_snr_linear = 10**(self.target_snr_db / 10.0)
+
+            required_signal_power = noise_power * target_snr_linear
+            scaling_factor = np.sqrt(required_signal_power / signal_power)
+            scaled_signal = signal_segment * scaling_factor
+        else:
+            scaled_signal = signal_segment
+
+        # 3. Place signal within the noise floor (padding/truncation)
+        final_signal = noise_floor.copy()  # Start with the noise floor
+
+        if len(scaled_signal) == self.num_iq_samples:
+            # Perfect fit, add directly
+            final_signal += scaled_signal
+        elif len(scaled_signal) < self.num_iq_samples:
+            # Signal is shorter, needs padding. Add it to the center of the noise.
+            padding_needed = self.num_iq_samples - len(scaled_signal)
+            start_idx = padding_needed // 2
+            end_idx = start_idx + len(scaled_signal)
+            final_signal[start_idx:end_idx] += scaled_signal
+        else:
+            # Signal is longer, needs truncation from the center.
+            excess = len(scaled_signal) - self.num_iq_samples
+            start_trim = excess // 2
+            end_trim = start_trim + self.num_iq_samples
+            truncated_signal = scaled_signal[start_trim:end_trim]
+            final_signal += truncated_signal
+
+        return final_signal.astype(np.complex64)
+
+    def _generate_noise_floor(self, length: int) -> np.ndarray:
+        """
+        Generates complex white Gaussian noise.
+
+        Args:
+            length (int): The number of samples to generate.
+
+        Returns:
+            np.ndarray: The complex noise signal.
+        """
+        # Using a small standard deviation for the noise to act as a base floor
+        std_dev = 0.05
+        noise_real = self.random_generator.normal(0, std_dev, length)
+        noise_imag = self.random_generator.normal(0, std_dev, length)
+        return (noise_real + 1j * noise_imag).astype(np.complex64)
+
+    def _apply_frequency_filter(
+        self,
+        signal: np.ndarray,
+        freq_lower: float,
+        freq_upper: float,
+        capture_center_freq: float,
+        sample_rate: float
+    ) -> np.ndarray:
+        """
+        Apply frequency domain filtering to isolate the signal of interest.
+
+        Args:
+            signal: Input IQ signal
+            freq_lower: Lower frequency bound (Hz)
+            freq_upper: Upper frequency bound (Hz) 
+            capture_center_freq: Capture center frequency (Hz)
+            sample_rate: Sample rate (Hz)
+
+        Returns:
+            Frequency-filtered signal
+        """
+        # Convert to baseband frequencies
+        freq_lower_bb = freq_lower - capture_center_freq
+        freq_upper_bb = freq_upper - capture_center_freq
+
+        # Calculate center frequency and bandwidth
+        signal_center_freq = (freq_lower_bb + freq_upper_bb) / 2.0
+        signal_bandwidth = abs(freq_upper_bb - freq_lower_bb)
+
+        # Add some margin to the filter (10% on each side)
+        filter_margin = signal_bandwidth * 0.1
+        filter_bandwidth = signal_bandwidth + 2 * filter_margin
+
+        # Take FFT
+        fft_signal = np.fft.fftshift(np.fft.fft(signal))
+        freqs = np.fft.fftshift(np.fft.fftfreq(len(signal), 1/sample_rate))
+
+        # Create frequency mask
+        mask = np.zeros_like(freqs, dtype=bool)
+        filter_lower = signal_center_freq - filter_bandwidth/2
+        filter_upper = signal_center_freq + filter_bandwidth/2
+
+        mask = (freqs >= filter_lower) & (freqs <= filter_upper)
+
+        # Apply filter
+        filtered_fft = fft_signal * mask
+
+        # Convert back to time domain
+        filtered_signal = np.fft.ifft(np.fft.ifftshift(filtered_fft))
+
+        return filtered_signal
+
+    def _create_narrowband_annotation(
+        self,
+        sigmf_file: sigmf.SigMFFile,
+        ann: Dict[str, Any],
+        signal_data: np.ndarray
+    ) -> Dict[str, Any]:
+        """
+        Create a single TorchSig annotation for narrowband sample.
+
+        Args:
+            sigmf_file: SigMF file object
+            ann: Original SigMF annotation
+            signal_data: Processed signal data
+
+        Returns:
+            TorchSig-formatted annotation or None if invalid
+        """
+        # Get sample rate
+        sample_rate = sigmf_file.get_global_field(SigMFFile.SAMPLE_RATE_KEY)
+
+        # Get original annotation info
+        ann_start = ann.get(SigMFFile.START_INDEX_KEY, 0)
+        ann_count = ann.get(SigMFFile.LENGTH_INDEX_KEY, len(signal_data))
+
+        # Get capture info for frequency reference
+        capture = self._get_capture_for_sample(sigmf_file, ann_start)
+        if capture is None:
+            print(
+                f"Warning: No capture found for annotation at sample {ann_start}")
+            return None
+
+        capture_center_freq = capture.get(SigMFFile.FREQUENCY_KEY, 0.0)
+
+        # Extract frequency information
+        freq_lower = ann.get(SigMFFile.FLO_KEY)
+        freq_upper = ann.get(SigMFFile.FHI_KEY)
+
+        if freq_lower is None or freq_upper is None:
+            print(f"Warning: Missing frequency information in annotation")
+            return None
+
+        # Convert to baseband (relative to capture center frequency)
+        freq_lower_baseband = freq_lower - capture_center_freq
+        freq_upper_baseband = freq_upper - capture_center_freq
+
+        # Calculate center frequency and bandwidth
+        center_freq = (freq_lower_baseband + freq_upper_baseband) / 2.0
+        bandwidth = abs(freq_upper_baseband - freq_lower_baseband)
+
+        if bandwidth == 0:
+            warnings.warn(
+                f"Zero bandwidth for annotation {ann}. Setting to 1e-12 Hz.")
+            bandwidth = 1e-12
+
+        # Extract class information
+        sigmf_label = ann.get(SigMFFile.LABEL_KEY, 'unknown')
+
+        # Calculate actual signal bounds within the narrowband sample
+        signal_length = len(signal_data)
+
+        # For narrowband, we need to determine where the signal actually sits
+        # within the padded/truncated sample
+        if ann_count <= signal_length:
+            # Signal was padded or exact fit
+            padding_needed = signal_length - ann_count
+            padding_left = padding_needed // 2
+
+            # Signal bounds within the sample
+            signal_start_samples = padding_left
+            signal_stop_samples = padding_left + ann_count
+        else:
+            # Signal was truncated
+            signal_start_samples = 0
+            signal_stop_samples = signal_length
+
+        # Convert to time
+        signal_start_seconds = signal_start_samples / sample_rate
+        signal_stop_seconds = signal_stop_samples / sample_rate
+        signal_duration_seconds = (
+            signal_stop_samples - signal_start_samples) / sample_rate
+
+        # Create TorchSig annotation with actual signal bounds
+        torchsig_ann = {
+            "bandwidth": float(bandwidth),
+            "lower_freq": float(freq_lower_baseband),
+            "upper_freq": float(freq_upper_baseband),
+            "center_freq": float(center_freq),
+            "class_index": self.label_mapping.get(sigmf_label),
+            "class_name": sigmf_label,
+            "duration": signal_duration_seconds,
+            "duration_in_samples": signal_stop_samples - signal_start_samples,
+            "num_samples": signal_stop_samples - signal_start_samples,
+            "sample_rate": float(sample_rate),
+            "start": signal_start_seconds,
+            "start_in_samples": signal_start_samples,
+            "stop": signal_stop_seconds,
+            "stop_in_samples": signal_stop_samples,
+            "snr_db": 0.0,  # Placeholder, not in SigMF
+        }
+
+        return torchsig_ann
 
     def _convert_wideband(self) -> None:
         """Convert SigMF files to TorchSig Zarr format with overlap"""
@@ -388,6 +769,10 @@ class SigMFDatasetConverter:
                 }
             },
         }
+
+        if self.dataset == "narrowband":
+            data["required"].pop("num_signals_max")
+
         yaml_path = self.path_converted / dataset_yaml_name
         with open(yaml_path, "w") as f:
             yaml.dump(data, f, default_flow_style=False)
@@ -455,11 +840,11 @@ class SigMFDatasetConverter:
         stats = {}
 
         # Number of signals statistics
-        if self.dataset_stats['num_signals_per_chunk']:
-            stats.update({
-                'num_signals_min': min(self.dataset_stats['num_signals_per_chunk']),
-                'num_signals_max': max(self.dataset_stats['num_signals_per_chunk']),
-            })
+        # if self.dataset_stats['num_signals_per_chunk']:
+        #    stats.update({
+        #        'num_signals_min': min(self.dataset_stats['num_signals_per_chunk']),
+        #        'num_signals_max': max(self.dataset_stats['num_signals_per_chunk']),
+        #    })
 
         # Signal duration statistics (seconds)
         # if self.dataset_stats['signal_durations']:
@@ -469,11 +854,11 @@ class SigMFDatasetConverter:
         #    })
 
         # Signal duration statistics (samples)
-        if self.dataset_stats['signal_durations_samples']:
-            stats.update({
-                'signal_duration_in_samples_min': min(self.dataset_stats['signal_durations_samples']),
-                'signal_duration_in_samples_max': max(self.dataset_stats['signal_durations_samples']),
-            })
+        # if self.dataset_stats['signal_durations_samples']:
+        #    stats.update({
+        #        'signal_duration_in_samples_min': min(self.dataset_stats['signal_durations_samples']),
+        #        'signal_duration_in_samples_max': max(self.dataset_stats['signal_durations_samples']),
+        #    })
 
         # Signal bandwidth statistics
         # if self.dataset_stats['signal_bandwidths']:
@@ -483,10 +868,10 @@ class SigMFDatasetConverter:
         #    })
 
         # Signal center frequency statistics (baseband)
-        if self.dataset_stats['signal_center_freqs']:
-            stats.update({
-                'signal_center_freq_min': min(self.dataset_stats['signal_center_freqs']),
-                'signal_center_freq_max': max(self.dataset_stats['signal_center_freqs']),
-            })
+        # if self.dataset_stats['signal_center_freqs']:
+        #    stats.update({
+        #        'signal_center_freq_min': min(self.dataset_stats['signal_center_freqs']),
+        #        'signal_center_freq_max': max(self.dataset_stats['signal_center_freqs']),
+        #    })
 
         return stats

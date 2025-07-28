@@ -31,6 +31,7 @@ class SigmfDataModule(pl.LightningDataModule):
         target_transforms: list = [],
         fft_size: int = 512,
         num_iq_samples: int = 512 ** 2,
+        target_snr_db: float = 10.0,  # only for narrowband extraction
     ):
         super().__init__()
         self.root = Path(root)
@@ -39,6 +40,7 @@ class SigmfDataModule(pl.LightningDataModule):
         self.num_workers = num_workers
         self.fft_size = fft_size
         self.num_iq_samples = num_iq_samples
+        self.target_snr_db = target_snr_db
 
         self.transforms = transforms
         self.target_transforms = target_transforms
@@ -63,6 +65,7 @@ class SigmfDataModule(pl.LightningDataModule):
             overwrite=self.overwrite,
             fft_size=self.fft_size,
             num_iq_samples=self.num_iq_samples,
+            target_snr_db=self.target_snr_db,
         ).convert()
 
     def setup(self, stage: str = None) -> None:
