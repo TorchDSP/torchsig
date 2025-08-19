@@ -251,7 +251,7 @@ class OfficialTorchSigDataModule(TorchSigDataModule):
 
         train_metadata = get_default_yaml_config(
             impairment_level = impairment_level,
-            rain = True
+            train = True
         )
 
         val_metadata = get_default_yaml_config(
