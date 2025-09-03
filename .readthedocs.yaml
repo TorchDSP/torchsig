@@ -9,6 +9,7 @@ build:
   os: ubuntu-22.04
   tools:
     python: "3.10"
+    rust: "1.83"
 
 # Build documentation in the "docs/" directory with Sphinx
 sphinx:
@@ -18,12 +19,6 @@ sphinx:
   # Fail on all warnings to avoid broken references
   # fail_on_warning: true
 
-# Install rust
-python:
-  system_packages: true
-
-# Install cargo
-submodules: true
 
 # Install necessary python packages for doc builds
 python:
