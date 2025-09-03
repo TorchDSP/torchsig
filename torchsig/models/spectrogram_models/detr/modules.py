@@ -238,7 +238,7 @@ class SetCriterion(nn.Module):
         losses = {"loss_ce": loss_ce}
 
         if log:
-            # TODO this should probably be a separate loss, not hacked in this one here
+            # should probably be a separate loss, not hacked in this one here
             losses["class_error"] = 100 - accuracy(src_logits[idx], target_classes_o)[0]
         return losses
 
@@ -294,7 +294,7 @@ class SetCriterion(nn.Module):
         src_masks = outputs["pred_masks"]
         src_masks = src_masks[src_idx]
         masks = [t["masks"] for t in targets]
-        # TODO use valid to mask invalid areas due to padding in loss
+        # valid should be used to mask invalid areas due to padding in loss (currently unimplemented)
         target_masks, valid = nested_tensor_from_tensor_list(masks).decompose()
         target_masks = target_masks.to(src_masks)
         target_masks = target_masks[tgt_idx]
@@ -493,7 +493,6 @@ def create_detr(
     Function used to build a DETR network
 
     Args:
-        TODO
 
     Returns:
         torch.nn.Module

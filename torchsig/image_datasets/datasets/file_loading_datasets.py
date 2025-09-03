@@ -32,8 +32,8 @@ def extract_bounding_boxes_from_image(img, isolate=True, filter_strength=None):
     # H, S, V
     # masking values hand tuned to ignore grayscale pixels
     # (aka low saturation and value)
-    lower = np.array([0, 70, 100]) # HARD CODED - TODO figure this out - no hard coding!
-    upper = np.array([179, 255, 255]) # HARD CODED - TODO figure this out - no hard coding!
+    lower = np.array([0, 70, 100]) # HARD CODED 
+    upper = np.array([179, 255, 255]) # HARD CODED 
 
     mask = cv2.inRange(img_hsv, lower, upper)
     
@@ -72,8 +72,8 @@ soi_image, assumed BGR colorspace
 def isolate_soi(soi_image, filter_strength=0):
     test_hsv = cv2.cvtColor(soi_image, cv2.COLOR_BGR2HSV)
     lower = np.array([0, 0, 0])
-    upper = np.array([360, 255, int(255/2)]) # hand tuned, HARD CODED # TODO hard coded considered harmful :(
-    upper = np.array([360, 255, int(255/2) - filter_strength]) # HARD CODED # TODO hard coded considered harmful :(
+    upper = np.array([360, 255, int(255/2)]) # hand tuned, HARD CODED 
+    upper = np.array([360, 255, int(255/2) - filter_strength]) # HARD CODED 
 
     mask = cv2.inRange(test_hsv, lower, upper)
     # plt.imshow(mask)

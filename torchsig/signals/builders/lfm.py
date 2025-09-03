@@ -1,25 +1,24 @@
 """LFM Signal Builder and Modulator
 """
-
 # TorchSig
 from torchsig.signals.builder import SignalBuilder
 from torchsig.signals.builders.chirp import chirp
+from torchsig.signals.signal_utils import random_limiting_filter_design
+from torchsig.signals.signal_lists import TorchSigSignalLists
+
 from torchsig.datasets.dataset_metadata import DatasetMetadata
 from torchsig.utils.dsp import (
-    low_pass_iterative_design,
+    TorchSigComplexDataType,
     convolve,
-    torchsig_complex_data_type,
     multistage_polyphase_resampler,
     slice_head_tail_to_length,
     pad_head_tail_to_length
 )
-from torchsig.signals.signal_lists import TorchSigSignalLists
 
 # Third Party
 import numpy as np
 
 # Built-In
-from copy import copy
 from collections import OrderedDict
 
 
@@ -84,7 +83,7 @@ def lfm_modulator_baseband ( class_name:str, max_num_samples:int, oversampling_r
     downchirp = chirp(f1,f0,samples_per_symbol)
 
     # pre-allocate memory for the output modulated signal
-    modulated = np.zeros((max_num_samples,), dtype=torchsig_complex_data_type)
+    modulated = np.zeros((max_num_samples,), dtype=TorchSigComplexDataType)
 
     # initialize time pointer to the first output index of each symbol
     sym_start_index = 0
@@ -112,17 +111,9 @@ def lfm_modulator_baseband ( class_name:str, max_num_samples:int, oversampling_r
         sym_start_index = sym_start_index + samples_per_symbol
 
 
-    if rng.uniform(0,1) < 0.5: # 50% chance to turn on BW limiting filter
-        # randomize the cutoff
-        cutoff = rng.uniform(0.8*bandwidth/2,0.95*sample_rate/2)
-        # calculate maximum transition bandwidth
-        max_transition_bandwidth = sample_rate/2 - cutoff
-        # transition bandwidth is randomized value less than max transition bandwidth
-        transition_bandwidth = rng.uniform(0.5,1.5)*max_transition_bandwidth
-        # design bandwidth-limiting filter
-        lpf = low_pass_iterative_design(cutoff=cutoff,transition_bandwidth=transition_bandwidth,sample_rate=sample_rate)
-        # apply bandwidth-limiting LPF to reduce sidelobes
-        modulated = convolve(modulated,lpf)
+    if rng.uniform(0,1) < 0.5: # 50% chance to enable BW limiting filter
+        filter_taps = random_limiting_filter_design(bandwidth, sample_rate, rng)
+        modulated = convolve(modulated, filter_taps)
 
     return modulated
 
@@ -156,8 +147,7 @@ def lfm_modulator ( class_name:str, bandwidth:float, sample_rate:float, num_samp
     # determine how many samples baseband modulator needs to implement.
     num_samples_baseband = int(np.ceil(num_samples/resample_rate_ideal))
 
-    if (num_samples_baseband < 1):
-        num_samples_baseband = 1
+    num_samples_baseband = max(num_samples_baseband, 1)
 
     # modulate at baseband
     lfm_signal_baseband = lfm_modulator_baseband ( class_name, num_samples_baseband, oversampling_rate_baseband, rng )
@@ -172,7 +162,7 @@ def lfm_modulator ( class_name:str, bandwidth:float, sample_rate:float, num_samp
         lfm_mod_correct_bw = pad_head_tail_to_length ( lfm_mod_correct_bw, num_samples )
 
     # convert to appropriate type
-    lfm_mod_correct_bw = lfm_mod_correct_bw.astype(torchsig_complex_data_type)
+    lfm_mod_correct_bw = lfm_mod_correct_bw.astype(TorchSigComplexDataType)
 
     return lfm_mod_correct_bw
 
@@ -200,7 +190,7 @@ class LFMSignalBuilder(SignalBuilder):
     def _update_data(self) -> None:
         """Creates the IQ samples for the LFM waveform based on the signal metadata fields
         """        
-        # wideband params
+        # dataset params
         sample_rate = self.dataset_metadata.sample_rate
 
         # signal params

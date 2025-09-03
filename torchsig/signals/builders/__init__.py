@@ -1,3 +1,4 @@
+# pylint: disable=missing-module-docstring
 from .constellation import ConstellationSignalBuilder
 from .test import TestSignalBuilder
 from .tone import ToneSignalBuilder

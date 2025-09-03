@@ -4,7 +4,7 @@
 # TorchSig
 from torchsig.signals.builder import SignalBuilder
 from torchsig.datasets.dataset_metadata import DatasetMetadata
-from torchsig.utils.dsp import torchsig_complex_data_type
+from torchsig.utils.dsp import TorchSigComplexDataType
 from torchsig.signals.signal_lists import TorchSigSignalLists
 
 # Third Party
@@ -22,7 +22,7 @@ def tone_modulator ( num_samples:int ) -> np.ndarray:
         np.ndarray: Modulated tone IQ samples with proper center frequency.
     """
     # the tone at baseband is all ones
-    iq_samples = np.ones(num_samples,dtype=torchsig_complex_data_type)
+    iq_samples = np.ones(num_samples,dtype=TorchSigComplexDataType)
     return iq_samples
 
 

@@ -5,20 +5,20 @@ from torchsig.transforms.functional import (
     add_slope,
     additive_noise,
     adjacent_channel_interference,
-    agc,
     awgn,
-    block_agc,
+    carrier_frequency_drift,
+    carrier_phase_noise,    
     channel_swap,
+    coarse_gain_change,
     cochannel_interference,    
     cut_out,
+    digital_agc,
     doppler,    
     drop_samples,
     fading,
     intermodulation_products,
     iq_imbalance,
-    local_oscillator_frequency_drift,
-    phase_noise,
-    mag_rescale,
+    interleave_complex,
     nonlinear_amplifier,
     nonlinear_amplifier_table,
     normalize,
@@ -30,8 +30,9 @@ from torchsig.transforms.functional import (
     spectral_inversion,
     spectrogram,
     spectrogram_drop_samples,
+    spurs,
     time_reversal,
-    time_varying_noise
+    time_varying_noise,
 )
 from test_transforms_utils import (
     generate_test_signal,
@@ -39,7 +40,8 @@ from test_transforms_utils import (
 )
 import torchsig.utils.dsp as dsp
 from torchsig.utils.dsp import (
-    torchsig_complex_data_type,
+    TorchSigComplexDataType,
+    TorchSigRealDataType,
     compute_spectrogram,
 )
 
@@ -88,7 +90,7 @@ def test_add_slope(
 
         assert np.allclose(data, data_test, RTOL) == expected
         assert (type(data) == type(data_test)) == expected
-        assert (data.dtype == torchsig_complex_data_type) == expected
+        assert (data.dtype == TorchSigComplexDataType) == expected
 
 
 @pytest.mark.parametrize("data, params, expected, is_error", [
@@ -148,7 +150,7 @@ def test_additive_noise(
 
         assert (len(data) == len(data_test)) == expected
         assert (np.abs(power_delta - power) < 10**(0.1/10)) == expected
-        assert (data.dtype == torchsig_complex_data_type) == expected
+        assert (data.dtype == TorchSigComplexDataType) == expected
 
 
 @pytest.mark.parametrize("params, expected, is_error", [
@@ -222,104 +224,12 @@ def test_adjacent_channel_interference(
         assert (np.abs(freqs1 - (tone_freq + center_frequency)) < 0.01) == expected
         assert (len(data) == len(data_test)) == expected
         assert (type(data) == type(data_test)) == expected
-        assert (data.dtype == torchsig_complex_data_type) == expected
-
-
-@pytest.mark.parametrize("data, params, expected, is_error", [
-    (
-        0, 
-        {  
-            'initial_gain_db' : 0.,
-            'alpha_smooth'    : 0.,
-            'alpha_track'     : np.log(0.1),
-            'alpha_overflow'  : np.log(0.1),
-            'alpha_acquire'   : np.log(0.1),
-            'ref_level'       : 0.,
-            'ref_level_db'    : np.log(0.1),
-            'track_range_db'  : np.log(0.1),
-            'low_level_db'    : 0.,
-            'high_level_db'   : 0.
-        },
-        TypeError,
-        True
-    ),
-    (
-        0.2 + generate_test_signal(num_iq_samples = 1024, scale = 0.01).data,
-        {  
-            'initial_gain_db' : 0.0,
-            'alpha_smooth'    : 0.1,
-            'alpha_track'     : np.log(1.1),
-            'alpha_overflow'  : np.log(1.1),
-            'alpha_acquire'   : np.log(1.1),
-            'ref_level'       : 10.0,
-            'ref_level_db'    : np.log(10.0),
-            'track_range_db'  : np.log(4.0),
-            'low_level_db'    : -200.0,
-            'high_level_db'   : 200.0
-        },
-        True,
-        False
-    )
-])
-def test_agc(
-    data: Any, 
-    params: dict, 
-    expected: bool | TypeError, 
-    is_error: bool
-    ) -> None:
-    """Test the agc functional with pytest.
-
-    Args:
-        data (Any): Data input, nominally np.ndarray.
-        params (dict): Function call parameters (see description).
-        expected (bool | TypeError): Expected test result.
-        is_error (bool): Is a test error expected.
-
-    Raises:
-        AssertionError: If unexpected test outcome.
-
-    """
-    if is_error:
-        with pytest.raises(expected): 
-            data = agc(
-                data,
-                initial_gain_db = params['initial_gain_db'],
-                alpha_smooth    = params['alpha_smooth'],
-                alpha_track     = params['alpha_track'],
-                alpha_overflow  = params['alpha_overflow'],
-                alpha_acquire   = params['alpha_acquire'],
-                ref_level_db    = params['ref_level_db'],
-                track_range_db  = params['track_range_db'],
-                low_level_db    = params['low_level_db'],
-                high_level_db   = params['high_level_db'],
-            ) 
-    else:    
-        reference_level = params['ref_level']
-        data_type = type(data)
-        data_dtype = data.dtype
-
-        data = agc(
-            data,
-            initial_gain_db = params['initial_gain_db'],
-            alpha_smooth    = params['alpha_smooth'],
-            alpha_track     = params['alpha_track'],
-            alpha_overflow  = params['alpha_overflow'],
-            alpha_acquire   = params['alpha_acquire'],
-            ref_level_db    = params['ref_level_db'],
-            track_range_db  = params['track_range_db'],
-            low_level_db    = params['low_level_db'],
-            high_level_db   = params['high_level_db'],
-        )    
-        mean_level_est = np.round(np.mean(np.abs(data[-128:])))
-
-        assert (abs(mean_level_est - reference_level) < 1E-1) == expected
-        assert (type(data) == data_type) == expected
-        assert (data.dtype == torchsig_complex_data_type) == expected
+        assert (data.dtype == TorchSigComplexDataType) == expected
 
 
 @pytest.mark.parametrize("data, params, expected, is_error", [
     (0, {'noise_power_db' : 0.0}, AttributeError, True),
-    (np.zeros(1024, dtype=torchsig_complex_data_type), {'noise_power_db' : 3.0}, True, False)
+    (np.zeros(1024, dtype=TorchSigComplexDataType), {'noise_power_db' : 3.0}, True, False)
 ])
 def test_awgn(
     data: Any, 
@@ -362,64 +272,98 @@ def test_awgn(
         
         assert (abs(power_est - noise_power_linear) < 1E-1) == expected
         assert (type(data) == type(data_test)) == expected
-        assert (data.dtype == torchsig_complex_data_type) == expected
+        assert (data.dtype == TorchSigComplexDataType) == expected
 
 
 @pytest.mark.parametrize("data, params, expected, is_error", [
-    (
-        0,
-        {'gain_change_db': 1.0, 'start_idx': 13},
-        TypeError, 
-        True
-    ),
-    (
-        deepcopy(TEST_DATA),
-        {'gain_change_db': 3.0, 'start_idx': 17}, 
-        True,
-        False
-    )
+    (generate_tone_signal(num_iq_samples = 1024, scale = 1.0).data, {'drift_ppm': 0.1}, True, False),
+    (generate_tone_signal(num_iq_samples = 1024, scale = 1.0).data, {'drift_ppm': 1}, True, False),
 ])
-def test_block_agc(
+def test_carrier_frequency_drift(
     data: Any, 
     params: dict, 
-    expected: bool | TypeError, 
+    expected: bool, 
     is_error: bool
     ) -> None:
-    """Test the block_agc functional with pytest.
+    """Test the carrier_frequency_drift functional with pytest.
 
     Args:
         data (Any): Data input, nominally np.ndarray.
         params (dict): Function call parameters (see description).
-        expected (bool | TypeError): Expected test result.
+        expected (bool | IndexError): Expected test result.
         is_error (bool): Is a test error expected.
 
     Raises:
         AssertionError: If unexpected test outcome.
 
-    """    
-    gain_change_db = params['gain_change_db']
-    start_idx = params['start_idx']
+    """
+    rng = np.random.default_rng(42)
+
+    drift_ppm = params['drift_ppm']
 
     if is_error:
         with pytest.raises(expected): 
-            data = block_agc(
-                data, 
-                gain_change_db = gain_change_db,
-                start_idx   = start_idx
+            data = carrier_frequency_drift(
+                data = data,
+                drift_ppm = drift_ppm,
+                rng = rng
             )
     else:
-        gain_change_linear = 10**(gain_change_db/10)
         data_test = deepcopy(data)
-        data = block_agc(
-            data, 
-            gain_change_db = gain_change_db,
-            start_idx   = start_idx
+        data = carrier_frequency_drift(
+            data = data,
+            drift_ppm = drift_ppm,
+            rng = rng
         )
 
-        assert np.allclose(data[start_idx:], gain_change_linear * data_test[start_idx:], RTOL) == expected
-        assert np.allclose(data[:start_idx], data_test[:start_idx], RTOL) == expected
+        assert (len(data) == len(data_test)) == expected
         assert (type(data) == type(data_test)) == expected
-        assert (data.dtype == torchsig_complex_data_type) == expected
+        assert (data.dtype == TorchSigComplexDataType) == expected
+
+
+@pytest.mark.parametrize("data, params, expected, is_error", [
+    (deepcopy(TEST_DATA), {'phase_noise_degrees': 1}, True, False),
+])
+def test_carrier_phase_noise(
+    data: Any, 
+    params: dict, 
+    expected: bool, 
+    is_error: bool
+    ) -> None:
+    """Test the carrier_phase_noise functional with pytest.
+
+    Args:
+        data (Any): Data input, nominally np.ndarray.
+        params (dict): Function call parameters (see description).
+        expected (bool | IndexError): Expected test result.
+        is_error (bool): Is a test error expected.
+
+    Raises:
+        AssertionError: If unexpected test outcome.
+
+    """
+    rng = np.random.default_rng(42)
+
+    phase_noise_degrees = params['phase_noise_degrees']
+
+    if is_error:
+        with pytest.raises(expected): 
+            data = carrier_phase_noise(
+                data = data,
+                phase_noise_degrees = phase_noise_degrees,
+                rng = rng
+            )
+    else:
+        data_test = deepcopy(data)
+        data = carrier_phase_noise(
+            data = data,
+            phase_noise_degrees = phase_noise_degrees,
+            rng = rng
+        )
+
+        assert (len(data) == len(data_test)) == expected
+        assert (type(data) == type(data_test)) == expected
+        assert (data.dtype == TorchSigComplexDataType) == expected
 
 
 @pytest.mark.parametrize("data, expected, is_error", [
@@ -456,8 +400,65 @@ def test_channel_swap(
         assert np.allclose(data.real, test_imag, RTOL) == expected
         assert np.allclose(data.imag, test_real, RTOL) == expected
         assert (type(data) == type(data_test)) == expected
-        assert (data.dtype == torchsig_complex_data_type) == expected
+        assert (data.dtype == TorchSigComplexDataType) == expected
+
+
+@pytest.mark.parametrize("data, params, expected, is_error", [
+    (
+        deepcopy(TEST_DATA),
+        {'start_idx': 5, 'gain_change_db': 0.25}, 
+        True,
+        False
+    ),
+        (
+        deepcopy(TEST_DATA),
+        {'start_idx': -17, 'gain_change_db': -15.7}, 
+        True,
+        False
+    )    
+])
+def test_coarse_gain_change(
+    data: Any,
+    params: dict,
+    expected: bool, 
+    is_error: bool
+    ) -> None:
+    """Test the coarse_gain_change functional with pytest.
+
+    Args:
+        data (Any): Data input, nominally np.ndarray.
+        params (dict): Function call parameters (see description).
+        expected (bool): Expected test result.
+        is_error (bool): Is a test error expected.
+
+    Raises:
+        AssertionError: If unexpected test outcome.
+
+    """ 
+    start_idx = params['start_idx']
+    gain_change_db = params['gain_change_db']
     
+    if is_error:
+        with pytest.raises(expected):   
+            data = coarse_gain_change(
+                data = data,
+                gain_change_db = gain_change_db,
+                start_idx = start_idx
+            )
+    else:
+        data_test = deepcopy(data)
+
+        data = coarse_gain_change(
+            data = data,
+            gain_change_db = gain_change_db,
+            start_idx = start_idx
+        )
+        
+        gain_change_linear = 10**(gain_change_db/10)
+        assert (np.allclose(data[start_idx:], gain_change_linear * data_test[start_idx:], RTOL)) == expected
+        assert (type(data) == type(data_test)) == expected
+        assert (data.dtype == TorchSigComplexDataType) == expected
+
 
 @pytest.mark.parametrize("params, expected, is_error", [
     ({'N': 8192, 'sample_rate': 4.0, 'power': 0.1, 'tone_freq': 0.2, 'filter_weights': dsp.low_pass(0.25, 0.25, 4.0), 'color': 'white', 'continuous': True}, True, False),
@@ -523,7 +524,7 @@ def test_cochannel_interference(
         assert (np.abs(est_freq - tone_freq) < (3/N)) == expected
         assert (len(data) == len(data_test)) == expected
         assert (type(data) == type(data_test)) == expected
-        assert (data.dtype == torchsig_complex_data_type) == expected
+        assert (data.dtype == TorchSigComplexDataType) == expected
 
 
 @pytest.mark.parametrize("data, params, expected, is_error", [
@@ -607,12 +608,103 @@ def test_cut_out(
             assert duration_samples == cut_inds[-1] - cut_inds[0] + 1
 
         assert (type(data) == type(data_test)) == expected
-        assert (data.dtype == torchsig_complex_data_type) == expected
+        assert (data.dtype == TorchSigComplexDataType) == expected
+
+
+@pytest.mark.parametrize("data, params, expected, is_error", [
+    (
+        0, 
+        {  
+            'initial_gain_db' : 0.,
+            'alpha_smooth'    : 0.,
+            'alpha_track'     : np.log(0.1),
+            'alpha_overflow'  : np.log(0.1),
+            'alpha_acquire'   : np.log(0.1),
+            'ref_level'       : 0.,
+            'ref_level_db'    : np.log(0.1),
+            'track_range_db'  : np.log(0.1),
+            'low_level_db'    : 0.,
+            'high_level_db'   : 0.
+        },
+        TypeError,
+        True
+    ),
+    (
+        0.2 + generate_test_signal(num_iq_samples = 1024, scale = 0.01).data,
+        {  
+            'initial_gain_db' : 0.0,
+            'alpha_smooth'    : 0.1,
+            'alpha_track'     : np.log(1.1),
+            'alpha_overflow'  : np.log(1.1),
+            'alpha_acquire'   : np.log(1.1),
+            'ref_level'       : 10.0,
+            'ref_level_db'    : np.log(10.0),
+            'track_range_db'  : np.log(4.0),
+            'low_level_db'    : -200.0,
+            'high_level_db'   : 200.0
+        },
+        True,
+        False
+    )
+])
+def test_digital_agc(
+    data: Any, 
+    params: dict, 
+    expected: bool | TypeError, 
+    is_error: bool
+    ) -> None:
+    """Test the agc functional with pytest.
+
+    Args:
+        data (Any): Data input, nominally np.ndarray.
+        params (dict): Function call parameters (see description).
+        expected (bool | TypeError): Expected test result.
+        is_error (bool): Is a test error expected.
+
+    Raises:
+        AssertionError: If unexpected test outcome.
+
+    """
+    if is_error:
+        with pytest.raises(expected): 
+            data = digital_agc(
+                data,
+                initial_gain_db = params['initial_gain_db'],
+                alpha_smooth    = params['alpha_smooth'],
+                alpha_track     = params['alpha_track'],
+                alpha_overflow  = params['alpha_overflow'],
+                alpha_acquire   = params['alpha_acquire'],
+                ref_level_db    = params['ref_level_db'],
+                track_range_db  = params['track_range_db'],
+                low_level_db    = params['low_level_db'],
+                high_level_db   = params['high_level_db'],
+            ) 
+    else:    
+        reference_level = params['ref_level']
+        data_type = type(data)
+
+        data = digital_agc(
+            data,
+            initial_gain_db = params['initial_gain_db'],
+            alpha_smooth    = params['alpha_smooth'],
+            alpha_track     = params['alpha_track'],
+            alpha_overflow  = params['alpha_overflow'],
+            alpha_acquire   = params['alpha_acquire'],
+            ref_level_db    = params['ref_level_db'],
+            track_range_db  = params['track_range_db'],
+            low_level_db    = params['low_level_db'],
+            high_level_db   = params['high_level_db'],
+        )    
+        mean_level_est = np.round(np.mean(np.abs(data[-128:])))
+
+        assert (abs(mean_level_est - reference_level) < 1E-1) == expected
+        assert (type(data) == data_type) == expected
+        assert (data.dtype == TorchSigComplexDataType) == expected
 
 
 @pytest.mark.parametrize("params, expected, is_error", [
-    ({'N': 10000, 'sampling_rate': 4.0,'tone_freq': 0.2, 'velocity': 1e7}, True, False),
-    ({'N': 1000, 'sampling_rate': 2.0,'tone_freq': 0.42, 'velocity': 1e6}, True, False),
+    ({'N': 10000, 'tone_freq': 0.2, 'velocity': 1e7}, True, False),
+    ({'N': 10000, 'tone_freq': 0.2, 'velocity': 1e6}, True, False),
 ])
 def test_doppler(
     params: dict,
@@ -633,40 +725,37 @@ def test_doppler(
     rng = np.random.default_rng(42)
 
     N = params['N']
-    sampling_rate = params['sampling_rate']
     tone_freq = params['tone_freq']
     velocity = params['velocity']
 
     tone_baseband = generate_tone_signal(num_iq_samples = N, scale = 1.0).data
-    data = tone_baseband * np.exp(2j * np.pi * tone_freq * np.arange(N) / sampling_rate)
+    data = tone_baseband * np.exp(2j * np.pi * tone_freq * np.arange(N))
 
     if is_error:
         with pytest.raises(expected):
             data = doppler(
                 data = data,
                 velocity = velocity,
-                propagation_speed = 2.9979e8,
-                sampling_rate = sampling_rate
+                propagation_speed = 2.9979e8
             )
     else:
         data_test = deepcopy(data)
         data = doppler(
             data = data,
             velocity = velocity,
-            propagation_speed = 2.9979e8,
-            sampling_rate = sampling_rate
+            propagation_speed = 2.9979e8
         )
 
         alpha = 2.9979e8 / (2.9979e8 - velocity) # scaling factor
         D = np.abs(np.fft.fft(data, norm='ortho'))
-        freqs = np.fft.fftfreq(N) * sampling_rate
+        freqs = np.fft.fftfreq(N)
         peaks, _ = sp.signal.find_peaks(D, height=0.5, distance=N/10)
         est_freq = freqs[peaks[0]]
         
-        assert (np.abs(est_freq - alpha*tone_freq) < (3/N)) == expected
+        assert (np.abs(est_freq - tone_freq*alpha) < 0.01) == expected
         assert (len(data) == len(data_test)) == expected
         assert (type(data) == type(data_test)) == expected
-        assert (data.dtype == torchsig_complex_data_type) == expected
+        assert (data.dtype == TorchSigComplexDataType) == expected
 
 
 @pytest.mark.parametrize("data, params, expected, is_error", [
@@ -750,7 +839,7 @@ def test_drop_samples(
             assert np.allclose(drop_inds, fill_inds, RTOL) == expected
 
         assert (type(data) == type(data_test)) == expected
-        assert (data.dtype == torchsig_complex_data_type) == expected
+        assert (data.dtype == TorchSigComplexDataType) == expected
 
 
 @pytest.mark.parametrize("data, params, expected, is_error", [
@@ -812,7 +901,7 @@ def test_fading(
         data_test_mean_power = np.mean(np.abs(data_test)**2)
         assert (abs(data_mean_power - data_test_mean_power) < 1E-1) == expected
         assert (type(data) == type(data_test)) == expected
-        assert (data.dtype == torchsig_complex_data_type) == expected
+        assert (data.dtype == TorchSigComplexDataType) == expected
 
 
 @pytest.mark.parametrize("data, params, expected, is_error", [
@@ -848,7 +937,7 @@ def test_intermodulation_products(
         data = intermodulation_products(data = data, coeffs = coeffs)
 
         assert (type(data) == type(data_test)) == expected
-        assert (data.dtype == torchsig_complex_data_type) == expected        
+        assert (data.dtype == TorchSigComplexDataType) == expected        
 
         
 @pytest.mark.parametrize("data, params, expected, is_error", [
@@ -857,7 +946,8 @@ def test_intermodulation_products(
         {
             'amplitude_imbalance': 0.1, 
             'phase_imbalance': -np.pi/4,
-            'dc_offset': (-0.1, -0.22)
+            'dc_offset_db': 10,
+            'dc_offset_phase_rads': -np.pi/2
         },
         True,
         False
@@ -867,7 +957,8 @@ def test_intermodulation_products(
         {
             'amplitude_imbalance': 3.4, 
             'phase_imbalance': np.pi/8,
-            'dc_offset': (0.27, 0.11)
+            'dc_offset_db': 3,
+            'dc_offset_phase_rads': np.pi/8
         },
         True,
         False 
@@ -894,7 +985,8 @@ def test_iq_imbalance(
     amplitude_imbalance = params['amplitude_imbalance']
     amplitude_imbalance_linear = 10 ** (amplitude_imbalance / 10.0)
     phase_imbalance = params['phase_imbalance']
-    dc_offset = params['dc_offset']
+    dc_offset_db = params['dc_offset_db']
+    dc_offset_phase_rads = params['dc_offset_phase_rads']
     
     if is_error:
         with pytest.raises(expected):     
@@ -902,7 +994,8 @@ def test_iq_imbalance(
                 data, 
                 amplitude_imbalance = amplitude_imbalance,
                 phase_imbalance = phase_imbalance,
-                dc_offset = dc_offset
+                dc_offset_db = dc_offset_db,
+                dc_offset_phase_rads = dc_offset_phase_rads
             )
     else:
         data_test = deepcopy(data)
@@ -911,173 +1004,51 @@ def test_iq_imbalance(
             data, 
             amplitude_imbalance = amplitude_imbalance,
             phase_imbalance = phase_imbalance,
-            dc_offset = dc_offset
+            dc_offset_db = dc_offset_db,
+            dc_offset_phase_rads = dc_offset_phase_rads
         )
 
-        dc_real_est = np.mean(data.real)
-        dc_imag_est = np.mean(data.imag)
-        ac_data = (data.real - dc_offset[0]) + 1j * (data.imag - dc_offset[1])
-        
-        mean_mag_ac_data = np.mean(np.abs(ac_data))
-        mean_mag_data_test = np.mean(np.abs(data_test))
-        amp_imbal_est = mean_mag_ac_data / mean_mag_data_test
-        norm_ac_data = np.divide(ac_data, amplitude_imbalance_linear)
-
-        restored_data = np.multiply(norm_ac_data.real, 1/ np.exp(-1j * phase_imbalance / 2.0)) + \
-                        np.multiply(norm_ac_data.imag, 1 / np.exp(1j * (np.pi / 2.0 + phase_imbalance / 2.0)))
-
-        assert (abs(dc_real_est - dc_offset[0]) < 1E-1) == expected
-        assert (abs(dc_imag_est - dc_offset[1]) < 1E-1) == expected
-        assert (abs(amp_imbal_est - amplitude_imbalance_linear) < 1E-1) == expected
-        assert (abs(np.mean(restored_data - data_test)) < 1E-1) == expected
         assert (type(data) == type(data_test)) == expected
-        assert (data.dtype == torchsig_complex_data_type) == expected
-
-
-@pytest.mark.parametrize("data, params, expected, is_error", [
-    (generate_tone_signal(num_iq_samples = 1024, scale = 1.0).data, {'drift_ppm': 0.1}, True, False),
-    (generate_tone_signal(num_iq_samples = 1024, scale = 1.0).data, {'drift_ppm': 1}, True, False),
-])
-def test_local_oscillator_frequency_drift(
-    data: Any, 
-    params: dict, 
-    expected: bool, 
-    is_error: bool
-    ) -> None:
-    """Test the local_oscillator_frequency_drift functional with pytest.
-
-    Args:
-        data (Any): Data input, nominally np.ndarray.
-        params (dict): Function call parameters (see description).
-        expected (bool | IndexError): Expected test result.
-        is_error (bool): Is a test error expected.
-
-    Raises:
-        AssertionError: If unexpected test outcome.
-
-    """
-    rng = np.random.default_rng(42)
-
-    drift_ppm = params['drift_ppm']
-
-    if is_error:
-        with pytest.raises(expected): 
-            data = local_oscillator_frequency_drift(
-                data = data,
-                drift_ppm = drift_ppm,
-                rng = rng
-            )
-    else:
-        data_test = deepcopy(data)
-        data = local_oscillator_frequency_drift(
-            data = data,
-            drift_ppm = drift_ppm,
-            rng = rng
-        )
-
-        assert (len(data) == len(data_test)) == expected
-        assert (type(data) == type(data_test)) == expected
-        assert (data.dtype == torchsig_complex_data_type) == expected
-
-
-@pytest.mark.parametrize("data, params, expected, is_error", [
-    (deepcopy(TEST_DATA), {'phase_noise_degrees': 1}, True, False),
-])
-def test_local_oscillator_phase_noise(
-    data: Any, 
-    params: dict, 
-    expected: bool, 
-    is_error: bool
-    ) -> None:
-    """Test the phase_noise functional with pytest.
-
-    Args:
-        data (Any): Data input, nominally np.ndarray.
-        params (dict): Function call parameters (see description).
-        expected (bool | IndexError): Expected test result.
-        is_error (bool): Is a test error expected.
-
-    Raises:
-        AssertionError: If unexpected test outcome.
-
-    """
-    rng = np.random.default_rng(42)
-
-    phase_noise_degrees = params['phase_noise_degrees']
-
-    if is_error:
-        with pytest.raises(expected): 
-            data = phase_noise(
-                data = data,
-                phase_noise_degrees = phase_noise_degrees,
-                rng = rng
-            )
-    else:
-        data_test = deepcopy(data)
-        data = phase_noise(
-            data = data,
-            phase_noise_degrees = phase_noise_degrees,
-            rng = rng
-        )
-
-        assert (len(data) == len(data_test)) == expected
-        assert (type(data) == type(data_test)) == expected
-        assert (data.dtype == torchsig_complex_data_type) == expected
+        assert (data.dtype == TorchSigComplexDataType) == expected
 
 
 @pytest.mark.parametrize("data, params, expected, is_error", [
     (
-        0,
-        {'start': 0.1, 'scale': -0.5}, 
-        AttributeError,
-        True
-    ),
-    (
-        deepcopy(TEST_DATA),
-        {'start': 0.42, 'scale': 1.7}, 
+        TEST_DATA,
+        {},
         True,
         False
     ),
-    (
-        deepcopy(TEST_DATA),
-        {'start': 5, 'scale': -2.2}, 
-        True,
-        False
-    )    
 ])
-def test_mag_rescale(
+def test_interleave_complex(
     data: Any,
     params: dict,
-    expected: bool | AttributeError, 
+    expected: bool, 
     is_error: bool
     ) -> None:
-    """Test the mag_rescale functional with pytest.
+    """Test the interleave_complex functional with pytest.
 
     Args:
         data (Any): Data input, nominally np.ndarray.
         params (dict): Function call parameters (see description).
-        expected (bool | AttributeError): Expected test result.
+        expected (bool): Expected test result.
         is_error (bool): Is a test error expected.
 
     Raises:
         AssertionError: If unexpected test outcome.
 
     """ 
-    start = params['start']
-    scale = params['scale']
     
     if is_error:
-        with pytest.raises(expected):   
-            data = mag_rescale(data, start, scale)
+        with pytest.raises(expected):     
+            data = interleave_complex(data)
     else:
         data_test = deepcopy(data)
 
-        data = mag_rescale(data, start, scale)
+        data = interleave_complex(data_test)
 
-        start_ind = int(data.shape[0] * start)
-        assert (np.allclose(data[start_ind:], scale * data_test[start_ind:], RTOL)) == expected
-        assert (type(data) == type(data_test)) == expected
-        assert (data.dtype == torchsig_complex_data_type) == expected
+        assert (data.dtype == TorchSigRealDataType) == expected
+        assert (len(data) == len(data_test)*2) == expected
 
 
 @pytest.mark.parametrize("data, params, expected, is_error", [
@@ -1086,7 +1057,8 @@ def test_mag_rescale(
         {
             'gain': 1.0,
             'psat_backoff' : 10.0,
-            'phi_rad': 0.0,
+            'phi_max': 0.02,
+            'phi_slope': 0.1,
             'auto_scale': True
         }, 
         True, 
@@ -1097,7 +1069,8 @@ def test_mag_rescale(
         {
             'gain': 7.4,
             'psat_backoff' : 3.0,
-            'phi_rad': 0.2,
+            'phi_max': -0.1,
+            'phi_slope': 0.01,
             'auto_scale': False
         }, 
         True, 
@@ -1124,7 +1097,8 @@ def test_nonlinear_amplifier(
     """
     gain = params['gain']
     psat_backoff = params['psat_backoff']
-    phi_rad = params['phi_rad']
+    phi_max = params['phi_max']
+    phi_slope = params['phi_slope']
     auto_scale = params['auto_scale']
     
     if is_error:
@@ -1133,7 +1107,8 @@ def test_nonlinear_amplifier(
                 data = data,
                 gain = gain,
                 psat_backoff = psat_backoff,
-                phi_rad = phi_rad,
+                phi_max = phi_max,
+                phi_slope = phi_slope,
                 auto_scale = auto_scale
             )
     else:
@@ -1143,7 +1118,8 @@ def test_nonlinear_amplifier(
             data = data,
             gain = gain,
             psat_backoff = psat_backoff,
-            phi_rad = phi_rad,
+            phi_max = phi_max,
+            phi_slope = phi_slope,
             auto_scale = auto_scale
         )
 
@@ -1158,18 +1134,18 @@ def test_nonlinear_amplifier(
             assert (abs(output_power - input_power) < 10**(0.1/10)) == expected
         else:
             assert (np.all(output_power <= psat)) == expected
-        assert (phase_diff <= (abs(phi_rad) + RTOL)) == expected
+        assert (phase_diff <= (abs(phi_max) + RTOL)) == expected
         assert (type(data) == type(data_test)) == expected
-        assert (data.dtype == torchsig_complex_data_type) == expected
+        assert (data.dtype == TorchSigComplexDataType) == expected
 
 
 @pytest.mark.parametrize("data, params, expected, is_error", [
     (
         np.zeros((2,)), 
         {
-            'Pin': np.zeros((3,)), 
-            'Pout': np.zeros((4,)), 
-            'Phi': np.zeros((5,)),
+            'p_in': np.zeros((3,)), 
+            'p_out': np.zeros((4,)), 
+            'phi': np.zeros((5,)),
             'p_ratio': 0.,
             'phase_shift': 0.
         }, 
@@ -1179,9 +1155,9 @@ def test_nonlinear_amplifier(
     (
         deepcopy(TEST_DATA),
         {
-            'Pin':     10**((np.array([-100., -50.,  0., 50.])) / 10), 
-            'Pout':    10**((np.array([ -97., -47.,  3., 53.])) / 10), 
-            'Phi': np.deg2rad(np.array([ 0.1,  0.1, 0.1, 0.1])),
+            'p_in':     10**((np.array([-100., -50.,  0., 50.])) / 10), 
+            'p_out':    10**((np.array([ -97., -47.,  3., 53.])) / 10), 
+            'phi': np.deg2rad(np.array([ 0.1,  0.1, 0.1, 0.1])),
             'p_ratio': 10**(3./10),
             'phase_shift': np.deg2rad(0.1)
         }, 
@@ -1207,9 +1183,9 @@ def test_nonlinear_amplifier_table(
         AssertionError: If unexpected test outcome.
 
     """
-    Pin = params['Pin']
-    Pout = params['Pout']
-    Phi = params['Phi']
+    p_in = params['p_in']
+    p_out = params['p_out']
+    phi = params['phi']
     p_ratio = params['p_ratio']
     phase_shift = params['phase_shift']
     
@@ -1217,9 +1193,9 @@ def test_nonlinear_amplifier_table(
         with pytest.raises(expected): 
             data = nonlinear_amplifier_table(
                 data = data,
-                Pin  = Pin,
-                Pout = Pout,
-                Phi  = Phi,
+                p_in  = p_in,
+                p_out = p_out,
+                phi  = phi,
                 auto_scale = False
             )
     else:
@@ -1227,9 +1203,9 @@ def test_nonlinear_amplifier_table(
 
         data = nonlinear_amplifier_table(
             data = data,
-            Pin  = Pin,
-            Pout = Pout,
-            Phi  = Phi,
+            p_in  = p_in,
+            p_out = p_out,
+            phi  = phi,
             auto_scale = False
         )
 
@@ -1241,7 +1217,7 @@ def test_nonlinear_amplifier_table(
         assert (abs(output_power/input_power - p_ratio) < RTOL) == expected
         assert (abs(np.mean(np.unwrap(output_phase_rad - input_phase_rad)) - phase_shift) < RTOL) == expected
         assert (type(data) == type(data_test)) == expected
-        assert (data.dtype == torchsig_complex_data_type) == expected
+        assert (data.dtype == TorchSigComplexDataType) == expected
 
 
 @pytest.mark.parametrize("data, params, expected, is_error", [
@@ -1295,14 +1271,14 @@ def test_normalize(
 
         assert np.allclose(data, expected, RTOL)
         assert type(data) == type(data_test) 
-        assert data.dtype == torchsig_complex_data_type
+        assert data.dtype == TorchSigComplexDataType
 
 
 @pytest.mark.parametrize("params, expected, is_error", [
-    ({'N': 1024, 'ripple_db': 6.0, 'order': 5, 'cutoff': 0.2, 'numtaps': 128}, True, False),
-    ({'N': 1111,'ripple_db': 3.2, 'order': 7, 'cutoff': 0.3, 'numtaps': 67}, True, False),
-    ({'N': 101,'ripple_db': 0.1, 'order': 10, 'cutoff': 0.1, 'numtaps': 255}, True, False),
-    ({'N': 100,'ripple_db': 4.2, 'order': 5, 'cutoff': 0.15, 'numtaps': 63}, True, False),
+    ({'num_taps':2,'max_ripple_db': 1.00,'coefficient_decay_rate': 1}, True, False),
+    ({'num_taps':2,'max_ripple_db': 1.25,'coefficient_decay_rate': 2}, True, False),
+    ({'num_taps':3,'max_ripple_db': 1.50,'coefficient_decay_rate': 3}, True, False),
+    ({'num_taps':3,'max_ripple_db': 2.00,'coefficient_decay_rate': 4}, True, False),
 ])
 def test_passband_ripple(
     params: dict, 
@@ -1322,55 +1298,42 @@ def test_passband_ripple(
     """
     rng = np.random.default_rng(42)
 
-    N = params['N']
-    ripple_db = params['ripple_db']
-    order = params['order']
-    cutoff = params['cutoff']
-    numtaps = params['numtaps']
+    num_taps = params['num_taps']
+    max_ripple_db = params['max_ripple_db']
+    coefficient_decay_rate = params['coefficient_decay_rate']
 
     # create impulse response
     data = dsp.noise_generator(
-        N       = N,
+        num_samples  = 128,
         power   = 1.0, 
         color   = 'white',
         continuous = False,
         rng     = rng 
     )
 
-    # design filter
-    b, a = sp.signal.cheby1(order, ripple_db, cutoff, fs=1.0, btype='low')
-    t, h = sp.signal.dimpulse((b, a, 1/1.0), n=numtaps)
-    fir_coeffs = h[0].squeeze()
-
     if is_error:
         with pytest.raises(expected): 
             data = passband_ripple(
                 data = data,
-                filter_coeffs = fir_coeffs,
-                normalize = True
+                num_taps = num_taps,
+                max_ripple_db = max_ripple_db,
+                coefficient_decay_rate = coefficient_decay_rate
             )
     else:
         data_test = deepcopy(data)   
         data = passband_ripple(
             data = data,
-            filter_coeffs = fir_coeffs,
-            normalize = True
+            num_taps = num_taps,
+            max_ripple_db = max_ripple_db,
+            coefficient_decay_rate = coefficient_decay_rate
         )
+
         D = np.abs(np.fft.fft(data, norm='ortho'))
         mag = np.abs(D)
         M = len(D)
         
-        peak_inds, _ = sp.signal.find_peaks(mag, height=0.1, distance=M/20)
-        peak_vals = mag[peak_inds]
-        trough_inds, _ = sp.signal.find_peaks(-mag, height=-10.0, distance=M/20)
-        trough_vals = mag[trough_inds]
-        ripple_est = np.mean(peak_vals[peak_vals > 0.5]) - np.mean(trough_vals[trough_vals > 0.5])
-        ripple_est_db = 20*np.log10(1 + ripple_est)
-
-        assert (np.abs(ripple_est_db - ripple_db) < 10**(0.5/20)) == expected
         assert (type(data) == type(data_test)) == expected
-        assert (data.dtype == torchsig_complex_data_type) == expected
-
+        assert (data.dtype == TorchSigComplexDataType) == expected
 
 @pytest.mark.parametrize("data, params, expected, is_error", [
     (
@@ -1419,7 +1382,7 @@ def test_patch_shuffle(
         patch_inds = np.where(data != data_test)[0]
         assert ((patch_inds[0] + patch_size - 1) in patch_inds) == expected
         assert (type(data) == type(data_test)) == expected
-        assert (data.dtype == torchsig_complex_data_type) == expected
+        assert (data.dtype == TorchSigComplexDataType) == expected
 
 
 @pytest.mark.parametrize("data, params, expected, is_error", [
@@ -1467,7 +1430,7 @@ def test_phase_offset(
         data_restored = data * np.exp(-1j * phase)
         assert (np.allclose(data_restored, data_test, rtol=RTOL)) == expected
         assert (type(data) == type(data_test)) == expected
-        assert (data.dtype == torchsig_complex_data_type) == expected
+        assert (data.dtype == TorchSigComplexDataType) == expected
 
 
 @pytest.mark.parametrize("data, params, expected, is_error", [
@@ -1517,7 +1480,7 @@ def test_quantize(
         )
 
         assert type(data) == type(expected)
-        assert data.dtype == torchsig_complex_data_type
+        assert data.dtype == TorchSigComplexDataType
 
 
 @pytest.mark.parametrize("data, params, expected, is_error", [
@@ -1577,11 +1540,10 @@ def test_shadowing(
         assert (p_value > 0.05) == expected
         assert (len(data) == len(data_test)) == expected
         assert (type(data) == type(data_test)) == expected
-        assert (data.dtype == torchsig_complex_data_type) == expected
+        assert (data.dtype == TorchSigComplexDataType) == expected
 
 
 @pytest.mark.parametrize("data, expected, is_error", [
-    (0, AttributeError, True),
     (deepcopy(TEST_DATA), True, False)
 ])
 def test_spectral_inversion(
@@ -1613,7 +1575,7 @@ def test_spectral_inversion(
         assert np.allclose(data.real, test_real, RTOL) == expected
         assert np.allclose(data.imag, -test_imag, RTOL) == expected
         assert (type(data) == type(data_test)) == expected
-        assert (data.dtype == torchsig_complex_data_type) == expected
+        assert (data.dtype == TorchSigComplexDataType) == expected
 
 
 @pytest.mark.parametrize("data, params, expected, is_error", [
@@ -1777,6 +1739,67 @@ def test_spectrogram_drop_samples(
         assert (spec_data.dtype == spec_test.dtype) == expected
 
 
+@pytest.mark.parametrize("data, params, expected, is_error", [
+    (
+        TEST_DATA, 
+        {'sample_rate': 1, 'center_freqs': [-0.3, 0.1], 'relative_power_db': [5, 10]},
+        TEST_DATA,
+        False
+    ),
+    (
+        TEST_DATA, 
+        {'sample_rate': 1, 'center_freqs': [-3, 2], 'relative_power_db': [5, 10]},
+        ValueError,
+        True
+    ),
+    (
+        TEST_DATA, 
+        {'sample_rate': 1, 'center_freqs': [-3], 'relative_power_db': [5, 10]},
+        ValueError,
+        True
+    ),
+])
+def test_spurs(
+    data: Any,
+    params: dict,
+    expected: np.ndarray | TypeError | ValueError, 
+    is_error: bool
+    ) -> None:
+    """Test the spurs functional with pytest.
+
+    Args:
+        data (Any): Data input, nominally np.ndarray.
+        params (dict): Function call parameters (see description).
+        expected (np.ndarray | TypeError | ValueError): Expected test result.
+        is_error (bool): Is a test error expected.
+
+    Raises:
+        AssertionError: If unexpected test outcome.
+
+    """ 
+    sample_rate = params['sample_rate']
+    center_freqs = params['center_freqs']
+    relative_power_db = params['relative_power_db']
+
+    if is_error:
+        with pytest.raises(expected):      
+            data = spurs(
+                data,
+                sample_rate  = sample_rate,
+                center_freqs = center_freqs,
+                relative_power_db = relative_power_db
+            )
+    else:
+        data = spurs(
+            data,
+            sample_rate  = sample_rate,
+            center_freqs = center_freqs,
+            relative_power_db = relative_power_db
+        )
+
+        assert data.dtype == TorchSigComplexDataType
+
+
 @pytest.mark.parametrize("data, expected, is_error", [
     (0, ValueError, True),
     (deepcopy(TEST_DATA), True, False)
@@ -1807,7 +1830,7 @@ def test_time_reversal(
 
         assert np.allclose(data, np.flip(data_test, axis=0), RTOL) == expected
         assert (type(data) == type(data_test)) == expected
-        assert (data.dtype == torchsig_complex_data_type) == expected
+        assert (data.dtype == TorchSigComplexDataType) == expected
 
 
 @pytest.mark.parametrize("data, params, expected, is_error", [
@@ -1823,7 +1846,7 @@ def test_time_reversal(
         True
     ),
     (
-        np.zeros(1024, dtype=torchsig_complex_data_type),
+        np.zeros(1024, dtype=TorchSigComplexDataType),
         {
             'noise_power_low' : 3.0, 
             'noise_power_high': 3.0,
@@ -1884,5 +1907,6 @@ def test_time_varying_noise(
         power_est = np.mean(np.abs(data)**2)
         assert (abs(power_est - noise_power_high_linear) < 1E-1) == expected
         assert (type(data) == type(data_test)) == expected
-        assert (data.dtype == torchsig_complex_data_type) == expected
+        assert (data.dtype == TorchSigComplexDataType) == expected
+
 

@@ -10,14 +10,12 @@ import torch
 from pathlib import Path
 import pickle
 
-# common reference for the complex data type to allow for
-# standardization across the different algorithms
-torchsig_complex_data_type = np.complex64
+from typing import Any
 
-# common reference for the float data type to allow for
-# standardization across the different algorithms
-torchsig_float_data_type = np.float32
 
+# data types to be used internally within torchsig
+TorchSigComplexDataType = np.complex64
+TorchSigRealDataType = np.float32
 
 def slice_tail_to_length(input_signal:np.ndarray, num_samples:int) -> np.ndarray:
     """Slices the tail of a signal
@@ -200,6 +198,9 @@ def upconversion_anti_aliasing_filter(input_signal:np.ndarray, center_freq:float
     # apply BPF
     output = convolve(input_signal,bpf_weights)
 
+    # convert data type
+    output = output.astype(TorchSigComplexDataType)
+
     return output, box_center_freq, box_bandwidth
 
 
@@ -214,7 +215,7 @@ def is_even(number):
     Returns:
         bool: Returns true if number is even, false if number is odd
     """
-    return np.mod(number,2) == 0
+    return not np.mod(number,2)
 
 def is_odd(number):
     """Is the number odd?
@@ -336,7 +337,7 @@ def design_half_band_filter(stage_number:int=0, passband_percentage:float=0.8, a
     cutoff = sample_rate/4
     fpass = cutoff * passband_percentage / (2**stage_number)
     transition_bandwidth = 2*(cutoff - fpass)
-    fstop = fpass + transition_bandwidth
+    #fstop = fpass + transition_bandwidth
   
     # initial filter length estimation 
     filter_length_estim = estimate_filter_length(transition_bandwidth,attenuation_db,sample_rate)
@@ -565,11 +566,21 @@ def prototype_polyphase_filter (num_branches:int, attenuation_db:float=120) -> n
     cutoff = sample_rate/(2*num_branches)
     transition_bandwidth = sample_rate/(2*num_branches)
 
+    # sub-directory name for pfb filter weights
+    pfb_weights_directory_name = "pfb_weights"
+
+    # set up path to pfb filter weights
+    pfb_weights_directory_path = Path(__file__).parent.absolute().joinpath(pfb_weights_directory_name)
+
+    # does the sub-directory exist? if not, create it
+    if not pfb_weights_directory_path.exists():
+        pfb_weights_directory_path.mkdir(parents=True, exist_ok=True)
+
     # formating for the weights filename
     pfb_weights_filename = f'torchsig_{torchsig_version}_pfb_weights_num_branches_{num_branches}_attenuation_db_{attenuation_db:0.0f}.pkl'
 
     # create path to weights file
-    path_to_file = Path(__file__).parent.absolute().joinpath(pfb_weights_filename)
+    path_to_file = pfb_weights_directory_path.joinpath(pfb_weights_filename)
 
     # does weights file exist?
     weights_exist_boolean = path_to_file.is_file()
@@ -577,16 +588,11 @@ def prototype_polyphase_filter (num_branches:int, attenuation_db:float=120) -> n
     # can the weights be loaded? possibility of corrupted file
     # if CTRL+C exit during write, or other misc file corruption.
     design_weights_boolean = True
-    if (weights_exist_boolean):
-        try:
-            # read from file
-            filter_weights = read_pickle ( path_to_file )
-            # overwrite the default value of boolean, no need to recompute
-            design_weights_boolean = False
-        except:
-            # do nothing here. design_weights_boolean already has the correct
-            # value and will be acted upon in next if() statement
-            pass
+    if weights_exist_boolean:
+        # read from file
+        filter_weights = read_pickle ( path_to_file )
+        # overwrite the default value of boolean, no need to recompute
+        design_weights_boolean = False       
 
     # design and save new weights if the file does not exist OR the file read failed
     if (not weights_exist_boolean or design_weights_boolean):
@@ -597,12 +603,38 @@ def prototype_polyphase_filter (num_branches:int, attenuation_db:float=120) -> n
 
     return filter_weights
 
-def read_pickle ( path_to_file ):
+def read_pickle (path_to_file: str) -> Any:
+    """
+    Reads an object from a pickle file.
+
+    Args:
+        path_to_file (str): The path to the pickle file to be read.
+
+    Returns:
+        Any: The object loaded from the pickle file.
+
+    Raises:
+        FileNotFoundError: If the specified file does not exist.
+        pickle.UnpicklingError: If there is an error during the unpickling process.
+    """
     with open(path_to_file, 'rb') as handle:
         obj = pickle.load(handle)
     return obj
 
-def write_pickle ( obj, path_to_file ):
+def write_pickle (obj: Any, path_to_file: str) -> None:
+    """
+    Writes an object to a pickle file.
+
+    Args:
+        obj (Any): The object to be pickled and written to the file.
+        path_to_file (str): The path where the pickle file will be saved.
+
+    Returns:
+        None: This function does not return any value.
+
+    Raises:
+        IOError: If there is an error writing to the file.
+    """
     with open(path_to_file, 'wb') as handle:
         pickle.dump(obj, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
@@ -827,7 +859,7 @@ def frequency_shift(signal:np.ndarray, frequency:float, sample_rate:float) -> np
         np.ndarray: The frequency shifted signal
     """
     # build mixer
-    mixer = np.exp(2j*np.pi*(frequency/sample_rate)*np.arange(0,len(signal)))
+    mixer = np.exp(2j*np.pi*(frequency/sample_rate)*np.arange(0,len(signal))).astype(TorchSigComplexDataType)
     return signal*mixer
 
 def compute_spectrogram(
@@ -861,7 +893,7 @@ def compute_spectrogram(
         # number of zeros to be padded
         num_zeros = fft_size-len(iq_samples)
         # form the zero array
-        zero_padding = np.zeros(num_zeros,dtype=torchsig_complex_data_type)
+        zero_padding = np.zeros(num_zeros,dtype=TorchSigComplexDataType)
         # put zeros at the end
         iq_samples_formatted = np.concatenate((iq_samples,zero_padding))
     else:
@@ -884,7 +916,7 @@ def compute_spectrogram(
     epsilon = np.max(np.max(np.abs(spectrogram_linear_numpy)))*np.sqrt(1e-20)
 
     # find the zero locations, and replace them with tiny values
-    zero_ind_rows, zero_ind_cols = np.where(spectrogram_linear_numpy == 0)
+    zero_ind_rows, zero_ind_cols = np.where(np.equal(spectrogram_linear_numpy,0))
     spectrogram_linear_numpy[zero_ind_rows,zero_ind_cols] = epsilon
 
     # convert to dB
@@ -926,10 +958,14 @@ def convolve(signal: np.ndarray, taps: np.ndarray) -> np.ndarray:
     """
 
     filtered = sp.convolve(signal, taps, mode='full')
+    if len(taps) == 2:
+        return filtered[1:]
     if is_even(len(taps)): # even-length filter
         slice_length = int(len(taps)/2)
-    else: # odd-length filter
-        slice_length = int((len(taps)-1)/2)
+        return filtered[slice_length:-slice_length+1]
+    
+    # odd-length filter
+    slice_length = int((len(taps)-1)/2)
     return filtered[slice_length:-slice_length]
 
 def low_pass(cutoff: float, transition_bandwidth: float, sample_rate:float, attenuation_db:float=120) -> np.ndarray:
@@ -975,7 +1011,7 @@ def estimate_filter_length(transition_bandwidth: float, attenuation_db:float, sa
     filter_length = int(np.round((sample_rate / transition_bandwidth) * (attenuation_db / 22)))
 
     # odd-length filters are desirable because they do not introduce a half-sample delay
-    if np.mod(filter_length, 2) == 0:
+    if np.equal(np.mod(filter_length, 2),0):
         filter_length += 1
 
     return filter_length
@@ -1040,7 +1076,33 @@ def gaussian_taps(samples_per_symbol: int, bt: float = 0.35) -> np.ndarray:
 
 
 def low_pass_iterative_design(cutoff:float, transition_bandwidth:float, sample_rate:float, desired_attenuation_db:float=120)-> np.ndarray:
+    """
+    Iteratively designs a low-pass filter using the window method, adjusting the filter length 
+    to meet the desired stopband attenuation.
 
+    The filter design process starts with an initial filter design, and then iteratively increases 
+    the filter length based on the measured stopband attenuation. This process continues until 
+    the desired stopband attenuation is achieved or the maximum number of iterations is reached.
+
+    Args:
+        cutoff (float): The cutoff frequency of the low-pass filter (in Hz).
+        transition_bandwidth (float): The transition bandwidth of the filter (in Hz).
+        sample_rate (float): The sample rate of the system (in Hz).
+        desired_attenuation_db (float, optional): The desired stopband attenuation in decibels (dB). 
+                                                  Defaults to 120 dB.
+
+    Returns:
+        np.ndarray: The designed low-pass filter coefficients.
+
+    Raises:
+        Warning: If the filter design process exceeds the maximum number of iterations, 
+                a warning is raised and the initial filter design is returned.
+
+    Notes:
+        The iterative design process adjusts the filter length based on the ratio of 
+        desired and measured stopband attenuation. If the process doesn't converge 
+        within a reasonable number of iterations, the initial design is returned.
+    """
     # estimate the filter length
     filter_length = estimate_filter_length( transition_bandwidth, desired_attenuation_db, sample_rate)
     #print('filter length = ' + str(filter_length))
@@ -1062,14 +1124,14 @@ def low_pass_iterative_design(cutoff:float, transition_bandwidth:float, sample_r
             fs=sample_rate,
         )
 
-        # hold onto the initial filter design in case the design
-        if iterations == 0:
-            lpf_init = copy(lpf)
+        # # hold onto the initial filter design in case the design
+        # if not iterations:
+        #     lpf_init = copy(lpf)
 
         # get FFT of filter from 0 to fs/2
         fft_size = 4096
         fft_linear = np.abs(np.fft.fftshift(np.fft.fft(lpf,fft_size*2)))
-        fft_linear[np.where(fft_linear == 0)[0]] = 1e-15 # replace all zeros with tiny value
+        fft_linear[np.where(np.equal(fft_linear,0))[0]] = 1e-15 # replace all zeros with tiny value
         fft_db = 20*np.log10(fft_linear)
         fft_db = fft_db[fft_size:]
         f = np.linspace(0,0.5,fft_size)*sample_rate
@@ -1079,7 +1141,7 @@ def low_pass_iterative_design(cutoff:float, transition_bandwidth:float, sample_r
         
         # find the closest bin matching the stopband edge
         stopband_bin = np.argmin(np.abs(stopband_freq_init - f)) 
-        stopband_freq = f[stopband_bin]
+        #stopband_freq = f[stopband_bin]
 
         # get the maximum sidelobe level from stopband to fs/2
         measured_attenuation_db = np.abs(np.max(fft_db[stopband_bin:]))
@@ -1087,7 +1149,7 @@ def low_pass_iterative_design(cutoff:float, transition_bandwidth:float, sample_r
         if iterations > max_iterations:
             # hit too many iterations, exit to avoid infinite loop
             raise Warning('low_pass_iterative_design has trouble converging, using initial design.')
-            return lpf_init
+            #return lpf_init
  
         if desired_attenuation_db  > measured_attenuation_db:
             # the filter is below speed and needs an increase to filter length
@@ -1124,7 +1186,7 @@ def low_pass_iterative_design(cutoff:float, transition_bandwidth:float, sample_r
 
 
 def noise_generator(
-    N: int = 1024,
+    num_samples: int = 1024,
     power: float = 1.0,
     color: str = 'white',
     continuous: bool = True,
@@ -1133,6 +1195,7 @@ def noise_generator(
     """Generates additive complex noise of specified power and type.
 
     Args:
+        num_samples (int): number of noise samples to generate. Default to 1024
         power (float): Desired noise power (linear, positive). Defaults to 1.0 W (0 dBW).
         color (str): Noise color, supports 'white', 'pink', or 'red' noise frequency spectrum types. Defaults to 'white'.
         continuous (bool): Sets noise to continuous (True) or impulsive (False). Defaults to True.
@@ -1146,36 +1209,36 @@ def noise_generator(
         np.ndarray: Complex noise samples with specified power.
     
     """
-    if not power >= 0.:
-         raise ValueError(f"Noise power must be greater than or equal to 0.")
+    if power < 0.:
+        raise ValueError("Noise power must be greater than or equal to 0.")
 
     if continuous:
-        noise_source = (   rng.standard_normal((N,), dtype=torchsig_float_data_type) + 
-                        1j*rng.standard_normal((N,), dtype=torchsig_float_data_type)) / np.sqrt(2) # continous white noise (1.0 W)
+        noise_source = (   rng.standard_normal((num_samples,), dtype=TorchSigRealDataType) + 
+                        1j*rng.standard_normal((num_samples,), dtype=TorchSigRealDataType)) / np.sqrt(2) # continous white noise (1.0 W)
     else: # impulsive
-        noise_source = np.zeros((N,), dtype=torchsig_complex_data_type)
-        impulse_ind = rng.integers(0,N,dtype=int)   # random impulse location
+        noise_source = np.zeros((num_samples,), dtype=TorchSigComplexDataType)
+        impulse_ind = rng.integers(0,num_samples,dtype=int)   # random impulse location
         noise_source[impulse_ind] = (1 + 1j) / np.sqrt(2) # impulse 1.0 W
 
-    X_white = np.fft.fft(noise_source, norm="ortho") # frequency domain noise 1.0 W
+    x_white = np.fft.fft(noise_source, norm="ortho") # frequency domain noise 1.0 W
 
     # frequency domain shaping filter
-    freqs = np.fft.fftfreq(N) # sample frequencies 
+    freqs = np.fft.fftfreq(num_samples) # sample frequencies 
     if color == 'white': # flat frequency spectrum
-        S = 1
-        #S = np.ones((N,))
-        #S = S / np.sqrt(np.mean(S**2)) 
+        s = 1
+        #s = np.ones((N,))
+        #s = s / np.sqrt(np.mean(s**2)) 
     elif color == 'pink': # 1/f (flicker noise), -10 db/decade frequency power spectrum
-        S = 1/np.where(freqs == 0, float('inf'), np.sqrt(np.abs(freqs))) # zero-mean (DC=0) 
-        S = S / np.sqrt(np.mean(S**2)) # RMS normalize shaping filter (estimated)
+        s = 1/np.where(np.equal(freqs,0), float('inf'), np.sqrt(np.abs(freqs))) # zero-mean (DC=0) 
+        s = s / np.sqrt(np.mean(s**2)) # RMS normalize shaping filter (estimated)
     elif color == 'red': # 1/f**2 (brownian noise), -20 dB/decade frequency power spectrum
-        S = 1/np.where(freqs == 0, float('inf'), np.abs(freqs)) # zero-mean (DC=0)
-        S = S / np.sqrt(np.mean(S**2)) # RMS normalize shaping filter (estimated)
+        s = 1/np.where(np.equal(freqs,0), float('inf'), np.abs(freqs)) # zero-mean (DC=0)
+        s = s / np.sqrt(np.mean(s**2)) # RMS normalize shaping filter (estimated)
     else:
         raise ValueError(f"Invalid noise type {type}. Must be 'white', 'pink', or 'red'.")
     
-    X_shaped = S * X_white 
-    noise = np.fft.ifft(X_shaped, norm="ortho")
+    x_shaped = s * x_white 
+    noise = np.fft.ifft(x_shaped, norm="ortho")
     est_power = np.sum(np.abs(noise)**2)/len(noise)
     noise = np.sqrt(power / est_power) * noise 
     return noise
