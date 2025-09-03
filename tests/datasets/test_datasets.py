@@ -15,7 +15,6 @@ from torchsig.utils.dsp import TorchSigRealDataType
 import numpy as np
 import matplotlib.pyplot as plt
 from tqdm import tqdm
-import zarr
 import shutil
 import pytest
 
