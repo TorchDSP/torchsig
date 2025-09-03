@@ -44,7 +44,6 @@ dependencies = [
     "numcodecs==0.13.1",
     "opencv-python==4.8.0.74",
     "jupyter_bbox_widget",
-
     # Testing, CI/CD
     "pytest",
     "pylint",
