@@ -17,7 +17,6 @@ from torchsig.transforms.target_transforms import (
 
 # Third Party
 from tqdm import tqdm
-import zarr
 
 # Built-In
 import cProfile
