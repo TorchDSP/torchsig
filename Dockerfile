@@ -1,26 +1,75 @@
-FROM nvcr.io/nvidia/pytorch:24.06-py3
+# +----------------------------------------------------------------------------+
+# |                       Stage 1: Builder (with CUDA Toolkit)                |
+# +----------------------------------------------------------------------------+
+FROM nvidia/cuda:12.1.0-devel-ubuntu22.04 AS builder
+WORKDIR /workspace
 
-ENV DEBIAN_FRONTEND=noninteractive
+# +----------------------------------------------------------------------------+
+# | Install system build tools, Python headers, pip and Git                   |
+# +----------------------------------------------------------------------------+
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+      build-essential \          
+      curl \                    
+      libffi-dev libssl-dev \      
+      python3.10 python3-pip \      
+      git && \                       
+    rm -rf /var/lib/apt/lists/*     
 
-RUN apt-get update && apt-get install -y \
-    git \ 
-    zsh \ 
-    ssh \
-    rsync \
-    libgl1-mesa-glx
+# +----------------------------------------------------------------------------+
+# | Install rustup and set up latest stable Rust (>=1.81)                     |
+# +----------------------------------------------------------------------------+
+ENV RUSTUP_HOME=/usr/local/rustup \
+    CARGO_HOME=/usr/local/cargo \
+    PATH=/usr/local/cargo/bin:$PATH
 
+RUN curl https://sh.rustup.rs -sSf | sh -s -- -y --default-toolchain stable \
+    && rustc --version           
 
+# +----------------------------------------------------------------------------+
+# | Upgrade pip and install Python packaging tools (setuptools-rust, wheel)    |
+# +----------------------------------------------------------------------------+
+RUN python3 -m pip install --upgrade pip setuptools setuptools-rust wheel
 
-ADD torchsig/ /build/torchsig
+# +----------------------------------------------------------------------------+
+# | Copy the entire project into the builder image                             |
+# +----------------------------------------------------------------------------+
+COPY . .
 
-ADD pyproject.toml /build/pyproject.toml
+# +----------------------------------------------------------------------------+
+# | Install TorchSig (builds the Rust extension in-place)                     |
+# +----------------------------------------------------------------------------+
+RUN pip install . --no-cache-dir
 
-RUN pip3 install -e /build
+# +============================================================================+
+# |                Stage 2: Runtime (CUDA Runtime Only)                       |
+# +============================================================================+
+FROM nvidia/cuda:12.1.0-runtime-ubuntu22.04
+WORKDIR /workspace
 
-RUN pip3 install notebook jupyterlab==4.2.3
-RUN pip3 install jupyterlab_theme_solarized_dark
-RUN pip3 install ipywidgets
+# +----------------------------------------------------------------------------+
+# | Install minimal system libraries required at runtime (e.g., OpenCV deps)   |
+# +----------------------------------------------------------------------------+
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+      libgl1 \   
+      libsm6 \   
+      libxrender1 \
+      libxext6 && \ 
+    rm -rf /var/lib/apt/lists/*
 
-WORKDIR /workspace/code
+# +----------------------------------------------------------------------------+
+# | Copy installed Python packages from builder into runtime image             |
+# +----------------------------------------------------------------------------+
+COPY --from=builder /usr/local/lib/python3.10/dist-packages/ \
+                     /usr/local/lib/python3.10/dist-packages/
 
-ADD examples/ /workspace/code/examples
+# +----------------------------------------------------------------------------+
+# | (Optional) Copy source/tests/scripts if you need them in the runtime       |
+# +----------------------------------------------------------------------------+
+COPY --from=builder /workspace /workspace
+
+# +----------------------------------------------------------------------------+
+# | Default to bash for interactive GPU testing                                |
+# +----------------------------------------------------------------------------+
+CMD ["bash"]

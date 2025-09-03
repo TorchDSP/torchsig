@@ -1,8 +1,7 @@
 Signals
 ======================
 
-Synthetic signal creation tools and builders used by both :class:`torchsig.datasets.wideband.NewWideband` 
-and :class:`torchsig.datasets.narrowband.NewNarrowband` for dataset creation.
+Synthetic signal creation tools and builders used by :class:`torchsig.datasets.datasets.TorchSigIterableDataset` for dataset creation.
 
 .. contents:: Signals
     :local:

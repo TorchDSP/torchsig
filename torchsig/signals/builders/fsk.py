@@ -9,7 +9,7 @@ from torchsig.utils.dsp import (
     pad_head_tail_to_length,
     slice_head_tail_to_length,
     slice_tail_to_length,
-    torchsig_complex_data_type
+    TorchSigComplexDataType
 )
 from torchsig.signals.signal_lists import TorchSigSignalLists
 
@@ -80,7 +80,7 @@ def get_fsk_mod_index( class_name:str, rng=np.random.default_rng() ) -> float:
             # ... or something else (non-orthogonal). include
             # a modulation index both less than 1 and greater
             # than 1 to train over a variety of parameters
-            mod_idx = rng.uniform(0.7,1.1)
+            mod_idx = rng.uniform(0.7,1.01)
     return mod_idx
 
 def gaussian_taps(samples_per_symbol: int, bt:float, rng=np.random.default_rng()) -> np.ndarray:
@@ -209,7 +209,7 @@ def fsk_modulator ( class_name:str, bandwidth:float, sample_rate:float, num_samp
     max_num_samples = int(np.floor(num_samples/resample_rate_ideal))
 
     # ensures a minimum number of samples
-    if (max_num_samples < oversampling_rate_nominal):
+    if max_num_samples < oversampling_rate_nominal:
         max_num_samples = copy(oversampling_rate_nominal)
 
     # modulate the baseband signal
@@ -228,7 +228,7 @@ def fsk_modulator ( class_name:str, bandwidth:float, sample_rate:float, num_samp
         fsk_correct_bw = pad_head_tail_to_length ( fsk_correct_bw, num_samples )
 
     # convert into the appropriate data type
-    fsk_correct_bw = fsk_correct_bw.astype(torchsig_complex_data_type)
+    fsk_correct_bw = fsk_correct_bw.astype(TorchSigComplexDataType)
 
     return fsk_correct_bw
 
@@ -257,7 +257,7 @@ class FSKSignalBuilder(SignalBuilder):
     def _update_data(self) -> None:
         """Creates the IQ samples for the FSK waveform based on the signal metadata fields.
         """        
-        # wideband params
+        # dataset params
         sample_rate = self.dataset_metadata.sample_rate
 
         # signal params

@@ -84,7 +84,6 @@ def utoascii(text):
         return ''
     out = text.encode('ascii', 'replace')
     # swig will require us to replace blackslash with 4 backslashes
-    # TODO: evaluate what this should be for pybind11
     out = out.replace(b'\\', b'\\\\\\\\')
     out = out.replace(b'"', b'\\"').decode('ascii')
     return str(out)
@@ -313,7 +312,7 @@ def sub_docstring_in_pydoc_h(pydoc_files, docstrings_dict, output_dir, filter_st
                         status_file.write("PASS: " + pydoc_file + "\n")
                 except KeyboardInterrupt:
                     raise KeyboardInterrupt
-                except:  # be permissive, TODO log, but just leave the docstring blank
+                except:  # be permissive, but just leave the docstring blank
                     status_file.write("FAIL: " + pydoc_file + "\n")
                     file_in = file_in_tmp
 

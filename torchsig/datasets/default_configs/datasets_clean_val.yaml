@@ -1,0 +1,19 @@
+# wideband 3-5 signals
+# clean, train
+required:
+  num_iq_samples_dataset: 1048576 # 1024^2
+  fft_size: 1024
+  num_signals_max: 5
+  impairment_level: 0
+
+overrides:
+  num_samples: 5700 # 5.7k
+  sample_rate: 100000000 # 100e6
+  num_signals_min: 3
+  num_signals_distribution: null
+  snr_db_min: 0.0
+  snr_db_max: 50.0
+  impairment_level: 0
+  class_list: all
+  class_distribution: uniform
+  seed: 123456789

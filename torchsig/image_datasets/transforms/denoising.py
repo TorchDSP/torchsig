@@ -26,8 +26,8 @@ def isolate_foreground_signal(image, filter_strength=0):
     '''
     test_hsv = cv2.cvtColor(cv2.cvtColor((image[0]*255).int().numpy().astype(np.uint8), cv2.COLOR_GRAY2BGR), cv2.COLOR_BGR2HSV)
     lower = np.array([0, 0, 0])
-    upper = np.array([360, 255, int(255/2)]) # hand tuned, HARD CODED # TODO hard coded considered harmful :(
-    upper = np.array([360, 255, int(255/2) - filter_strength]) # HARD CODED # TODO hard coded considered harmful :(
+    upper = np.array([360, 255, int(255/2)]) # hand tuned, HARD CODED 
+    upper = np.array([360, 255, int(255/2) - filter_strength]) # HARD CODED 
 
     mask = cv2.inRange(test_hsv, lower, upper)
 

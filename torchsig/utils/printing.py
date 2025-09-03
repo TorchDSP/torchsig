@@ -55,7 +55,8 @@ def generate_repr_str(class_object: Any, exclude_params: List[str] = []) -> str:
     
     # remove any exclude params
     for r in exclude_params:
-        class_dict.pop(r)
+        if r in class_dict:
+            class_dict.pop(r)
 
     if isinstance(class_object, Seedable):
         # remove Seedable params
@@ -105,9 +106,7 @@ def dataset_metadata_str(
         ```
         MyClass
         ----------------------------------------------------------------------------------------------------
-        num_iq_samples_dataset            1000       
-        num_samples                       5000       
-        impairment_level                  0.8       
+        num_iq_samples_dataset            1000        
         fft_size                          512       
         sample_rate                       1000.0    
         num_signals_min                   1         
@@ -120,9 +119,7 @@ def dataset_metadata_str(
         signal_bandwidth_min              10
         signal_bandwidth_max              100
         signal_center_freq_min            -10
-        signal_center_freq_max            10
-        transforms                        [TransformA, TransformB]   
-        target_transforms                 [TargetTransform1]       
+        signal_center_freq_max            10    
         class_list                        [Class1, Class2, Class3]    
         class_distribution                [0.3, 0.4, 0.3]       
         seed                               42         
@@ -153,26 +150,10 @@ def dataset_metadata_str(
         subsequent_indent= f"{' ' * array_width_indent}",
     )[first_col_width:]
 
-    transform_str = textwrap.fill(
-        f"{dataset_metadata.transforms}",
-        width = max_width,
-        initial_indent= f"{' ' * first_col_width}",
-        subsequent_indent= f"{' ' * array_width_indent}",
-    )[first_col_width:]
-
-    target_transform_str = textwrap.fill(
-        f"{dataset_metadata.target_transforms}",
-        width = max_width,
-        initial_indent= f"{' ' * first_col_width}",
-        subsequent_indent= f"{' ' * array_width_indent}",
-    )[first_col_width:]
-
     return (
         f"\n{dataset_metadata.__class__.__name__}\n"
         f"{'-' * max_width}\n"
         f"{'num_iq_samples_dataset':<29} {dataset_metadata.num_iq_samples_dataset:<10}\n"
-        f"{'num_samples':<29} {dataset_metadata.num_samples}\n" 
-        f"{'impairment_level':<29} {dataset_metadata.impairment_level}\n" 
         f"{'fft_size':<29} {dataset_metadata.fft_size}\n"
         f"{'sample_rate':<29} {dataset_metadata.sample_rate}\n" 
         f"{'num_signals_min':<29} {dataset_metadata.num_signals_min}\n"
@@ -185,9 +166,7 @@ def dataset_metadata_str(
         f"{'signal_bandwidth_min':<29} {dataset_metadata.signal_bandwidth_min}\n" 
         f"{'signal_bandwidth_max':<29} {dataset_metadata.signal_bandwidth_max}\n" 
         f"{'signal_center_freq_min':<29} {dataset_metadata.signal_center_freq_min}\n" 
-        f"{'signal_center_freq_max':<29} {dataset_metadata.signal_center_freq_max}\n" 
-        f"{'transforms':<29} {transform_str}\n" 
-        f"{'target_transforms':<29} {target_transform_str}\n" 
+        f"{'signal_center_freq_max':<29} {dataset_metadata.signal_center_freq_max}\n"
         f"{'class_list':<29} {class_list_str}\n" 
         f"{'class_distribution':<29} {class_distribution_str}\n" 
         ####f"{'seed':<29} {dataset_metadata.rng_seed}\n"   
@@ -229,12 +208,7 @@ def dataset_metadata_repr(
             f"signal_bandwidth_max={dataset_metadata.signal_bandwidth_max}," 
             f"signal_center_freq_min={dataset_metadata.signal_center_freq_min}," 
             f"signal_center_freq_max={dataset_metadata.signal_center_freq_max}," 
-            f"transforms={dataset_metadata.transforms}," 
-            f"target_transforms={dataset_metadata.target_transforms}," 
-            f"impairment_level={dataset_metadata.impairment_level}," 
             f"class_list={dataset_metadata.class_list}," 
-            f"class_distribution={None if dataset_metadata.class_distribution is None else dataset_metadata.class_distribution.tolist()}," 
-            f"num_samples={dataset_metadata.num_samples}," 
-            f"dataset_type={dataset_metadata.dataset_type}," 
+            f"class_distribution={None if dataset_metadata.class_distribution is None else dataset_metadata.class_distribution.tolist()}"
         f")"
     )

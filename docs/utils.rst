@@ -17,10 +17,9 @@ Digital Signal Processing Utils
     :show-inheritance:
 
 
-Dataset Utils
+Data Coordinate System
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-.. automodule:: torchsig.utils.generate
+.. automodule:: torchsig.utils.coordinate_system
     :members:
     :undoc-members:
     :show-inheritance:
@@ -32,6 +31,13 @@ Reading/Writing Utils
 Writer
 -------------------------------------
 .. automodule:: torchsig.utils.writer
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+Data Loading
+-------------------------------------
+.. automodule:: torchsig.utils.data_loading
     :members:
     :undoc-members:
     :show-inheritance:
@@ -50,7 +56,7 @@ File Handlers
     :undoc-members:
     :show-inheritance:
 
-.. automodule:: torchsig.utils.file_handlers.zarr
+.. automodule:: torchsig.utils.file_handlers.hdf5
     :members:
     :undoc-members:
     :show-inheritance:
