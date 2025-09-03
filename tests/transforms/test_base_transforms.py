@@ -9,11 +9,10 @@ from torchsig.transforms.base_transforms import (
     RandomApply,
     RandAugment
 )
-from torchsig.signals.signal_types import Signal, DatasetSignal
-from torchsig.utils.dsp import torchsig_complex_data_type
+from torchsig.signals.signal_types import Signal
+from torchsig.utils.dsp import TorchSigComplexDataType
 from test_transforms_utils import (
     generate_test_signal,
-    generate_test_dataset_signal
 )
 
 # Third Party
@@ -23,10 +22,9 @@ from copy import deepcopy
 import pytest
 
 
-AnySignal = Signal | DatasetSignal
+AnySignal = Signal
 RTOL = 1E-6
 TEST_SIGNAL = generate_test_signal(num_iq_samples = 64, scale = 1.0)
-TEST_DS_SIGNAL = generate_test_dataset_signal(num_iq_samples = 64, scale = 1.0)
 
 
 @pytest.mark.parametrize("is_error", [False])
@@ -49,7 +47,6 @@ def test_Transform(is_error: bool) -> None:
 @pytest.mark.parametrize("signal, params, expected, is_error", [
     (deepcopy(TEST_SIGNAL), {'transforms' :  ['invalid_transform']}, AttributeError, True),
     (deepcopy(TEST_SIGNAL), {'transforms' :  [lambda x: x]}, True, False),
-    (deepcopy(TEST_DS_SIGNAL), {'transforms' :  []}, True, False)
 ])
 def test_Compose(
     signal: AnySignal,
@@ -87,7 +84,7 @@ def test_Compose(
         assert isinstance(signal, AnySignal)
         assert type(signal) == type(signal_test)
         assert type(signal.data) == type(signal_test.data)
-        assert signal.data.dtype == torchsig_complex_data_type
+        assert signal.data.dtype == TorchSigComplexDataType
         assert np.allclose(signal.data, signal_test.data, RTOL) == expected
 
 
@@ -102,12 +99,6 @@ def test_Compose(
         deepcopy(TEST_SIGNAL),
         lambda x: x*42.0,
         generate_test_signal(num_iq_samples=64, scale=42.0),
-        False
-    ),
-    (
-        deepcopy(TEST_DS_SIGNAL),
-        lambda x: x*0.42,
-        generate_test_dataset_signal(num_iq_samples=64, scale=0.42),
         False
     ),
 
@@ -145,7 +136,7 @@ def test_Lambda(
         assert isinstance(signal, AnySignal)
         assert type(signal) == type(signal_test)
         assert type(signal.data) == type(signal_test.data)
-        assert signal.data.dtype == torchsig_complex_data_type
+        assert signal.data.dtype == TorchSigComplexDataType
         assert np.allclose(signal.data, expected.data, RTOL)
 
 
@@ -160,12 +151,6 @@ def test_Lambda(
         generate_test_signal(num_iq_samples=64, scale=42.0),
         {'norm': 2, 'flatten': False},
         TEST_SIGNAL,
-        False
-    ),
-    (
-        generate_test_dataset_signal(num_iq_samples=64, scale=0.42),
-        {'norm': 2, 'flatten': False},
-        TEST_DS_SIGNAL,
         False
     ),
 ])
@@ -209,7 +194,7 @@ def test_Normalize(
         assert isinstance(signal, AnySignal)
         assert type(signal) == type(signal_test)
         assert type(signal.data) == type(signal_test.data)
-        assert signal.data.dtype == torchsig_complex_data_type
+        assert signal.data.dtype == TorchSigComplexDataType
         assert np.allclose(signal.data, expected.data, RTOL) 
 
 
@@ -224,12 +209,6 @@ def test_Normalize(
         generate_test_signal(num_iq_samples=64, scale=42.0),
         {'transform': Normalize(), 'probability': 0.0},
         generate_test_signal(num_iq_samples=64, scale=42.0),
-        False
-    ),
-    (
-        generate_test_dataset_signal(num_iq_samples=64, scale=0.42),
-        {'transform': Normalize(), 'probability': 1.0},
-        TEST_DS_SIGNAL,
         False
     ),
 ])
@@ -273,7 +252,7 @@ def test_RandomApply(
         assert isinstance(signal, AnySignal)
         assert type(signal) == type(signal_test)
         assert type(signal.data) == type(signal_test.data)
-        assert signal.data.dtype == torchsig_complex_data_type
+        assert signal.data.dtype == TorchSigComplexDataType
 
 
 @pytest.mark.parametrize("signal, params, expected, is_error", [
@@ -297,16 +276,6 @@ def test_RandomApply(
         TEST_SIGNAL,
         False
     ),
-    (
-        generate_test_dataset_signal(num_iq_samples=64, scale=0.42),
-        {
-            'transforms': [Normalize()],
-            'choose': 1,
-            'replace': True,
-        }, 
-        TEST_DS_SIGNAL,
-        False
-    ),    
 ])
 def test_RandAugment(
     signal: AnySignal, 
@@ -353,6 +322,6 @@ def test_RandAugment(
         assert isinstance(signal, AnySignal)
         assert type(signal) == type(signal_test)
         assert type(signal.data) == type(signal_test.data)
-        assert signal.data.dtype == torchsig_complex_data_type
+        assert signal.data.dtype == TorchSigComplexDataType
         assert np.allclose(signal.data, expected.data, RTOL)
 

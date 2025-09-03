@@ -11,11 +11,9 @@ __all__ = [
     "verify_list",
     "verify_numpy_array",
     "verify_transforms",
-    "verify_target_transforms",
+    "verify_metadata_transforms",
     "verify_dict"
 ]
-
-# TorchSig
 
 # Third Party
 import numpy as np
@@ -26,7 +24,7 @@ from collections import Counter
 
 if TYPE_CHECKING:
     from torchsig.transforms.base_transforms import Transform
-    from torchsig.transforms.target_transforms import TargetTransform
+    from torchsig.transforms.target_transforms import MetadataTransform
 
 def verify_bounds(
     a: float | int,
@@ -205,7 +203,7 @@ def verify_str(
 
     
     if len(valid) > 0 and s not in valid:
-        raise ValueError(f"Invalid {name}. Must be in {valid}")
+        raise ValueError(f"Invalid {name}: {s}. Must be in {valid}")
 
     return s
 
@@ -330,9 +328,17 @@ def verify_numpy_array(
         raise ValueError(f"{name} is not required length {exact_length}: {len(n)}")
     
     if data_type is not None:
-        for i,item in enumerate(n):
-            if not isinstance(item, data_type):
-                raise ValueError(f"{name}[{i}] is not correct dtype {data_type}: {type(item)}")
+        item = n[0]
+        if not isinstance(item, data_type):
+            raise ValueError(f"{name}[0] is not correct dtype {data_type}: {type(item)}")
+
+    # check for np.nan's
+    if np.isnan(n).any():
+        raise ValueError('Data contains one or more NaN np.nan values.')
+
+    # check for np.inf's
+    if np.isinf(n).any():
+        raise ValueError('Data contains one or more np.inf values.')
 
     return n
 
@@ -403,27 +409,26 @@ def verify_transforms(
     
     return t
 
-def verify_target_transforms(
-    tt: TargetTransform
-) -> List[TargetTransform | Callable]:
+def verify_metadata_transforms(
+    tt: MetadataTransform
+) -> List[MetadataTransform | Callable]:
     """
     Verifies that the value `tt` is a valid target transform, which can be a single target transform or a list of transforms.
 
     Args:
-        tt (TargetTransform): The target transform(s) to be checked.
+        tt (MetadataTransform): The target transform(s) to be checked.
 
     Raises:
         ValueError: If `tt` is not a valid target transform.
 
     Returns:
-        List[TargetTransform | Callable]: The verified list of target transforms.
+        List[MetadataTransform | Callable]: The verified list of target transforms.
     """
-    from torchsig.transforms.target_transforms import TargetTransform
-
+    from torchsig.transforms.metadata_transforms import MetadataTransform
     if tt is None:
         return []
     # convert target transforms to list
-    if isinstance(tt, TargetTransform):
+    if isinstance(tt, MetadataTransform):
         tt = [tt]
     elif not isinstance(tt, list):
         raise ValueError(f"target transforms is not a list: {type(tt)}")

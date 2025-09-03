@@ -20,9 +20,10 @@ Examples
         >>> new_composite_signal = csb.build()
 """
 
+from __future__ import annotations
+
 # TorchSig
 from torchsig.signals.signal_types import Signal, SignalMetadata
-from torchsig.datasets.dataset_metadata import DatasetMetadata
 from torchsig.utils.random import Seedable
 from torchsig.utils.dsp import compute_spectrogram
 
@@ -33,8 +34,10 @@ import numpy as np
 from abc import ABC, abstractmethod
 from copy import copy
 import os
+from typing import TYPE_CHECKING
 
-DIR_PATH = os.path.dirname(os.path.realpath(__file__))
+if TYPE_CHECKING:
+    from torchsig.datasets.dataset_metadata import DatasetMetadata
 
 
 
@@ -48,6 +51,7 @@ class Builder(ABC):
         """Initialize builder, reset.
         """
         self.name = name
+        self._signal = None
 
     @abstractmethod
     def build(self) -> Signal:
@@ -91,11 +95,13 @@ class SignalBuilder(Builder, Seedable):
             ValueError: Signal builder does not support class_name signal.
         """
         self.class_name = class_name
+        self._signal = None
         Builder.__init__(self, name=f" {self.class_name} Signal Builder")
         
         Seedable.__init__(self, **kwargs)
         # retains dataset metadata info
         self.dataset_metadata = dataset_metadata
+        
         
 
         if not self.class_name in self.supported_classes:
@@ -225,10 +231,15 @@ class SignalBuilder(Builder, Seedable):
             # given duration, start is randomly set from 0 to rightmost time that the duration still fits inside the dataset iq samples
             start = self.random_generator.integers(low=0, high=self.dataset_metadata.num_iq_samples_dataset-duration,dtype=int)
 
-        # randomly set bandwidth between a minimum and max
-        bw = self.random_generator.uniform(self.dataset_metadata.signal_bandwidth_min,self.dataset_metadata.signal_bandwidth_max)
-        # center frequency always zero, will be randomized within the Narrowband() or Wideband() datasets themselves
-        # due to the need to apply impairments at complex baseband first before upconversion to the IF
+        # randomly set bandwidth between a minimum and max. use a log10-scaling on the
+        # randomization there can be a large difference between the min and max bandwidth
+        bw_min_log10 = np.log10(self.dataset_metadata.signal_bandwidth_min)
+        bw_max_log10 = np.log10(self.dataset_metadata.signal_bandwidth_max)
+        bw = 10**(self.random_generator.uniform(bw_min_log10,bw_max_log10))
+
+        # center frequency always zero, will be randomized within dataset
+        # due to the need to apply impairments at complex baseband first 
+        # before upconversion to the IF
         center_freq = 0
         # randomly select SNR
         snr_db = np.round(self.random_generator.uniform(self.dataset_metadata.snr_db_min,self.dataset_metadata.snr_db_max),1)

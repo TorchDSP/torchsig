@@ -1,4 +1,4 @@
-"""Base Transforms
+"""Base and Utility Transforms
 """
 
 from __future__ import annotations
@@ -14,7 +14,7 @@ __all__ = [
 
 # TorchSig
 import torchsig.transforms.functional as F
-from torchsig.signals.signal_types import Signal, DatasetSignal
+from torchsig.signals.signal_types import Signal, SignalMetadata, SignalMetadataExternal
 from torchsig.utils.random import Seedable
 from torchsig.utils.printing import generate_repr_str
 
@@ -27,42 +27,103 @@ class Transform(ABC, Seedable):
     """Transform abstract class.
     """
     def __init__(
-        self, 
-        measure=None,
+        self,
+        required_metadata: List[str] = [],
         **kwargs
     ):      
         """Transform initialization as Seedable.
         """
-        self.measure = measure  # optional measurement mode
+        # what metadata fields are requried for target transform to be applied
+        self.required_metadata = required_metadata
+
         Seedable.__init__(self, **kwargs)
 
-    def update(self, signal: Signal | DatasetSignal) -> None:   
-        """Update bookeeping for signals
+    def __validate__(
+        self, 
+        signal: Signal | SignalMetadata | SignalMetadataExternal
+    ) -> Signal | SignalMetadata | SignalMetadataExternal:
+        """Validates signal or metadata before applying transform
 
         Args:
-            signal (Signal | DatasetSignal): signal to update metadata.
+            signal (Signal | SignalMetadata): Signal to be validated.
 
         Raises:
-            NotImplementedError: Inherited classes must override this method.
-        """         
+            NotImplementedError: Subclasses must implement this method.
+
+        Returns:
+            Signal | SignalMetadata: Validated signal.
+        """        
         raise NotImplementedError
 
-    def __call__(self, signal: Signal | DatasetSignal) -> Signal | DatasetSignal:
-        """Performs transforms
+    def __update__(self, signal: Signal | SignalMetadata | SignalMetadataExternal) -> None:
+        """Updates bookeeping for signals
 
         Args:
-            signal (Any): Signal to be transformed.
+            signal (Signal | SignalMetadata): signal to update metadata.
+        """        
+       
+        if isinstance(signal, Signal):
+            # Signal object
+            if signal is None:
+                raise ValueError(f"Invalid signal object to update in transform {self.__class__.__name__}. Signal is None: {signal}")
+            #elif signal.metadata is None and len(signal.component_signals) > 1:
+            #    # signal has no metadata
+            #    raise ValueError(f"Invalid signal object to update in transform {self.__class__.__name__}. Signal has no metadata: {signal.metadata}, {signal.component_signals}")
+            
+            if signal.metadata is None:
+                # update component signals
+                for cs in signal.component_signals:
+                    cs.metadata.applied_transforms.append(self)
+            else:
+                # update signal metadata
+                signal.metadata.applied_transforms.append(self)
+
+            
+
+        elif isinstance(signal, (SignalMetadata, SignalMetadataExternal)):
+            # SignalMetadata or SignalMetadataExternal object
+            if signal is None:
+                raise ValueError(f"Invalid signal metadata object to update in transform {self.__class__.__name__}. Signal metadata is None: {signal}")
+            signal.applied_transforms.append(self)
+        else:
+            raise ValueError(f"Invalid signal metadata object to update in transform {self.__class__.__name__}. Must be Signal or SignalMetadata/SignalMetadataExternal, not {type(signal)}.")
+
+    def __apply__(
+        self, 
+        signal: Signal | SignalMetadata | SignalMetadataExternal
+    ) -> Signal | SignalMetadata | SignalMetadataExternal:  
+        """Performs transform
+
+        Args:
+            signal (Signal | SignalMetadata): Signal to be transformed.
+
+        Raises:
+            NotImplementedError: Subclasses must implement this method.
+
+        Returns:
+            Signal | SignalMetadata: Transformed signal.
+        """     
+        raise NotImplementedError
+
+    def __call__(
+        self, 
+        signal: Signal | SignalMetadata
+    ) -> Signal | SignalMetadata | SignalMetadataExternal:
+        """Validate signal, performs transform, update bookeeping
+
+        Args:
+            signal (Signal | SignalMetadata): Signal to be transformed.
 
         Raises:
             NotImplementedError: Inherited classes must override this method.
 
         Returns:
-            Any: Transformed Signal.
+            Signal | SignalMetadata: Transformed Signal.
             
         """
         raise NotImplementedError
 
-    def __str__(self) -> str:
+    def __str__(self) -> str:  
         return f"{self.__class__.__name__}"
 
     def __repr__(self) -> str:   
@@ -90,7 +151,7 @@ class Compose(Transform):
             if isinstance(t, Seedable):
                 t.add_parent(self)
 
-    def __call__(self, signal: Signal | DatasetSignal) -> Signal | DatasetSignal:
+    def __call__(self, signal: Signal) -> Signal:
         for t in self.transforms:
             signal = t(signal)
         return signal
@@ -116,7 +177,7 @@ class Lambda(Transform):
         super().__init__(**kwargs)
         self.func = func
 
-    def __call__(self, signal: Signal | DatasetSignal) -> Signal | DatasetSignal:
+    def __call__(self, signal: Signal) -> Signal:
         signal.data = self.func(signal.data)
         return signal
 
@@ -141,19 +202,13 @@ class Normalize(Transform):
         self,
         norm: Optional[int | float | Literal["fro", "nuc"]] = 2,
         flatten: bool = False,
-        seed: int = None,
         **kwargs
     ) -> None:
-        super().__init__(seed=seed, **kwargs)
+        super().__init__(**kwargs)
         self.norm = norm
         self.flatten = flatten
-    
-    # def __repr__(self) -> str:
-    #     r = super().__repr__()
-    #     r = r.replace("inf", "np.inf")
-    #     return r
 
-    def __call__(self, signal: Signal | DatasetSignal) -> Signal | DatasetSignal:
+    def __call__(self, signal: Signal) -> Signal:
         if self.flatten:
             signal.data = signal.data.reshape(signal.data.size)
         
@@ -185,7 +240,7 @@ class RandomApply(Transform):
         if isinstance(self.transform, Seedable):
             self.transform.add_parent(self)
 
-    def __call__(self, signal: Signal | DatasetSignal) -> Signal | DatasetSignal:
+    def __call__(self, signal: Signal) -> Signal:
         if self.random_generator.random() < self.probability:
             return self.transform(signal)
         return signal
@@ -207,10 +262,9 @@ class RandAugment(Transform):
         transforms: List[Transform], 
         choose: int = 2, 
         replace: bool = False,
-        seed:int = None,
         **kwargs
     ):
-        super().__init__(seed=seed, **kwargs)
+        super().__init__(**kwargs)
         self.transforms = transforms
         for transform in self.transforms:
             if isinstance(transform, Seedable):
@@ -218,7 +272,7 @@ class RandAugment(Transform):
         self.choose = choose
         self.replace = replace
 
-    def __call__(self, signal: Signal | DatasetSignal) -> Signal | DatasetSignal:
+    def __call__(self, signal: Signal) -> Signal:
         chosen_transforms_idx = self.random_generator.choice(
             len(self.transforms),
             size=self.choose,

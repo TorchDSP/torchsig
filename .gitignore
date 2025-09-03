@@ -4,7 +4,7 @@ __pycache__/
 build/
 checkpoints/
 lightning_logs/
-dist/
+#dist/
 **.ipynb_checkpoints**
 **.pytest_cache
 *.benchmarks/
@@ -28,12 +28,22 @@ dist/
 **.pytest_cache
 **.zarr
 **.yaml
+**.out
+
+# Rust
+rust_functions/target
+rust_functions/Cargo.lock
+**/*.rs.bk
+**.so
+**.bak
+
 
 # TorchSig
 torchsig.egg-info
 !torchsig/datasets/default_consfigs
 !torchsig/datasets/default_configs/*
 !requirements.txt
+torchsig/utils/pfb_weights
 
 # keep license docs
 !**LICENSE.txt
@@ -53,6 +63,8 @@ examples/*
 examples/datasets
 !examples/old_examples
 !examples/*.ipynb
+!examples/transforms
+!examples/transforms/*.ipynb
 !examples/*.py
 !examples/*.yaml
 !examples/diagrams
@@ -70,3 +82,37 @@ tools/examples/datasets/yolo_annotation_data/annotated_yolo_sample_images
 **.coverage
 **coverage.xml
 **report.xml
+
+# Assistant Files
+.claude/
+CLAUDE.md
+SESSION_NOTES.md
+datasets/
+
+
+# Additional ignores to ensure these stay out
+rust_fft/target/
+**/node_modules/
+datasets/
+*.h5
+*.conflict
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg

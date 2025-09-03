@@ -1,28 +1,27 @@
-"""TorchSig Dataset generation code for command line
+"""TorchSig Dataset generation code for command line.
 """
 
 # TorchSig
 from torchsig.datasets.dataset_metadata import DatasetMetadata
-from torchsig.datasets.narrowband import NewNarrowband
-from torchsig.datasets.wideband import NewWideband
+from torchsig.datasets.datasets import TorchSigIterableDataset
 from torchsig.utils.writer import DatasetCreator
 
 # Third Party
+from torch.utils.data import DataLoader
 
-# Built-In
-
-# generates a dataset, writes to disk
 def generate(
     root: str,
     dataset_metadata: DatasetMetadata,
     batch_size: int,
     num_workers: int,
+    transforms: list = [],
+    target_labels: list = None,
+    
 ):
     """Generates and saves a dataset to disk.
 
-    This function selects the dataset type ('narrowband' or 'wideband') based 
-    on the provided metadata and then calls the `DatasetCreator` class to 
-    generate the dataset and save it to disk. It writes the dataset in batches 
+    This function calls the `DatasetCreator` class to generate the 
+    dataset and save it to disk. It writes the dataset in batches 
     using the specified batch size and number of workers.
 
     Args:
@@ -37,18 +36,22 @@ def generate(
         ValueError: If the dataset type is unknown or invalid.
     """
     
-    create_dataset = None
-    if dataset_metadata.dataset_type == "narrowband":
-        create_dataset = NewNarrowband(dataset_metadata=dataset_metadata)
-    elif dataset_metadata.dataset_type == "wideband":
-        create_dataset = NewWideband(dataset_metadata=dataset_metadata)
+    create_dataset = TorchSigIterableDataset(
+        dataset_metadata=dataset_metadata,
+        transforms=transforms,
+        target_labels=target_labels
+    )
 
-    creator = DatasetCreator(
-        dataset=create_dataset,
-        root = root,
-        overwrite = True,
+    create_loader = DataLoader(
+        dataset = create_dataset,
         batch_size=batch_size,
         num_workers=num_workers
+    )
+
+    creator = DatasetCreator(
+        dataloader=create_loader,
+        root = root,
+        overwrite = True,
     )
     creator.create()
 
