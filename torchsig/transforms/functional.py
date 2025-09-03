@@ -1,19 +1,24 @@
-"""Functional transforms for reuse and custom fine-grained control
+"""Functional transforms for reuse and custom fine-grained control.
 """
-from typing import Literal, Optional, Tuple
+from typing import Literal, Optional
 
 # TorchSig
 import torchsig.utils.dsp as dsp
 from torchsig.utils.dsp import (
-    torchsig_complex_data_type,
-    torchsig_real_data_type
+    is_even,
+    multistage_polyphase_resampler,
+    prototype_polyphase_filter,
+    TorchSigComplexDataType,
+    TorchSigRealDataType
 )
 
+from torchsig.utils.rust_functions import sampling_clock_impairments
+
 # Third Party
-import scipy
-from scipy import signal as sp
 import numpy as np
-from scipy.constants import c
+from scipy import signal as sp
+from scipy.constants import c as speed_of_light
+from scipy.interpolate import interp1d as sp_interp1d
 import cv2
 from copy import copy
 
@@ -25,11 +30,12 @@ __all__ = [
     "carrier_frequency_drift",
     "carrier_phase_noise",
     "channel_swap",
+    "clock_jitter",
     "coarse_gain_change",
     "cochannel_interference",
     "complex_to_2d",
     "cut_out",
-    "digital_agc"    
+    "digital_agc",    
     "doppler",
     "drop_samples",
     "fading",
@@ -71,7 +77,7 @@ def add_slope(
     """  
     slope = np.diff(data)
     slope = np.insert(slope, 0, 0)
-    return (data + slope).astype(torchsig_complex_data_type)
+    return (data + slope).astype(TorchSigComplexDataType)
 
 
 def additive_noise(
@@ -94,9 +100,9 @@ def additive_noise(
         np.ndarray: Data with complex noise samples with specified power added.
     
     """
-    N = len(data)
-    noise_samples = dsp.noise_generator(N, power, color, continuous, rng)
-    return (data + noise_samples).astype(torchsig_complex_data_type)
+    n = len(data)
+    noise_samples = dsp.noise_generator(n, power, color, continuous, rng)
+    return (data + noise_samples).astype(TorchSigComplexDataType)
 
 
 def adjacent_channel_interference(
@@ -129,11 +135,11 @@ def adjacent_channel_interference(
         np.ndarray: Data with added adjacent interference.
     
     """
-    N = len(data)
-    t = np.arange(N) / sample_rate
+    n = len(data)
+    t = np.arange(n) / sample_rate
 
-    data_filtered = np.convolve(data, filter_weights)[-N:] # band limit original data (maintain data size)
-    phase_noise = rng.normal(0, phase_sigma, N)  # Gaussian phase noise
+    data_filtered = np.convolve(data, filter_weights)[-n:] # band limit original data (maintain data size)
+    phase_noise = rng.normal(0, phase_sigma, n)  # Gaussian phase noise
     interference = data_filtered * np.exp(1j*(2*np.pi*center_frequency*t + phase_noise)) # note: does not check aliasing
 
     time_shift = int(np.round(rng.normal(0, time_sigma, 1))[0]) # Gaussian block time shift for data (nearest sample)
@@ -148,7 +154,7 @@ def adjacent_channel_interference(
     est_power = np.sum(np.abs(interference)**2)/len(interference)
     interference = np.sqrt(power / est_power) * interference 
 
-    return (data + interference).astype(torchsig_complex_data_type)
+    return (data + interference).astype(TorchSigComplexDataType)
 
 
 def awgn(data: np.ndarray, 
@@ -177,7 +183,7 @@ def awgn(data: np.ndarray,
 
     real_noise = rng.standard_normal(*data.shape)
     imag_noise = rng.standard_normal(*data.shape)
-    return (data + (10.0 ** (noise_power_db / 20.0)) * (real_noise + 1j * imag_noise) / np.sqrt(2)).astype(torchsig_complex_data_type)
+    return (data + (10.0 ** (noise_power_db / 20.0)) * (real_noise + 1j * imag_noise) / np.sqrt(2)).astype(TorchSigComplexDataType)
 
 
 def channel_swap(
@@ -197,7 +203,148 @@ def channel_swap(
     new_data = np.empty(data.shape, dtype=data.dtype)
     new_data.real = imag_component
     new_data.imag = real_component
-    return new_data.astype(torchsig_complex_data_type)
+    return new_data.astype(TorchSigComplexDataType)
+
+
+def clock_drift(
+    data: np.ndarray,
+    drift_ppm: float = 10,
+    rng: np.random.Generator = np.random.default_rng(seed=None)
+) -> np.ndarray:
+    """Clock drift from a Local Oscillator (LO), modeled as accumulated gaussian random noise impacting the
+    sampling rate. The drift applies a randomness to the sampling rate, and by accumulating the gaussian RV 
+    over time it will slightly increase or decrease the sampling rate of the data, and thereby changing the
+    number of samples by a very small number.
+
+    Args:
+        data (np.ndarray): Complex valued IQ data samples.
+        drift_ppm(float): Clock drift in parts per million (ppm). Default 10.
+        rng (np.random.Generator): Random number generator. Defaults to np.random.default_rng(seed=None).
+
+    Returns:
+        np.ndarray: Data with LO drift applied.
+    
+    """
+    rng = rng if rng else np.random.default_rng()
+
+    # enforce data to be the correct complex type
+    data = data.astype(TorchSigComplexDataType)
+
+    # create a random seed for rust
+    rust_seed = rng.integers(low=0,high=2**32)
+
+    # define up/down rates
+    uprate=5000
+    downrate=copy(uprate)
+
+    # build the prototype filter
+    pfb_prototype_filter = prototype_polyphase_filter(num_branches=uprate)
+
+    # convert to real data type
+    pfb_prototype_filter = pfb_prototype_filter.astype(TorchSigRealDataType)
+
+    # call the impairment
+    data_with_drift = sampling_clock_impairments(h=pfb_prototype_filter,x=data,
+        uprate=uprate,drate=downrate,jitter_ppm=0,drift_ppm=drift_ppm,seed=rust_seed)
+
+    # discard extra samples from resampling process, or zero-pad if too short
+    num_samples_to_discard = len(data_with_drift)-len(data)
+
+    if (num_samples_to_discard > 0):
+        if (is_even(num_samples_to_discard)):
+            slice_front = num_samples_to_discard//2
+            slice_back = num_samples_to_discard//2
+        else:
+            slice_front = (num_samples_to_discard+1)//2
+            slice_back = num_samples_to_discard//2
+        data_with_drift = data_with_drift[slice_front:-slice_back]
+    else:
+        # calculate number of zeros to pad
+        num_samples_to_pad = len(data)-len(data_with_drift)
+        if (is_even(num_samples_to_pad)):
+            pad_front = num_samples_to_pad//2
+            pad_back = num_samples_to_pad//2
+        else:
+            pad_front = (num_samples_to_pad+1)//2
+            pad_back = num_samples_to_pad//2
+        data_with_drift = np.concatenate((np.zeros(pad_front),data_with_drift,np.zeros(pad_back)))
+
+    # ensure data type
+    data_with_drift = data_with_drift.astype(TorchSigComplexDataType)
+
+    return data_with_drift
+
+
+def clock_jitter(
+    data: np.ndarray,
+    jitter_ppm: float = 10,
+    rng: np.random.Generator = np.random.default_rng(seed=None)
+) -> np.ndarray:
+    """Clock jitter from a Local Oscillator (LO), modeled as gaussian random noise impacting the
+    sampling phase. The jitter applies a randomness to the sampling phase, applying a slight
+    increment or decrement to the sampling phase and therefore potentially changing the number of
+    samples by a very small number.
+
+    Args:
+        data (np.ndarray): Complex valued IQ data samples.
+        jitter_ppm(float): Jitter in parts per million (ppm). Default 10.
+        rng (np.random.Generator): Random number generator. Defaults to np.random.default_rng(seed=None).
+
+    Returns:
+        np.ndarray: Data with LO drift applied.
+    
+    """
+    rng = rng if rng else np.random.default_rng()
+
+    # enforce data to be the correct complex type
+    data = data.astype(TorchSigComplexDataType)
+
+    # create a random seed for rust
+    rust_seed = rng.integers(low=0,high=2**32)
+
+    # define up/down rates
+    uprate=5000
+    downrate=copy(uprate)
+
+    # build the prototype filter
+    pfb_prototype_filter = prototype_polyphase_filter(num_branches=uprate)
+
+    # convert to real data type
+    pfb_prototype_filter = pfb_prototype_filter.astype(TorchSigRealDataType)
+
+    # call the impairment
+    data_with_jitter = sampling_clock_impairments(h=pfb_prototype_filter,x=data,
+        uprate=uprate,drate=downrate,jitter_ppm=jitter_ppm,drift_ppm=0,seed=rust_seed)
+
+    # discard extra samples from resampling process, or zero-pad if too short
+    num_samples_to_discard = len(data_with_jitter)-len(data)
+
+    if (num_samples_to_discard > 0):
+        if (is_even(num_samples_to_discard)):
+            slice_front = num_samples_to_discard//2
+            slice_back = num_samples_to_discard//2
+        else:
+            slice_front = (num_samples_to_discard+1)//2
+            slice_back = num_samples_to_discard//2
+        data_with_jitter = data_with_jitter[slice_front:-slice_back]
+    else:
+        # calculate number of zeros to pad
+        num_samples_to_pad = len(data)-len(data_with_jitter)
+        if (is_even(num_samples_to_pad)):
+            pad_front = num_samples_to_pad//2
+            pad_back = num_samples_to_pad//2
+        else:
+            pad_front = (num_samples_to_pad+1)//2
+            pad_back = num_samples_to_pad//2
+        data_with_jitter = np.concatenate((np.zeros(pad_front),data_with_jitter,np.zeros(pad_back)))
+
+
+    # ensure data type
+    data_with_jitter = data_with_jitter.astype(TorchSigComplexDataType)
+
+    return data_with_jitter
+
+
 
 
 def cochannel_interference(
@@ -222,14 +369,14 @@ def cochannel_interference(
         np.ndarray: Data with added uncorrelated co-channel interference.
     
     """
-    N = len(data)
-    noise_samples = dsp.noise_generator(N, power, color, continuous, rng)
-    shaped_noise = np.convolve(noise_samples, filter_weights)[-N:]
+    n = len(data)
+    noise_samples = dsp.noise_generator(n, power, color, continuous, rng)
+    shaped_noise = np.convolve(noise_samples, filter_weights)[-n:]
     
     # correct shaped noise power (do not assume filter is prescaled)
     est_power = np.sum(np.abs(shaped_noise)**2)/len(shaped_noise)
     interference = np.sqrt(power / est_power) * shaped_noise 
-    return (data + interference).astype(torchsig_complex_data_type)
+    return (data + interference).astype(TorchSigComplexDataType)
 
 
 def coarse_gain_change(
@@ -255,7 +402,7 @@ def coarse_gain_change(
     output_data = copy(data)
     output_data[start_idx:] *= gain_change_linear
 
-    return output_data.astype(torchsig_complex_data_type)
+    return output_data.astype(TorchSigComplexDataType)
 
 
 def complex_to_2d(data: np.ndarray) -> np.ndarray:
@@ -334,7 +481,7 @@ def cut_out(
     # Insert cut mask into data
     data[cut_start : cut_start + cut_mask_length] = cut_mask
 
-    return data.astype(torchsig_complex_data_type)
+    return data.astype(TorchSigComplexDataType)
 
 def digital_agc(
     data: np.ndarray,
@@ -393,44 +540,37 @@ def digital_agc(
         gain_db += diff_db * alpha_adjust
         output[sample_idx] = data[sample_idx] * np.exp(gain_db)
 
-    return output.astype(torchsig_complex_data_type)
+    return output.astype(TorchSigComplexDataType)
 
 
 def doppler(
     data: np.ndarray,
     velocity: float = 1e1,
-    propagation_speed: float = c,
-    sampling_rate: float = 1.0
+    propagation_speed: float = speed_of_light
 ) -> np.ndarray:
-    """Applies Doppler effect through time scaling.
+    """Applies wideband Doppler effect through time scaling.
 
     Args:
         data (np.ndarray): Complex valued IQ data samples.
         velocity (float): Relative velocity in m/s (positive = approaching). Default 10 m/s.
-        propagation_speed (float): Wave speed in medium. Default 2.9979e8 m/s.
-        sampling_rate (float): Data sampling rate. Default 1.0.
+        propagation_speed (float): Wave speed in medium. Default 2.9979e8 m/s (speed_of_light).
 
     Returns:
-        np.ndarray: Data with Doppler.
+        np.ndarray: Data with wideband Doppler.
 
     """
-    N = data.size
+    n = data.size
     
     # time scaling factor
     alpha = propagation_speed / (propagation_speed - velocity)
 
-    # original and scaled signal sample times
-    t_orig = np.arange(N) / sampling_rate
-    t_new = t_orig * alpha
+    # if necessary, pad with zeros to maintain size
+    if alpha > 1.0:
+        num_zeros = int(np.ceil(n*(alpha - 1)) + 1)
+        data = np.concatenate((data, np.zeros(num_zeros)))
 
-    # prevent extrapolation beyond original signal duration
-    t_new = np.clip(t_new, 0, t_orig[-1])
-
-    # numpy default interpolator
-    interp_real = np.interp(t_new, t_orig, data.real)
-    interp_imag = np.interp(t_new, t_orig, data.imag)
-    data = interp_real + 1j*interp_imag
-    return (data).astype(torchsig_complex_data_type)
+    data = multistage_polyphase_resampler(data, 1/alpha)[:n]
+    return data.astype(TorchSigComplexDataType)
 
 
 def drop_samples(
@@ -491,7 +631,7 @@ def drop_samples(
         
         data[start:stop] = drop_region
 
-    return data.astype(torchsig_complex_data_type)
+    return data.astype(TorchSigComplexDataType)
 
 
 def fading(
@@ -535,8 +675,8 @@ def fading(
 
     # Linear interpolate taps by a factor of 100 -- so we can get accurate coherence bandwidths
     old_time = np.linspace(0, 1.0, num_taps, endpoint=True)
-    real_tap_function = scipy.interpolate.interp1d(old_time, rayleigh_taps.real)
-    imag_tap_function = scipy.interpolate.interp1d(old_time, rayleigh_taps.imag)
+    real_tap_function = sp_interp1d(old_time, rayleigh_taps.real)
+    imag_tap_function = sp_interp1d(old_time, rayleigh_taps.imag)
 
     new_time = np.linspace(0, 1.0, 100 * num_taps, endpoint=True)
     rayleigh_taps = real_tap_function(new_time) + 1j * imag_tap_function(new_time)
@@ -548,7 +688,7 @@ def fading(
     output_power = np.linalg.norm(data)
     data = np.multiply(input_power / output_power, data).astype(np.complex64)
 
-    return data.astype(torchsig_complex_data_type)
+    return data.astype(TorchSigComplexDataType)
 
 
 def intermodulation_products(
@@ -570,15 +710,15 @@ def intermodulation_products(
         np.ndarray: IQ data with local IMD products.
         
     """
-    if (coeffs.size == 0):
+    if np.equal(coeffs.size,0):
         raise IndexError('Coeffs has length zero.')
 
     model_order = coeffs.size
-    distorted_data = np.zeros(len(data),dtype=torchsig_complex_data_type)
+    distorted_data = np.zeros(len(data),dtype=TorchSigComplexDataType)
 
     # only odd-order distortion products are relevant local contributors
     for i in range(0, model_order, 1):
-        if (i > 0 and np.mod(i,2) == 1 and coeffs[i] != 0.0):
+        if i > 0 and np.equal(np.mod(i,2),1) and not np.equal(coeffs[i],0.0):
             raise ValueError('Even-order coefficients must be zero.')
 
         i_order_distortion = (np.abs(data) ** (i)) * data
@@ -591,7 +731,7 @@ def intermodulation_products(
     output_power = np.max(np.abs(np.fft.fft(distorted_data*win)))
     distorted_data *= input_power/output_power
     
-    return distorted_data.astype(torchsig_complex_data_type)
+    return distorted_data.astype(TorchSigComplexDataType)
 
 
 def iq_imbalance(
@@ -627,7 +767,7 @@ def iq_imbalance(
     data_fft_linear = np.abs(np.fft.fft(data))
     # apply smoothing
     avg_len = int(len(data_fft_linear)/8)
-    if (np.mod(avg_len,2) == 0):
+    if np.equal(np.mod(avg_len,2),0):
         avg_len += 1
     avg = np.ones(avg_len)/avg_len
     data_fft_linear = sp.convolve(data_fft_linear,avg)[avg_len:-avg_len]
@@ -648,7 +788,7 @@ def iq_imbalance(
     # add DC offset to signal
     data += dc_offset_tone
 
-    return data.astype(torchsig_complex_data_type)
+    return data.astype(TorchSigComplexDataType)
 
 def interleave_complex(
     data: np.ndarray, 
@@ -667,7 +807,7 @@ def interleave_complex(
     output = np.empty(len(data)*2)
     output[::2] = np.real(data)
     output[1::2] = np.imag(data)
-    return output.astype(torchsig_real_data_type)
+    return output.astype(TorchSigRealDataType)
 
 
 def carrier_frequency_drift(
@@ -687,13 +827,13 @@ def carrier_frequency_drift(
     
     """
     rng = rng if rng else np.random.default_rng()
-    N = data.size
+    n = data.size
 
     # convert drift PPM units
     drift = drift_ppm * 1e-6
 
     # randomize the instantaneous change in frequency
-    frequency_drift = rng.normal(0,drift,N)
+    frequency_drift = rng.normal(0,drift,n)
 
     # accumulate the changes into the frequency
     carrier_phase = np.cumsum(frequency_drift)
@@ -703,7 +843,7 @@ def carrier_frequency_drift(
 
     # apply frequency drift effect
     data = data * drift_effect
-    return data.astype(torchsig_complex_data_type)
+    return data.astype(TorchSigComplexDataType)
 
 
 def carrier_phase_noise(
@@ -723,10 +863,10 @@ def carrier_phase_noise(
     
     """
     rng = rng if rng else np.random.default_rng()
-    N = data.size
+    n = data.size
 
     # generate phase noise with given standard deviation
-    phase_noise_degrees_array = rng.normal(0,phase_noise_degrees,N)
+    phase_noise_degrees_array = rng.normal(0,phase_noise_degrees,n)
 
     # convert to radians
     phase_noise_radians_array = phase_noise_degrees_array * np.pi / 180
@@ -736,7 +876,7 @@ def carrier_phase_noise(
 
     # apply phase noise effect
     data = data * phase_noise_effect
-    return data.astype(torchsig_complex_data_type)
+    return data.astype(TorchSigComplexDataType)
 
 
 def nonlinear_amplifier(
@@ -767,7 +907,7 @@ def nonlinear_amplifier(
         np.ndarray: Nonlinearly distorted IQ data.
         
     """
-    N = len(data)
+    n = len(data)
     magnitude = np.abs(data)
     phase = np.angle(data)
     in_power = magnitude**2
@@ -786,7 +926,7 @@ def nonlinear_amplifier(
     # zero relative phase shift at low power input
     # and approaches phimax phase shift in saturation
     phi_shift = 0.0
-    if not (phi_max == 0.0) and not (phi_slope == 0.0):
+    if not np.equal(phi_max, 0.0) and not np.equal(phi_slope, 0.0):
         phi_slope = np.abs(phi_slope)
 
         # align AM and PM responses
@@ -803,19 +943,19 @@ def nonlinear_amplifier(
     # auto_scale: rescale output power to match full-scale input power
     # by estimating peaks for input and output power
     if auto_scale:
-        win = sp.windows.blackmanharris(N)
+        win = sp.windows.blackmanharris(n)
         input_power = np.max(np.abs(np.fft.fft(data*win)))
         output_power = np.max(np.abs(np.fft.fft(amp_data*win)))
         amp_data *= input_power/output_power
         
-    return amp_data.astype(torchsig_complex_data_type)
+    return amp_data.astype(TorchSigComplexDataType)
 
 
 def nonlinear_amplifier_table(
     data: np.ndarray,
-    Pin: np.ndarray =  10**((np.array([-100., -20., -10.,  0.,  5., 10. ]) / 10)),
-    Pout: np.ndarray = 10**((np.array([ -90., -10.,   0.,  9., 9.9, 10. ]) / 10)),
-    Phi: np.ndarray = np.deg2rad(np.array([0., -2.,  -4.,  7., 12., 23.])),
+    p_in: np.ndarray =  10**((np.array([-100., -20., -10.,  0.,  5., 10. ]) / 10)),
+    p_out: np.ndarray = 10**((np.array([ -90., -10.,   0.,  9., 9.9, 10. ]) / 10)),
+    phi: np.ndarray = np.deg2rad(np.array([0., -2.,  -4.,  7., 12., 23.])),
     auto_scale: bool = False
 ) -> np.ndarray:
     """A nonlinear amplifier (AM/AM, AM/PM) memoryless model that distorts an input
@@ -823,15 +963,15 @@ def nonlinear_amplifier_table(
     provided power input, power output, and phase change data points. 
 
         Default very small model parameters depict a 10 dB gain amplifier with P1dB = 9.0 dBW.
-            Pin =  10**((np.array([-100., -20., -10.,  0.,  5., 10. ]) / 10))
-            Pout = 10**((np.array([ -90., -10.,   0.,  9., 9.9, 10. ]) / 10))
-            Phi = np.deg2rad(np.array([0., -2., -4., 7., 12., 23.]))
+            p_in =  10**((np.array([-100., -20., -10.,  0.,  5., 10. ]) / 10))
+            p_out = 10**((np.array([ -90., -10.,   0.,  9., 9.9, 10. ]) / 10))
+            phi = np.deg2rad(np.array([0., -2., -4., 7., 12., 23.]))
 
     Args:
         data (np.ndarray): Complex valued IQ data samples.
-        Pin (np.ndarray): Model signal power input points. Assumes sorted ascending linear values (Watts).
-        Pout (np.ndarray): Model power out corresponding to Pin points (Watts).
-        Phi (np.ndarray): Model output phase shift values (radians) corresponding to Pin points.
+        p_in (np.ndarray): Model signal power input points. Assumes sorted ascending linear values (Watts).
+        p_out (np.ndarray): Model power out corresponding to p_in points (Watts).
+        phi (np.ndarray): Model output phase shift values (radians) corresponding to p_in points.
         auto_scale (bool): Automatically rescale output power to match full-scale peak 
             input power prior to transform, based on peak estimates. Default False.
 
@@ -842,7 +982,7 @@ def nonlinear_amplifier_table(
         np.ndarray: Nonlinearly distorted IQ data.
         
     """
-    if (len(Pin) != len(Pout)) or (len(Pin) != len(Phi)):
+    if (len(p_in) != len(p_out)) or (len(p_in) != len(phi)):
         raise ValueError('Model array arguments are not the same size.')
 
     magnitude = np.abs(data)
@@ -850,11 +990,11 @@ def nonlinear_amplifier_table(
     
     # amplitude-to-amplitude modulation (AM/AM)
     in_power = magnitude**2
-    out_power = np.interp(in_power, Pin, Pout)
+    out_power = np.interp(in_power, p_in, p_out)
     out_magnitude = out_power**0.5
     
     # amplitude-to-phase modulation (AM/PM)
-    out_phase_shift_rad = np.interp(in_power, Pin, Phi)
+    out_phase_shift_rad = np.interp(in_power, p_in, phi)
 
     amp_data = out_magnitude * np.exp(1j * (phase + out_phase_shift_rad))
     
@@ -866,7 +1006,7 @@ def nonlinear_amplifier_table(
         output_power = np.max(np.abs(np.fft.fft(amp_data*win)))
         amp_data *= input_power/output_power
 
-    return amp_data.astype(torchsig_complex_data_type)
+    return amp_data.astype(TorchSigComplexDataType)
      
 
 def normalize(
@@ -899,7 +1039,7 @@ def normalize(
         return np.multiply(data, 1.0 / norm)
 
     norm = np.linalg.norm(data, norm_order, keepdims=True)
-    return np.multiply(data, 1.0 / norm).astype(torchsig_complex_data_type)
+    return np.multiply(data, 1.0 / norm).astype(TorchSigComplexDataType)
 
 
 def passband_ripple(
@@ -945,13 +1085,13 @@ def passband_ripple(
         # increment counter
         counter += 1
 
-    if (counter >= max_counter):
+    if counter >= max_counter:
         raise ValueError('Passband ripple was unable to meet ripple specs.')
 
     # apply filter
     data = dsp.convolve(data,weights)
 
-    return data.astype(torchsig_complex_data_type)
+    return data.astype(TorchSigComplexDataType)
 
 
 def patch_shuffle(
@@ -988,7 +1128,7 @@ def patch_shuffle(
         rng.shuffle(patch)
         data[patch_start : patch_start + patch_size] = patch
 
-    return data.astype(torchsig_complex_data_type)
+    return data.astype(TorchSigComplexDataType)
 
 
 def phase_offset(
@@ -1006,7 +1146,7 @@ def phase_offset(
         np.ndarray: Data that has undergone a phase rotation.
 
     """
-    return (data * np.exp(1j * phase)).astype(torchsig_complex_data_type)
+    return (data * np.exp(1j * phase)).astype(TorchSigComplexDataType)
 
 def quantize(
     data: np.ndarray,
@@ -1034,7 +1174,7 @@ def quantize(
 
     """
 
-    if (not isinstance(num_bits,int)):
+    if not isinstance(num_bits,int):
         raise ValueError('quantize() num_bits must be an integer.')
 
     # calculate number of levels
@@ -1047,9 +1187,9 @@ def quantize(
     quant_level_distance = quant_levels[1]-quant_levels[0]
 
     # determine threshold levels
-    if (rounding_mode == 'floor'):
+    if rounding_mode == 'floor':
         threshold_levels = quant_levels + (quant_level_distance/2)
-    elif (rounding_mode == 'ceiling'):
+    elif rounding_mode == 'ceiling':
         threshold_levels = quant_levels - (quant_level_distance/2)
     else:
         raise ValueError(f'quantize() rounding mode is: {rounding_mode}, must be ceiling or floor')
@@ -1068,8 +1208,8 @@ def quantize(
     input_signal_scaled = data * ref_level_adjustment_linear / max_value_signal
 
     # quantize real and imag seperately
-    quant_signal_real = np.zeros(len(data),dtype=torchsig_real_data_type)
-    quant_signal_imag = np.zeros(len(data),dtype=torchsig_real_data_type)
+    quant_signal_real = np.zeros(len(data),dtype=TorchSigRealDataType)
+    quant_signal_imag = np.zeros(len(data),dtype=TorchSigRealDataType)
 
     input_signal_scaled_real = input_signal_scaled.real
     input_signal_scaled_imag = input_signal_scaled.imag
@@ -1106,7 +1246,7 @@ def quantize(
     # undo quantization-based scaling
     data_unscaled = quantized_data * max_value_signal / ref_level_adjustment_linear
 
-    return data_unscaled.astype(torchsig_complex_data_type)
+    return data_unscaled.astype(TorchSigComplexDataType)
 
 
 def shadowing(
@@ -1132,7 +1272,7 @@ def shadowing(
     rng = rng if rng else np.random.default_rng()
     power_db = rng.normal(mean_db, sigma_db) # normal distribution in log domain
     data = data * 10 ** (power_db / 20)
-    return data.astype(torchsig_complex_data_type)
+    return data.astype(TorchSigComplexDataType)
 
 
 def spectral_inversion(
@@ -1285,11 +1425,11 @@ def spectrogram_image(
     """
 
     # compute the spectrogram in dB
-    spectrogram_dB = spectrogram(data, fft_size=fft_size, fft_stride=fft_stride)
+    spectrogram_db = spectrogram(data, fft_size=fft_size, fft_stride=fft_stride)
 
     # convert to grey-scale image
-    img = np.zeros((spectrogram_dB.shape[0], spectrogram_dB.shape[1], 3), dtype=np.float32)
-    img = cv2.normalize(spectrogram_dB, img, 0, 255, cv2.NORM_MINMAX)
+    img = np.zeros((spectrogram_db.shape[0], spectrogram_db.shape[1], 3), dtype=np.float32)
+    img = cv2.normalize(spectrogram_db, img, 0, 255, cv2.NORM_MINMAX)
     img = cv2.cvtColor(img.astype(np.uint8), cv2.COLOR_GRAY2BGR)
     
     if black_hot:
@@ -1317,22 +1457,22 @@ def spurs(
     """
 
     # convert center_freqs and relative_power to arrays if received as scalars
-    if (np.isscalar(center_freqs)):
+    if np.isscalar(center_freqs):
         center_freqs_array = np.array([center_freqs])
     else:
         center_freqs_array = center_freqs
 
-    if (np.isscalar(relative_power_db)):
+    if np.isscalar(relative_power_db):
         relative_power_db_array = np.array([relative_power_db])
     else:
         relative_power_db_array = relative_power_db
 
     # error checking
-    if ((np.array(center_freqs_array) >= sample_rate/2).any()):
+    if (np.array(center_freqs_array) >= sample_rate/2).any():
         raise ValueError(f'center_freqs must be < sample rate / 2 = {sample_rate/2}')
-    elif ((np.array(center_freqs_array) <= -sample_rate/2).any()):
+    if (np.array(center_freqs_array) <= -sample_rate/2).any():
         raise ValueError(f'center_freqs must be >= -sample rate / 2 = {-sample_rate/2}')
-    elif (len(relative_power_db_array) != len(center_freqs_array)):
+    if len(relative_power_db_array) != len(center_freqs_array):
         raise ValueError(f'len(center_freqs) = {len(center_freqs_array)}, must be same length as len(relative_power_db) = {len(relative_power_db_array)}')
 
     # create copy of data since it will be modified
@@ -1342,7 +1482,7 @@ def spurs(
     data_fft_db = 20*np.log10(np.abs(np.fft.fft(data)))
     # apply smoothing
     avg_len = int(len(data_fft_db)/8)
-    if (np.mod(avg_len,2) == 0):
+    if np.equal(np.mod(avg_len,2),0):
         avg_len += 1
     avg = np.ones(avg_len)/avg_len
     data_fft_db = sp.convolve(data_fft_db,avg)[avg_len:-avg_len]
@@ -1351,12 +1491,11 @@ def spurs(
     noise_floor_db = np.min(data_fft_db)
 
     # generate spurs
-    for spur_index in range(len(center_freqs_array)):
+    for spur_index, center_freq in enumerate(center_freqs_array):
         # create the spur
-        spur = np.exp(2j*np.pi*(center_freqs_array[spur_index]/sample_rate)*np.arange(0,len(data)))
+        spur = np.exp(2j*np.pi*(center_freq/sample_rate)*np.arange(0,len(data)))
         # compute FFT of spur
         spur_fft_db = 20*np.log10(np.abs(np.fft.fft(spur)))
-        #ax.plot(spur_fft_db)
         # calculate peak value
         spur_max_db = np.max(spur_fft_db)
         # calculate change to set spur power properly
@@ -1367,8 +1506,7 @@ def spurs(
         # add spur to signal
         output += spur
 
-    return output.astype(torchsig_complex_data_type)
-
+    return output.astype(TorchSigComplexDataType)
 
 
 def time_reversal(
@@ -1383,7 +1521,7 @@ def time_reversal(
         np.ndarray: Time flipped IQ data.
 
     """    
-    return np.flip(data, axis=0).astype(torchsig_complex_data_type)
+    return np.flip(data, axis=0).astype(TorchSigComplexDataType)
 
 
 def time_varying_noise(
@@ -1439,7 +1577,7 @@ def time_varying_noise(
             start_power, stop_power, duration
         )
 
-    return ( data + (10.0 ** (noise_power / 20.0)) * (real_noise + 1j * imag_noise) / np.sqrt(2) ).astype(torchsig_complex_data_type)
+    return ( data + (10.0 ** (noise_power / 20.0)) * (real_noise + 1j * imag_noise) / np.sqrt(2) ).astype(TorchSigComplexDataType)
 
 
 

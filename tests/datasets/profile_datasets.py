@@ -32,7 +32,7 @@ impairment_level = 2
 num_signals_max = 10
 num_signals_min = 0
 
-num_samples = 100
+dataset_length = 100
 
 enable_tqdm = True
 
@@ -51,7 +51,7 @@ target_transform = [
 
 def dataset_infinite_generation(transforms = []):
 
-    print(f"\nProfiling infinite dataset for {num_samples} samples..................")
+    print(f"\nProfiling infinite dataset for {dataset_length} samples..................")
 
     print(f"IQ Array Size: {num_iq_samples_dataset}")
     print(f"Impairment Level: {impairment_level}")
@@ -73,7 +73,7 @@ def dataset_infinite_generation(transforms = []):
     dataset = NewTorchSigDataset(dataset_metadata=md)
     
     profiler.enable()
-    for i in tqdm(range(num_samples), disable = not enable_tqdm):
+    for i in tqdm(range(dataset_length), disable = not enable_tqdm):
         data, targets = dataset[i]
     profiler.disable()
     print("Profile done.")
@@ -84,11 +84,11 @@ def dataset_infinite_generation(transforms = []):
     stats.print_stats(20)
 
     total_time = stats.total_tt
-    print(f"Average rate: {num_samples / total_time} samples/sec")
+    print(f"Average rate: {dataset_length / total_time} samples/sec")
 
 def dataset_finite_writing(transforms = []):
 
-    print(f"\nProfiling dataset writing finite dataset for {num_samples} samples..................")
+    print(f"\nProfiling dataset writing finite dataset for {dataset_length} samples..................")
 
     print(f"IQ Array Size: {num_iq_samples_dataset}")
     print(f"Impairment Level: {impairment_level}")
@@ -104,7 +104,7 @@ def dataset_finite_writing(transforms = []):
         impairment_level=impairment_level,
         num_signals_max=num_signals_max,
         num_signals_min=num_signals_min,
-        num_samples=num_samples,
+        dataset_length=dataset_length,
         transforms = transforms,
     )
 
@@ -132,12 +132,12 @@ def dataset_finite_writing(transforms = []):
     stats.print_stats(20)
 
     total_time = stats.total_tt
-    print(f"Average rate: {num_samples / total_time} samples/sec")
+    print(f"Average rate: {dataset_length / total_time} samples/sec")
 
 
 def dataset_finite_reading(transforms = []):
 
-    print(f"\nProfiling dataset reading finite dataset for {num_samples} samples..................")
+    print(f"\nProfiling dataset reading finite dataset for {dataset_length} samples..................")
 
     print(f"IQ Array Size: {num_iq_samples_dataset}")
     print(f"Impairment Level: {impairment_level}")
@@ -156,7 +156,7 @@ def dataset_finite_reading(transforms = []):
 
     profiler.enable()
 
-    for i in tqdm(range(num_samples), disable = not enable_tqdm):
+    for i in tqdm(range(dataset_length), disable = not enable_tqdm):
         data, targets = static_dataset[i]
 
     profiler.disable()
@@ -169,7 +169,7 @@ def dataset_finite_reading(transforms = []):
     stats.print_stats(20)
 
     total_time = stats.total_tt
-    print(f"Average rate: {num_samples / total_time} samples/sec")
+    print(f"Average rate: {dataset_length / total_time} samples/sec")
 
 
 def main():

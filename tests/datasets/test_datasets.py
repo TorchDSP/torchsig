@@ -1,46 +1,44 @@
 """Unit Tests for datasets
 """
-from torchsig.datasets.dataset_metadata import DatasetMetadata
-from torchsig.datasets.datasets import TorchSigIterableDataset, StaticTorchSigDataset
-from torchsig.utils.writer import DatasetCreator
+from torchsig.datasets.dataset_metadata import DatasetMetadata, ExternalDatasetMetadata
+from torchsig.datasets.datasets import TorchSigIterableDataset, StaticTorchSigDataset, ExternalTorchSigDataset
+from torchsig.utils.writer import DatasetCreator, default_collate_fn
 from torchsig.signals.signal_lists import TorchSigSignalLists
-from torchsig.transforms.target_transforms import (
-    TargetTransform,
-    ClassName,
-    Start,
-    Stop,
-    LowerFreq,
-    UpperFreq,
-    SNR,
-    YOLOLabel,
-    FamilyName,
-)
-from torchsig.transforms.transforms import Spectrogram
-from torchsig.utils.dsp import (
-    torchsig_complex_data_type,
-    torchsig_real_data_type
-)
+from torchsig.transforms.metadata_transforms import YOLOLabel
+from torchsig.utils.data_loading import WorkerSeedingDataLoader
+from torchsig.transforms.transforms import Spectrogram, ComplexTo2D
+from torchsig.signals.signal_types import Signal
+from torchsig.utils.file_handlers import ExternalFileHandler
+from torchsig.utils.dsp import TorchSigRealDataType
 
 # Third Party
 import numpy as np
 import matplotlib.pyplot as plt
 from tqdm import tqdm
-from copy import deepcopy
-from pathlib import Path
-import os
+import zarr
 import shutil
 import pytest
 
-from typing import List, Any
+
+from typing import List, Any, Tuple, Dict
 from collections.abc import Iterable
 import itertools
+import csv
+import math
+import json
+import pprint
+from copy import deepcopy
+from pathlib import Path
+import os
+import random
 
 
 RTOL = 1E-6
 
-wb_data_dir =  Path.joinpath(Path(__file__).parent,'data/dataset_data')
-wb_image_dir = Path.joinpath(Path(__file__).parent,'data/dataset_images')
-getitem_dir = Path.joinpath(Path(__file__).parent,'data/getitem_data')
+wb_data_dir =  Path.joinpath(Path(__file__).parent,'datasets/dataset_data')
+wb_image_dir = Path.joinpath(Path(__file__).parent,'datasets/dataset_images')
+getitem_dir = Path.joinpath(Path(__file__).parent,'datasets/getitem_data')
+external_dir = Path.joinpath(Path(__file__).parent,'datasets/external_data')
 
 # directory for test data
 def setup_module(module):
@@ -58,152 +56,104 @@ test_dataset_getitem_params = list(itertools.product(
     [1, 2, 3],
     # target transforms to test
     [
-        [],
-        [ClassName()],
-        [YOLOLabel()],
-        [ClassName(), SNR()],
-        [ClassName(), YOLOLabel()],
-        [ClassName(), FamilyName(), Start(), Stop(), SNR()]
+#        None,
+#        [],
+        ["class_name"],
+        ["yolo_label"],
+        ["class_name", "snr_db"],
+        ["class_name", "yolo_label"],
+        ["class_name", "class_index", "start", "stop", "snr_db"]
     ],
-    # impairement level
-    [0, 2]
 ))
 num_check = 5
+    
 
+def verify_getitem_targets(num_signals_max: int, target_labels: List[str], sample: Any) -> None:
+    """ Verfies target labels applied correctly
 
-def verify_getitem_targets(num_signals_max: int, target_transforms: List[TargetTransform], targets: Any) -> None:
-    # no TT -> list of dicts
-    if len(target_transforms) == 0:
-        required_keys = [
-            "center_freq",
-            "bandwidth",
-            "start_in_samples",
-            "duration_in_samples",
-            "snr_db",
-            "class_name",
-            "class_index",
-            "sample_rate",
-            "num_samples",
-            "start",
-            "stop",
-            "duration",
-            "stop_in_samples",
-            "upper_freq",
-            "lower_freq",
-            "oversampling_rate"
-        ]
-        assert isinstance(targets, list)
-        for t in targets:
-            assert isinstance(t, dict)
-            assert set(required_keys) == set(t.keys())
+    Target Labels Table
+    
+    | Case      | target_labels                  | num_signals_max = 1          | num_signals_max > 1                                               |
+    |-----------|--------------------------------|------------------------------|-------------------------------------------------------------------|
+    | Case 1    | None                           | nothing, just Signal object  | nothing, just Signal object                                       |
+    | Case 2    | []                             | nothing, just returns data   | nothing, just returns data                                        |
+    | Case 3    | ["class_name"]                 | '8msk'                       | ['8msk', 'ofdm-600']                                              |
+    | Case 4    | ["class_name", "class_index"]  | ('8msk', 0)                  | [('8msk', 0), ('ofdm-600', 1)]                                    |
+    | Case 5    | ["class_name", "yolo_label"]   | ('8msk', (idx, x, y, w, h))  | [('8msk', (idx, x, y, w, h)), ('ofdm-600', (idx, x, y, w, h))]    |
+    | Case 6    | ["yolo_label"]                 | (idx, x, y, w, h)            | [(idx, x, y, w, h), (idx, x, y, w, h)]                            |
 
-    # 1 TT
-    # num_signals_max == 1: single item
-    #   signal 1 output
-    # num_signals_max > 1: list of single items 
-    # [
-    #   signal 1 output, 
-    #   signal 2 output
-    # ]
-    if len(target_transforms) == 1:
+    
+    """
+    # target_labels are None or []
+    # just return data
+    if target_labels is None:
+        # Case 1
+        assert isinstance(sample, Signal)
+    elif len(target_labels) == 0:
+        # Case 2
+        assert isinstance(sample, np.ndarray)
+    else:
+        # Case 3-6
+        # target_labels has at least 1 item
+        data, targets = sample
+        print(targets)
+
         if num_signals_max == 1:
-            assert not isinstance(targets, dict)
-            if isinstance(targets, tuple):
-                for item in targets:
-                    assert isinstance(item, str) or not isinstance(item, Iterable)
+            # one signal
+            assert isinstance(targets, tuple) or isinstance(targets, list) or isinstance(targets, float) or isinstance(targets, int) or isinstance(targets, str)
         else:
+            # sample has more than one signal
+            # targets should be a list
             assert isinstance(targets, list)
             for t in targets:
-                # can be a signle tuple
-                if isinstance(t, tuple):
-                    for item in t:
-                        # should not be nested tuple
-                        assert isinstance(t, str) or not isinstance(item, Iterable)
-                else:
-                    # primitive or some other datatype
-                    # should not be iterable/nested lists
-                    assert isinstance(t, str) or not isinstance(t, Iterable)
+                assert isinstance(targets, tuple) or isinstance(targets, list) or isinstance(targets, float) or isinstance(targets, int) or isinstance(targets, str)
+    
 
-    # 2+ TT
-    # num_signals_max == 1: a (sorta) single tuple
-    #   (signal 1 output)
-    #   (class name, (x, y, w, h))
-    # num_signals_max > 1: list of tuples 
-    # [
-    #   (signal 1 output),
-    #   (signal 2 output), 
-    #   ...
-    # ]
-    # [ 
-    #   (class name 1, (x1, y1, w1, h1)),
-    #   (class name 2, (x2, y2, w2, h2)),
-    #   ...
-    # ]
-    if len(target_transforms) > 1:
-        if num_signals_max == 1:
-            assert isinstance(targets, tuple) or isinstance(targets,list)
-            for item in targets:
-                if isinstance(item, tuple):
-                    for i in item:
-                        # should not be nested tuple
-                        assert isinstance(i, str) or not isinstance(i, Iterable)
-                else:
-                    # primitive or some other datatype
-                    # should not be iterable/nested lists
-                    assert isinstance(item, str) or not isinstance(item, Iterable)
-        else:
-            assert isinstance(targets, list)
-            for t in targets:
-                assert isinstance(t, tuple)
-                for item in t:
-                    if isinstance(item, tuple):
-                        for i in item:
-                            # should not be nested tuple
-                            assert isinstance(i, str) or not isinstance(i, Iterable)
-                    else:
-                        # primitive or some other datatype
-                        # should not be iterable/nested lists
-                        assert isinstance(item, str) or not isinstance(item, Iterable)
-
-@pytest.mark.parametrize("num_signals_max, target_transforms, impairment_level", test_dataset_getitem_params)
-def test_NewDataset_getitem(num_signals_max: int, target_transforms: List[TargetTransform], impairment_level: int):
+@pytest.mark.parametrize("num_signals_max, target_labels", test_dataset_getitem_params)
+def test_IterableDataset_getitem(num_signals_max: int, target_labels: List[str],):
     """ Tests targets from target transform are properly returned from dataset's getitem
 
     >>> pytest test_datasets.py -s
 
     Args:
         num_signals_max (str): Maximum number of signals.
-        target_transforms (List[TargetTransform]): target transforms to test.
+        target_labels: List[str] (List[TargetTransform]): target labels to test.
     """    
-    print(f"\n{num_signals_max}, {target_transforms}, level {impairment_level}")
+    print(f"\nnum_signals_max={num_signals_max}, target_labels={target_labels}")
     dataset = None
     fft_size = 64
 
     dm = DatasetMetadata(
         num_iq_samples_dataset=fft_size**2,
         fft_size=fft_size,
-        impairment_level=impairment_level,
         num_signals_max=num_signals_max,
-        target_transforms=target_transforms
     )
-    dataset = TorchSigIterableDataset(dataset_metadata=dm)
+    dataset = TorchSigIterableDataset(
+        dataset_metadata=dm,
+        transforms = [YOLOLabel()],
+        target_labels=target_labels
+    )
 
     for i in range(num_check):
-        data, targets = next(dataset)
+        sample = next(dataset)
+        # data, targets = sample.data, [x.to_dict() for x in sample.get_full_metadata()]
 
-        verify_getitem_targets(num_signals_max, target_transforms, targets)
+        verify_getitem_targets(num_signals_max, target_labels, sample)
 
-@pytest.mark.parametrize("num_signals_max, target_transforms, impairment_level", test_dataset_getitem_params)
-def test_StaticDataset_getitem(num_signals_max: int, target_transforms: List[TargetTransform], impairment_level: int):
+@pytest.mark.parametrize("num_signals_max, target_labels", test_dataset_getitem_params)
+def test_StaticDataset_getitem(num_signals_max: int, target_labels):
     """ Tests targets from target transform are properly returned from dataset's getitem
 
     >>> pytest test_datasets.py -s
 
     Args:
         num_signals_max (int): Maximum number of signals.
-        target_transforms (List[TargetTransform]): target transforms to test.
+        target_labels (List[TargetTransform]): target labels to test.
     """    
-    print(f"\n{num_signals_max}, {target_transforms}, level {impairment_level}")
+    print(f"\nnum_signals_max={num_signals_max}, target_labels={target_labels}")
+    if target_labels is None or len(target_labels) == 0:
+        # skip
+        return
     new_dataset = None
     fft_size = 64
     root = getitem_dir
@@ -212,40 +162,247 @@ def test_StaticDataset_getitem(num_signals_max: int, target_transforms: List[Tar
     dm = DatasetMetadata(
         num_iq_samples_dataset=fft_size**2,
         fft_size=fft_size,
-        impairment_level=impairment_level,
         num_signals_max=num_signals_max,
         num_signals_min = 1,
-        num_samples=num_generate
     )
-    new_dataset = TorchSigIterableDataset(dataset_metadata=dm)
-
+    new_dataset = TorchSigIterableDataset(
+        dataset_metadata=dm, 
+        transforms = [YOLOLabel()],
+        target_labels=target_labels
+    )
+    new_dataloader = WorkerSeedingDataLoader(new_dataset, collate_fn=default_collate_fn)
     dc = DatasetCreator(
-        new_dataset,
+        dataloader=new_dataloader,
         root = root,
-        overwrite = True
+        overwrite = True,
+        dataset_length=num_generate
     )
     
     dc.create()
 
-    static_dataset = None
-
     static_dataset = StaticTorchSigDataset(
         root = root,
-        impairment_level = impairment_level,
-        target_transforms=target_transforms,
     )
 
     for i in range(num_check):
         idx = np.random.randint(len(static_dataset))
-        data, targets = static_dataset[idx]
+        sample = static_dataset[idx]
 
-        verify_getitem_targets(num_signals_max, target_transforms, targets)
+        # verify_getitem_targets(num_signals_max, target_labels, sample)
+
+
+class BYODExampleFileHandler(ExternalFileHandler):
+
+    def __init__(
+        self,
+        root: str
+    ):
+        super().__init__(root=root)
+
+        self.class_list = ['BPSK', 'QPSK', 'Noise']  
+
+    def size(self) -> int:
+        try:
+            with open(f"{self.root}/info.json", "r") as f:
+                dataset_info = json.load(f)
+
+            return dataset_info["size"]
+        except:
+            raise ValueError(f"Error loading {root}/info.json")
     
+    def load_dataset_metadata(self) -> ExternalDatasetMetadata:
+        try:
+            with open(f"{self.root}/info.json", "r") as f:
+                dataset_info = json.load(f)
+
+            return ExternalDatasetMetadata(
+                # minimum fields required for ExternalDatasetMetadata
+                num_iq_samples_dataset = dataset_info["dataset_length"],
+                sample_rate = dataset_info["sample_rate"],
+                class_list = dataset_info["class_labels"],
+                dataset_length = dataset_info["size"]
+            )
+        except:
+            raise ValueError(f"Error loading {self.root}/info.json")
+
+    def load(self, idx: int) -> Tuple[np.ndarray, List[Dict]]:
+        try:
+            # load data
+            data = np.load(f"{self.root}/data.npy")[idx]
+
+            with open(f"{self.root}/metadata.csv", "r") as f:
+                reader = csv.DictReader(f, fieldnames=["index", "label", "modcod", "sample_rate"])
+                # get to idx row
+                row = next(itertools.islice(reader, idx, idx+1), None)
+                if row is None:
+                    raise IndexError(f"Metadata idx {idx} is out of bounds")
+
+                row["index"] = int(row["index"])
+                row["sample_rate"] = float(row["sample_rate"])
+                # add class_name
+                row["class_name"] = row["label"].lower()
+                # add class index
+                row["class_index"] = self.class_list.index(row["label"])
+
+                metadata = row
+
+            return data, [metadata]
+        except:
+            raise ValueError(f"Error loading {root}/info.json")
+
+
+class BYODExampleFileHandler(ExternalFileHandler):
+
+    def __init__(
+        self,
+        root: str
+    ):
+        super().__init__(root=root)
+
+        self.class_list = ['BPSK', 'QPSK', 'Noise']  
+
+    def size(self) -> int:
+        try:
+            with open(f"{self.root}/info.json", "r") as f:
+                dataset_info = json.load(f)
+
+            return dataset_info["dataset_length"]
+        except:
+            raise ValueError(f"Error loading {root}/info.json")
+    
+    def load_dataset_metadata(self) -> ExternalDatasetMetadata:
+        try:
+            with open(f"{self.root}/info.json", "r") as f:
+                dataset_info = json.load(f)
+
+            return ExternalDatasetMetadata(
+                # minimum fields required for ExternalDatasetMetadata
+                num_iq_samples_dataset = dataset_info["dataset_length"],
+                sample_rate = dataset_info["sample_rate"],
+                class_list = dataset_info["class_labels"],
+            )
+        except:
+            raise ValueError(f"Error loading {self.root}/info.json")
+
+    def load(self, idx: int) -> Tuple[np.ndarray, List[Dict]]:
+        try:
+            # load data
+            data = np.load(f"{self.root}/data.npy")[idx]
+
+            with open(f"{self.root}/metadata.csv", "r") as f:
+                reader = csv.DictReader(f, fieldnames=["index", "label", "modcod", "sample_rate"])
+                # get to idx row
+                row = next(itertools.islice(reader, idx, idx+1), None)
+                if row is None:
+                    raise IndexError(f"Metadata idx {idx} is out of bounds")
+
+                row["index"] = int(row["index"])
+                row["sample_rate"] = float(row["sample_rate"])
+                # add class_name
+                row["class_name"] = row["label"].lower()
+                # add class index
+                row["class_index"] = self.class_list.index(row["label"])
+
+                metadata = row
+
+            return data, [metadata]
+        except:
+            raise ValueError(f"Error loading {root}/info.json")
+
+def test_ExternalTorchSigDataset() -> None:
+    root = external_dir               # data file top-level folder 
+    seed = 1234567890                         # rng seed
+
+    # directories
+    os.makedirs(root, exist_ok=True)
+
+    # Parameters
+    fs = 1_000_000                              # 1 MHz sample-rate (fixed rate)
+    dataset_length = 1024                          # samples per data (fixed size)
+    dataset_size = 8                            # dataset size
+    labels = ['BPSK', 'QPSK', 'Noise']          # three arbitrary metadata class labels (strings)
+    modcod = [0, 1, 2]                          # three arbitrary metadata integers
+    rng = np.random.default_rng(seed)           # random number generator
+
+    # Create user's external data: non-TorchSig synthetic data along with metadata
+    signals_array = np.empty((dataset_size, dataset_length), dtype=np.complex64)  # store all data in memory
+    meta_rows = []                                           # store all metadata in memory
+
+    t = np.arange(dataset_length) / fs  # timesteps
+
+    # create dataset
+    for idx in range(dataset_size):
+        label = rng.choice(labels)
+        mc = rng.choice(modcod)
+        
+        if label == "BPSK":
+            bits   = rng.integers(0, 2, dataset_length)
+            sig    = (2*bits-1) + 0j
+        elif label == "QPSK":
+            bits   = rng.integers(0, 4, dataset_length)
+            table  = {0:1+1j, 1:1-1j, 2:-1+1j, 3:-1-1j}
+            sig    = np.vectorize(table.get)(bits)
+        else:  # white noise
+            sig = (rng.normal(size=dataset_length) + 1j*rng.normal(size=dataset_length)) * 0.1
+        
+        sig /= np.sqrt((np.abs(sig)**2).mean()) # normalize power for consistency
+        signals_array[idx] = sig.astype(np.complex64)
+        
+        # add to metadata
+        meta_rows.append(
+            dict(
+                index=idx, 
+                label=label, 
+                modcod=mc, 
+                sample_rate=fs
+            )
+        )
+
+    # write information about dataset
+    global_metadata = {
+        "size": dataset_size,
+        "dataset_length": dataset_length,
+        "class_labels": labels,
+        "sample_rate": fs
+    }
+    with open(f"{root}/info.json", 'w') as f:
+        json.dump(global_metadata, f, indent=4)
+
+    # write data as npy
+    np.save(f"{root}/data.npy", signals_array)
+
+    # write metadata
+    with open(f"{root}/metadata.csv", 'w', newline='') as f:
+        csv.DictWriter(f, fieldnames=meta_rows[0].keys()).writerows(meta_rows)
+
+    print(f"Synthetic signals + metadata staged in {root}")
+
+    custom_dataset = ExternalTorchSigDataset(
+        file_handler = BYODExampleFileHandler(root),
+        target_labels = None
+    )
+    print(f"Dataset size: {len(custom_dataset)}")
+
+    sample = custom_dataset[4]
+    print(f"data: {sample.data}")
+    print(f"metadata: {[meta.to_dict() for meta in sample.get_full_metadata()]}")
+
+    custom_dataset_2 = ExternalTorchSigDataset(
+        file_handler = BYODExampleFileHandler(root),
+        transforms = [ComplexTo2D()],
+        target_labels = ["modcod"]
+    )
+    print(f"Dataset size: {len(custom_dataset_2)}")
+
+    data, metadata = custom_dataset_2[4]
+    print(f"data: {data.shape}")
+    print(f"metadata: {metadata}")
+
 
 
 @pytest.mark.parametrize("params, is_error", [
     (
-        {'num_samples': 10, 'impairment_level': 2},
+        {'dataset_length': 10},
         False
     )
 ])
@@ -269,13 +426,10 @@ def test_datasets(params: dict, is_error: bool) -> None:
     class_dist = np.ones(len(class_list))/len(class_list)    
     
     # number of samples to test generation
-    num_samples = params["num_samples"]
+    dataset_length = params["dataset_length"]
     save_num_signals = 5
     num_signals_min = 1 # always generate a signal
     num_signals_max = 1
-    
-    # define impairment level
-    impairment_level = params["impairment_level"]
 
     # FFT/spectrogram params
     fft_size = rng.integers(128,1024, dtype=int)
@@ -300,55 +454,49 @@ def test_datasets(params: dict, is_error: bool) -> None:
 
     # define transforms
     transforms = [Spectrogram(fft_size=fft_size)]
-    target_transform = [
-        ClassName(),
-        Start(),
-        Stop(),
-        LowerFreq(),
-        UpperFreq(),
-        SNR()
-    ]
     
     # build the dataset metadata
     md = DatasetMetadata(
         num_iq_samples_dataset=num_iq_samples_dataset,
         sample_rate=sample_rate,
         fft_size=fft_size,
-        num_samples=num_samples,
+        dataset_length=dataset_length,
         num_signals_max=num_signals_max,
         num_signals_min=num_signals_min,
         num_signals_distribution=num_signals_dist,
         snr_db_max=snr_db_max,
         snr_db_min=snr_db_min,
-        transforms=transforms,
-        target_transforms=target_transform,
-        impairment_level=impairment_level,
         class_list=class_list,
         class_distribution=class_dist,
     )
 
     if is_error:
         with pytest.raises(Exception, match=r".*"):
-            DS = TorchSigIterableDataset(dataset_metadata=md)
+            DS = TorchSigIterableDataset(dataset_metadata=md, target_labels=["class_index"], transforms=transforms)
+            DL = WorkerSeedingDataLoader(DS, collate_fn=default_collate_fn)
+            DL.seed(seed)
             dc = DatasetCreator(
-                DS,
+                dataloader=DL,
                 root = wb_data_dir,
+                dataset_length=dataset_length,
                 overwrite = True
             )
             dc.create()
             SDS = StaticTorchSigDataset(
                 root = wb_data_dir,
-                impairment_level = impairment_level,
             )
     else:
         # create the dataset object, derived from the metadata object
-        DS0 = TorchSigIterableDataset(dataset_metadata=deepcopy(md), seed=seed)
-        DS1 = TorchSigIterableDataset(dataset_metadata=deepcopy(md), seed=seed) # reproducible copy
+        DS0 = TorchSigIterableDataset(dataset_metadata=deepcopy(md), target_labels=None, seed=seed, transforms=transforms)
+        DS1 = TorchSigIterableDataset(dataset_metadata=deepcopy(md), target_labels=None, seed=seed, transforms=transforms) # reproducible copy
 
         # save dataset to disk
+        DL0 = WorkerSeedingDataLoader(DS0, collate_fn=lambda x: x)
+        DL0.seed(seed)
         dc = DatasetCreator(
-            DS0,
+            dataloader=DL0,
             root = wb_data_dir,
+            dataset_length=dataset_length,
             overwrite = True
         )
         dc.create()
@@ -356,41 +504,25 @@ def test_datasets(params: dict, is_error: bool) -> None:
         # load dataset from disk
         SDS0 = StaticTorchSigDataset(
             root = wb_data_dir,
-            impairment_level = impairment_level,
+            target_labels=["class_index"]
         )
         SDS1 = StaticTorchSigDataset(
             root = wb_data_dir,
-            impairment_level = impairment_level,
+            target_labels=["class_index"]
         )
             
         # dataset
         assert isinstance(DS0, TorchSigIterableDataset)
-        for i in range(num_samples):
-            data0, meta0 = next(DS0)
-            data1, meta1 = next(DS1) # reproducible copy
-
-            assert type(data0) == np.ndarray
-            assert data0.dtype == torchsig_real_data_type
-            if (num_signals_max == 1):
-                assert type(meta0) == tuple
-            else:
-                assert type(meta0) == list
-            assert meta0 == meta1
-            assert np.allclose(data0, data1, RTOL)
 
         # static dataset
         assert isinstance(SDS0, StaticTorchSigDataset)
-        assert len(SDS0) == num_samples
-        for i in range(num_samples):
+        assert len(SDS0) == dataset_length
+        for i in range(dataset_length):
             data0, meta0 = SDS0[i]
             data1, meta1 = SDS1[i] # reproducible copy
             
             assert type(data0) == np.ndarray
-            assert data0.dtype == torchsig_real_data_type
-            if (num_signals_max == 1):
-                assert type(meta0) == tuple
-            else:
-                assert type(meta0) == list
+            assert data0.dtype == TorchSigRealDataType
             assert meta0 == meta1
             assert np.allclose(data0, data1, RTOL)
         

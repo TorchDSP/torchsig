@@ -2,7 +2,9 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-from typing import List
+from typing import List, Tuple, Any
+
+from torchsig.datasets.dataset_metadata import ExternalDatasetMetadata
 
 # Signal Metadata type checking
 
@@ -22,7 +24,7 @@ signal_metadata_ints = [
     'start_in_samples',
     'duration_in_samples',
     'class_index',
-    'num_samples',
+    'dataset_length',
     'stop_in_samples'
 ]
 signal_metadata_strs = [

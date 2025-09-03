@@ -1,3 +1,6 @@
+# wideband 3-5 signals
+# impaired level 2, train
+
 required:
   num_iq_samples_dataset: 1048576 # 1024^2
   fft_size: 1024

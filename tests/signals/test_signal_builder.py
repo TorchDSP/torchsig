@@ -5,11 +5,11 @@ Classes:
 - SignalBuilder
 """
 
-from torchsig.signals.signal_types import Signal, DatasetSignal, DatasetDict
+from torchsig.signals.signal_types import Signal
 from torchsig.datasets.dataset_metadata import DatasetMetadata
 from torchsig.signals.builders.constellation import ConstellationSignalBuilder
 import torchsig.transforms.functional as F
-from torchsig.utils.dsp import torchsig_complex_data_type
+from torchsig.utils.dsp import TorchSigComplexDataType
 
 # Third Party
 import numpy as np
@@ -22,18 +22,14 @@ for i in range(3):
     md_qpsk = DatasetMetadata(
         num_iq_samples_dataset = 1024,
         fft_size = 128,
-        impairment_level = 0,
         sample_rate = 10e6,
         num_signals_min = 1,
         num_signals_max = 1,
         num_signals_distribution = [1.0],
         snr_db_min = 100.0,
-        snr_db_max = 100.0,       
-        transforms = [],
-        target_transforms = [],
+        snr_db_max = 100.0,
         class_list = ['qpsk'],
         class_distribution = [1.0],
-        num_samples = 1,
         seed = 1234
     )
     

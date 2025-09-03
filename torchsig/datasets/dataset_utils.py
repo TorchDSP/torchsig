@@ -19,52 +19,6 @@ writer_yaml_name = "writer_info.yaml"
 
 
 
-def dataset_full_path(impairment_level: int, train: bool = None) -> str:
-    """Generates the full path for a dataset based on its type, impairment level, and whether it is for training.
-
-    Args:
-        impairment_level (int): The impairment level for the dataset (0 = clean, 1 = level 1, 2 = impaired).
-        train (bool, optional): Whether the dataset is for training (True) or validation (False). Defaults to None.
-
-    Returns:
-        str: The full path to the dataset, e.g., 'torchsig_narrowband_clean/train'.
-
-    Example:
-        full_path = dataset_full_path('narrowband', 0, True)
-        print(full_path)  # Output: 'torchsig_narrowband_clean/train'
-    """
-    impaired_names = [
-        "clean",
-        "impaired_level_1",
-        "impaired"
-    ]
-    impaired = impaired_names[impairment_level]
-    
-    # e.g., torchsig_narrowband_clean
-    full_root = f"torchsig_{impaired}"
-
-
-    if train is not None:
-        # e.g., torchsig_narrowband_clean/train
-        subpath = "train" if train else "val"
-        full_root = f"{full_root}/{subpath}"
-
-    return full_root
-
-    
-
-
-def collate_fn(batch):
-    """Collates a batch by zipping its elements together.
-
-    Args:
-        batch (tuple): A batch from the dataloader.
-
-    Returns:
-        tuple: A tuple of zipped elements, where each element corresponds to a single batch item.
-    """
-    return tuple(zip(*batch))
-
 
 def frequency_shift_signal(
     signal: Signal,

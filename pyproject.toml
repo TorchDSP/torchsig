@@ -1,5 +1,6 @@
 [build-system]
-requires = ["setuptools", "wheel"]
+# Define build dependencies and backend
+requires = ["setuptools>=61", "setuptools-rust>=1.10"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -10,44 +11,71 @@ authors = [
 ]
 readme = "README.md"
 requires-python = ">=3.10"
-license = {text = "MIT"}
+license = "MIT"
+license-files = ["LICENSE.md"]
+keywords = ["signal processing", "machine learning"]
+dynamic = ["version"]
+
 classifiers = [
     "Programming Language :: Python",
     "Programming Language :: Python :: 3",
+    "Programming Language :: Rust",
 ]
-keywords = ["signal processing", "machine learning"]
+# Runtime dependencies
 dependencies = [
+    # Core Libraries
     "torch",
     "torchvision",
+    "torchaudio",
     "tqdm",
-    "opencv-python==4.8.0.74",
     "numpy<2",
     "scipy",
     "h5py",
     "matplotlib",
-    "PyWavelets",
     "pandas",
+    "PyWavelets",
     "scikit-learn",
-    "torchaudio",
     "timm",
-    "pytorch_lightning",
-    "jupyter_bbox_widget",
+    "pytorch_lightning>=2.0.0,<3.0.0",
+    "ultralytics==8.3.57",  # Keep the latest version
     "torchinfo",
-    "ultralytics",
     "sigmf",
-    "pytest",
     "zarr==2.18.3",
-    "numcodecs",
+    "numcodecs==0.13.1",
+    "opencv-python==4.8.0.74",
+    "jupyter_bbox_widget",
+
+    # Testing, CI/CD
+    "pytest",
     "pylint",
     "pytest-cov",
+
+    # Satnogs
+    "librosa",
 ]
-dynamic = ["version"]
+
+
+[project.urls]
+Homepage = "https://torchsig.com/"
+Documentation = "https://torchsig.readthedocs.io/en/latest/index.html"
+Repository = "https://github.com/TorchDSP/torchsig.git"
+Issues = "https://github.com/TorchDSP/torchsig/issues"
+
+[tool.setuptools.packages.find]
+# Automatically find all packages starting in root directory
+where = ["."]
 
 [tool.setuptools.dynamic]
+# Dynamically read version from torchsig.__version__
 version = {attr = "torchsig.__version__"}
 
-[tool.setuptools.package-data]
-"torchsig.datasets.default_configs" = ["*.yaml"]
+[[tool.setuptools-rust.ext-modules]]
+# Define the Rust extension module built with PyO3
+target = "torchsig.utils.rust_functions"  # Must match import path and lib.name in Cargo.toml
+path = "rust_functions/Cargo.toml"        # Path to Cargo.toml
+binding = "PyO3"                          # Bindings to use
+debug = false                             # Enable release mode for optimized builds
+optional = false                          # Crash if the extension build fails
 
 [tool.coverage.run]
 branch = true
@@ -62,6 +90,7 @@ omit = [
 ]
 
 [tool.pytest.ini_options]
+# Configure pytest behavior and test discovery
 markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
 ]

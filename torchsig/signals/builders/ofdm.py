@@ -8,7 +8,7 @@ from torchsig.utils.dsp import (
     pad_head_tail_to_length,
     slice_head_tail_to_length,
     slice_tail_to_length,
-    torchsig_complex_data_type
+    TorchSigComplexDataType
 )
 from torchsig.signals.signal_lists import TorchSigSignalLists
 from torchsig.signals.builders.constellation_maps import all_symbol_maps
@@ -79,7 +79,7 @@ def ofdm_modulator_baseband ( class_name:str, max_num_samples:int, oversampling_
     symbol_grid = symbol_map[map_index_grid]
 
     # create the full time/frequency grid
-    time_frequency_grid = np.zeros((ifft_size,num_ofdm_symbols),dtype=torchsig_complex_data_type)
+    time_frequency_grid = np.zeros((ifft_size,num_ofdm_symbols),dtype=TorchSigComplexDataType)
 
     # fill in the active subcarriers, ignoring index 0 in order to notch DC subcarrier
     half_num_subcarriers = int(num_subcarriers/2)
@@ -145,7 +145,7 @@ def ofdm_modulator ( class_name:str, bandwidth:float, sample_rate:float, num_sam
     # else: correct length, do nothing
 
     # convert to appropriate type
-    ofdm_signal_correct_bw = ofdm_signal_correct_bw.astype(torchsig_complex_data_type)
+    ofdm_signal_correct_bw = ofdm_signal_correct_bw.astype(TorchSigComplexDataType)
 
     return ofdm_signal_correct_bw
 
@@ -197,33 +197,29 @@ class OFDMSignalBuilder(SignalBuilder):
         Properly defines the minimum duration such that OFDM will
         generate at least 1 symbol.
         """
-
-        # split the class name to determine how many subcarriers
-        num_subcarriers = int(self._signal.metadata.class_name.split('-')[1])
-
-        # calculate final oversampling rate
+        num_subcarriers = int(self._signal.metadata.class_name.split('-')[1]) # split the class name to determine how many subcarriers
         oversampling_rate = self.dataset_metadata.sample_rate/self._signal.metadata.bandwidth
-
-        # calculate the minimum samples to generate
         minimum_duration_in_samples_for_ofdm = int(np.round(num_subcarriers*oversampling_rate))
-
-        # select the appropriate value against the signal minimum and the dataset minimum
         minimum_duration_in_samples = np.max((minimum_duration_in_samples_for_ofdm,self.dataset_metadata.signal_duration_in_samples_min))
 
-        if (minimum_duration_in_samples >= self.dataset_metadata.signal_duration_in_samples_max):
+        if minimum_duration_in_samples >= self.dataset_metadata.signal_duration_in_samples_max:
             # the estimated minimum is too large, use the max instead
             self._signal.metadata.duration_in_samples = copy(self.dataset_metadata.signal_duration_in_samples_max)
         else:
-            # randomize the duration
-            self._signal.metadata.duration_in_samples = self.random_generator.integers(low=minimum_duration_in_samples, high=self.dataset_metadata.signal_duration_in_samples_max,dtype=int)
+            self._signal.metadata.duration_in_samples = self.random_generator.integers(
+                low=minimum_duration_in_samples, 
+                high=self.dataset_metadata.signal_duration_in_samples_max,
+                dtype=int
+            )
 
-        # is start parameter to be randomized?
-        if self._signal.metadata.duration_in_samples == self.dataset_metadata.num_iq_samples_dataset:
-            # duration is equal to the total dataset length, therefore start must be zero
-            self._signal.metadata.start_in_samples = 0
-        else:
-            # given duration, start is randomly set from 0 to rightmost time that the duration still fits inside the dataset iq samples
-            self._signal.metadata.start_in_samples = self.random_generator.integers(low=0, high=self.dataset_metadata.num_iq_samples_dataset - self._signal.metadata.duration_in_samples,dtype=int)
+        if self._signal.metadata.duration_in_samples == self.dataset_metadata.num_iq_samples_dataset: # randomize start?
+            self._signal.metadata.start_in_samples = 0  # duration is equal to the total dataset length, therefore start must be zero
+        else:  # given duration, start is randomly set from 0 to rightmost time that the duration still fits inside the dataset iq samples
+            self._signal.metadata.start_in_samples = self.random_generator.integers(
+                low=0, 
+                high=self.dataset_metadata.num_iq_samples_dataset - self._signal.metadata.duration_in_samples,
+                dtype=int
+            )
 
 
 

@@ -5,35 +5,32 @@ from __future__ import annotations
 
 # TorchSig
 from torchsig.signals.signal_lists import TorchSigSignalLists
-from torchsig.utils.random import Seedable
 from torchsig.utils.verify import (
     verify_int,
     verify_float,
-    verify_str,
     verify_distribution_list,
-    verify_list,
-    verify_transforms,
-    verify_target_transforms
+    verify_list
 )
 from torchsig.utils.printing import (
     dataset_metadata_str,
-    dataset_metadata_repr,
 )
-from torchsig.transforms.impairments import Impairments
 
 # Third Party
 import numpy as np
 from typing import Dict, List, Any
+import yaml
 
 # Built-In
-from copy import (
-    deepcopy,
-    copy
-)
+from copy import deepcopy, copy
 
+def load_dataset_metadata(filepath):
+    """loads and returns the metadata object stores at filepath"""
+    with open(filepath, 'r') as f:
+        loaded_yaml = yaml.safe_load(f)
+    return DatasetMetadata(**loaded_yaml['required']).update_from(loaded_yaml['overrides'])
 
-class DatasetMetadata(Seedable):
-    """Dataset Metdata. Contains useful information about the dataset.
+class DatasetMetadata():
+    """Dataset Metadata base class. Contains useful information about the dataset.
 
     Maintains the metadata for the parameters of the datasets, such as
     sample rate. The class holds all of the high level information
@@ -62,10 +59,9 @@ class DatasetMetadata(Seedable):
         self, 
         num_iq_samples_dataset: int, 
         fft_size: int,
-        impairment_level: int,
-        num_signals_max: int, 
-        sample_rate: float = 10e6, 
-        num_signals_min: int = 0,
+        num_signals_min: int = 1,
+        num_signals_max: int = 1,
+        sample_rate: float = 10e6,
         num_signals_distribution: np.ndarray | List[float]= None,
         snr_db_min: float = 0.0,
         snr_db_max: float = 50.0,
@@ -76,11 +72,8 @@ class DatasetMetadata(Seedable):
         signal_center_freq_min: float = None,
         signal_center_freq_max: float = None,
         cochannel_overlap_probability: float = 0.1,
-        transforms: list = [],
-        target_transforms: list = [],
         class_list: List[str] = None,
         class_distribution: np.ndarray | List[float]= None,
-        num_samples: int = None,
         **kwargs
     ):
         """Initializes Dataset Metadata
@@ -88,7 +81,6 @@ class DatasetMetadata(Seedable):
         Args:
             num_iq_samples_dataset (int): Length of I/Q array in dataset.
             fft_size (int): Size of FFT (number of bins) to be used in spectrogram.
-            impairment_level (int): Signal impairment level.
             sample_rate (float, optional): Sample rate for dataset. Defaults to 10e6.
             num_signals_min (int, optional): Minimum number of signals per sample. Defaults to 0.
             num_signals_max (int): Maximum number of signals per sample in dataset.
@@ -107,53 +99,54 @@ class DatasetMetadata(Seedable):
             target_transforms (list): List of Target Transforms to apply. Defaults to [].
             class_list (List[str], optional): Signal class name list. Defaults to TorchSigSignalLists.all_signals.
             class_distribution (np.ndarray | List[float], optional): Probabilities for each class in `class_list`. Defaults to None (uniform).
-            num_samples (int, optional): Set dataset size. For infinite dataset, set to None, Defaults to None.
 
         Raises:
             ValueError: If any of the provided parameters are invalid or incompatible.
         """    
-        super().__init__(**kwargs)
-        self._num_iq_samples_dataset = num_iq_samples_dataset
-        self._sample_rate = sample_rate
-        self._fft_size = fft_size
-        self._fft_stride = copy(self._fft_size)
-        self._num_signals_max = num_signals_max
-        self._num_signals_min = self._num_signals_max if num_signals_min is None else num_signals_min
-        self._num_signals_range = np.arange(start=self._num_signals_min, stop=num_signals_max + 1, dtype=int)
-        self._num_signals_distribution = num_signals_distribution
-        self._transforms = transforms
-        self._target_transforms = target_transforms
-        self._impairment_level = impairment_level
-        self._impairments = self._initialize_impairments() # will be updated in subclasses
-        self._impairments.add_parent(self)
+        #super().__init__(**kwargs)
+        self._kwargs = kwargs
+        
+        self.num_iq_samples_dataset = num_iq_samples_dataset
+        self.sample_rate = sample_rate
+        self.fft_size = fft_size
+        self.fft_stride = copy(self.fft_size)
+        self.num_signals_max = num_signals_max
+        self.num_signals_min = self.num_signals_max if num_signals_min is None else num_signals_min
+        self.num_signals_range = np.arange(start=self.num_signals_min, stop=num_signals_max + 1, dtype=int)
+        self.num_signals_distribution = num_signals_distribution
 
-        self._class_list = TorchSigSignalLists.all_signals if class_list is None else class_list
-        self._class_distribution = class_distribution
+        self.class_list = TorchSigSignalLists.all_signals if class_list is None else class_list
+        self.class_distribution = class_distribution
 
-        self._num_samples = num_samples
+        self.snr_db_max = snr_db_max
+        self.snr_db_min = snr_db_min
 
+        self.signal_duration_min = signal_duration_min if signal_duration_min is not None else 0.10*self.num_iq_samples_dataset/sample_rate
+        self.signal_duration_max = signal_duration_max if signal_duration_max is not None else 0.20*self.num_iq_samples_dataset/sample_rate
 
-        self._snr_db_max = snr_db_max
-        self._snr_db_min = snr_db_min
+        self.signal_bandwidth_min = signal_bandwidth_min if signal_bandwidth_min is not None else self.sample_rate/20
+        self.signal_bandwidth_max = signal_bandwidth_max if signal_bandwidth_max is not None else self.sample_rate/10
 
-        self._signal_duration_min = signal_duration_min if signal_duration_min != None else 0.10*self._num_iq_samples_dataset/sample_rate
-        self._signal_duration_max = signal_duration_max if signal_duration_max != None else 0.20*self._num_iq_samples_dataset/sample_rate
+        self.signal_center_freq_min = signal_center_freq_min if signal_center_freq_min is not None else self.frequency_min
+        self.signal_center_freq_max = signal_center_freq_max if signal_center_freq_max is not None else self.frequency_max
 
-        self._signal_bandwidth_min = signal_bandwidth_min if signal_bandwidth_min != None else self._sample_rate/20
-        self._signal_bandwidth_max = signal_bandwidth_max if signal_bandwidth_max != None else self._sample_rate/10
-
-        self._signal_center_freq_min = signal_center_freq_min if signal_center_freq_min != None else self.frequency_min
-        self._signal_center_freq_max = signal_center_freq_max if signal_center_freq_max != None else self.frequency_max
-
-        self._cochannel_overlap_probability = cochannel_overlap_probability
+        self.cochannel_overlap_probability = cochannel_overlap_probability
 
         # provide a noise power reference in dB
-        self._noise_power_db = 0
+        self.noise_power_db = 0
 
         # run _verify() to ensure metadata is valid
-        self._verify()
+        self.verify()
 
-    def _verify(self) -> None:
+    def update_from(self, attr_dict):
+        """updates the fields of this metadata object with the values in attr_dict; good for joining metadata together
+            modifies existing object, and return without copying
+        """
+        for key in attr_dict.keys():
+            setattr(self, key, attr_dict[key])
+        return self
+
+    def verify(self) -> None:
         """Verify that metadata is valid.
 
         This method checks the configuration of the metadata, ensuring all parameters
@@ -164,152 +157,126 @@ class DatasetMetadata(Seedable):
             ValueError: If any dataset configuration is invalid.
         """
 
-        # Transforms
-        self._transforms = verify_transforms(self._transforms)
-        for transform in self._transforms:
-            if isinstance(transform, Seedable):
-                transform.add_parent(self)
-
-        # Target Transforms
-        self._target_transforms = verify_target_transforms(self._target_transforms)
-        for transform in self._target_transforms:
-            if isinstance(transform, Seedable):
-                transform.add_parent(self)
-
-        self._class_distribution = verify_distribution_list(
-            self._class_distribution, 
+        self.class_distribution = verify_distribution_list(
+            self.class_distribution, 
             len(self.class_list), 
             "class_distribution", 
             "class_list"
         )
-        self._num_signals_distribution = verify_distribution_list(
-            self._num_signals_distribution, 
-            len(self._num_signals_range), 
+        self.num_signals_distribution = verify_distribution_list(
+            self.num_signals_distribution, 
+            len(self.num_signals_range), 
             "num_signals_distribution", 
             "[num_signals_min, num_signals_max]"
         )
 
-        self._class_list = verify_list(self._class_list, "class_list")
+        self.class_list = verify_list(self.class_list, "class_list")
 
         # check all of the input parameters
-        self._sample_rate = verify_float(
-            self._sample_rate,
+        self.sample_rate = verify_float(
+            self.sample_rate,
             name = "sample_rate",
             low = 0.0,
             exclude_low = True
         )
-        
-        self._impairment_level = verify_int(
-            self._impairment_level,
-            name = "impairment_level",
-            low = 0,
-            high = 2
-        )
 
-        self._num_iq_samples_dataset = verify_int(
-            self._num_iq_samples_dataset,
-            name = "num_iq_samples_dataset",
-            low = 0,
-            exclude_low = True
-        )
-
-        self._fft_size = verify_int(
-            self._fft_size,
+        self.fft_size = verify_int(
+            self.fft_size,
             name = "fft_size",
             low = 0,
             exclude_low = True
         )
 
-        self._fft_stride = verify_int(
-            self._fft_stride,
+        self.fft_stride = verify_int(
+            self.fft_stride,
             name = "fft_stride",
             low = 0,
-            high = self._fft_size,
+            high = self.fft_size,
             exclude_low = True,
         )
 
-        self._num_signals_max = verify_int(
-            self._num_signals_max,
+        
+        self.num_iq_samples_dataset = verify_int(
+            self.num_iq_samples_dataset,
+            name = "num_iq_samples_dataset",
+            low = 0,
+            exclude_low = True
+        )
+
+        self.num_signals_max = verify_int(
+            self.num_signals_max,
             name = "num_signals_max",
             low = 0
         )
 
-        self._num_signals_min = verify_int(
-            self._num_signals_min,
+        self.num_signals_min = verify_int(
+            self.num_signals_min,
             name = "num_signals_min",
             low = 0,
-            high = self._num_signals_max
+            high = self.num_signals_max
         )
 
-        self._snr_db_max = verify_float(
-            self._snr_db_max,
+        self.snr_db_max = verify_float(
+            self.snr_db_max,
             name = "snr_db_max",
             low = None,
         )
 
-        self._snr_db_min = verify_float(
-            self._snr_db_min,
+        self.snr_db_min = verify_float(
+            self.snr_db_min,
             name = "snr_db_min",
             low = None,
-            high = self._snr_db_max
+            high = self.snr_db_max
         )
 
-        self._signal_duration_max = verify_float(
-            self._signal_duration_max,
+        self.signal_duration_max = verify_float(
+            self.signal_duration_max,
             name = "signal_duration_max",
             low = self.dataset_duration_min,
             high = self.dataset_duration_max
         )
 
-        self._signal_duration_min = verify_float(
-            self._signal_duration_min,
+        self.signal_duration_min = verify_float(
+            self.signal_duration_min,
             name = "signal_duration_min",
             low = self.dataset_duration_min,
             high = self.dataset_duration_max
         )
 
-        self._signal_bandwidth_min = verify_float(
-            self._signal_bandwidth_min,
+        self.signal_bandwidth_min = verify_float(
+            self.signal_bandwidth_min,
             name = "signal_bandwidth_min",
             low = self.dataset_bandwidth_min,
             high = self.dataset_bandwidth_max
         )
 
-        self._signal_bandwidth_max = verify_float(
-            self._signal_bandwidth_max,
+        self.signal_bandwidth_max = verify_float(
+            self.signal_bandwidth_max,
             name = "signal_bandwidth_max",
             low = self.dataset_bandwidth_min,
             high = self.dataset_bandwidth_max
         )
 
-        self._signal_center_freq_min = verify_float(
-            self._signal_center_freq_min,
+        self.signal_center_freq_min = verify_float(
+            self.signal_center_freq_min,
             name = "signal_center_freq_min",
             low = self.dataset_center_freq_min,
             high = self.dataset_center_freq_max
         )
 
-        self._signal_center_freq_max = verify_float(
-            self._signal_center_freq_max,
+        self.signal_center_freq_max = verify_float(
+            self.signal_center_freq_max,
             name = "signal_center_freq_max",
             low = self.dataset_center_freq_min,
             high = self.dataset_center_freq_max
         )
 
-        self._cochannel_overlap_probability = verify_float(
-            self._cochannel_overlap_probability,
+        self.cochannel_overlap_probability = verify_float(
+            self.cochannel_overlap_probability,
             name = "cochannel_overlap_probability",
             low = 0,
             high = 1
         )
-
-        if self._num_samples is not None:
-            self._num_samples = verify_int(
-                self._num_samples,
-                name = "num_samples",
-                low = 0,
-                exclude_low = True
-            )
 
         # check derived values
         
@@ -351,18 +318,6 @@ class DatasetMetadata(Seedable):
             exclude_low = True
         )
 
-    def _initialize_impairments(self) -> Impairments:
-        """Initializes and returns an instance of the Impairments class.
-        
-        This method creates and returns an instance of the `Impairments` class 
-        initialized with the current `impairment_level` of the dataset. It models 
-        the impairments applied to the wideband signals.
-        
-        Returns:
-            Impairments: A new instance of the `Impairments` class.
-        """
-        return Impairments(self.impairment_level)
-
     def __str__(self) -> str:
         return dataset_metadata_str(self)
 
@@ -389,63 +344,55 @@ class DatasetMetadata(Seedable):
         # organize fields by area
 
         required = {
-            'num_iq_samples_dataset': self._num_iq_samples_dataset,
-            'impairment_level': self._impairment_level,
-            'fft_size': self._fft_size,
-            'num_signals_max': self._num_signals_max
+            'num_iq_samples_dataset': self.num_iq_samples_dataset,
+            'fft_size': self.fft_size,
         }
 
         overrides = {
-            'num_samples': self._num_samples,
-            'sample_rate': self._sample_rate,
-            'num_signals_min': self._num_signals_min,
-            'num_signals_distribution': "uniform" if self._num_signals_distribution is None else self._num_signals_distribution.tolist(),
-            'snr_db_min': self._snr_db_min,
+            'sample_rate': self.sample_rate,
+            'num_signals_min': self.num_signals_min,
+            'num_signals_max': self.num_signals_max,
+            'num_signals_distribution': "uniform" if self.num_signals_distribution is None else self.num_signals_distribution.tolist(),
+            'snr_db_min': self.snr_db_min,
             'snr_db_max': self.snr_db_max,
-            'signal_duration_min': self._signal_duration_min,
-            'signal_duration_max': self._signal_duration_max,
-            'signal_bandwidth_min': self._signal_bandwidth_min,
-            'signal_bandwidth_max': self._signal_bandwidth_max,
-            'signal_center_freq_min': self._signal_center_freq_min,
-            'signal_center_freq_max': self._signal_center_freq_max,
-            'cochannel_overlap_probability': self._cochannel_overlap_probability,
-            'class_list': deepcopy(self._class_list),
-            'class_distribution': "uniform" if self._class_distribution is None else self._class_distribution.tolist(),
-            'seed': self.rng_seed
+            'signal_duration_min': self.signal_duration_min,
+            'signal_duration_max': self.signal_duration_max,
+            'signal_bandwidth_min': self.signal_bandwidth_min,
+            'signal_bandwidth_max': self.signal_bandwidth_max,
+            'signal_center_freq_min': self.signal_center_freq_min,
+            'signal_center_freq_max': self.signal_center_freq_max,
+            'cochannel_overlap_probability': self.cochannel_overlap_probability,
+            'class_list': deepcopy(self.class_list),
+            'class_distribution': "uniform" if self.class_distribution is None else self.class_distribution.tolist(),
         }
 
         # dataset information
         dataset_info = {
-            'num_samples': "infinite" if self._num_samples is None else self._num_samples,
-            'num_iq_samples_dataset': self._num_iq_samples_dataset,
-            'fft_size': self._fft_size,
-            'sample_rate': self._sample_rate,
-            'impairment_level': self._impairment_level,
-            'seed': self.rng_seed,
-            'transforms': [str(tranform) for tranform in self._transforms],
-            'target_transforms': [str(target_transform) for target_transform in self._target_transforms],
+            'num_iq_samples_dataset': self.num_iq_samples_dataset,
+            'fft_size': self.fft_size,
+            'sample_rate': self.sample_rate,
         }
         # signal generation
         signal_gen = {
-            'num_signals_min': self._num_signals_min,
-            'num_signals_max': self._num_signals_max,
-            'num_signals_range': self._num_signals_range.tolist(),
-            'num_signals_distribution': "uniform" if self._num_signals_distribution is None else self._num_signals_distribution.tolist(),
-            'snr_db_min': self._snr_db_min,
-            'snr_db_max': self._snr_db_max,
-            'signal_duration_min': self._signal_duration_min,
-            'signal_duration_max': self._signal_duration_max,
-            'signal_bandwidth_min': self._signal_bandwidth_min,
-            'signal_bandwidth_max': self._signal_bandwidth_max,
-            'signal_center_freq_min': self._signal_center_freq_min,
-            'signal_center_freq_max': self._signal_center_freq_max,
-            'cochannel_overlap_probability': self._cochannel_overlap_probability,
-            'fft_size': self._fft_size,
+            'num_signals_min': self.num_signals_min,
+            'num_signals_max': self.num_signals_max,
+            'num_signals_range': self.num_signals_range.tolist(),
+            'num_signals_distribution': "uniform" if self.num_signals_distribution is None else self.num_signals_distribution.tolist(),
+            'snr_db_min': self.snr_db_min,
+            'snr_db_max': self.snr_db_max,
+            'signal_duration_min': self.signal_duration_min,
+            'signal_duration_max': self.signal_duration_max,
+            'signal_bandwidth_min': self.signal_bandwidth_min,
+            'signal_bandwidth_max': self.signal_bandwidth_max,
+            'signal_center_freq_min': self.signal_center_freq_min,
+            'signal_center_freq_max': self.signal_center_freq_max,
+            'cochannel_overlap_probability': self.cochannel_overlap_probability,
+            'fft_size': self.fft_size,
             'fft_frequency_resolution': self.fft_frequency_resolution,
             'fft_frequency_min': self.fft_frequency_min,
             'fft_frequency_max': self.fft_frequency_max,
-            'class_list': deepcopy(self._class_list),
-            'class_distribution': "uniform" if self._class_distribution is None else self._class_distribution.tolist(),
+            'class_list': deepcopy(self.class_list),
+            'class_distribution': "uniform" if self.class_distribution is None else self.class_distribution.tolist(),
             'signal_duration_in_samples_min': self.signal_duration_in_samples_min,
             'signal_duration_in_samples_max': self.signal_duration_in_samples_max,
         }
@@ -543,18 +490,6 @@ class DatasetMetadata(Seedable):
         return int(self.dataset_duration_min*self.sample_rate)
 
     @property
-    def dataset_center_freq_min(self) -> float:
-        """The minimum center frequency for a signal
-
-        The minimum is a boundary condition such that the center frequency
-        will not alias across the lower sampling rate boundary.
-
-        Returns:
-            float: minimum center frequency boundary for signal
-        """
-        return -self.sample_rate/2
-
-    @property
     def dataset_bandwidth_min(self) -> float:
         """The minimum possible bandwidth for a signal
 
@@ -579,58 +514,6 @@ class DatasetMetadata(Seedable):
         return self.sample_rate
 
     @property
-    def signal_center_freq_min(self) -> None:
-        """Defines the minimum center frequency boundary for a signal.
-        Must be within the boundary provided by dataset_center_freq_min().
-
-        Returns:
-            float: minimum center frequency for signal
-        """        
-        return self._signal_center_freq_min
-
-    @property
-    def signal_center_freq_max(self) -> None:
-        """Defines the maximum center frequency boundary for a signal.
-        Must be within the boundary provided by dataset_center_freq_max().
-
-        Returns:
-            float: maximum center frequency for signal
-        """        
-        return self._signal_center_freq_max
-
-    @property
-    def cochannel_overlap_probability(self) -> None:
-        """Probability that two signals are allowed to be
-        co-channel (ex: overlap) when being placed into the
-        spectrogram.
-
-        Returns:
-            float: cochannel (overlap) probability
-        """        
-        return self._cochannel_overlap_probability
-
-    @property
-    def signal_bandwidth_min(self) -> float:
-        """Defines the minimum bandwidth for a signal in the dataset
-        Must be within the boundary provided by dataset_bandwidth_min().
-
-        Returns:
-            float: minimum bandwidth for a signal
-        """
-        return self._signal_bandwidth_min
-
-    @property
-    def signal_bandwidth_max(self) -> float:
-        """Defines the maximum bandwidth for a signal in the dataset
-        Must be within the boundary provided by dataset_bandwidth_max().
-
-        Returns:
-            float: maximumum bandwidth for a signal
-        """
-        return self._signal_bandwidth_max
-
-
-    @property
     def signal_duration_in_samples_max(self) -> int:
         """The maximum duration in samples for a signal
 
@@ -639,7 +522,7 @@ class DatasetMetadata(Seedable):
         Returns:
             float: the maximum duration in samples for a signal
         """
-        return int(self._signal_duration_max*self.sample_rate)
+        return int(self.signal_duration_max*self.sample_rate)
 
     @property
     def signal_duration_in_samples_min(self) -> int:
@@ -650,223 +533,8 @@ class DatasetMetadata(Seedable):
         Returns:
             float: the minimum duration in samples for a signal
         """
-        return int(self._signal_duration_min*self.sample_rate)
+        return int(self.signal_duration_min*self.sample_rate)
 
-    ## Read-Only Dataset Metadata fields
-    @property
-    def num_iq_samples_dataset(self) -> int:
-        """Length of I/Q array per sample in dataset.
-
-        Returns the number of IQ samples of the dataset, this is
-        the length of the array that contains the IQ samples
-
-        Returns:
-            int: number of IQ samples
-        """
-        return self._num_iq_samples_dataset
-
-    @property
-    def sample_rate(self) -> float:
-        """Sample rate for the dataset.
-
-        Returns the sampling rate associated with the IQ samples of the dataset
-
-        Returns:
-            float: sample rate
-        """
-        return self._sample_rate
-    
-    @property
-    def num_signals_max(self) -> int:
-        """Max number of signals in each sample in the dataset
-
-        Returns the number of distinct signals dataset
-
-        Returns:
-            int: max number of signals
-        """
-        return self._num_signals_max
-
-    @property
-    def num_signals_min(self) -> int:
-        """Minimum number of signals in each sample in the dataset.
-
-        Returns:
-            int: min number of signals
-        """        
-        return self._num_signals_min
-
-    @property
-    def num_signals_range(self) -> List[int]:
-        """Range of num_signals can be generated by a sample.
-
-        Returns:
-            List[int]: List of num_signals possibilities.
-        """        
-        return self._num_signals_range
-
-    @property
-    def num_signals_distribution(self) -> List[float]:
-        """Probabilities for each value in `num_signals_range`.
-
-        Returns:
-            List[float]: Probabilties sample generates N signals per sample.
-        """        
-        return self._num_signals_distribution
-
-    @property
-    def transforms(self) -> list:
-        """Transforms to perform on signal data (after signal impairments).
-
-        Returns:
-            Transform: Transform to apply to data.
-        """        
-        return self._transforms
-
-    @property
-    def target_transforms(self) -> list:
-        """Target Transform to apply.
-
-        Returns:
-            TargetTransform: _description_
-        """        
-        return self._target_transforms
-
-    @property
-    def impairment_level(self) -> int:
-        """Level of signal impairments to apply to signals (0-2)
-
-        Returns:
-            int: Impairment level.
-        """        
-        return self._impairment_level
-
-    @property
-    def impairments(self) -> Impairments:
-        """Impairment signal and dataset transforms
-
-        Returns:
-            Impairments: Transforms or impairments
-        """        
-        return self._impairments
-
-    @property
-    def class_list(self) -> List[str]:
-        """Signal modulation class list for dataset.
-
-        Returns:
-            List[str]: List of signal modulation class names
-        """        
-        return self._class_list
-
-    @property
-    def class_distribution(self) -> np.ndarray | List[str]:
-        """Signal modulation class distribution for dataset generation.
-
-        Returns:
-            np.ndarray | List[str]: List of class probabilites.
-        """        
-        return self._class_distribution
-    
-
-    @property
-    def num_samples(self) -> int:
-        """Getter for the number of samples in the dataset.
-
-        This property returns the number of samples that the dataset is configured to have. If the value is set 
-        to `None`, it indicates that the number of samples is considered infinite.
-
-        Returns:
-            int: The number of samples in the dataset, or a representation of infinite samples if set to `None`.
-        """
-        return self._num_samples
-
-    @property
-    def noise_power_db(self) -> float:
-        """Reference noise power (dB) for the dataset
-
-        The noise power is a common reference to be used for all signal
-        generation in order to establish accurate SNR calculations.
-        The noise power dB is given in decibels. The PSD estimate of the
-        AWGN is calculated such that the averaging across all frequency
-        bins average to noise_power_db.
-
-        Returns:
-            float: noise power in dB
-        """
-        return self._noise_power_db
-
-    @property
-    def snr_db_min(self) -> float:
-        """Minimum SNR in dB for signals in dataset
-
-        Signals within the dataset will be assigned a signal to noise
-        ratio (SNR), across a range defined by a minimum and maximum
-        value. snr_db_min is the low end of the SNR range.
-
-        Returns:
-            float: minimum SNR in dB
-        """
-        return self._snr_db_min
-
-
-    @property
-    def snr_db_max(self) -> float:
-        """Minimum SNR in dB for signals in dataset
-
-        Signals within the dataset will be assigned a signal to noise
-        ratio (SNR), across a range defined by a minimum and maximum
-        value. snr_db_max is the high end of the SNR range.
-
-        Returns:
-            float: maximum SNR in dB
-        """
-        return self._snr_db_max
-
-    @property
-    def signal_duration_max(self) -> float:
-        """Getter for the maximum signal duration.
-
-        Returns:
-            float: The maximum of the signal duration.
-        """
-        return self._signal_duration_max
-    
-    @property
-    def signal_duration_min(self) -> float:
-        """Getter for the minimum signal duration.
-
-        Returns:
-            float: The minimum of the signal duration.
-        """
-        return self._signal_duration_min
-
-    @property
-    def fft_size(self) -> int:
-        """The size of FFT (number of bins) to be used in spectrogram.
-
-        The FFT size used to compute the spectrogram for the dataset.
-
-        Returns:
-            int: FFT size
-        """
-        return self._fft_size
-
-    @property
-    def fft_stride(self) -> int:
-        """The stride of input samples in FFT (number of samples)
-
-        The FFT stride controls the distance in samples between successive
-        FFTs. A smaller FFT stride means more averaging between FFTs, a
-        larger stride means less averaging between FFTs. fft_stride = fft_size
-        means there is no overlap of samples between the current and next
-        FFT. fft_stride = fft_size/2 means there is 50% overlap between the
-        input samples of the the current and next fft.
-
-        Returns:
-            int: FFT stride
-        """
-        return self._fft_stride
 
     ## Derived Read-Only Dataset Metadata
 
@@ -939,5 +607,103 @@ class DatasetMetadata(Seedable):
         return (self.sample_rate/2)*(1-epsilon)
 
 
+class ExternalDatasetMetadata():
+    """Dataset Metadata class for external data, with less required infrastructure
+    and fields than the internal metadata class that generates TorchSig datasets.
+    """
 
+    minimum_params: List[str] = [
+        'num_iq_samples_dataset',
+        'class_list',
+        'sample_rate'
+    ]
 
+    def __init__(
+        self, 
+        num_iq_samples_dataset: int,
+        class_list: List[str] = [],
+        sample_rate: float = 10e6,
+        **kwargs
+    ):
+        """Initializes ExternalDatasetMetadata.
+
+        Args:
+            num_iq_samples_dataset (int): Length of I/Q array in dataset.
+            class_list (List[str], optional): Signal class name list. Defaults to []].
+            sample_rate (float, optional): Sample rate for dataset. Defaults to 10e6.
+        Raises:
+            ValueError: If any of the provided parameters are invalid or incompatible.
+        """            
+        self.num_iq_samples_dataset = num_iq_samples_dataset
+        self.sample_rate = sample_rate
+        self.class_list = class_list
+        self.kwargs = kwargs
+
+        # run _verify() to ensure metadata is valid
+        self.verify()
+
+    def verify(self) -> None:
+        """Verify that metadata is valid.
+
+        Raises:
+            ValueError: If any dataset configuration is invalid.
+        """
+
+        # check all of the input parameters
+        self.num_iq_samples_dataset = verify_int(
+            self.num_iq_samples_dataset,
+            name = "num_iq_samples_dataset",
+            low = 0,
+            exclude_low = True
+        )
+
+    def __str__(self) -> str:
+        return f"{self.__class__.__name__}"
+
+    def __repr__(self) -> str:
+        """Returns a string representation of the DatasetMetadata instance.
+        
+        This provides a concise summary of the key parameters such as `num_iq_samples_dataset`, 
+        `sample_rate`, `num_signals_max`, and `fft_size`.
+        
+        Returns:
+            str: String representation of the DatasetMetadata instance.
+        """
+        return f"{self.__class__.__name__}(num_iq_samples_dataset={self.num_iq_samples_dataset}, sample_rate={self.sample_rate})"
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """Converts the dataset metadata into a dictionary format.
+
+        This method organizes various metadata fields related to the dataset into categories such as 
+        general dataset information, signal generation parameters, and dataset writing information.
+
+        Returns:
+            Dict[str, Any]: A dictionary representation of the dataset metadata.
+        """
+        # organize fields by area
+
+        required = {
+            'num_iq_samples_dataset': self.num_iq_samples_dataset,
+
+        }
+
+        overrides = {
+            'sample_rate': self.sample_rate,
+            'class_list': deepcopy(self.class_list),
+        }
+
+        # dataset information
+        dataset_info = {
+            'num_iq_samples_dataset': self.num_iq_samples_dataset,
+            'sample_rate': self.sample_rate,
+        }
+
+        read_only = {
+            'info': dataset_info
+        }
+
+        return {
+            'required': required,
+            'overrides': overrides,
+            'read_only': read_only
+        }

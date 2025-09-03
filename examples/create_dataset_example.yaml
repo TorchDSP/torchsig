@@ -2,7 +2,6 @@ required:
   num_iq_samples_dataset: 4096
   fft_size: 64
   num_signals_max: 5
-  impairment_level: 1
 
 overrides:
   num_samples: 10

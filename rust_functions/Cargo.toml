@@ -1,0 +1,20 @@
+[package]
+name = "rust_functions"
+version = "2.0.0"
+edition = "2021"
+rust-version = "1.83"
+
+[lib]
+name = "rust_functions"
+crate-type = ["cdylib"]
+
+[dependencies]
+pyo3 = { version = "0.21", features = ["extension-module"] }
+numpy = "0.21.0"
+ndrustfft = "0.4.5"
+futuredsp = "0.0.6"
+fixed = "1.28.0"
+ndarray = "0.15"
+rand_distr = "0.5.1"
+rand = "0.9.1"
+num-complex = "0.4"

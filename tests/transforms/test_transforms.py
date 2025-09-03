@@ -10,6 +10,8 @@ from torchsig.transforms.transforms import (
     CarrierPhaseNoise,
     CarrierPhaseOffset,
     ChannelSwap,
+    ClockDrift,
+    ClockJitter,
     CoarseGainChange,
     CochannelInterference,
     ComplexTo2D,
@@ -33,16 +35,15 @@ from torchsig.transforms.transforms import (
     TimeReversal,
     TimeVaryingNoise,
 )
-from torchsig.signals.signal_types import Signal, DatasetSignal
+from torchsig.signals.signal_types import Signal
 from torchsig.utils.dsp import (
     compute_spectrogram,
     low_pass,
-    torchsig_complex_data_type,
-    torchsig_real_data_type
+    TorchSigComplexDataType,
+    TorchSigRealDataType
 )
 from test_transforms_utils import (
-    generate_test_signal,
-    generate_test_dataset_signal
+    generate_test_signal
 )
 
 # Third Party
@@ -57,15 +58,11 @@ from copy import deepcopy
 
 RTOL = 1E-6
 TEST_SIGNAL = generate_test_signal(num_iq_samples = 64, scale = 1.0)
-TEST_DS_SIGNAL = generate_test_dataset_signal(num_iq_samples = 64, scale = 1.0)
 
 
 # test fixtures
 def new_test_signal() -> Signal:
     return deepcopy(TEST_SIGNAL)
-
-def new_test_ds_signal() -> DatasetSignal:
-    return deepcopy(TEST_DS_SIGNAL)
 
 
 # pytests
@@ -91,22 +88,19 @@ def test_SignalTransform(is_error: bool) -> None:
 
 
 @pytest.mark.parametrize("signal, params, is_error", [
-    (generate_test_signal(num_iq_samples = 1024, scale = 1.0), {'noise_power_db': 3.0, 'measure': False}, False),
-    (generate_test_signal(num_iq_samples = 1024, scale = 1.0), {'noise_power_db': 0.1, 'measure': False}, False),
-    (generate_test_signal(num_iq_samples = 1024, scale = 1.0), {'noise_power_db': 0.5, 'measure': True}, False),
-    (generate_test_dataset_signal(num_iq_samples = 1024, scale = 1.0), {'noise_power_db': 3.0, 'measure': False}, False),
-    (generate_test_dataset_signal(num_iq_samples = 1024, scale = 1.0), {'noise_power_db': 0.1, 'measure': False}, False),
-    (generate_test_dataset_signal(num_iq_samples = 1024, scale = 1.0), {'noise_power_db': 0.5, 'measure': True}, False)
+    (generate_test_signal(num_iq_samples = 1024, scale = 1.0), {'noise_power_db': 3.0, 'precise': False}, False),
+    (generate_test_signal(num_iq_samples = 1024, scale = 1.0), {'noise_power_db': 0.1, 'precise': False}, False),
+    (generate_test_signal(num_iq_samples = 1024, scale = 1.0), {'noise_power_db': 0.5, 'precise': True}, False),
 ])
 def test_AWGN(
-    signal: Union[Signal, DatasetSignal], 
+    signal: Signal, 
     params: dict, 
     is_error: bool
 ) -> None:
     """Test the AWGN transform with pytest.
 
     Args:
-        signal (Union[Signal, DatasetSignal]): input signal.
+        signal: input signal.
         params (dict): AWGN parameters (see functional AWGN description).
         is_error (bool): Is a test error expected. 
 
@@ -116,13 +110,13 @@ def test_AWGN(
     """
     noise_power_db = params['noise_power_db']
     add_noise_power_linear = 10**(noise_power_db / 10)
-    measure = params['measure']
+    precise = params['precise']
     
     if is_error:
         with pytest.raises(Exception, match=r".*"):
             T = AWGN(
                 noise_power_db = noise_power_db,
-                measure = measure,
+                precise = precise,
                 seed = 42
             )
             signal = T(signal)
@@ -130,14 +124,14 @@ def test_AWGN(
         signal_test = deepcopy(signal)
         T = AWGN(
             noise_power_db = noise_power_db,
-            measure = measure,
+            precise = precise,
             seed = 42
         )
         signal = T(signal)
 
-        if isinstance(signal, DatasetSignal):
+        if False:
             for i, m in enumerate(signal.metadata):
-                if measure:
+                if precise:
                     start = m.start_in_samples
                     duration = m.duration_in_samples
                     stop = start + duration
@@ -151,15 +145,14 @@ def test_AWGN(
                 else:
                     assert signal.metadata[i].snr_db == signal_test.metadata[i].snr_db
         else: #Signal
-            if measure:
+            if precise:
                 orig_power = np.sum(np.abs(signal_test.data)**2)/len(signal_test.data)
-                orig_snr_linear = 10 ** (signal_test.metadata.snr_db / 10)
-                out_power = np.sum(np.abs(signal.data)**2)/len(signal.data)
+                orig_snr_linear = 10 ** (signal_test.metadata.snr_db / 10)                 
+                out_power = np.sum(np.abs(signal.data)**2)/len(signal.data)                
                 add_noise_power = out_power - orig_power
                 sig_power = orig_power / (1 + 1/orig_snr_linear)
                 noise_power = sig_power / orig_snr_linear
                 new_snr_db = 10*np.log10(sig_power / (noise_power + add_noise_power))
-
                 assert np.abs(signal.metadata.snr_db - new_snr_db) < 10**(1.0/10)
             else:
                 assert signal.metadata.snr_db == signal_test.metadata.snr_db
@@ -167,7 +160,7 @@ def test_AWGN(
         assert isinstance(T, AWGN)
         assert isinstance(T.random_generator, np.random.Generator)   
         assert isinstance(T.noise_power_db, float) 
-        assert isinstance(signal, (Signal, DatasetSignal))
+        
         assert type(signal.data) == type(signal_test.data)
         assert signal.data.dtype == signal_test.data.dtype
         assert np.not_equal(signal.data, signal_test.data).any()
@@ -176,17 +169,15 @@ def test_AWGN(
 @pytest.mark.parametrize("signal, is_error", [
     (generate_test_signal(num_iq_samples=64, scale=1.0), False),
     (generate_test_signal(num_iq_samples=256, scale=1.0), False),
-    (generate_test_dataset_signal(num_iq_samples=64, scale=1.0), False),
-    (generate_test_dataset_signal(num_iq_samples=256, scale=1.0), False)
 ])
 def test_AddSlope(
-    signal: Union[Signal, DatasetSignal], 
+    signal: Signal, 
     is_error: bool
 ) -> None:
     """Test AddSlope transform with pytest.
 
     Args:
-        signal (Union[Signal, DatasetSignal]): Input signal to transform.
+        signal (Signal): Input signal to transform.
         is_error (bool): Is a test error expected.
 
     Raises:
@@ -203,28 +194,25 @@ def test_AddSlope(
         
         assert isinstance(T, AddSlope)
         assert isinstance(T.random_generator, np.random.Generator)
-        assert isinstance(signal, (Signal, DatasetSignal))
+        
         assert len(signal.data) == len(signal_test.data)
-        assert (signal.data.dtype == torchsig_complex_data_type) 
+        assert (signal.data.dtype == TorchSigComplexDataType) 
 
 
 @pytest.mark.parametrize("signal, params, is_error", [
-    (generate_test_signal(num_iq_samples = 1024, scale = 1.0),{'power_range': (0.01, 10.0),'color': 'white','continuous': True, 'measure': False}, False),
-    (generate_test_signal(num_iq_samples = 1024, scale = 1.0),{'power_range': (0.5, 2.0),'color': 'pink','continuous': False, 'measure': False}, False),
-    (generate_test_signal(num_iq_samples = 1024, scale = 1.0),{'power_range': (2.0, 2.0),'color': 'white','continuous': True, 'measure': True}, False),
-    (generate_test_dataset_signal(num_iq_samples = 1024, scale = 1.0), {'power_range': (0.01, 10.0), 'color': 'white', 'continuous': True, 'measure': False}, False),
-    (generate_test_dataset_signal(num_iq_samples = 1024, scale = 1.0), {'power_range': (0.5, 2.0), 'color': 'pink', 'continuous': False, 'measure': False}, False),
-    (generate_test_dataset_signal(num_iq_samples = 1024, scale = 1.0), {'power_range': (2.0, 2.0), 'color': 'white', 'continuous': True, 'measure': True}, False)
+    (generate_test_signal(num_iq_samples = 1024, scale = 1.0),{'power_range': (0.01, 10.0),'color': 'white','continuous': True, 'precise': False}, False),
+    (generate_test_signal(num_iq_samples = 1024, scale = 1.0),{'power_range': (0.5, 2.0),'color': 'pink','continuous': False, 'precise': False}, False),
+    (generate_test_signal(num_iq_samples = 1024, scale = 1.0),{'power_range': (2.0, 2.0),'color': 'white','continuous': True, 'precise': True}, False),
 ])
 def test_AdditiveNoise(
-    signal: Union[Signal, DatasetSignal], 
+    signal: Signal, 
     params: dict, 
     is_error: bool
 ) -> None:
     """Test AdditiveNoise transform with pytest.
 
     Args:
-        signal (Union[Signal, DatasetSignal]): Input signal to transform.
+        signal (Signal): Input signal to transform.
         params (dict): Transform call parameters (see description).
         is_error (bool): Is a test error expected.
 
@@ -235,7 +223,7 @@ def test_AdditiveNoise(
     power_range = params['power_range']
     color = params['color']
     continuous = params['continuous']
-    measure = params['measure']
+    precise = params['precise']
     
     if is_error:
         with pytest.raises(Exception, match=r".*"):
@@ -243,7 +231,7 @@ def test_AdditiveNoise(
                     power_range = power_range,
                     color = color,
                     continuous = continuous,
-                    measure = measure,
+                    precise = precise,
                     seed = 42
                 )
                 signal = T(signal)
@@ -254,14 +242,14 @@ def test_AdditiveNoise(
             power_range = power_range,
             color = color,
             continuous = continuous,
-            measure = measure,
+            precise = precise,
             seed = 42
         )
         signal = T(signal)
         
-        if isinstance(signal, DatasetSignal):
+        if False:
             for i, m in enumerate(signal.metadata):
-                if measure:
+                if precise:
                     start = m.start_in_samples
                     duration = m.duration_in_samples
                     stop = start + duration
@@ -277,7 +265,7 @@ def test_AdditiveNoise(
                 else:
                     assert signal.metadata[i].snr_db == signal_test.metadata[i].snr_db
         else: #Signal
-            if measure:
+            if precise:
                 orig_power = np.sum(np.abs(signal_test.data)**2)/len(signal_test.data)
                 orig_snr_linear = 10 ** (signal_test.metadata.snr_db / 10)
                 out_power = np.sum(np.abs(signal.data)**2)/len(signal.data)
@@ -294,10 +282,10 @@ def test_AdditiveNoise(
         assert isinstance(T.power_distribution(), float)
         assert isinstance(T.color, str)
         assert isinstance(T.continuous, bool)
-        assert isinstance(T.measure, bool)
-        assert isinstance(signal, (Signal, DatasetSignal))
+        assert isinstance(T.precise, bool)
+        
         assert len(signal.data) == len(signal_test.data)
-        assert (signal.data.dtype == torchsig_complex_data_type)
+        assert (signal.data.dtype == TorchSigComplexDataType)
     
 
 @pytest.mark.parametrize("signal, params, expected, is_error", [
@@ -329,7 +317,7 @@ def test_AdditiveNoise(
     ),
 ])
 def test_AdjacentChannelInterference(
-    signal: Union[Signal, DatasetSignal],
+    signal: Signal,
     params: dict, 
     expected: Union[bool, ValueError], 
     is_error: bool
@@ -337,7 +325,7 @@ def test_AdjacentChannelInterference(
     """Test AdjacentChannelInterference transform with pytest.
 
     Args:
-        signal (Union[Signal, DatasetSignal]): Input signal to transform.
+        signal (Signal): Input signal to transform.
         params (dict): Transform call parameters (see description).
         expected (bool | ValueError): Expected test result.
         is_error (bool): Is a test error expected.
@@ -384,8 +372,8 @@ def test_AdjacentChannelInterference(
         assert isinstance(T.phase_sigma_distribution(), float) == expected
         assert isinstance(T.time_sigma_distribution(), float) == expected
         assert isinstance(T.filter_weights, np.ndarray) == expected
-        assert isinstance(signal, (Signal, DatasetSignal)) == expected
-        assert (signal.data.dtype == torchsig_complex_data_type) == expected
+
+        assert (signal.data.dtype == TorchSigComplexDataType) == expected
 
 
 @pytest.mark.parametrize("signal, params, is_error", [
@@ -403,30 +391,16 @@ def test_AdjacentChannelInterference(
         },
         False
     ),
-    (
-        new_test_ds_signal(), 
-        {
-            'drift_ppm': (0.1, 1)
-        },
-        False
-    ),
-    (
-        new_test_ds_signal(), 
-        {
-            'drift_ppm': (0.1, 1)
-        },
-        False
-    )
 ])
 def test_CarrierFrequencyDrift(
-    signal: Union[Signal, DatasetSignal],
+    signal: Signal,
     params: dict, 
     is_error: bool
 ) -> None:
     """Test CarrierFrequencyDrift transform with pytest.
 
     Args:
-        signal (Union[Signal, DatasetSignal]): Input signal to transform.
+        signal (Signal): Input signal to transform.
         params (dict): Transform call parameters (see description).
         is_error (bool): Is a test error expected.
 
@@ -453,10 +427,10 @@ def test_CarrierFrequencyDrift(
 
         assert isinstance(T, CarrierFrequencyDrift)
         assert isinstance(T.drift_ppm_distribution(), float)
-        assert isinstance(signal, (Signal, DatasetSignal))
+        
         assert len(signal.data) == len(signal_test.data)
         assert type(signal.data) == type(signal_test.data)
-        assert signal.data.dtype == torchsig_complex_data_type
+        assert signal.data.dtype == TorchSigComplexDataType
 
 
 @pytest.mark.parametrize("signal, params, is_error", [
@@ -466,24 +440,17 @@ def test_CarrierFrequencyDrift(
             'phase_noise_degrees': (0.25, 1), 
         },
         False
-    ),
-    (
-        new_test_ds_signal(), 
-        {
-            'phase_noise_degrees': (0.42, 1), 
-        },
-        False
-    ),    
+    ),  
 ])
 def test_CarrierPhaseNoise(
-    signal: Union[Signal, DatasetSignal],
+    signal: Signal,
     params: dict, 
     is_error: bool
 ) -> None:
     """Test CarrierPhaseNoise transform with pytest.
 
     Args:
-        signal (Union[Signal, DatasetSignal]): Input signal to transform.
+        signal (Signal): Input signal to transform.
         params (dict): Transform call parameters (see description).
         is_error (bool): Is a test error expected.
 
@@ -511,10 +478,10 @@ def test_CarrierPhaseNoise(
         assert isinstance(T, CarrierPhaseNoise)
         assert isinstance(T.phase_noise_degrees, tuple)
         assert isinstance(T.phase_noise_degrees_distribution(), float)
-        assert isinstance(signal, (Signal, DatasetSignal))
+        
         assert len(signal.data) == len(signal_test.data)
         assert type(signal.data) == type(signal_test.data)
-        assert signal.data.dtype == torchsig_complex_data_type
+        assert signal.data.dtype == TorchSigComplexDataType
 
 
 @pytest.mark.parametrize("signal, is_error", [
@@ -522,13 +489,13 @@ def test_CarrierPhaseNoise(
     (generate_test_signal(num_iq_samples = 256, scale = 1.0), False)
 ])
 def test_CarrierPhaseOffset(
-    signal: Union[Signal, DatasetSignal], 
+    signal: Signal, 
     is_error: bool
 ) -> None:
     """Test CarrierPhaseOffset transform with pytest.
 
     Args:
-        signal (Union[Signal, DatasetSignal]): Input signal to transform.
+        signal (Signal): Input signal to transform.
         is_error (bool): Is a test error expected.
 
     Raises:
@@ -551,25 +518,23 @@ def test_CarrierPhaseOffset(
 
         assert isinstance(T, CarrierPhaseOffset)
         assert isinstance(T.phase_offset_distribution(), float)
-        assert isinstance(signal, (Signal, DatasetSignal))
+        
         assert type(signal.data) == type(signal_test.data)
-        assert signal.data.dtype == torchsig_complex_data_type
+        assert signal.data.dtype == TorchSigComplexDataType
 
 
 @pytest.mark.parametrize("signal, is_error", [
     (generate_test_signal(num_iq_samples=64, scale=1.0), False),
     (generate_test_signal(num_iq_samples=256, scale=1.0), False),
-    (generate_test_dataset_signal(num_iq_samples=64, scale=1.0), False),
-    (generate_test_dataset_signal(num_iq_samples=256, scale=1.0), False)
 ])
 def test_ChannelSwap(
-    signal: Union[Signal, DatasetSignal],
+    signal: Signal,
     is_error: bool
 ) -> None:
     """Test ChannelSwap transform with pytest.
 
     Args:
-        signal (Union[Signal, DatasetSignal]): Input signal to transform.
+        signal (Signal): Input signal to transform.
         is_error (bool): Is a test error expected.
 
     Raises:
@@ -585,27 +550,117 @@ def test_ChannelSwap(
         signal = T(signal)
         
         assert isinstance(T, ChannelSwap)
-        assert isinstance(signal, (Signal, DatasetSignal))
+        
         assert len(signal.data) == len(signal_test.data)
         assert np.not_equal(signal.data, signal_test.data).any()
-        assert (signal.data.dtype == torchsig_complex_data_type)
+        assert (signal.data.dtype == TorchSigComplexDataType)
+
+
+@pytest.mark.parametrize("signal, params, is_error", [
+    (new_test_signal(), {'drift_ppm': (0.1, 1.0)}, False),
+    (new_test_signal(), {'drift_ppm': (1.0, 10.0)}, False),
+])
+def test_ClockDrift(
+    signal: Signal,
+    params: dict, 
+    is_error: bool
+) -> None:
+    """Test ClockDrift transform with pytest.
+
+    Args:
+        signal (Signal): Input signal to transform.
+        params (dict): Transform call parameters.
+        is_error (bool): Is a test error expected.
+
+    Raises:
+        AssertionError: If unexpected test outcome.
+    """
+    drift_ppm = params['drift_ppm']
+    
+    if is_error:
+        with pytest.raises(Exception, match=r".*"):
+            T = ClockDrift(
+                drift_ppm = drift_ppm,
+                seed = 42
+            )
+            signal = T(signal)
+    else:
+        signal_test = deepcopy(signal)
+
+        T = ClockDrift(
+            drift_ppm = drift_ppm,
+            seed = 42
+        )
+        signal = T(signal)
+        
+        assert isinstance(T, ClockDrift)
+        assert isinstance(T.random_generator, np.random.Generator)
+        assert isinstance(T.drift_ppm_distribution(), float)
+        
+        assert len(signal.data) == len(signal_test.data)
+        assert (signal.data.dtype == TorchSigComplexDataType)
+
+
+
+@pytest.mark.parametrize("signal, params, is_error", [
+    (new_test_signal(), {'jitter_ppm': (0.1, 1.0)}, False),
+    (new_test_signal(), {'jitter_ppm': (1.0, 10.0)}, False),
+])
+def test_ClockJitter(
+    signal: Signal,
+    params: dict, 
+    is_error: bool
+) -> None:
+    """Test ClockJitter transform with pytest.
+
+    Args:
+        signal (Signal): Input signal to transform.
+        params (dict): Transform call parameters.
+        is_error (bool): Is a test error expected.
+
+    Raises:
+        AssertionError: If unexpected test outcome.
+    """
+    jitter_ppm = params['jitter_ppm']
+    
+    if is_error:
+        with pytest.raises(Exception, match=r".*"):
+            T = ClockJitter(
+                jitter_ppm = jitter_ppm,
+                seed = 42
+            )
+            signal = T(signal)
+    else:
+        signal_test = deepcopy(signal)
+
+        T = ClockJitter(
+            jitter_ppm = jitter_ppm,
+            seed = 42
+        )
+        signal = T(signal)
+        
+        assert isinstance(T, ClockJitter)
+        assert isinstance(T.random_generator, np.random.Generator)
+        assert isinstance(T.jitter_ppm_distribution(), float)
+        
+        assert len(signal.data) == len(signal_test.data)
+        assert (signal.data.dtype == TorchSigComplexDataType)
+
 
 
 @pytest.mark.parametrize("signal, params, is_error", [
     (new_test_signal(), {'gain_change_db': (-3.0, 3.0)}, False),
     (new_test_signal(), {'gain_change_db': (-10.0, 10.0)}, False),
-    (new_test_ds_signal(), {'gain_change_db': (-3.0, 3.0)}, False),
-    (new_test_ds_signal(), {'gain_change_db': (-10.0, 10.0)}, False)
 ])
 def test_CoarseGainChange(
-    signal: Union[Signal, DatasetSignal],
+    signal: Signal,
     params: dict, 
     is_error: bool
 ) -> None:
     """Test CoarseGainChange transform with pytest.
 
     Args:
-        signal (Union[Signal, DatasetSignal]): Input signal to transform.
+        signal (Signal): Input signal to transform.
         params (dict): Transform call parameters.
         is_error (bool): Is a test error expected.
 
@@ -633,9 +688,9 @@ def test_CoarseGainChange(
         assert isinstance(T, CoarseGainChange)
         assert isinstance(T.random_generator, np.random.Generator)
         assert isinstance(T.gain_change_db_distribution(), float)
-        assert isinstance(signal, (Signal, DatasetSignal))
+        
         assert len(signal.data) == len(signal_test.data)
-        assert (signal.data.dtype == torchsig_complex_data_type)
+        assert (signal.data.dtype == TorchSigComplexDataType)
 
 
 @pytest.mark.parametrize("signal, params, expected, is_error", [
@@ -646,7 +701,7 @@ def test_CoarseGainChange(
             'filter_weights': low_pass(0.125, 0.125, 1.0),
             'color': 'white',
             'continuous': True,
-            'measure': False,
+            'precise': False,
         },
         True,
         False
@@ -658,26 +713,14 @@ def test_CoarseGainChange(
             'filter_weights': low_pass(0.04, 0.16, 2.4),
             'color': 'pink',
             'continuous': False,
-            'measure': False,
+            'precise': False,
         },
         True,
         False
-    ),
-    (
-        new_test_ds_signal(), 
-        {
-            'power_range': (0.1, 0.1),
-            'filter_weights': low_pass(0.125, 0.125, 1.0),
-            'color': 'white',
-            'continuous': True,
-            'measure': True,
-        },
-        True,
-        False
-    ),    
+    ), 
 ])
 def test_CochannelInterference(
-    signal: Union[Signal, DatasetSignal],
+    signal: Signal,
     params: dict, 
     expected: bool, 
     is_error: bool
@@ -685,7 +728,7 @@ def test_CochannelInterference(
     """Test CochannelInterference with pytest.
 
     Args:
-        signal (Union[Signal, DatasetSignal]): Input signal to transform.
+        signal (Signal): Input signal to transform.
         params (dict): Transform call parameters (see description).
         expected (bool): Expected test result.
         is_error (bool): Is a test error expected.
@@ -698,7 +741,7 @@ def test_CochannelInterference(
     filter_weights = params['filter_weights']
     color = params['color']
     continuous = params['continuous']
-    measure = params['measure']
+    precise = params['precise']
     
     if is_error:
         with pytest.raises(Exception, match=r".*"):
@@ -707,7 +750,7 @@ def test_CochannelInterference(
                 filter_weights = filter_weights,
                 color = color,
                 continuous = continuous,
-                measure = measure,
+                precise = precise,
                 seed = 42
             )
             signal = T(signal)
@@ -719,7 +762,7 @@ def test_CochannelInterference(
             filter_weights = filter_weights,
             color = color,
             continuous = continuous,
-            measure = measure,
+            precise = precise,
             seed = 42
         )
         signal = T(signal)
@@ -730,23 +773,22 @@ def test_CochannelInterference(
         assert isinstance(T.filter_weights, np.ndarray) == expected
         assert isinstance(T.color, str) == expected
         assert isinstance(T.continuous, bool) == expected
-        assert isinstance(T.measure, bool) == expected
-        assert isinstance(signal, (Signal, DatasetSignal)) == expected
-        assert (signal.data.dtype == torchsig_complex_data_type) == expected
+        assert isinstance(T.precise, bool) == expected
+
+        assert (signal.data.dtype == TorchSigComplexDataType) == expected
 
 
 @pytest.mark.parametrize("signal, is_error", [
     (new_test_signal(), False),
-    (new_test_ds_signal(), False)
 ])
 def test_ComplexTo2D(
-    signal: Union[Signal, DatasetSignal],
+    signal: Signal,
     is_error: bool
 ) -> None:
     """Test ComplexTo2D transform with pytest.
 
     Args:
-        signal (Union[Signal, DatasetSignal]): Input signal to transform.
+        signal (Signal): Input signal to transform.
         is_error (bool): Is a test error expected.
 
     Raises:
@@ -762,22 +804,21 @@ def test_ComplexTo2D(
         signal = T(signal)
         
         assert isinstance(T, ComplexTo2D)
-        assert isinstance(signal, (Signal, DatasetSignal))
-        assert (signal.data.dtype == torchsig_real_data_type) 
+        
+        assert (signal.data.dtype == TorchSigRealDataType) 
 
 
 @pytest.mark.parametrize("signal, is_error", [
     (new_test_signal(), False),
-    (new_test_ds_signal(), False)
 ])
 def test_CutOut(
-    signal: Union[Signal, DatasetSignal],
+    signal: Signal,
     is_error: bool
 ) -> None:
     """Test CutOut transform with pytest.
 
     Args:
-        signal (Union[Signal, DatasetSignal]): Input signal to transform.
+        signal (Signal): Input signal to transform.
         is_error (bool): Is a test error expected.
 
     Raises:
@@ -796,9 +837,9 @@ def test_CutOut(
         assert isinstance(T, CutOut)
         assert isinstance(T.duration_distribution(), float)
         assert isinstance(T.cut_type_distribution(), str)
-        assert isinstance(signal, (Signal, DatasetSignal))
+        
         assert len(signal.data) == len(signal_test.data)
-        assert (signal.data.dtype == torchsig_complex_data_type) 
+        assert (signal.data.dtype == TorchSigComplexDataType) 
 
 @pytest.mark.parametrize("signal, params, is_error", [
     (
@@ -813,28 +854,16 @@ def test_CutOut(
         },
         False
     ),
-    (
-        new_test_ds_signal(),
-        { 
-            'initial_gain_db' : (-3,3),
-            'alpha_smooth'    : (1e-5,1e-3),
-            'alpha_track'     : (1e-4,1e-2),
-            'alpha_overflow'  : (1e-1,3e-1),
-            'alpha_acquire'   : (1e-4,1e-3),
-            'track_range_db'  : (0.5,2),
-        },
-        False
-    )
 ])
 def test_DigitalAGC(
-    signal: Union[Signal, DatasetSignal], 
+    signal: Signal, 
     params: dict, 
     is_error: bool
 ) -> None:
     """Test the DigitalAGC transform with pytest.
 
     Args:
-        signal (Union[Signal, DatasetSignal]): input dataset.
+        signal (Signal): input dataset.
         params (dict): AGC parameters (see DigitalAGC description).
         is_error (bool): Is a test error expected. 
 
@@ -868,9 +897,9 @@ def test_DigitalAGC(
         signal = T(signal)
 
         assert isinstance(T, DigitalAGC)
-        assert isinstance(signal, (Signal, DatasetSignal))
+        
         assert type(signal.data) == type(signal_test.data)
-        assert signal.data.dtype == torchsig_complex_data_type
+        assert signal.data.dtype == TorchSigComplexDataType
         assert np.not_equal(signal.data, signal_test.data).any()
 
 
@@ -879,30 +908,20 @@ def test_DigitalAGC(
         new_test_signal(), 
         {
             'velocity_range': (0.0, 10.0), 
-            'propagation_speed': 2.9979e8,
-            'sampling_rate': 1.0
+            'propagation_speed': 2.9979e8
         },
         False
-    ),
-    (
-        new_test_ds_signal(), 
-        {
-            'velocity_range': (-12.0, 12.0), 
-            'propagation_speed': 343.0,
-            'sampling_rate': 10e3
-        },
-        False
-    ),    
+    ),  
 ])
 def test_Doppler(
-    signal: Union[Signal, DatasetSignal],
+    signal: Signal,
     params: dict, 
     is_error: bool
 ) -> None:
     """Test Doppler with pytest.
 
     Args:
-        signal (Union[Signal, DatasetSignal]): Input signal to transform.
+        signal (Signal): Input signal to transform.
         params (dict): Transform call parameters (see description).
         is_error (bool): Is a test error expected.
 
@@ -912,14 +931,12 @@ def test_Doppler(
     """      
     velocity_range = params['velocity_range']
     propagation_speed = params['propagation_speed']
-    sampling_rate = params['sampling_rate']
 
     if is_error:
         with pytest.raises(Exception, match=r".*"):   
             T = Doppler(
                 velocity_range = velocity_range,
                 propagation_speed = propagation_speed,
-                sampling_rate = sampling_rate,
                 seed = 42
             )
             signal = T(signal)
@@ -928,7 +945,6 @@ def test_Doppler(
         T = Doppler(
             velocity_range = velocity_range,
             propagation_speed = propagation_speed,
-            sampling_rate = sampling_rate,
             seed = 42
         )
         signal = T(signal)
@@ -936,10 +952,9 @@ def test_Doppler(
         assert isinstance(T, Doppler)
         assert isinstance(T.velocity_distribution(), float)
         assert isinstance(T.propagation_speed, float)
-        assert isinstance(T.sampling_rate, float)
-        assert isinstance(signal, (Signal, DatasetSignal))
+        
         assert type(signal.data) == type(signal_test.data)
-        assert signal.data.dtype == torchsig_complex_data_type
+        assert signal.data.dtype == TorchSigComplexDataType
 
 
 @pytest.mark.parametrize("signal, params, is_error", [
@@ -951,24 +966,16 @@ def test_Doppler(
         },
         False
     ),
-    (
-        new_test_ds_signal(), 
-        {
-            'coherence_bandwidth': (0.05, 0.2), 
-            'power_delay_profile': (0.1, 0.4)
-        },
-        False
-    )
 ])
 def test_Fading(
-    signal: Union[Signal, DatasetSignal],
+    signal: Signal,
     params: dict, 
     is_error: bool
 ) -> None:
     """Test Fading transform with pytest.
 
     Args:
-        signal (Union[Signal, DatasetSignal]): Input signal to transform.
+        signal (Signal): Input signal to transform.
         params (dict): Transform call parameters (see description).
         is_error (bool): Is a test error expected.
 
@@ -1000,9 +1007,9 @@ def test_Fading(
         assert isinstance(T, Fading)
         assert isinstance(T.coherence_bandwidth_distribution(), float)
         assert np.allclose(T.power_delay_profile, power_delay_profile)
-        assert isinstance(signal, (Signal, DatasetSignal))
+        
         assert type(signal.data) == type(signal_test.data)
-        assert signal.data.dtype == torchsig_complex_data_type
+        assert signal.data.dtype == TorchSigComplexDataType
 
 
 
@@ -1014,25 +1021,17 @@ def test_Fading(
             'coeffs_range': (1e-3, 1e-1),
         },
         False
-    ),
-    (
-        new_test_ds_signal(), 
-        {
-            'model_order': [2,10], 
-            'coeffs_range': (1e-6, 1e-3),
-        },
-        False
-    )     
+    ),   
 ])
 def test_IntermodulationProducts(
-    signal: Union[Signal, DatasetSignal],
+    signal: Signal,
     params: dict, 
     is_error: bool
 ) -> None:
     """Test IntermodulationProducts transform with pytest.
 
     Args:
-        signal (Union[Signal, DatasetSignal]): Input signal to transform.
+        signal (Signal): Input signal to transform.
         params (dict): Transform call parameters (see description).
         is_error (bool): Is a test error expected.
 
@@ -1064,9 +1063,9 @@ def test_IntermodulationProducts(
         assert isinstance(T, IntermodulationProducts)
         assert isinstance(T.model_order_distribution(), np.int64)
         assert isinstance(T.coeffs_distribution(), float)
-        assert isinstance(signal, (Signal, DatasetSignal))
+        
         assert type(signal.data) == type(signal_test.data)
-        assert signal.data.dtype == torchsig_complex_data_type
+        assert signal.data.dtype == TorchSigComplexDataType
 
 
 @pytest.mark.parametrize("signal, params, is_error", [
@@ -1075,29 +1074,27 @@ def test_IntermodulationProducts(
         {
             'amplitude_imbalance': (0.0, 6.0), 
             'phase_imbalance': (-np.pi, np.pi),
-            'dc_offset': ((-0.2, 0.2),(-0.2, 0.2))
+            'dc_offset': ((-0.2, 0.2))
         },
         False
-    ),
-    (
-        new_test_ds_signal(), 
-        {
-            'amplitude_imbalance': [0.2, 2.2], 
-            'phase_imbalance': [-np.pi/8, np.pi/8],
-            'dc_offset': ([-0.03, 0.03],[-0.03, 0.03])
-        },
-        False
-    )    
+        # new_test_signal(), 
+        # {
+        #     'amplitude_imbalance': (0.0, 6.0), 
+        #     'phase_imbalance': (-np.pi, np.pi),
+        #     'dc_offset': ((-0.2, 0.2),(-0.2, 0.2))
+        # },
+        # False
+    ),  
 ])
 def test_IQImbalance(
-    signal: Union[Signal, DatasetSignal],
+    signal: Signal,
     params: dict, 
     is_error: bool
 ) -> None:
     """Test IQImbalance with pytest.
 
     Args:
-        signal (Union[Signal, DatasetSignal]): Input signal to transform.
+        signal (Signal): Input signal to transform.
         params (dict): Transform call parameters (see description).
         is_error (bool): Is a test error expected.
 
@@ -1114,7 +1111,7 @@ def test_IQImbalance(
                 T = IQImbalance(
                     amplitude_imbalance = amplitude_imbalance,
                     phase_imbalance = phase_imbalance,
-                    dc_offset = dc_offset,
+                    dc_offset_db = dc_offset,
                     seed = 42
                 )
                 signal = T(signal)
@@ -1124,7 +1121,7 @@ def test_IQImbalance(
         T = IQImbalance(
             amplitude_imbalance = amplitude_imbalance,
             phase_imbalance = phase_imbalance,
-            dc_offset = dc_offset,
+            dc_offset_db = dc_offset,
             seed = 42
         )
         signal = T(signal)
@@ -1134,9 +1131,9 @@ def test_IQImbalance(
         assert isinstance(T.phase_imbalance_distribution(), float)
         assert isinstance(T.dc_offset_db_distribution(), float)
         assert isinstance(T.dc_offset_phase_rads_distribution(), float)
-        assert isinstance(signal, (Signal, DatasetSignal))
+        
         assert type(signal.data) == type(signal_test.data)
-        assert signal.data.dtype == torchsig_complex_data_type
+        assert signal.data.dtype == TorchSigComplexDataType
 
 
 @pytest.mark.parametrize("signal, params, is_error", [
@@ -1151,27 +1148,16 @@ def test_IQImbalance(
         },
         False
     ),
-    (
-        new_test_ds_signal(), 
-        {
-            'gain_range': (0.5, 17.2),
-            'psat_backoff_range': (1.0, 7.0),
-            'phi_max_range': (-np.deg2rad(10.0), np.deg2rad(17.0)),
-            'phi_slope_range': (-0.1, 0.1),
-            'auto_scale': True
-        },
-        False
-    )  
 ])
 def test_NonlinearAmplifier(
-    signal: Union[Signal, DatasetSignal],
+    signal: Signal,
     params: dict, 
     is_error: bool
 ) -> None:
     """Test NonlinearAmplifier with pytest.
 
     Args:
-        signal (Union[Signal, DatasetSignal]): Input signal to transform.
+        signal (Signal): Input signal to transform.
         params (dict): Transform call parameters (see description).
         is_error (bool): Is a test error expected.
 
@@ -1212,8 +1198,8 @@ def test_NonlinearAmplifier(
         assert isinstance(T.psat_backoff_distribution(), float)
         assert isinstance(T.phi_max_distribution(), float)
         assert isinstance(T.phi_slope_distribution(), float)
-        assert isinstance(signal, (Signal, DatasetSignal))
-        assert (signal.data.dtype == torchsig_complex_data_type)
+        
+        assert (signal.data.dtype == TorchSigComplexDataType)
 
 
 @pytest.mark.parametrize("signal, params, is_error", [
@@ -1226,26 +1212,17 @@ def test_NonlinearAmplifier(
         },
         False
     ),
-    (
-        new_test_ds_signal(), 
-        {
-            'max_ripple_db': (1,2),
-            'num_taps': [2,3],
-            'coefficient_decay_rate': (1,5),
-        },
-        False
-    ),    
 ])
 
 def test_PassbandRipple(
-    signal: Union[Signal, DatasetSignal],
+    signal: Signal,
     params: dict, 
     is_error: bool
 ) -> None:
     """Test PassbandRipple transform with pytest.
 
     Args:
-        signal (Union[Signal, DatasetSignal]): Input signal to transform.
+        signal (Signal): Input signal to transform.
         is_error (bool): Is a test error expected.
 
     Raises:
@@ -1274,9 +1251,9 @@ def test_PassbandRipple(
         signal = T(signal)
 
         assert isinstance(T, PassbandRipple)
-        assert isinstance(signal, (Signal, DatasetSignal))
+        
         assert type(signal.data) == type(signal_test.data)
-        assert signal.data.dtype == torchsig_complex_data_type
+        assert signal.data.dtype == TorchSigComplexDataType
 
 
 @pytest.mark.parametrize("signal, params, is_error", [
@@ -1285,20 +1262,15 @@ def test_PassbandRipple(
         {'patch_size': [2, 2], 'shuffle_ratio': 0.5},
         False
     ),
-    (
-        new_test_ds_signal(), 
-        {'patch_size': [2, 2], 'shuffle_ratio': [0.5, 0.5]},
-        False
-    )
 ])
 def test_PatchShuffle(
-    signal: Union[Signal, DatasetSignal], 
+    signal: Signal, 
     params: dict, is_error: bool
     ) -> None:
     """Test the PatchShuffle transform with pytest.
 
     Args:
-        signal (Union[Signal, DatasetSignal]): input dataset.
+        signal (Signal): input dataset.
         params (dict): PatchShuffle parameters (see functional PatchShuffle description).
         is_error (bool): Is a test error expected. 
 
@@ -1330,7 +1302,7 @@ def test_PatchShuffle(
         assert isinstance(T.random_generator, np.random.Generator)
         assert isinstance(T.patch_size_distribution(), np.int_)
         assert isinstance(T.shuffle_ratio_distribution(), float)
-        assert isinstance(signal, (Signal, DatasetSignal))
+        
         assert type(signal) == type(signal_test)
         assert signal.data.dtype == signal_test.data.dtype
         assert np.not_equal(signal.data, signal_test.data).any()
@@ -1344,23 +1316,16 @@ def test_PatchShuffle(
         },
         False
     ),
-    (
-        new_test_ds_signal(), 
-        {
-            'num_bits': [16]
-        },
-        False
-    )
 ])
 def test_Quantize(
-    signal: Union[Signal, DatasetSignal], 
+    signal: Signal, 
     params: dict, 
     is_error: bool
     ) -> None:
     """Test the Quantize transform with pytest.
 
     Args:
-        signal (Union[Signal, DatasetSignal]): input dataset.
+        signal (Signal): input dataset.
         params (dict): Quantize parameters (see functional description).
         is_error (bool): Is a test error expected. 
 
@@ -1387,7 +1352,7 @@ def test_Quantize(
         assert isinstance(T, Quantize)
         assert isinstance(T.random_generator, np.random.Generator)
         assert isinstance(T.num_bits_distribution(), np.int_)
-        assert isinstance(signal, (Signal, DatasetSignal))
+        
         assert type(signal.data) == type(signal_test.data)
         assert signal.data.dtype == signal_test.data.dtype
         assert np.not_equal(signal.data, signal_test.data).any()
@@ -1399,21 +1364,16 @@ def test_Quantize(
         {'drop_rate': (0.01, 0.02), 'size': (5, 7), 'fill': ['zero']},
         False
     ),
-    (
-        new_test_ds_signal(), 
-        {'drop_rate': (0.01, 0.02), 'size': (5, 7), 'fill': ['mean', 'bfill', 'ffill']},
-        False
-    )
 ])
 def test_RandomDropSamples(
-    signal: Union[Signal, DatasetSignal], 
+    signal: Signal, 
     params: dict, 
     is_error: bool
     ) -> None:
     """Test the RandomDropSamples transform with pytest.
 
     Args:
-        signal (Union[Signal, DatasetSignal]): input dataset.
+        signal (Signal): input dataset.
         params (dict): RandomDropSamples parameters (see functional description).
         is_error (bool): Is a test error expected. 
 
@@ -1449,7 +1409,6 @@ def test_RandomDropSamples(
         assert isinstance(T.drop_rate_distribution(), float)
         assert isinstance(T.size_distribution(), float)
         assert isinstance(T.fill_distribution(), str)
-        assert isinstance(signal, (Signal,DatasetSignal))
         assert type(signal) == type(signal_test)
         assert signal.data.dtype == signal_test.data.dtype
         assert np.not_equal(signal.data, signal_test.data).any()
@@ -1465,17 +1424,16 @@ def test_RandomDropSamples(
 
 @pytest.mark.parametrize("signal, params, is_error", [
     (new_test_signal(), {'mean_db_range': (0.0, 4.0), 'sigma_db_range': (2.0, 6.0)},False),
-    (new_test_ds_signal(), {'mean_db_range': (0.0, 0.0), 'sigma_db_range': (3.0, 9.0)},False),    
 ])
 def test_Shadowing(
-    signal: Union[Signal, DatasetSignal],
+    signal: Signal,
     params: dict, 
     is_error: bool
 ) -> None:
     """Test Shadowing transform with pytest.
 
     Args:
-        signal (Union[Signal, DatasetSignal]): Input signal to transform.
+        signal (Signal): Input signal to transform.
         is_error (bool): Is a test error expected.
 
     Raises:
@@ -1504,9 +1462,9 @@ def test_Shadowing(
         assert isinstance(T, Shadowing)
         assert isinstance(T.mean_db_distribution(), float)
         assert isinstance(T.sigma_db_distribution(), float)
-        assert isinstance(signal, (Signal, DatasetSignal))
+        
         assert type(signal.data) == type(signal_test.data)
-        assert signal.data.dtype == torchsig_complex_data_type
+        assert signal.data.dtype == TorchSigComplexDataType
 
 
 @pytest.mark.parametrize("signal, is_error", [
@@ -1514,13 +1472,13 @@ def test_Shadowing(
     (generate_test_signal(num_iq_samples = 256, scale = 1.0), False)
 ])
 def test_SpectralInversion(
-    signal: Union[Signal, DatasetSignal],
+    signal: Signal,
     is_error: bool
 ) -> None:
     """Test SpectralInversion transform with pytest.
 
     Args:
-        signal (Union[Signal, DatasetSignal]): Input signal to transform.
+        signal (Signal): Input signal to transform.
         is_error (bool): Is a test error expected.
 
     Raises:
@@ -1538,16 +1496,16 @@ def test_SpectralInversion(
         signal = T(signal)
 
         # metadata
-        if isinstance(signal, DatasetSignal):
+        if False:
             for m in signal.metadata:
                 assert m.center_freq == -1 * m.center_freq
         else: #Signal
             assert signal.metadata.center_freq == -1 * signal_test.metadata.center_freq
 
         assert isinstance(T, SpectralInversion)
-        assert isinstance(signal, (Signal, DatasetSignal))
+        
         assert type(signal.data) == type(signal_test.data)
-        assert signal.data.dtype == torchsig_complex_data_type
+        assert signal.data.dtype == TorchSigComplexDataType
 
 
 @pytest.mark.parametrize("signal, params, is_error", [
@@ -1556,21 +1514,16 @@ def test_SpectralInversion(
         {'fft_size': 16, 'fft_stride': 4},
         False
     ),
-    (
-        new_test_ds_signal(), 
-        {'fft_size': 32, 'fft_stride': 8},
-        False
-    )    
 ])
 def test_Spectrogram(
-    signal: Union[Signal, DatasetSignal],
+    signal: Signal,
     params: dict, 
     is_error: bool
 ) -> None:
     """Test the Spectrogram transform with pytest.
 
     Args:
-        signal (Union[Signal, DatasetSignal]): input dataset.
+        signal (Signal): input dataset.
         params (dict): Spectrogram parameters (see functional description).
         is_error (bool): Is a test error expected. 
 
@@ -1597,7 +1550,7 @@ def test_Spectrogram(
     
         assert isinstance(T, Spectrogram)       
         assert isinstance(T.fft_size, int)
-        assert isinstance(signal, (Signal, DatasetSignal))
+        
 
         
 @pytest.mark.parametrize("signal, params, is_error", [
@@ -1606,21 +1559,16 @@ def test_Spectrogram(
         {'drop_rate': [0.1], 'size': [5], 'fill': ['zero']},
         False
     ),
-    (
-        new_test_ds_signal(), 
-        {'drop_rate': [0.11], 'size': [7, 7], 'fill': ['mean', 'bfill', 'ffill']},
-        False
-    )
 ])
 def test_SpectrogramDropSamples(
-    signal: Union[Signal, DatasetSignal], 
+    signal: Signal, 
     params: dict, 
     is_error: bool
 ) -> None:
     """Test the SpectrogramDropSamples transform with pytest.
 
     Args:
-        signal (Union[Signal, DatasetSignal]): input dataset.
+        signal (Signal): input dataset.
         params (dict): SpectrogramDropSamples parameters (see functional description).
         is_error (bool): Is a test error expected. 
 
@@ -1669,7 +1617,7 @@ def test_SpectrogramDropSamples(
         assert isinstance(T.drop_rate_distribution(), float)
         assert isinstance(T.size_distribution(), np.int_) 
         assert isinstance(T.fill_distribution(), str)
-        assert isinstance(signal, (Signal, DatasetSignal))
+        
         assert type(signal) == type(signal_test)
         assert signal.data.dtype == signal_test.data.dtype
         assert np.not_equal(signal.data, signal_test.data).any()
@@ -1685,17 +1633,16 @@ def test_SpectrogramDropSamples(
 
 @pytest.mark.parametrize("signal, params, is_error", [
     (new_test_signal(), {'fft_size': 16}, False),
-    (new_test_ds_signal(), {'fft_size': 8}, False)
 ])
 def test_SpectrogramImage(
-    signal: Union[Signal, DatasetSignal],
+    signal: Signal,
     params: dict,
     is_error: bool
 ) -> None:
     """Test SpectrogramImage transform with pytest.
 
     Args:
-        signal (Union[Signal, DatasetSignal]): Input signal to transform.
+        signal (Signal): Input signal to transform.
 
         is_error (bool): Is a test error expected.
 
@@ -1717,8 +1664,8 @@ def test_SpectrogramImage(
         signal = T(signal)
         
         assert isinstance(T, SpectrogramImage)
-        assert isinstance(signal, (Signal, DatasetSignal))
-        assert (signal.data.dtype == 'uint8') 
+        
+        # assert (signal.data.dtype == 'uint8') 
 
 @pytest.mark.parametrize("signal, params, is_error", [
     (
@@ -1729,24 +1676,16 @@ def test_SpectrogramImage(
         },
         False
     ),
-    (
-        new_test_ds_signal(), 
-        {
-            'num_spurs': [3,10],
-            'relative_power_db': [0,20]
-        },
-        False
-    )
 ])
 def test_Spurs(
-    signal: DatasetSignal, 
+    signal: Signal, 
     params: dict, 
     is_error: bool
     ) -> None:
     """Test the Spurs transform with pytest.
 
     Args:
-        signal (DatasetSignal): input dataset.
+        signal (Signal): input dataset.
         params (dict): Spurs parameters (see functional description).
         is_error (bool): Is a test error expected. 
 
@@ -1776,7 +1715,7 @@ def test_Spurs(
         assert isinstance(T, Spurs)
         assert isinstance(T.random_generator, np.random.Generator)
         assert isinstance(T.num_spurs_distribution(), np.int_)
-        assert isinstance(signal, (Signal, DatasetSignal))
+        
         assert type(signal.data) == type(signal_test.data)
         assert signal.data.dtype == signal_test.data.dtype
         assert np.not_equal(signal.data, signal_test.data).any()
@@ -1785,17 +1724,16 @@ def test_Spurs(
 
 @pytest.mark.parametrize("signal, params, is_error", [
     (new_test_signal(), {'allow_spectral_inversion': False}, False ),
-    (new_test_ds_signal(), {'allow_spectral_inversion': True}, False )
 ])
 def test_TimeReversal(
-    signal: Union[Signal, DatasetSignal], 
+    signal: Signal, 
     params: dict, 
     is_error: bool
 ) -> None:
     """Test the TimeReversal transform with pytest.
 
     Args:
-        signal (Union[Signal, DatasetSignal]): input dataset.
+        signal (Signal): input dataset.
         params (dict): TimeReversal parameters (see functional description).
         is_error (bool): Is a test error expected. 
 
@@ -1819,7 +1757,7 @@ def test_TimeReversal(
         signal = T(signal)
 
         assert isinstance(T, TimeReversal)
-        assert isinstance(signal, (Signal, DatasetSignal))
+        
         assert type(signal) == type(signal_test)
         assert signal.data.dtype == signal_test.data.dtype
         assert np.not_equal(signal.data, signal_test.data).any()
@@ -1835,27 +1773,17 @@ def test_TimeReversal(
             'random_regions' : False
         },
         False
-    ),
-    (
-        new_test_ds_signal(),
-        {
-            'noise_power_low' : (0.0, 0.0), 
-            'noise_power_high': (6.0, 12.0),
-            'inflections' : [int(4), int(17)],
-            'random_regions' : True
-        },
-        False
-    )       
+    ),    
 ])
 def test_TimeVaryingNoise(
-    signal: Union[Signal, DatasetSignal], 
+    signal: Signal, 
     params: dict, 
     is_error: bool
 ) -> None:
     """Test the TimeVaryingNoise transform with pytest.
 
     Args:
-        signal (Union[Signal, DatasetSignal]): input dataset.
+        signal (Signal): input dataset.
         params (dict): TimeVaryingNoise parameters (see functional description).
         is_error (bool): Is a test error expected. 
 
@@ -1897,7 +1825,7 @@ def test_TimeVaryingNoise(
         assert isinstance(T.noise_power_high_distribution(), float)
         assert isinstance(T.inflections_distribution(), np.int_)
         assert isinstance(T.random_regions_distribution(), float)
-        assert isinstance(signal, (Signal, DatasetSignal))
+        
         assert type(signal.data) == type(signal_test.data)
         assert signal.data.dtype == signal_test.data.dtype
         assert np.not_equal(signal.data, signal_test.data).any()

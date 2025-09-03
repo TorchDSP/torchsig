@@ -2,7 +2,9 @@ FROM nvidia/cuda:12.4.1-cudnn-devel-ubuntu22.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-RUN apt-get update && apt-get install -y \
+RUN apt-get update -y && apt-get upgrade -y
+
+RUN apt-get install -y \
     less \
     git \
     cmake \

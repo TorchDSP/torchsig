@@ -10,7 +10,7 @@ from torchsig.utils.dsp import (
     pad_head_tail_to_length,
     slice_head_tail_to_length,
     slice_tail_to_length,
-    torchsig_complex_data_type
+    TorchSigComplexDataType
 )
 from torchsig.signals.signal_lists import TorchSigSignalLists
 from torchsig.signals.builders.constellation_maps import all_symbol_maps
@@ -92,7 +92,7 @@ def constellation_modulator_baseband ( class_name:str, pulse_shape_name:str, max
     # create symbols. because OOK has symbols which are zeros this needs to run
     # a loop until 1 or more symbols are non-zero
     symbols = np.zeros(1)
-    while (np.sum(np.abs(symbols)) == 0):
+    while np.equal(np.sum(np.abs(symbols)), 0):
         # index into the symbol map
         map_index = rng.integers(low=0,high=len(symbol_map),size=num_symbols)
 
@@ -111,7 +111,7 @@ def constellation_modulator_baseband ( class_name:str, pulse_shape_name:str, max
     # else: signal correct length, do nothing
 
     # ensure proper data type
-    constellation_signal_baseband = constellation_signal_baseband.astype(torchsig_complex_data_type)
+    constellation_signal_baseband = constellation_signal_baseband.astype(TorchSigComplexDataType)
 
     return constellation_signal_baseband
 
@@ -177,7 +177,7 @@ def constellation_modulator ( class_name:str, pulse_shape_name:str, bandwidth:fl
         raise ValueError('constellation mod producing incorrect number of samples: ' + str(len(constellation_mod_signal)) + ' but requested: ' + str(num_samples))
 
     # convert to appropriate type
-    constellation_mod_signal = constellation_mod_signal.astype(torchsig_complex_data_type)
+    constellation_mod_signal = constellation_mod_signal.astype(TorchSigComplexDataType)
 
     return constellation_mod_signal
 
@@ -218,7 +218,7 @@ class ConstellationSignalBuilder(SignalBuilder):
         num_iq_samples_signal = self._signal.metadata.duration_in_samples
 
         # randomize pulse shape selection
-        if self.random_generator.integers(0,2) == 0:
+        if np.equal(self.random_generator.integers(0,2),0):
             pulse_shape_name = 'srrc'
             # randomize alpha_rolloff
             alpha_rolloff = self.random_generator.uniform(0.1,0.5)

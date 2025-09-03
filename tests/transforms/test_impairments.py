@@ -1,4 +1,4 @@
-"""Unit Tests for transforms/impairments_narrowband and impairments_wideband.py
+"""Unit Tests for transforms impairments
 """
 from torchsig.transforms.impairments import Impairments
 from torchsig.transforms.base_transforms import Transform

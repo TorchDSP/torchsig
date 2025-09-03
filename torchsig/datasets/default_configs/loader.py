@@ -8,6 +8,8 @@ import sys
 
 sys.path.append(f"{Path(__file__).parent}")
 
+default_config_dir = Path(__file__).parent
+
 def get_default_yaml_config(
     impairment_level: bool | int,
     train: bool,
@@ -32,11 +34,8 @@ def get_default_yaml_config(
         ValueError: If the impairment level is invalid or 1.
     
     Example:
-        # Load the default configuration for a clean narrowband dataset for training
-        config = get_default_yaml_config('narrowband', 0, True)
-
         # Load the default configuration for an impaired dataset for validation and get the config path
-        config, path = get_default_yaml_config(2, False, ret_config_path=True)
+        config, path = get_default_yaml_config(impairment_level=2, train=False, ret_config_path=True)
     """
 
     if impairment_level == 1:
@@ -58,3 +57,23 @@ def get_default_yaml_config(
         return dataset_metadata, config_path
     # else:
     return dataset_metadata
+
+def get_yaml_filename(config_filename: str) -> dict:
+    """loads yaml file in default_configs
+
+    Args:
+        config_filename (str): config filename
+
+    Raises:
+        ValueError: Invalid config filename
+
+    Returns:
+        dict: yaml loaded as dict.
+    """    
+    full_config_path = f"{Path(__file__).parent}/{config_filename}"
+    try:
+        with open(full_config_path, 'r') as f:
+            dataset_metadata = yaml.load(f, Loader=yaml.FullLoader)
+        return dataset_metadata
+    except Exception as exc:
+        raise ValueError(f"No config found at {Path(__file__).parent}: {config_filename}") from exc

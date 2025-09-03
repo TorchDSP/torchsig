@@ -20,9 +20,10 @@ Examples
         >>> new_composite_signal = csb.build()
 """
 
+from __future__ import annotations
+
 # TorchSig
 from torchsig.signals.signal_types import Signal, SignalMetadata
-from torchsig.datasets.dataset_metadata import DatasetMetadata
 from torchsig.utils.random import Seedable
 from torchsig.utils.dsp import compute_spectrogram
 
@@ -33,8 +34,10 @@ import numpy as np
 from abc import ABC, abstractmethod
 from copy import copy
 import os
+from typing import TYPE_CHECKING
 
-DIR_PATH = os.path.dirname(os.path.realpath(__file__))
+if TYPE_CHECKING:
+    from torchsig.datasets.dataset_metadata import DatasetMetadata
 
 
 
@@ -48,6 +51,7 @@ class Builder(ABC):
         """Initialize builder, reset.
         """
         self.name = name
+        self._signal = None
 
     @abstractmethod
     def build(self) -> Signal:
@@ -91,11 +95,13 @@ class SignalBuilder(Builder, Seedable):
             ValueError: Signal builder does not support class_name signal.
         """
         self.class_name = class_name
+        self._signal = None
         Builder.__init__(self, name=f" {self.class_name} Signal Builder")
         
         Seedable.__init__(self, **kwargs)
         # retains dataset metadata info
         self.dataset_metadata = dataset_metadata
+        
         
 
         if not self.class_name in self.supported_classes:

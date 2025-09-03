@@ -8,6 +8,7 @@ import numpy as np
 # Built-In
 import secrets
 
+from typing import Any, Tuple
 
 
 class Seedable():
@@ -27,10 +28,22 @@ class Seedable():
         """
         self.children = []
         self.parent = None
+        self.rng_seed = None
+        self.np_rng = None
+        self.torch_rng = None
+        self.random_generator = None
+        self.kwargs = kwargs
+
         if not seed:
+            # choose random seed
             seed = secrets.randbits(64)
+
+        # seed itself
         self.seed(seed)
+
         if parent:
+            # has parent Seedable objects
+            # add parents
             self.add_parent(parent)
     
     def add_parent(self, parent) -> None:
@@ -82,80 +95,124 @@ class Seedable():
             child.update_from_parent()
 
     def __repr__(self) -> str:
+        """Printable representaiton with seed and parent.
+        """
         return (
             f"{self.__class__.__name__}(seed={self.rng_seed}, parent={self.parent})"
         )
 
-    def get_distribution(self, params, scaling:str='linear'):
+    def get_distribution(self, params: list | tuple | int | float, scaling:str='linear') -> "Distribution":
+        """create distribution function with proper seeding
+
+        Args:
+            params (list | tuple | int | float): parameters for distribution.
+            scaling (str, optional): scaling param for distribution. Defaults to 'linear'.
+
+        Returns:
+            Distribution: distribution function, seeded.
+        """          
         new_distribution = make_distribution(params,scaling)
         new_distribution.add_parent(self)
         return new_distribution
 
 
-def make_distribution(params,scaling:str='linear'):
+def make_distribution(params: list | tuple | int | float ,scaling:str='linear') -> "Distribution":
+    """creates distribution given params
+
+    Args:
+        params (list | tuple | int | float): params for distribution
+        scaling (str, optional): scaling param for distribution. Defaults to 'linear'.
+
+    Raises:
+        NotImplementedError: params is unimplamented type.
+        ValueError: undefined distribution.
+
+    Returns:
+        Distribution: distribution function from params.
+    """    
     if callable(params):
         # custom distribution function
         raise NotImplementedError
-    elif isinstance(params, list):
+    if isinstance(params, list):
         # draw samples from uniform distribution from list values
         return ChoiceDistribution(params)
-    elif isinstance(params, tuple) and scaling == 'linear':
+    if isinstance(params, tuple) and scaling == 'linear':
         # draw samples from uniform distribution from [params[0], params[1]]
         return UniformRangeDistribution(params)
-    elif isinstance(params, tuple) and scaling == 'log10':
+    if isinstance(params, tuple) and scaling == 'log10':
         # draw samples from log10-weighted uniform distribution from [params[0], params[1]]
         return Log10UniformRangeDistribution(params)
-    elif (isinstance(params, int) or isinstance(params, float)) and scaling == 'linear':
+    if isinstance(params, (int, float)) and scaling == 'linear':
         # draw samples from evenly spaced values within [0, params)
         return UniformDistribution(params)
-    else:
-        raise ValueError(f'Undefined conditions in make_distribution(). params = {params}, scaling = {scaling}')
+    
+    # undefined distribution
+    raise ValueError(f'Undefined conditions in make_distribution(). params = {params}, scaling = {scaling}')
 
 
 class Distribution(Seedable):
     """A class for representing random distributions; created by calling get_distribution(params) on a Seedable object
     distributions are callable, such that some_seedable.get_distribution(params)() should return a random number from the distribution
     """
-    def __init__(self, params, **kwargs):
+    def __init__(self, params: Any, **kwargs):
         Seedable.__init__(self, **kwargs)
         self.params = params
             
     def __repr__(self) -> str:
-         return (
-             f"{self.__class__.__name__}(params={self.params}, seed={self.rng_seed}, parent={self.parent})"
-         )
+        return (
+            f"{self.__class__.__name__}(params={self.params}, seed={self.rng_seed}, parent={self.parent})"
+        )
         
-    def get_value(self):
+    def get_value(self) -> Any:
+        """samples from distribution function, returns a value
+
+        Raises:
+            NotImplementedError: Subclasses must implement this method.
+
+        Returns:
+            Any: Value(s) from distribution.
+        """             
         raise NotImplementedError("The Distribution class does not specify a distribution by itself. This must be specified by a subclass.")
         
-    def __call__(self, size=None):
-        if size == None:
+    def __call__(self, size: int = None) -> Any | np.ndarray:
+        """disttribution can return single value or np array of values sampled.
+
+        Args:
+            size (int, optional): number of values to return. Defaults to None.
+
+        Returns:
+            Any | np.ndarray: Value(s) sampled from distribution.
+        """        
+        if size is None:
             return self.get_value()
         return np.array([self.get_value() for i in range(size)])
 
 class ChoiceDistribution(Distribution):
     """A class for handling random choices from lists"""
-    def __init__(self, params, **kwargs):
+    def __init__(self, params: list | np.ndarray | int, **kwargs):
         Distribution.__init__(self, params, **kwargs)
+
     def get_value(self):
         return self.random_generator.choice(self.params)
 
 class UniformRangeDistribution(Distribution):
     """A class for handling random uniform ranges"""
-    def __init__(self, params, **kwargs):
+    def __init__(self, params: Tuple[float, float], **kwargs):
         Distribution.__init__(self, params, **kwargs)
+
     def get_value(self):
         return self.random_generator.uniform(low=self.params[0], high=self.params[1])
 
 class Log10UniformRangeDistribution(Distribution):
     """A class for handling log10-weighted random uniform ranges"""
-    def __init__(self, params, **kwargs):
+    def __init__(self, params: Tuple[float, float], **kwargs):
         Distribution.__init__(self, params, **kwargs)
+
     def get_value(self):
-        if (self.params[0] == 0 or self.params[1] == 0):
+        if (np.equal(self.params[0],0) or np.equal(self.params[1],0)):
             raise ValueError(f'Cannot compute log10(0). params = {self.params}')
-        elif (self.params[0] < 0 or self.params[1] < 0):
-            raise ValueError(f'Cannot compute log10 of negative number. params = {params}')
+        if (self.params[0] < 0 or self.params[1] < 0):
+            raise ValueError(f'Cannot compute log10 of negative number. params = {self.params}')
 
         low_log10 = np.log10(self.params[0])
         high_log10 = np.log10(self.params[1])
@@ -165,8 +222,9 @@ class Log10UniformRangeDistribution(Distribution):
 
 class UniformDistribution(Distribution):
     """A class for handling uniform random variables"""
-    def __init__(self, params, **kwargs):
+    def __init__(self, params: int | float, **kwargs):
         Distribution.__init__(self, params, **kwargs)
+
     def get_value(self):
         return self.random_generator.uniform(high=self.params)
 

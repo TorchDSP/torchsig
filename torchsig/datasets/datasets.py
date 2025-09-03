@@ -5,20 +5,19 @@ from __future__ import annotations
 
 # TorchSig
 from torchsig.datasets.dataset_metadata import DatasetMetadata
-from torchsig.signals.signal_types import DatasetSignal, DatasetDict
-from torchsig.signals.builder import SignalBuilder
-import torchsig.signals.builders as signal_builders
-from torchsig.utils.random import Seedable
-from torchsig.utils.dsp import compute_spectrogram
 from torchsig.datasets.dataset_utils import (
     to_dataset_metadata, 
-    frequency_shift_signal,
-    dataset_full_path
+    frequency_shift_signal
 )
+from torchsig.signals.signal_types import Signal, SignalMetadataExternal
+from torchsig.signals.builder import SignalBuilder
+import torchsig.signals.builders as signal_builders
+from torchsig.transforms.base_transforms import Transform
+from torchsig.utils.random import Seedable
+from torchsig.utils.dsp import compute_spectrogram
 from torchsig.utils.printing import generate_repr_str
-from torchsig.utils.verify import verify_transforms, verify_target_transforms
-from torchsig.utils.file_handlers.zarr import ZarrFileHandler
-from torchsig.datasets.dataset_utils import dataset_yaml_name, writer_yaml_name
+from torchsig.utils.verify import verify_transforms
+from torchsig.utils.file_handlers.hdf5 import HDF5Reader as DEFAULT_READER
 from torchsig.utils.coordinate_system import (
     Coordinate,
     Rectangle,
@@ -30,25 +29,68 @@ from torch.utils.data import Dataset, IterableDataset
 import numpy as np
 
 # Built-In
-from typing import Tuple, Dict, TYPE_CHECKING
-from pathlib import Path
-import yaml
+from typing import TYPE_CHECKING, Any, Dict, List, Tuple
 import warnings
+from pathlib import Path
+
 
 if TYPE_CHECKING:
-    from torchsig.utils.file_handlers.zarr import TorchSigFileHandler
+    from torchsig.utils.file_handlers import BaseFileHandler, ExternalFileHandler
+
+def apply_transforms_and_labels_to_signal(sample, transforms, target_labels, num_signals_max = None):
+    # apply user transforms
+    for transform in transforms:
+        sample = transform(sample)
+
+    # apply metadata transforms
+    # just return data if target_labels is None or empty list
+    if target_labels is None:
+        # return Signal object
+        return sample
+    if len(target_labels) < 1:
+        # just return np.ndarray data
+        return sample.data
+    metadatas = sample.get_full_metadata()
+    targets = []
+    if len(target_labels) == 1:
+        # just 1 target label
+        # set targets to single item
+        # verify metadatas have target_label
+        #for metadata in metadatas:
+        #    if not hasattr(metadata, target_labels[0]):
+        #        raise AttributeError(f"Metadata does not have target label {target_labels[0]}: {metadata}")
+        # apply target label
+        targets = [getattr(metadata, target_labels[0]) for metadata in metadatas]
+    else:
+        # multiple target labels
+        for metadata in metadatas:
+            # for each signal metadata
+            # apply all target labels
+            #for target_label in target_labels:
+            #    # make sure metadata has target label
+            #    if not hasattr(metadata, target_label):
+            #        raise AttributeError(f"Metadata does not have target label {target_label}: {metadata}")
+            # apply target_label
+            targets += [[getattr(metadata, target_label) for target_label in target_labels]]
+
+    if num_signals_max == 1 and isinstance(targets, list) and len(targets) > 0:
+        targets = targets[0]
+
+    return sample.data, targets
 
 class TorchSigIterableDataset(IterableDataset, Seedable):
-    """Creates a new TorchSig dataset that generates data infinitely unless `num_samples` inside `dataset_metadata` is defined.
-    
+    """
     This base class provides the functionality to generate signals and write them to disk if necessary. The dataset will continue 
-    to generate samples infinitely unless a `num_samples` value is defined in the `dataset_metadata`.
-
+    to generate samples infinitely.
     """ 
+    # pylint: disable=abstract-method
     
     def __init__(
         self, 
         dataset_metadata: DatasetMetadata | str | dict,
+        component_transforms: list = [],
+        transforms: list = [],
+        target_labels: list = None,
         **kwargs
     ):
         """
@@ -60,11 +102,17 @@ class TorchSigIterableDataset(IterableDataset, Seedable):
 
         """
         Seedable.__init__(self, **kwargs)
-
-        self._dataset_metadata: DatasetMetadata = to_dataset_metadata(dataset_metadata)
-        self._dataset_metadata.add_parent(self)
-        self.num_samples_generated = 0
+        self.transforms = transforms
+        for transform in self.transforms:
+            if isinstance(transform, Seedable):
+                transform.add_parent(self)
+        self.component_transforms = component_transforms
+        for component_transform in self.component_transforms:
+            if isinstance(component_transform, Seedable):
+                component_transform.add_parent(self)
+        self.dataset_metadata: DatasetMetadata = to_dataset_metadata(dataset_metadata)
         self.builders: Dict[str, SignalBuilder] = self._initialize_builders() # initialize builders
+        self.target_labels = target_labels
 
 
     def __iter__(self):
@@ -83,65 +131,7 @@ class TorchSigIterableDataset(IterableDataset, Seedable):
         # user requesting another sample at index +1 larger than current list of generates samples
         # generate new sample
         sample = self.__generate_new_signal__()
-        
-        # apply dataset transforms
-        sample = self.dataset_metadata.impairments.dataset_transforms(sample)
-
-        # apply user transforms
-        for transform in self.dataset_metadata.transforms:
-            sample = transform(sample)
-
-        # convert to DatasetDict
-        sample = DatasetDict(signal=sample)
-
-        targets = []
-        # apply target transforms
-        for target_transform in self.dataset_metadata.target_transforms:
-            # apply transform to all metadatas
-            sample.metadata = target_transform(sample.metadata)
-            # get target outputs
-            target_transform_output = []
-            for signal_metadata in sample.metadata:
-                # extract output from metadata
-                # as required by TT target output field name
-                signal_output = []
-                for field in target_transform.targets_metadata:
-                    signal_output.append(signal_metadata[field])
-                
-                signal_output = tuple(signal_output)
-                target_transform_output.append(signal_output)
-
-            targets.append(target_transform_output)
-
-        # convert targets as a list of target transform output ordered by transform
-        # to ordered by signal
-        # e.g., [(transform 1 output for all signals), (transform 2 output for all signals), ... ] ->
-        # [signal 1 outputs, signal 2 outputs, ... ]
-        targets = list(zip(*targets))
-               
-        if len(self.dataset_metadata.target_transforms) == 0:
-            # no target transform applied
-            targets = sample.metadata
-        elif self.dataset_metadata.num_signals_max == 1 and len(targets) == 1:
-            # only one signal and only one target
-            # unwrap targets
-            targets = [item[0] if len(item) == 1 else item for row in targets for item in row]
-            # unwrap any target transform output that produced a tuple
-            targets = targets[0] if len(targets) == 1 else tuple(targets)
-        else:
-            # multiple signals and/or multiple targets
-            targets = [tuple([item[0] if len(item) == 1 else item for item in row]) for row in targets]
-            # unwrap any target transform output that produced a tuple
-            targets = [row[0] if len(row) == 1 else row for row in targets]
-
-
-        self.num_samples_generated += 1
-
-        return sample.data, targets
-
-    def reset(self):
-        """Resets the dataset to its initial state."""
-        self._dataset_metadata.num_samples_generated = 0
+        return apply_transforms_and_labels_to_signal(sample, self.transforms, self.target_labels, num_signals_max=self.dataset_metadata.num_signals_max)
     
     def _initialize_builders(self) -> Dict[str, SignalBuilder]:
         """
@@ -156,11 +146,11 @@ class TorchSigIterableDataset(IterableDataset, Seedable):
         for builder_name in signal_builders.__all__:
             builder = getattr(signal_builders, builder_name) # get builder class
             # check if class list has any of the builder's supported classes
-            matching_classes = set(self._dataset_metadata.class_list) & set(builder.supported_classes)
+            matching_classes = set(self.dataset_metadata.class_list) & set(builder.supported_classes)
             if len(matching_classes) > 0: # yes
                 for c in matching_classes:
                     # add builder
-                    builders[c] = builder(self._dataset_metadata, c,)
+                    builders[c] = builder(self.dataset_metadata, c,)
                     builders[c].add_parent(self)
         return builders
 
@@ -179,8 +169,14 @@ class TorchSigIterableDataset(IterableDataset, Seedable):
         class_str = f"{self.__class__.__name__}"
         center_width = (max_width - len(class_str)) // 2
 
+        transforms_str = [f"{t}" for t in self.transforms]
+
         return (
             f"\n{'-' * center_width} {self.__class__.__name__} {'-' * center_width}\n"
+            f"\nTransforms\n"
+            f"{'-' * max_width}\n"
+            f"{list(transforms_str)}\n"
+            f"\nTarget Labels = {self.target_labels}\n"
             f"{self.dataset_metadata}\n"
             f"\nBuilders"
             f"{'-' * max_width}\n"
@@ -231,11 +227,8 @@ class TorchSigIterableDataset(IterableDataset, Seedable):
         return iq_samples
 
 
-    def __generate_new_signal__(self) -> DatasetSignal:
+    def __generate_new_signal__(self) -> Signal:
         """Generates a new dataset signal/sample.
-
-        Args:
-            idx (int): The index for the new signal.
 
         Returns:
             DatasetSignal: A new generated dataset signal containing the data and metadata.
@@ -274,7 +267,8 @@ class TorchSigIterableDataset(IterableDataset, Seedable):
             new_signal = builder.build()
 
             # apply signal transforms
-            new_signal = self.dataset_metadata.impairments.signal_transforms(new_signal)
+            for component_transform in self.component_transforms:
+                new_signal = component_transform(new_signal)
 
             # frequency shift signal
             # after signal transforms applied at complex baseband
@@ -295,21 +289,19 @@ class TorchSigIterableDataset(IterableDataset, Seedable):
             has_overlap = self._check_if_overlap ( new_rectangle, signal_rectangle_list )
 
             # signal is used if there is no overlap OR with some random chance
-            if (has_overlap == False or self.random_generator.uniform(0,1) < self.dataset_metadata.cochannel_overlap_probability):
+            if (has_overlap is False or self.random_generator.uniform(0,1) < self.dataset_metadata.cochannel_overlap_probability):
+                num_signals_created += 1
                 # store the rectangle for future overlap checking
                 signal_rectangle_list.append( new_rectangle )
                 # place signal on iq sample cut
                 iq_samples[new_signal.metadata.start_in_samples:new_signal.metadata.stop_in_samples] += new_signal.data
                 # append the signal on the list
                 signals.append(new_signal)
-                # update signal created counter
-                num_signals_created += 1
             # else:
             #     loop back to top and attempt to recreate another signal
-
-
+        
         # form the sample (dataset object)
-        sample = DatasetSignal(data=iq_samples, signals=signals)
+        sample = Signal(data=iq_samples, component_signals=signals)
 
         return sample
 
@@ -342,7 +334,7 @@ class TorchSigIterableDataset(IterableDataset, Seedable):
         has_overlap = False
 
         # determine if overlap
-        if (len(signal_rectangle_list) > 0):
+        if len(signal_rectangle_list) > 0:
             # check to see if the current rectangle overlaps with any signals currently
             # in the spectrogram
             for reference_box in signal_rectangle_list:
@@ -352,18 +344,6 @@ class TorchSigIterableDataset(IterableDataset, Seedable):
                 has_overlap = has_overlap or individual_overlap
 
         return has_overlap
-
-
-    # Read-Only properties
-
-    @property
-    def dataset_metadata(self):
-        """Returns the dataset metadata.
-
-        Returns:
-            DatasetMetadata: The dataset metadata.
-        """    
-        return self._dataset_metadata
 
     # Functions
 
@@ -379,66 +359,44 @@ class TorchSigIterableDataset(IterableDataset, Seedable):
 
 
 
-class StaticTorchSigDataset(Dataset):
+class StaticTorchSigDataset(Dataset, Seedable):
     """Static Dataset class, which loads pre-generated data from a directory.
-
-    This class assumes that the dataset has already been generated and saved to disk using a subclass of `NewTorchSigDataset`. 
-    It allows loading raw or processed data from disk for inference or analysis.
     
     Args:
         root (str): The root directory where the dataset is stored.
-        impairment_level (int): Defines impairment level 0, 1, 2.
         transforms (list, optional): Transforms to apply to the data (default: []).
-        target_transforms (list, optional): Target transforms to apply (default: []).
-        file_handler_class (TorchSigFileHandler, optional): Class used for reading the dataset (default: ZarrFileHandler).
+        file_handler_class (BaseFileHandler, optional): Class used for reading the dataset (default: HDF5FileHandler).
     """   
 
     def __init__(
         self,
         root: str,
-        impairment_level: int,
+        file_handler_class: BaseFileHandler = DEFAULT_READER,
         transforms: list = [],
-        target_transforms: list = [],
-        file_handler_class: TorchSigFileHandler = ZarrFileHandler,
-        train: bool = None,
-        # **kwargs
+        target_labels: list = None,
+        **kwargs
     ):
         self.root = Path(root)
-        self.impairment_level = impairment_level
+        self.reader = file_handler_class(root = self.root)
+
+        Seedable.__init__(self, **kwargs)
         self.transforms = transforms
-        self.target_transforms = target_transforms
-        self.file_handler = file_handler_class
-        self.train = train
-
-        # create filepath to saved dataset
-        # e.g., root/torchsig_narrowband_clean/
-        self.full_root = dataset_full_path(
-            impairment_level = self.impairment_level,
-            train = self.train
-        )
-        self.full_root = f"{self.root}/{self.full_root}"
-
-        # check dataset data type from writer_info.dataset_yaml_name
-        with open(f"{self.full_root}/{writer_yaml_name}", 'r') as f:
-            writer_info = yaml.load(f, Loader=yaml.FullLoader)
-            self.raw = writer_info['save_type'] == "raw"
-
-        # need to create new dataset metadata from dataset_info.yaml
-        self.dataset_metadata = to_dataset_metadata(f"{self.full_root}/{dataset_yaml_name}")
+        for transform in self.transforms:
+            transform.add_parent(self)
+        self.target_labels = target_labels
 
         # dataset size
-        self.num_samples = self.file_handler.size(self.full_root)
+        self.dataset_length = len(self.reader)
+
+        self.dataset_metadata = self.reader.dataset_metadata
 
         self._verify()
 
     def _verify(self):
-        # Transforms
-        self.transforms = verify_transforms(self.transforms)
+        # check root
 
-        # Target Transforms
-        self.target_transforms = verify_target_transforms(self.target_transforms)
-        # print(self.target_transforms)
-        # print("verify")
+        if not self.root.exists():
+            raise ValueError(f"root does not exist: {self.root}")
 
 
     def __len__(self) -> int:
@@ -447,7 +405,7 @@ class StaticTorchSigDataset(Dataset):
         Returns:
             int: The number of samples in the dataset.
         """
-        return self.num_samples
+        return self.dataset_length
 
     def __getitem__(self, idx: int) -> Tuple[np.ndarray, Tuple]:
         """Retrieves a sample from the dataset by index.
@@ -456,94 +414,123 @@ class StaticTorchSigDataset(Dataset):
             idx (int): The index of the sample to retrieve.
 
         Returns:
-            Tuple[np.ndarray, Tuple]: The data and targets for the sample.
+            Tuple[np.ndarray, Tuple]file_handler: The data and targets for the sample.
 
         Raises:
             IndexError: If the index is out of bounds.
         """
-        if idx >= 0 and idx < self.__len__():
-            # load data and metadata
-            # data: np.ndarray
-            # signal_metadatas: List[dict]
-            if self.raw:
-                # loading in raw IQ data and signal metadata
-                data, signal_metadatas = self.file_handler.static_load(self.full_root, idx)
-
-                # convert to DatasetSignal
-                sample = DatasetSignal(
-                    data = data, 
-                    signals = signal_metadatas, 
-                    dataset_metadata = self.dataset_metadata,
-                )
-
-                # apply user transforms
-                for t in self.transforms:
-                    sample = t(sample)
-
-                # convert to DatasetDict
-                sample = DatasetDict(signal=sample)
-
-                # apply target transforms
-                targets = []
-                for target_transform in self.target_transforms:
-                    # apply transform to all metadatas
-                    sample.metadata = target_transform(sample.metadata)
-                    # get target outputs
-                    target_transform_output = []
-                    for signal_metadata in sample.metadata:
-                        # extract output from metadata
-                        # as required by TT target output field name
-                        signal_output = []
-                        for field in target_transform.targets_metadata:
-                            signal_output.append(signal_metadata[field])
-                        
-                        signal_output = tuple(signal_output)
-                        target_transform_output.append(signal_output)
-
-                    targets.append(target_transform_output)
-
-                # convert targets as a list of target transform output ordered by transform
-                # to ordered by signal
-                # e.g., [(transform 1 output for all signals), (transform 2 output for all signals), ... ] ->
-                # [signal 1 outputs, signal 2 outputs, ... ]
-                targets = list(zip(*targets))
-                    
-                if len(self.target_transforms) == 0:
-                    # no target transform applied
-                    targets = sample.metadata
-                elif self.dataset_metadata.num_signals_max == 1 and len(targets) == 1:
-                    # only one signal and only one target
-                    # unwrap targets
-                    targets = [item[0] if len(item) == 1 else item for row in targets for item in row]
-                    # unwrap any target transform output that produced a tuple
-                    targets = targets[0] if len(targets) == 1 else tuple(targets)
-                else:
-                    # multiple signals and/or multiple targets
-                    targets = [tuple([item[0] if len(item) == 1 else item for item in row]) for row in targets]
-                    # unwrap any target transform output that produced a tuple
-                    targets = [row[0] if len(row) == 1 else row for row in targets]
-                
-                return sample.data, targets
-            # else:
-            # loading in transformed data and targets from target transform
-            data, targets = self.file_handler.static_load(self.full_root, idx)
-
-            return data, targets
-
-        else:
-            raise IndexError(f"Index {idx} is out of bounds. Must be [0, {self.__len__()}]")
+        if 0 <= idx < len(self):
+            sample = self.reader.read(idx=idx)
+            return apply_transforms_and_labels_to_signal(sample, self.transforms, self.target_labels, num_signals_max=self.dataset_metadata.num_signals_max)
+        
+        raise IndexError(f"Index {idx} is out of bounds. Must be [0, {self.__len__() - 1}]")
     
     def __str__(self) -> str:
-        return f"{self.__class__.__name__}: {self.full_root}"
+        return f"{self.__class__.__name__}: {self.root}"
 
     def __repr__(self) -> str:
         return (
             f"{self.__class__.__name__}"
             f"(root={self.root}, "
-            f"impairment_level={self.impairment_level}, "
-            f"transforms={self.transforms.__repr__()}, "
-            f"target_transforms={self.target_transforms.__repr__()}, "
-            f"file_handler_class={self.file_handler}, "
-            f"train={self.train})"
+            f"file_handler_class={self.reader}"
         )
 
+
+
+
+
+class ExternalTorchSigDataset(Dataset):
+    """
+    Lightweight static dataset for importing external (not TorchSig generated) data and metadata from files.
+    
+    Args:
+        root (str): The root directory where the dataset is stored.
+        file_handler_class (ExternalFileHandler): Class used for reading dataset.
+        transforms (list, optional): Transforms to apply to the data (default: []).
+        target_transforms (list, optional): Target transforms to apply (default: []).        
+        
+    """
+    def __init__(
+        self, 
+        file_handler: ExternalFileHandler,
+        transforms: List[Transform] = [],  
+        target_labels: List[str] = []             
+    ):
+        self.transforms = transforms
+        self.target_labels = target_labels
+        self.file_handler = file_handler
+        self.dataset_length = self.file_handler.size()
+        self.dataset_metadata = self.file_handler.load_dataset_metadata()
+        self._verify()
+
+    
+    def _verify(self):
+        # Transforms
+        self.transforms = verify_transforms(self.transforms)   
+
+    
+    def __len__(self) -> int: 
+        return self.dataset_length
+            
+    def __getitem__(self, idx: int) -> Tuple[np.ndarray, Any]:
+        """
+        Retrieves a sample from the static dataset by index.
+
+        Args:
+            idx: sample index.
+
+        Returns:
+            Tuple[data, targets] returned data array and metadata.
+        """
+        if 0 <= idx < len(self):
+            data, signal_metadatas = self.file_handler.load(idx)
+            component_signals = []
+            for signal_metadata in signal_metadatas:
+                if not isinstance(signal_metadata, dict):
+                    raise ValueError(f"Signal metadata is not a dict: {type(signal_metadata)}.")
+                # create external signal metadata
+                esm = SignalMetadataExternal(
+                    self.dataset_metadata,
+                    **signal_metadata
+                )
+                # create component signal
+                component_signal = Signal(
+                    data = np.array([]),
+                    metadata = esm,
+                )
+                # add to component signals
+                component_signals.append(component_signal)
+            
+            # create Signal from component signals
+            sample = Signal(
+                data = data,
+                component_signals = component_signals
+            )
+
+            # apply user transforms
+            for transform in self.transforms:
+                sample = transform(sample)
+
+            # apply metadata transforms
+            # just return data if target_labels is None or empty list
+            if self.target_labels is None:
+                return sample
+            if len(self.target_labels) < 1:
+                return sample.data
+
+            metadatas = sample.get_full_metadata()
+            targets = []
+            if len(self.target_labels) == 1:
+                # just 1 target label
+                # set targets to single item
+                targets = [getattr(metadata, self.target_labels[0]) for metadata in metadatas]
+            else:
+                # multiple target labels
+                for metadata in metadatas:
+                    # for each signal metadata
+                    # apply all target labels
+                    targets += [[getattr(metadata, target_label) for target_label in self.target_labels]]
+
+            return sample.data, targets
+            
+        raise IndexError(f"Index {idx} is out of bounds. Must be [0, {self.__len__()}]")          

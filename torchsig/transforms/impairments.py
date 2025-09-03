@@ -1,41 +1,23 @@
 """Dataset Transform/Impairment class
 
 Impairments are transforms applied to Signal objects, after the Signal Builder generates an isolated signal.
-Transforms are applied to DatasetSignal objects, after isolated signals are placed on an IQ cut of noise.
-
-Example:
-    >>> impairments = Impairments(level = 2, dataset_metadata=dm)
-    >>> iq_samples = <random noise>
-    >>> metadatas = []
-    >>> for i in range(3): # 3 signals in wideband sample
-    >>>     sb = SignalBuilder(...)
-    >>>     new_signal = sb.build()
-    >>>     impaired_new_signal = impairments(new_signal)
-    >>>     iq_samples[start:stop] += new_signal.data
-    >>>     metadatas.append(impaired_new_signal.metadata)
-
-    >>> new_dataset_signal = DatasetSignal(data=iq_samples, metadata=metadatas)
-
-    >>> transforms = WidebandTransforms(level = 2, dataset_metadata=dm)
-    >>> transformed_dataset_signal = transforms(new_dataset_signal)
-
+Transforms are applied to Signal objects, after isolated signals are placed on an IQ cut of noise.
 """
 
 # TorchSig
 from torchsig.transforms.base_transforms import Compose, Transform
-from torchsig.transforms.transforms import SignalTransform
-
 from torchsig.transforms.base_transforms import (
     RandomApply,
     RandAugment
 )
-
 from torchsig.transforms.transforms import (
     AddSlope,
     CarrierFrequencyDrift,
     CarrierPhaseNoise,
     CarrierPhaseOffset,
     ChannelSwap,
+    ClockDrift,
+    ClockJitter,
     CoarseGainChange,
     DigitalAGC,
     Fading,
@@ -45,15 +27,12 @@ from torchsig.transforms.transforms import (
     PassbandRipple,
     Quantize,
     RandomDropSamples,
-    Spurs,
     SpectralInversion,
     Spurs,
-    TimeReversal,
+    TimeReversal
 )
 
-
 # Built-In
-from typing import List
 from copy import copy
 
 class Impairments(Transform):
@@ -90,31 +69,31 @@ class Impairments(Transform):
         # listing of transmit and receive HW impairments
         tx_hw_impairments = [
             RandomApply(Quantize(),0.75),
-            # RandomApply(,), # clock jitter
-            # RandomApply(,), # clock drift
+            RandomApply(ClockDrift(),0.75),
+            RandomApply(ClockJitter(),0.75),
+            RandomApply(PassbandRipple(),0.75),
+            RandomApply(IQImbalance(),0.25),
             RandomApply(CarrierPhaseNoise(),0.75),
             RandomApply(CarrierFrequencyDrift(),0.75),
             RandomApply(CarrierPhaseOffset(),1.0),
-            RandomApply(PassbandRipple(),0.75),
             RandomApply(IntermodulationProducts(),0.5),
-            RandomApply(IQImbalance(),0.25),
             RandomApply(NonlinearAmplifier(),0.75),
             RandomApply(Spurs(),0.75),
             RandomApply(SpectralInversion(),0.25),
         ]
 
         rx_hw_impairments = [
+            RandomApply(IntermodulationProducts(),0.5),
             RandomApply(NonlinearAmplifier(),0.75),
             RandomApply(CoarseGainChange(),0.25),
             RandomApply(Spurs(),0.75),
+            RandomApply(IQImbalance(),0.5),
             RandomApply(CarrierPhaseNoise(),0.75),
             RandomApply(CarrierFrequencyDrift(),0.75),
             RandomApply(CarrierPhaseOffset(),1.0),
-            RandomApply(IntermodulationProducts(),0.5),
-            RandomApply(IQImbalance(),0.5),
             RandomApply(PassbandRipple(),0.75),
-            # RandomApply(,), # clock jitter
-            # RandomApply(,), # clock drift
+            RandomApply(ClockDrift(),0.75),
+            RandomApply(ClockJitter(),0.75),
             RandomApply(Quantize(),0.75),
             RandomApply(DigitalAGC(),0.25),
         ]
@@ -143,29 +122,37 @@ class Impairments(Transform):
         ]
 
         # Signal (TX) Transforms
-        ST_level_0 = []                                # None
-        ST_level_1 = copy(tx_hw_impairments)           # TX impairments
-        ST_level_2 = copy(ST_level_1) + channel_models # TX impairments + channel models
+        st_level_0 = []                                # None
+        st_level_1 = copy(tx_hw_impairments)           # TX impairments
+        st_level_2 = copy(st_level_1) + channel_models # TX impairments + channel models
 
-        ST_all_levels = [
-            ST_level_0,
-            ST_level_1,
-            ST_level_2
+        st_all_levels = [
+            st_level_0,
+            st_level_1,
+            st_level_2
         ]
 
         # Dataset (RX) Transforms
-        DT_level_0 = copy(ml_transforms)            # ML Transforms
-        DT_level_1 = DT_level_0 + rx_hw_impairments # ML transforms + HW impairments
-        DT_level_2 = copy(DT_level_1)               # ML transforms + HW impairments
+        dt_level_0 = copy(ml_transforms)            # ML Transforms
+        dt_level_1 = dt_level_0 + rx_hw_impairments # ML transforms + HW impairments
+        dt_level_2 = copy(dt_level_1)               # ML transforms + HW impairments
 
-        DT_all_levels = [
-            DT_level_0,
-            DT_level_1,
-            DT_level_2
+        dt_all_levels = [
+            dt_level_0,
+            dt_level_1,
+            dt_level_2
         ]
 
-        self.signal_transforms = Compose(transforms = ST_all_levels[self.level])
+        self.signal_transforms = Compose(transforms = st_all_levels[self.level])
         self.signal_transforms.add_parent(self)
 
-        self.dataset_transforms = Compose(transforms = DT_all_levels[self.level])
+        self.dataset_transforms = Compose(transforms = dt_all_levels[self.level])
         self.dataset_transforms.add_parent(self)
+    
+    def get_signal_transforms(self):
+        """Get the signal transforms for this impairment level."""
+        return self.signal_transforms.transforms
+    
+    def get_dataset_transforms(self):
+        """Get the dataset transforms for this impairment level."""
+        return self.dataset_transforms.transforms

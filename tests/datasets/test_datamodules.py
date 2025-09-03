@@ -1,59 +1,45 @@
-"""Unit Tests for datasets/datamodules.py
-
-Classes:
-- TorchSigDataModule
-- OfficialTorchSigDataModule
+"""Unit Tests for datamodules
 """
 
-from torchsig.datasets.datamodules import (
-    TorchSigDataModule,  
-    OfficialTorchSigDataModule,
-)
+from torchsig.datasets.datamodules import TorchSigDataModule
 from torchsig.datasets.dataset_metadata import DatasetMetadata
+from torchsig.utils.writer import default_collate_fn
 
 import pytest
+import copy
+from pathlib import Path
 
-def test_datamodule(tmpdir):
+filename = "data_module_test"
+data_dir =  Path(__file__).parent
 
-    root = tmpdir
+fft_size = 64
+num_iq_samples_dataset = fft_size ** 2
 
-    train_metadata = DatasetMetadata(
-        num_iq_samples_dataset = 64 ** 2,
-        fft_size = 64,
-        impairment_level = 2,
-        num_signals_max=3,
-        num_samples = 10
+md = DatasetMetadata(
+    num_iq_samples_dataset=num_iq_samples_dataset,
+    fft_size=fft_size,
+    num_signals_max=1
+)
+
+@pytest.mark.filterwarnings(r"ignore:.*fork\(\) may lead to deadlocks in the child:DeprecationWarning")
+def test_TorchSigDataModule():
+    datamodule = TorchSigDataModule(
+        root = Path.joinpath(data_dir, filename),
+        dataset_metadata=copy.deepcopy(md),
+        dataset_size=50,
+        overwrite=True,
+        collate_fn=lambda x: x
     )
+    datamodule.prepare_data()
+    datamodule.setup()
 
-    val_metadata = DatasetMetadata(
-        num_iq_samples_dataset = 64 ** 2,
-        fft_size = 64,
-        impairment_level = 2,
-        num_signals_max=3,
-        num_samples = 10
-    )
+    dataloaders = [
+        datamodule.train_dataloader(),
+        datamodule.val_dataloader(),
+        datamodule.test_dataloader()
+    ]
 
-    dm = TorchSigDataModule(
-        root = root,
-        train_metadata = train_metadata,
-        val_metadata = val_metadata
-    )
-    dm.prepare_data()
-    dm.setup()
-
-
-@pytest.mark.slow
-@pytest.mark.skip(reason = "Tests too slow")
-def test_official_datamodule(tmpdir):
-    root = tmpdir
-
-    dm = OfficialTorchSigDataModule(
-        root=root,
-        impairment_level=2,
-        create_batch_size=32,
-        create_num_workers=16
-    )
-    dm.prepare_data()
-    dm.setup()
-
-
+    for d in dataloaders:
+        for batch in d:
+            print(batch)
+            break

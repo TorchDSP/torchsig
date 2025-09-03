@@ -1,4 +1,4 @@
-"""TorchSig Dataset generation code for command line
+"""TorchSig Dataset generation code for command line.
 """
 
 # TorchSig
@@ -7,15 +7,16 @@ from torchsig.datasets.datasets import TorchSigIterableDataset
 from torchsig.utils.writer import DatasetCreator
 
 # Third Party
+from torch.utils.data import DataLoader
 
-# Built-In
-
-# generates a dataset, writes to disk
 def generate(
     root: str,
     dataset_metadata: DatasetMetadata,
     batch_size: int,
     num_workers: int,
+    transforms: list = [],
+    target_labels: list = None,
+    
 ):
     """Generates and saves a dataset to disk.
 
@@ -35,14 +36,22 @@ def generate(
         ValueError: If the dataset type is unknown or invalid.
     """
     
-    create_dataset = TorchSigIterableDataset(dataset_metadata=dataset_metadata)
+    create_dataset = TorchSigIterableDataset(
+        dataset_metadata=dataset_metadata,
+        transforms=transforms,
+        target_labels=target_labels
+    )
 
-    creator = DatasetCreator(
-        dataset=create_dataset,
-        root = root,
-        overwrite = True,
+    create_loader = DataLoader(
+        dataset = create_dataset,
         batch_size=batch_size,
         num_workers=num_workers
+    )
+
+    creator = DatasetCreator(
+        dataloader=create_loader,
+        root = root,
+        overwrite = True,
     )
     creator.create()
 

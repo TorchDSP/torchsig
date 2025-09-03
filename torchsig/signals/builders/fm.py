@@ -7,7 +7,7 @@ from torchsig.datasets.dataset_metadata import DatasetMetadata
 from torchsig.utils.dsp import (
     low_pass_iterative_design,
     convolve,
-    torchsig_complex_data_type
+    TorchSigComplexDataType
 )
 from torchsig.signals.signal_lists import TorchSigSignalLists
 
@@ -45,7 +45,7 @@ def fm_modulator ( bandwidth:float, sample_rate:float, num_samples:int, rng=np.r
     # apply FM modulation
     modulated = np.exp(2j * np.pi * np.cumsum(source) * fdev/sample_rate)
     # convert to appropriate data type
-    modulated = modulated.astype(torchsig_complex_data_type)
+    modulated = modulated.astype(TorchSigComplexDataType)
     return modulated
 
 

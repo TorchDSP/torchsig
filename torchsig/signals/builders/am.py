@@ -9,7 +9,7 @@ from torchsig.utils.dsp import (
     convolve,
     frequency_shift,
     polyphase_decimator,
-    torchsig_complex_data_type
+    TorchSigComplexDataType
 )
 from torchsig.signals.signal_lists import TorchSigSignalLists
 
@@ -43,7 +43,7 @@ def am_modulator ( class_name:str, bandwidth:float, sample_rate:float, num_sampl
         num_samples_mod = num_samples
 
     # generate the random message, and make complex data type
-    message = rng.normal(0,1,num_samples_mod).astype(torchsig_complex_data_type)
+    message = rng.normal(0,1,num_samples_mod).astype(TorchSigComplexDataType)
     # scale to unit power
     message = message/np.sqrt(np.mean(np.abs(message)**2))
     # calculate filter cutoff
@@ -52,7 +52,7 @@ def am_modulator ( class_name:str, bandwidth:float, sample_rate:float, num_sampl
     # calculate maximum transition bandwidth
     max_transition_bandwidth = (sample_rate/2) - cutoff
     # derive actual transition bandwidth
-    transition_bandwidth = max_transition_bandwidth/2
+    transition_bandwidth = rng.uniform(0.05,0.25)*max_transition_bandwidth/2
 
     # generate bandwidth-limiting LPF
     lpf = low_pass_iterative_design(cutoff=cutoff, transition_bandwidth=transition_bandwidth, sample_rate=sample_rate)
@@ -95,7 +95,7 @@ def am_modulator ( class_name:str, bandwidth:float, sample_rate:float, num_sampl
         baseband_signal *= 2
 
     # convert to appropriate type
-    baseband_signal = baseband_signal.astype(torchsig_complex_data_type)
+    baseband_signal = baseband_signal.astype(TorchSigComplexDataType)
 
     return baseband_signal
 

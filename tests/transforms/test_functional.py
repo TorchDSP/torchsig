@@ -40,8 +40,8 @@ from test_transforms_utils import (
 )
 import torchsig.utils.dsp as dsp
 from torchsig.utils.dsp import (
-    torchsig_complex_data_type,
-    torchsig_real_data_type,
+    TorchSigComplexDataType,
+    TorchSigRealDataType,
     compute_spectrogram,
 )
 
@@ -90,7 +90,7 @@ def test_add_slope(
 
         assert np.allclose(data, data_test, RTOL) == expected
         assert (type(data) == type(data_test)) == expected
-        assert (data.dtype == torchsig_complex_data_type) == expected
+        assert (data.dtype == TorchSigComplexDataType) == expected
 
 
 @pytest.mark.parametrize("data, params, expected, is_error", [
@@ -150,7 +150,7 @@ def test_additive_noise(
 
         assert (len(data) == len(data_test)) == expected
         assert (np.abs(power_delta - power) < 10**(0.1/10)) == expected
-        assert (data.dtype == torchsig_complex_data_type) == expected
+        assert (data.dtype == TorchSigComplexDataType) == expected
 
 
 @pytest.mark.parametrize("params, expected, is_error", [
@@ -224,12 +224,12 @@ def test_adjacent_channel_interference(
         assert (np.abs(freqs1 - (tone_freq + center_frequency)) < 0.01) == expected
         assert (len(data) == len(data_test)) == expected
         assert (type(data) == type(data_test)) == expected
-        assert (data.dtype == torchsig_complex_data_type) == expected
+        assert (data.dtype == TorchSigComplexDataType) == expected
 
 
 @pytest.mark.parametrize("data, params, expected, is_error", [
     (0, {'noise_power_db' : 0.0}, AttributeError, True),
-    (np.zeros(1024, dtype=torchsig_complex_data_type), {'noise_power_db' : 3.0}, True, False)
+    (np.zeros(1024, dtype=TorchSigComplexDataType), {'noise_power_db' : 3.0}, True, False)
 ])
 def test_awgn(
     data: Any, 
@@ -272,7 +272,7 @@ def test_awgn(
         
         assert (abs(power_est - noise_power_linear) < 1E-1) == expected
         assert (type(data) == type(data_test)) == expected
-        assert (data.dtype == torchsig_complex_data_type) == expected
+        assert (data.dtype == TorchSigComplexDataType) == expected
 
 
 @pytest.mark.parametrize("data, params, expected, is_error", [
@@ -318,7 +318,7 @@ def test_carrier_frequency_drift(
 
         assert (len(data) == len(data_test)) == expected
         assert (type(data) == type(data_test)) == expected
-        assert (data.dtype == torchsig_complex_data_type) == expected
+        assert (data.dtype == TorchSigComplexDataType) == expected
 
 
 @pytest.mark.parametrize("data, params, expected, is_error", [
@@ -363,7 +363,7 @@ def test_carrier_phase_noise(
 
         assert (len(data) == len(data_test)) == expected
         assert (type(data) == type(data_test)) == expected
-        assert (data.dtype == torchsig_complex_data_type) == expected
+        assert (data.dtype == TorchSigComplexDataType) == expected
 
 
 @pytest.mark.parametrize("data, expected, is_error", [
@@ -400,7 +400,7 @@ def test_channel_swap(
         assert np.allclose(data.real, test_imag, RTOL) == expected
         assert np.allclose(data.imag, test_real, RTOL) == expected
         assert (type(data) == type(data_test)) == expected
-        assert (data.dtype == torchsig_complex_data_type) == expected
+        assert (data.dtype == TorchSigComplexDataType) == expected
 
 
 @pytest.mark.parametrize("data, params, expected, is_error", [
@@ -457,7 +457,7 @@ def test_coarse_gain_change(
         gain_change_linear = 10**(gain_change_db/10)
         assert (np.allclose(data[start_idx:], gain_change_linear * data_test[start_idx:], RTOL)) == expected
         assert (type(data) == type(data_test)) == expected
-        assert (data.dtype == torchsig_complex_data_type) == expected
+        assert (data.dtype == TorchSigComplexDataType) == expected
 
 
 @pytest.mark.parametrize("params, expected, is_error", [
@@ -524,7 +524,7 @@ def test_cochannel_interference(
         assert (np.abs(est_freq - tone_freq) < (3/N)) == expected
         assert (len(data) == len(data_test)) == expected
         assert (type(data) == type(data_test)) == expected
-        assert (data.dtype == torchsig_complex_data_type) == expected
+        assert (data.dtype == TorchSigComplexDataType) == expected
 
 
 @pytest.mark.parametrize("data, params, expected, is_error", [
@@ -608,7 +608,7 @@ def test_cut_out(
             assert duration_samples == cut_inds[-1] - cut_inds[0] + 1
 
         assert (type(data) == type(data_test)) == expected
-        assert (data.dtype == torchsig_complex_data_type) == expected
+        assert (data.dtype == TorchSigComplexDataType) == expected
 
 
 @pytest.mark.parametrize("data, params, expected, is_error", [
@@ -699,12 +699,12 @@ def test_digital_agc(
 
         assert (abs(mean_level_est - reference_level) < 1E-1) == expected
         assert (type(data) == data_type) == expected
-        assert (data.dtype == torchsig_complex_data_type) == expected
+        assert (data.dtype == TorchSigComplexDataType) == expected
 
 
 @pytest.mark.parametrize("params, expected, is_error", [
-    ({'N': 10000, 'sampling_rate': 4.0,'tone_freq': 0.2, 'velocity': 1e7}, True, False),
-    ({'N': 1000, 'sampling_rate': 2.0,'tone_freq': 0.42, 'velocity': 1e6}, True, False),
+    ({'N': 10000, 'tone_freq': 0.2, 'velocity': 1e7}, True, False),
+    ({'N': 10000, 'tone_freq': 0.2, 'velocity': 1e6}, True, False),
 ])
 def test_doppler(
     params: dict,
@@ -725,40 +725,37 @@ def test_doppler(
     rng = np.random.default_rng(42)
 
     N = params['N']
-    sampling_rate = params['sampling_rate']
     tone_freq = params['tone_freq']
     velocity = params['velocity']
 
     tone_baseband = generate_tone_signal(num_iq_samples = N, scale = 1.0).data
-    data = tone_baseband * np.exp(2j * np.pi * tone_freq * np.arange(N) / sampling_rate)
+    data = tone_baseband * np.exp(2j * np.pi * tone_freq * np.arange(N))
 
     if is_error:
         with pytest.raises(expected):
             data = doppler(
                 data = data,
                 velocity = velocity,
-                propagation_speed = 2.9979e8,
-                sampling_rate = sampling_rate
+                propagation_speed = 2.9979e8
             )
     else:
         data_test = deepcopy(data)
         data = doppler(
             data = data,
             velocity = velocity,
-            propagation_speed = 2.9979e8,
-            sampling_rate = sampling_rate
+            propagation_speed = 2.9979e8
         )
 
         alpha = 2.9979e8 / (2.9979e8 - velocity) # scaling factor
         D = np.abs(np.fft.fft(data, norm='ortho'))
-        freqs = np.fft.fftfreq(N) * sampling_rate
+        freqs = np.fft.fftfreq(N)
         peaks, _ = sp.signal.find_peaks(D, height=0.5, distance=N/10)
         est_freq = freqs[peaks[0]]
         
-        assert (np.abs(est_freq - alpha*tone_freq) < (3/N)) == expected
+        assert (np.abs(est_freq - tone_freq*alpha) < 0.01) == expected
         assert (len(data) == len(data_test)) == expected
         assert (type(data) == type(data_test)) == expected
-        assert (data.dtype == torchsig_complex_data_type) == expected
+        assert (data.dtype == TorchSigComplexDataType) == expected
 
 
 @pytest.mark.parametrize("data, params, expected, is_error", [
@@ -842,7 +839,7 @@ def test_drop_samples(
             assert np.allclose(drop_inds, fill_inds, RTOL) == expected
 
         assert (type(data) == type(data_test)) == expected
-        assert (data.dtype == torchsig_complex_data_type) == expected
+        assert (data.dtype == TorchSigComplexDataType) == expected
 
 
 @pytest.mark.parametrize("data, params, expected, is_error", [
@@ -904,7 +901,7 @@ def test_fading(
         data_test_mean_power = np.mean(np.abs(data_test)**2)
         assert (abs(data_mean_power - data_test_mean_power) < 1E-1) == expected
         assert (type(data) == type(data_test)) == expected
-        assert (data.dtype == torchsig_complex_data_type) == expected
+        assert (data.dtype == TorchSigComplexDataType) == expected
 
 
 @pytest.mark.parametrize("data, params, expected, is_error", [
@@ -940,7 +937,7 @@ def test_intermodulation_products(
         data = intermodulation_products(data = data, coeffs = coeffs)
 
         assert (type(data) == type(data_test)) == expected
-        assert (data.dtype == torchsig_complex_data_type) == expected        
+        assert (data.dtype == TorchSigComplexDataType) == expected        
 
         
 @pytest.mark.parametrize("data, params, expected, is_error", [
@@ -1012,7 +1009,7 @@ def test_iq_imbalance(
         )
 
         assert (type(data) == type(data_test)) == expected
-        assert (data.dtype == torchsig_complex_data_type) == expected
+        assert (data.dtype == TorchSigComplexDataType) == expected
 
 
 @pytest.mark.parametrize("data, params, expected, is_error", [
@@ -1050,7 +1047,7 @@ def test_interleave_complex(
 
         data = interleave_complex(data_test)
 
-        assert (data.dtype == torchsig_real_data_type) == expected
+        assert (data.dtype == TorchSigRealDataType) == expected
         assert (len(data) == len(data_test)*2) == expected
 
 
@@ -1139,16 +1136,16 @@ def test_nonlinear_amplifier(
             assert (np.all(output_power <= psat)) == expected
         assert (phase_diff <= (abs(phi_max) + RTOL)) == expected
         assert (type(data) == type(data_test)) == expected
-        assert (data.dtype == torchsig_complex_data_type) == expected
+        assert (data.dtype == TorchSigComplexDataType) == expected
 
 
 @pytest.mark.parametrize("data, params, expected, is_error", [
     (
         np.zeros((2,)), 
         {
-            'Pin': np.zeros((3,)), 
-            'Pout': np.zeros((4,)), 
-            'Phi': np.zeros((5,)),
+            'p_in': np.zeros((3,)), 
+            'p_out': np.zeros((4,)), 
+            'phi': np.zeros((5,)),
             'p_ratio': 0.,
             'phase_shift': 0.
         }, 
@@ -1158,9 +1155,9 @@ def test_nonlinear_amplifier(
     (
         deepcopy(TEST_DATA),
         {
-            'Pin':     10**((np.array([-100., -50.,  0., 50.])) / 10), 
-            'Pout':    10**((np.array([ -97., -47.,  3., 53.])) / 10), 
-            'Phi': np.deg2rad(np.array([ 0.1,  0.1, 0.1, 0.1])),
+            'p_in':     10**((np.array([-100., -50.,  0., 50.])) / 10), 
+            'p_out':    10**((np.array([ -97., -47.,  3., 53.])) / 10), 
+            'phi': np.deg2rad(np.array([ 0.1,  0.1, 0.1, 0.1])),
             'p_ratio': 10**(3./10),
             'phase_shift': np.deg2rad(0.1)
         }, 
@@ -1186,9 +1183,9 @@ def test_nonlinear_amplifier_table(
         AssertionError: If unexpected test outcome.
 
     """
-    Pin = params['Pin']
-    Pout = params['Pout']
-    Phi = params['Phi']
+    p_in = params['p_in']
+    p_out = params['p_out']
+    phi = params['phi']
     p_ratio = params['p_ratio']
     phase_shift = params['phase_shift']
     
@@ -1196,9 +1193,9 @@ def test_nonlinear_amplifier_table(
         with pytest.raises(expected): 
             data = nonlinear_amplifier_table(
                 data = data,
-                Pin  = Pin,
-                Pout = Pout,
-                Phi  = Phi,
+                p_in  = p_in,
+                p_out = p_out,
+                phi  = phi,
                 auto_scale = False
             )
     else:
@@ -1206,9 +1203,9 @@ def test_nonlinear_amplifier_table(
 
         data = nonlinear_amplifier_table(
             data = data,
-            Pin  = Pin,
-            Pout = Pout,
-            Phi  = Phi,
+            p_in  = p_in,
+            p_out = p_out,
+            phi  = phi,
             auto_scale = False
         )
 
@@ -1220,7 +1217,7 @@ def test_nonlinear_amplifier_table(
         assert (abs(output_power/input_power - p_ratio) < RTOL) == expected
         assert (abs(np.mean(np.unwrap(output_phase_rad - input_phase_rad)) - phase_shift) < RTOL) == expected
         assert (type(data) == type(data_test)) == expected
-        assert (data.dtype == torchsig_complex_data_type) == expected
+        assert (data.dtype == TorchSigComplexDataType) == expected
 
 
 @pytest.mark.parametrize("data, params, expected, is_error", [
@@ -1274,7 +1271,7 @@ def test_normalize(
 
         assert np.allclose(data, expected, RTOL)
         assert type(data) == type(data_test) 
-        assert data.dtype == torchsig_complex_data_type
+        assert data.dtype == TorchSigComplexDataType
 
 
 @pytest.mark.parametrize("params, expected, is_error", [
@@ -1307,7 +1304,7 @@ def test_passband_ripple(
 
     # create impulse response
     data = dsp.noise_generator(
-        N       = 128,
+        num_samples  = 128,
         power   = 1.0, 
         color   = 'white',
         continuous = False,
@@ -1336,7 +1333,7 @@ def test_passband_ripple(
         M = len(D)
         
         assert (type(data) == type(data_test)) == expected
-        assert (data.dtype == torchsig_complex_data_type) == expected
+        assert (data.dtype == TorchSigComplexDataType) == expected
 
 @pytest.mark.parametrize("data, params, expected, is_error", [
     (
@@ -1385,7 +1382,7 @@ def test_patch_shuffle(
         patch_inds = np.where(data != data_test)[0]
         assert ((patch_inds[0] + patch_size - 1) in patch_inds) == expected
         assert (type(data) == type(data_test)) == expected
-        assert (data.dtype == torchsig_complex_data_type) == expected
+        assert (data.dtype == TorchSigComplexDataType) == expected
 
 
 @pytest.mark.parametrize("data, params, expected, is_error", [
@@ -1433,7 +1430,7 @@ def test_phase_offset(
         data_restored = data * np.exp(-1j * phase)
         assert (np.allclose(data_restored, data_test, rtol=RTOL)) == expected
         assert (type(data) == type(data_test)) == expected
-        assert (data.dtype == torchsig_complex_data_type) == expected
+        assert (data.dtype == TorchSigComplexDataType) == expected
 
 
 @pytest.mark.parametrize("data, params, expected, is_error", [
@@ -1483,7 +1480,7 @@ def test_quantize(
         )
 
         assert type(data) == type(expected)
-        assert data.dtype == torchsig_complex_data_type
+        assert data.dtype == TorchSigComplexDataType
 
 
 @pytest.mark.parametrize("data, params, expected, is_error", [
@@ -1543,7 +1540,7 @@ def test_shadowing(
         assert (p_value > 0.05) == expected
         assert (len(data) == len(data_test)) == expected
         assert (type(data) == type(data_test)) == expected
-        assert (data.dtype == torchsig_complex_data_type) == expected
+        assert (data.dtype == TorchSigComplexDataType) == expected
 
 
 @pytest.mark.parametrize("data, expected, is_error", [
@@ -1578,7 +1575,7 @@ def test_spectral_inversion(
         assert np.allclose(data.real, test_real, RTOL) == expected
         assert np.allclose(data.imag, -test_imag, RTOL) == expected
         assert (type(data) == type(data_test)) == expected
-        assert (data.dtype == torchsig_complex_data_type) == expected
+        assert (data.dtype == TorchSigComplexDataType) == expected
 
 
 @pytest.mark.parametrize("data, params, expected, is_error", [
@@ -1800,7 +1797,7 @@ def test_spurs(
             relative_power_db = relative_power_db
         )
 
-        assert data.dtype == torchsig_complex_data_type
+        assert data.dtype == TorchSigComplexDataType
 
 
 @pytest.mark.parametrize("data, expected, is_error", [
@@ -1833,7 +1830,7 @@ def test_time_reversal(
 
         assert np.allclose(data, np.flip(data_test, axis=0), RTOL) == expected
         assert (type(data) == type(data_test)) == expected
-        assert (data.dtype == torchsig_complex_data_type) == expected
+        assert (data.dtype == TorchSigComplexDataType) == expected
 
 
 @pytest.mark.parametrize("data, params, expected, is_error", [
@@ -1849,7 +1846,7 @@ def test_time_reversal(
         True
     ),
     (
-        np.zeros(1024, dtype=torchsig_complex_data_type),
+        np.zeros(1024, dtype=TorchSigComplexDataType),
         {
             'noise_power_low' : 3.0, 
             'noise_power_high': 3.0,
@@ -1910,6 +1907,6 @@ def test_time_varying_noise(
         power_est = np.mean(np.abs(data)**2)
         assert (abs(power_est - noise_power_high_linear) < 1E-1) == expected
         assert (type(data) == type(data_test)) == expected
-        assert (data.dtype == torchsig_complex_data_type) == expected
+        assert (data.dtype == TorchSigComplexDataType) == expected
 
 
