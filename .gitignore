@@ -43,6 +43,7 @@ rust_functions/Cargo.lock
 torchsig.egg-info
 !torchsig/datasets/default_configs
 !torchsig/datasets/default_configs/*
+!torchsig/datasets/default_configs/*.yaml
 !requirements.txt
 torchsig/utils/pfb_weights
 
@@ -83,12 +84,6 @@ tools/examples/datasets/yolo_annotation_data/annotated_yolo_sample_images
 **.coverage
 **coverage.xml
 **report.xml
-
-# Assistant Files
-.claude/
-CLAUDE.md
-SESSION_NOTES.md
-datasets/
 
 
 # Additional ignores to ensure these stay out
