@@ -17,6 +17,7 @@ import numpy as np
 from time import time
 from torch import Tensor
 from torch.utils.data import DataLoader
+from torch.utils.data._utils.collate import default_collate as torch_default_collate
 
 # Built-In
 from typing import Dict, Any, List, Tuple
@@ -137,6 +138,10 @@ class DatasetCreator():
 
 
         self.dataloader = dataloader
+        if self.dataloader.dataset.target_labels is None and self.dataloader.collate_fn == torch_default_collate:
+            # DataLoader should just return Signal objects
+            # do not use torch's default collate function
+            self.dataloader.collate_fn = lambda x: x
         self.file_handler = file_handler
 
         # get reference to tqdm progress bar object
