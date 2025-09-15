@@ -24,6 +24,7 @@ lightning_logs/
 **.pt*
 **.ckpt*
 **.pth
+**.ckpt*
 **.ipynb_checkpoints*
 *.benchmarks/
 **.pytest_cache
