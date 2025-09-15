@@ -21,7 +21,8 @@ body:
       label: Version
       description: What version of TorchSig? Note that any bugs before 1.0.0 are not prioritized.
       options:
-        - 2.0.0 (Default)
+        - 2.1.0 (Default)
+        - 2.0.0
         - 1.1.0
         - 1.0.0
         - 0.6.1
