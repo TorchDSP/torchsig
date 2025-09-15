@@ -1,1 +1,0 @@
-from .model_utils_1d import convert_2d_model_to_1d
