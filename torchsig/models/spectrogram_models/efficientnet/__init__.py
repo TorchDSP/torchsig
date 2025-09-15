@@ -1,1 +1,0 @@
-from .efficientnet2d import EfficientNet2d

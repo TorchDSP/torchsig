@@ -81,7 +81,6 @@ show_missing = true
 skip_covered = true
 omit = [
     "torchsig/image_datasets/*",
-    "torchsig/models/*"
 ]
 
 [tool.pytest.ini_options]

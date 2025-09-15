@@ -1,1 +1,0 @@
-from .xcit1d import XCiT1d, XCiTClassifier
