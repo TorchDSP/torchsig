@@ -19,10 +19,11 @@ import os
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("root", type=str, help="Path to generate dataset.")
+    parser.add_argument("--size", type=int, default=100, help="Dataset size. Defaults to 100.")
     parser.add_argument("--train", action="store_true", help="Generate train dataset (otherwise validation).")
     parser.add_argument("--impairment_level", type=int, default = 2, help="Impairment level. Defaults to 2.")
-    parser.add_argument("--batch_size", type=int, default = 32, help="Batch size. Defaults to 32.")
-    parser.add_argument("--num_workers", type=int, default=os.cpu_count() // 3, help="Number of workers to generate dataset. Defaults to a third of available CPU cores.")
+    parser.add_argument("--batch_size", type=int, default = 16, help="Batch size. Defaults to 16.")
+    parser.add_argument("--num_workers", type=int, default=4, help="Number of workers to generate dataset. Defaults to 4.")
 
     # Parse the arguments
     args = parser.parse_args()
@@ -35,6 +36,7 @@ def main():
 
     generate(
         root=args.root,
+        size=args.size,
         dataset_metadata=dataset_metadata,
         batch_size=args.batch_size,
         num_workers=args.num_workers,
