@@ -47,9 +47,6 @@ dependencies = [
     "pytest",
     "pylint",
     "pytest-cov",
-
-    # Satnogs
-    "librosa",
 ]
 
 
@@ -89,8 +86,5 @@ omit = [
 
 [tool.pytest.ini_options]
 # Configure pytest behavior and test discovery
-markers = [
-    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
-]
-addopts = "-m 'not slow' --cov=torchsig --cov-report=xml --cov-report=term --junitxml=report.xml"
+addopts = "--cov=torchsig --cov-report=xml --cov-report=term --junitxml=report.xml"
 testpaths = ["tests"]
