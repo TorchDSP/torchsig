@@ -1,1 +1,0 @@
-from .detr import DETR
