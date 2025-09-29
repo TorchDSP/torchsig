@@ -22,6 +22,7 @@ lightning_logs/
 **.npy
 **.jpg
 **.pt*
+**.ckpt*
 **.pth
 **.ckpt*
 **.ipynb_checkpoints*
