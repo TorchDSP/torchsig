@@ -52,6 +52,8 @@ WORKDIR /workspace
 # +----------------------------------------------------------------------------+
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
+      python3.10 \
+      python-is-python3 \
       libgl1 \   
       libsm6 \   
       libxrender1 \
