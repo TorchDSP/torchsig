@@ -22,6 +22,7 @@ lightning_logs/
 **.npy
 **.jpg
 **.pt*
+**.ckpt*
 **.pth
 **.ipynb_checkpoints*
 *.benchmarks/
@@ -40,7 +41,7 @@ rust_functions/Cargo.lock
 
 # TorchSig
 torchsig.egg-info
-!torchsig/datasets/default_consfigs
+!torchsig/datasets/default_configs
 !torchsig/datasets/default_configs/*
 !requirements.txt
 torchsig/utils/pfb_weights
