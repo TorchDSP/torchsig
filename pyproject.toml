@@ -25,23 +25,15 @@ classifiers = [
 dependencies = [
     # Core Libraries
     "torch",
-    "torchvision",
     "torchaudio",
     "tqdm",
-    "numpy<2",
+    "numpy>=2",
     "scipy",
     "h5py",
     "matplotlib",
-    "pandas",
-    "PyWavelets",
-    "scikit-learn",
-    "timm",
-    "pytorch_lightning>=2.0.0,<3.0.0",
-    "ultralytics==8.3.57",  # Keep the latest version
-    "torchinfo",
-    "sigmf",
-    "numcodecs==0.13.1",
-    "opencv-python==4.8.0.74",
+    "PyYAML",
+    "opencv-python>=4.10",
+    # image_datasets
     "jupyter_bbox_widget",
     # Testing, CI/CD
     "pytest",
