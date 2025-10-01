@@ -4,11 +4,9 @@ __pycache__/
 build/
 checkpoints/
 lightning_logs/
-#dist/
+dist/
 **.ipynb_checkpoints**
-**.pytest_cache
-*.benchmarks/
-
+*.pytest_cache
 *.env
 **.pyc
 **.mdb
@@ -23,12 +21,7 @@ lightning_logs/
 **.jpg
 **.pt*
 **.ckpt*
-**.pth
-**.ckpt*
-**.ipynb_checkpoints*
-*.benchmarks/
-**.pytest_cache
-**.zarr
+**.pth*
 **.yaml
 **.out
 
@@ -39,39 +32,33 @@ rust_functions/Cargo.lock
 **.so
 **.bak
 
-
 # TorchSig
 torchsig.egg-info
 !torchsig/datasets/default_configs
 !torchsig/datasets/default_configs/*
 !torchsig/datasets/default_configs/*.yaml
-!requirements.txt
 torchsig/utils/pfb_weights
 
-# keep license docs
-!**LICENSE.txt
+# Keep license docs
+!**LICENSE*
 
 # Docs
 docs/_static
 docs/src
-prep_release.sh
 
 # Tests
 tests/datasets/*
-!tests/datasets/*.py
+!tests/datasets/*.pyprep_release.sh
 !tests/datasets/*.yaml
 
 # Examples
 examples/*
 examples/datasets
-!examples/old_examples
 !examples/*.ipynb
 !examples/transforms
 !examples/transforms/*.ipynb
 !examples/*.py
 !examples/*.yaml
-!examples/diagrams
-!examples/diagrams/*
 
 # Tools
 tools/examples/datasets/*
@@ -86,22 +73,24 @@ tools/examples/datasets/yolo_annotation_data/annotated_yolo_sample_images
 **coverage.xml
 **report.xml
 
+# Python virtual environments
+venv/
+.venv/
+env/
+.env/
 
-# Additional ignores to ensure these stay out
-rust_fft/target/
-**/node_modules/
-datasets/
+# Specific to some virtual environment tools
+# For conda environments
+.conda/
+
+# Additional ignores
 *.h5
 *.conflict
-__pycache__/
-*.pyc
-*.pyo
-*.pyd
+**.pyo
+**.pyd
 .Python
-build/
 develop-eggs/
-dist/
-downloads/
+downloaded/
 eggs/
 .eggs/
 lib/
