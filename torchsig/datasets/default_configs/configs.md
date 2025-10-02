@@ -1,8 +1,12 @@
 # Default Configs
 
-* num\_iq\_samples = 1048576 (1024^2)
-* (train) num\_samples = 57k (57 classes x 1k samples per class)
-* (val) num\_samples = 5.7k (57 classes x 100 samples per class)
-* num\_signals\_min = 3
-* num\_signals\_max = 5
+These yaml configs represent TorchSig benchmarks dataset configurations for training a model with a train and validation dataset.
 
+| Name | YAML |
+| ---- | ---- |
+| Clean Train Dataset | `dataset_clean_train.yaml` |
+| Clean Validation Dataset | `dataset_clean_val.yaml` |
+| Impaired Train Dataset | `dataset_impaired_train.yaml` |
+| Impaired Validation Dataset | `dataset_impaired_val.yaml` |
+| Narrrowband Dataset | `narrowband_defaults.yaml` |
+| Wideband Dataset | `wideband_defaults.yaml` |
