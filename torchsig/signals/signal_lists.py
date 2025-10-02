@@ -7,9 +7,7 @@ from torchsig.signals.signal_utils import check_signal_class
 from dataclasses import dataclass
 from typing import ClassVar, Dict
 
-
-
-
+# signal class: signal family
 CLASS_FAMILY_DICT: Dict[str, str] = {
     "ook": "ook",
     "4ask": "ask",
@@ -73,6 +71,11 @@ CLASS_FAMILY_DICT: Dict[str, str] = {
 SIGNALS_SHARED_LIST: list = list(CLASS_FAMILY_DICT.keys())
 
 FAMILY_SHARED_LIST: list = sorted(list(set(CLASS_FAMILY_DICT.values())))
+
+# total number of signals
+TORCHSIG_NUM_SIGNALS: int = len(SIGNALS_SHARED_LIST)
+# total number of signal families
+TORCHSIG_NUM_FAMILIES: int = len(FAMILY_SHARED_LIST)
 
 @dataclass
 class TorchSigSignalLists():
