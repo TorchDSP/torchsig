@@ -133,19 +133,19 @@ class DatasetCreator():
         self.num_workers = dataloader.num_workers
         self.multithreading = multithreading
         self.num_batches = self.dataset_length//self.batch_size
-        if not np.equal(self.dataset_length % self.batch_size,0):
-            self.num_batches += 1 #include the partial batch at the end if it can't be evenly batched
-
+        if self.dataset_length % self.batch_size != 0:
+            self.num_batches += 1 # include the partial batch at the end if it can't be evenly batched
 
         self.dataloader = dataloader
         if self.dataloader.dataset.target_labels is None and self.dataloader.collate_fn == torch_default_collate:
             # DataLoader should just return Signal objects
             # do not use torch's default collate function
             self.dataloader.collate_fn = lambda x: x
+
         self.file_handler = file_handler
 
         # get reference to tqdm progress bar object
-        self.pbar = tqdm()
+        self.pbar = None
 
         self.tqdm_desc = "Generating Dataset:" if tqdm_desc is None else tqdm_desc
 
@@ -265,95 +265,103 @@ class DatasetCreator():
     
             # store start time
             self._msg_timer = time()
-    
-            # write dataset
-            if self.multithreading:
-                # write each batch as its own thread
-                # num_threads defaults to: min(32, os.cpu_count() + 4)
-                with concurrent.futures.ThreadPoolExecutor() as executor:
-    
-                    # Process batches in chunks to avoid memory buildup
-                    batch_chunk_size = max(1, min(100, self.num_batches) // 10) # Process in smaller chunks
-    
-                    batch_iter = enumerate(self.dataloader)
-                    processed_batches = 0
-                    total_batches = self.num_batches
-    
-                    # Process in chunks to manage memory
-                    while processed_batches < total_batches:
-                        # Get next chunk of batches
-                        chunk_futures = []
-                        chunk_size = 0
-    
-                        for _ in range(min(batch_chunk_size, total_batches - processed_batches)):
-                            try:
-                                batch_idx, batch = next(batch_iter)
-                                batch = batch_as_signal_list(batch, self.dataloader.dataset.target_labels, self.dataloader.dataset.dataset_metadata)
-    
-                                if batch_idx == self.num_batches - 1 and not np.equal(self.dataset_length % self.batch_size,0):
-                                    batch = batch[:self.dataset_length%self.batch_size]
-    
-                                future = executor.submit(self._write_batch, writer, batch_idx, batch)
-                                chunk_futures.append(future)
-                                chunk_size += 1
-                            except StopIteration:
-                                break
-    
-                        # Only process if we have futures to process
-                        if chunk_futures:
-                            # Wait for chunk to complete before processing next chunk
-                            concurrent.futures.wait(chunk_futures)
-    
-                            # Clear references to help garbage collection
-                            for future in chunk_futures:
-                                future.result()  # Ensure completion
-                            del chunk_futures
-    
-                            processed_batches += chunk_size
-    
-                            # Force garbage collection between chunks
-                            import gc
-                            gc.collect()
-    
-                        else:
-                            # No more batches to process
-                            break
-    
-            else:
-                # single threaded writing
-                itr = iter(self.dataloader)
-    
-                for batch_idx in tqdm(range(self.num_batches), total = self.num_batches):
-                    batch = next(itr)
-                    batch = batch_as_signal_list(batch, self.dataloader.dataset.target_labels, self.dataloader.dataset.dataset_metadata)
-                    
-                    if batch_idx == self.num_batches - 1 and not np.equal(self.dataset_length % self.batch_size,0):
-                        batch = batch[:self.dataset_length%self.batch_size]
 
-                    try:
-                        # write to disk
-                        self._write_batch(writer,batch_idx,batch)
+            with tqdm(total=self.num_batches, desc=self.tqdm_desc) as pbar:
+                self.pbar = pbar  # Make the instance accessible to helper methods
     
-                        # update progress bar message
-                        self._update_tqdm_message(batch_idx)
-    
-                    finally:
-                        # Clear batch reference to help garbage collection
-                        del batch
-    
-                        # Force garbage collection every 10 batches
-                        if np.equal(batch_idx % 10,0):
-                            import gc
-                            gc.collect()
+                # write dataset
+                if self.multithreading:
+                    # write each batch as its own thread
+                    # num_threads defaults to: min(32, os.cpu_count() + 4)
+                    with concurrent.futures.ThreadPoolExecutor() as executor:
+        
+                        # Process batches in chunks to avoid memory buildup
+                        batch_chunk_size = max(1, min(100, self.num_batches) // 10) # Process in smaller chunks
+                        batch_iter = enumerate(self.dataloader)
+                        processed_batches = 0
+        
+                        # Process in chunks to manage memory
+                        while processed_batches < self.num_batches:
+                            # Get next chunk of batches
+                            chunk_futures = []
+                            chunk_size = 0
+        
+                            for _ in range(min(batch_chunk_size, self.num_batches - processed_batches)):
+                                try:
+                                    batch_idx, batch = next(batch_iter)
+                                    batch = batch_as_signal_list(batch, self.dataloader.dataset.target_labels, self.dataloader.dataset.dataset_metadata)
+        
+                                    if batch_idx == self.num_batches - 1 and not np.equal(self.dataset_length % self.batch_size,0):
+                                        batch = batch[:self.dataset_length%self.batch_size]
+        
+                                    future = executor.submit(self._write_batch, writer, batch_idx, batch)
+                                    chunk_futures.append(future)
+                                    chunk_size += 1
+                                except StopIteration:
+                                    break
+        
+                            # Only process if we have futures to process
+                            if chunk_futures:
+                                # Wait for chunk to complete before processing next chunk
+                                concurrent.futures.wait(chunk_futures)
+        
+                                # Clear references to help garbage collection
+                                for future in chunk_futures:
+                                    future.result()  # Ensure completion
+                                del chunk_futures
+        
+                                processed_batches += chunk_size
+
+                                # update progress bar message
+                                self.pbar.update(chunk_size)
+                                self._update_tqdm_message(processed_batches)
+        
+                                # Force garbage collection between chunks
+                                import gc
+                                gc.collect()
+        
+                            else:
+                                # No more batches to process
+                                break
+        
+                else:
+                    # single threaded writing
+                    itr = iter(self.dataloader)
+        
+                    # for batch_idx in tqdm(range(self.num_batches), total = self.num_batches):
+                    for batch_idx in range(self.num_batches):
+                        batch = next(itr)
+                        batch = batch_as_signal_list(batch, self.dataloader.dataset.target_labels, self.dataloader.dataset.dataset_metadata)
+                        
+                        if batch_idx == self.num_batches - 1 and not np.equal(self.dataset_length % self.batch_size,0):
+                            batch = batch[:self.dataset_length%self.batch_size]
+
+                        try:
+                            # write to disk
+                            self._write_batch(writer,batch_idx,batch)
+        
+                            # update tqdm
+                            self.pbar.update(1)
+                            self._update_tqdm_message(batch_idx + 1)
+        
+                        finally:
+                            # Clear batch reference to help garbage collection
+                            del batch
+        
+                            # Force garbage collection every 10 batches
+                            if np.equal(batch_idx % 10,0):
+                                import gc
+                                gc.collect()
             # update writer yaml
             # indicate writing dataset to disk was successful
             updated_writer_yaml = self.get_writing_info_dict()
             updated_writer_yaml['complete'] = True
             write_dict_to_yaml(self.writer_info_filepath, updated_writer_yaml)
 
-    def _update_tqdm_message(self, batch_idx:int ):
+    # def _update_tqdm_message(self, batch_idx:int ):
+    def _update_tqdm_message(self, num_batches_processed: int) -> None:
 
-        """Updates the tqdm progress bar with remaining disk space
+        """Updates the tqdm progress bar with remaining disk space (thread safe)
 
         Informs the user how much remaining space left (in gigabytes) is
         on their disk. Includes a check to stop writing to disk in case
@@ -363,6 +371,10 @@ class DatasetCreator():
             ValueError: If the disk space remaining is below a threshold
         """
 
+        # Don't run if no batches are done or pbar isn't ready
+        if num_batches_processed == 0 or not hasattr(self, 'pbar') or self.pbar is None:
+            return
+
         with self._tqdm_lock:
 
             # compute elapsed time since last run
@@ -370,7 +382,11 @@ class DatasetCreator():
 
             # run every second, but wait until 20 iterations have
             # passed in order to create a more realiable estimate
-            if (not batch_idx or elapsed_time > 1):
+            if self._msg_timer == 0 or elapsed_time > 1:
+
+                num_samples_written = num_batches_processed * self.batch_size
+                if num_samples_written == 0:
+                    return # Avoid division by zero
 
                 # get the amount of disk space remaining
                 disk_size_available_bytes = disk_usage(self.root)[2]
@@ -379,7 +395,7 @@ class DatasetCreator():
                 # get size of dataset written so far
                 dataset_size_current_gigabytes = self._get_directory_size_gigabytes(self.root)
                 # num samples processed and remaining
-                num_samples_written = (batch_idx+1)*self.batch_size
+                # num_samples_written = (batch_idx+1)*self.batch_size
                 num_samples_remaining = self.dataset_length - num_samples_written
                 # estimate size per sample
                 dataset_size_per_sample_gigabytes = dataset_size_current_gigabytes/num_samples_written
@@ -389,7 +405,10 @@ class DatasetCreator():
                 dataset_size_total_gigabytes = np.round(dataset_size_per_sample_gigabytes*self.dataset_length,2)
 
                 # concatenate disk size for progress bar message
-                updated_tqdm_desc = f'{self.tqdm_desc} estimated dataset size = {dataset_size_total_gigabytes} GB, dataset remaining = {dataset_size_remaining_gigabytes} GB, remaining disk = {disk_size_available_gigabytes} GB'
+                # updated_tqdm_desc = f'{self.tqdm_desc} estimated dataset size = {dataset_size_total_gigabytes} GB, dataset remaining = {dataset_size_remaining_gigabytes} GB, remaining disk = {disk_size_available_gigabytes} GB'
+
+                desc = (f'{self.tqdm_desc} | Est. Size: {dataset_size_total_gigabytes} GB | Disk Free: {disk_size_available_gigabytes} GB')
+                self.pbar.set_description(desc)
 
                 # avoid crashing by stopping write process
                 if disk_size_available_gigabytes < self.minimum_remaining_disk_gigabytes:
@@ -400,7 +419,8 @@ class DatasetCreator():
                     raise ValueError(f'Not enough disk space. Projected dataset size is {dataset_size_remaining_gigabytes} GB. Remaining space is {disk_size_available_gigabytes} GB. Please reduce dataset size or make space before continuing.')
 
                 # set the progress bar message
-                self.pbar.set_description(updated_tqdm_desc)
+                # self.pbar.set_description(updated_tqdm_desc)
+                self._msg_timer = time()
 
 
     def _get_directory_size_gigabytes ( self, start_path ):
