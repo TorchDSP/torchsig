@@ -495,6 +495,7 @@ class Signal():
 
     def verify(self):
         """Verifies data and metadata are valid.
+        Should only be run after `SignalBuilder`. Signals post-transforms are not guaranteed to pass verify() checks.
 
         Raises:
             ValueError: Data or metadata is invalid.
