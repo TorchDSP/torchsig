@@ -4,7 +4,7 @@
 # TorchSig
 from torchsig.datasets.dataset_metadata import DatasetMetadata
 from torchsig.datasets.datasets import TorchSigIterableDataset
-from torchsig.utils.writer import DatasetCreator, default_collate_fn
+from torchsig.utils.writer import DatasetCreator
 
 # Third Party
 from torch.utils.data import DataLoader
