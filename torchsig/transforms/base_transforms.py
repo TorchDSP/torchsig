@@ -14,7 +14,7 @@ __all__ = [
 
 # TorchSig
 import torchsig.transforms.functional as F
-from torchsig.signals.signal_types import Signal, SignalMetadata, SignalMetadataExternal
+from torchsig.signals.signal_types import Signal, SignalMetadata
 from torchsig.utils.random import Seedable
 from torchsig.utils.printing import generate_repr_str
 
@@ -40,8 +40,8 @@ class Transform(ABC, Seedable):
 
     def __validate__(
         self, 
-        signal: Signal | SignalMetadata | SignalMetadataExternal
-    ) -> Signal | SignalMetadata | SignalMetadataExternal:
+        signal: Signal | SignalMetadata
+    ) -> Signal | SignalMetadata:
         """Validates signal or metadata before applying transform
 
         Args:
@@ -55,7 +55,7 @@ class Transform(ABC, Seedable):
         """        
         raise NotImplementedError
 
-    def __update__(self, signal: Signal | SignalMetadata | SignalMetadataExternal) -> None:
+    def __update__(self, signal: Signal | SignalMetadata) -> None:
         """Updates bookeeping for signals
 
         Args:
@@ -80,18 +80,18 @@ class Transform(ABC, Seedable):
 
             
 
-        elif isinstance(signal, (SignalMetadata, SignalMetadataExternal)):
-            # SignalMetadata or SignalMetadataExternal object
+        elif isinstance(signal, (SignalMetadata)):
+            # SignalMetadata object
             if signal is None:
                 raise ValueError(f"Invalid signal metadata object to update in transform {self.__class__.__name__}. Signal metadata is None: {signal}")
             signal.applied_transforms.append(self)
         else:
-            raise ValueError(f"Invalid signal metadata object to update in transform {self.__class__.__name__}. Must be Signal or SignalMetadata/SignalMetadataExternal, not {type(signal)}.")
+            raise ValueError(f"Invalid signal metadata object to update in transform {self.__class__.__name__}. Must be Signal or SignalMetadata, not {type(signal)}.")
 
     def __apply__(
         self, 
-        signal: Signal | SignalMetadata | SignalMetadataExternal
-    ) -> Signal | SignalMetadata | SignalMetadataExternal:  
+        signal: Signal | SignalMetadata
+    ) -> Signal | SignalMetadata:  
         """Performs transform
 
         Args:
@@ -108,7 +108,7 @@ class Transform(ABC, Seedable):
     def __call__(
         self, 
         signal: Signal | SignalMetadata
-    ) -> Signal | SignalMetadata | SignalMetadataExternal:
+    ) -> Signal | SignalMetadata:
         """Validate signal, performs transform, update bookeeping
 
         Args:

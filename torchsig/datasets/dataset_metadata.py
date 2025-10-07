@@ -5,12 +5,6 @@ from __future__ import annotations
 
 # TorchSig
 from torchsig.signals.signal_lists import TorchSigSignalLists
-from torchsig.utils.verify import (
-    verify_int,
-    verify_float,
-    verify_distribution_list,
-    verify_list
-)
 from torchsig.utils.printing import (
     dataset_metadata_str,
 )
@@ -45,8 +39,6 @@ class DatasetMetadata():
 
     This class stores metadata related to the dataset, including parameters
     related to signal generation, transforms, dataset path, and sample distribution.
-    It also handles the verification of dataset settings and ensures that the configuration 
-    is valid for the dataset creation process.
     """
 
     minimum_params: List[str] = [
@@ -57,8 +49,8 @@ class DatasetMetadata():
 
     def __init__(
         self, 
-        num_iq_samples_dataset: int, 
-        fft_size: int,
+        num_iq_samples_dataset: int = 0, 
+        fft_size: int = 0,
         num_signals_min: int = 1,
         num_signals_max: int = 1,
         sample_rate: float = 10e6,
@@ -135,9 +127,6 @@ class DatasetMetadata():
         # provide a noise power reference in dB
         self.noise_power_db = 0
 
-        # run _verify() to ensure metadata is valid
-        self.verify()
-
     def update_from(self, attr_dict):
         """updates the fields of this metadata object with the values in attr_dict; good for joining metadata together
             modifies existing object, and return without copying
@@ -145,178 +134,6 @@ class DatasetMetadata():
         for key in attr_dict.keys():
             setattr(self, key, attr_dict[key])
         return self
-
-    def verify(self) -> None:
-        """Verify that metadata is valid.
-
-        This method checks the configuration of the metadata, ensuring all parameters
-        are consistent, valid, and appropriate for dataset creation. It will raise 
-        ValueError if any configuration is found to be incorrect.
-
-        Raises:
-            ValueError: If any dataset configuration is invalid.
-        """
-
-        self.class_distribution = verify_distribution_list(
-            self.class_distribution, 
-            len(self.class_list), 
-            "class_distribution", 
-            "class_list"
-        )
-        self.num_signals_distribution = verify_distribution_list(
-            self.num_signals_distribution, 
-            len(self.num_signals_range), 
-            "num_signals_distribution", 
-            "[num_signals_min, num_signals_max]"
-        )
-
-        self.class_list = verify_list(self.class_list, "class_list")
-
-        # check all of the input parameters
-        self.sample_rate = verify_float(
-            self.sample_rate,
-            name = "sample_rate",
-            low = 0.0,
-            exclude_low = True
-        )
-
-        self.fft_size = verify_int(
-            self.fft_size,
-            name = "fft_size",
-            low = 0,
-            exclude_low = True
-        )
-
-        self.fft_stride = verify_int(
-            self.fft_stride,
-            name = "fft_stride",
-            low = 0,
-            high = self.fft_size,
-            exclude_low = True,
-        )
-
-        
-        self.num_iq_samples_dataset = verify_int(
-            self.num_iq_samples_dataset,
-            name = "num_iq_samples_dataset",
-            low = 0,
-            exclude_low = True
-        )
-
-        self.num_signals_max = verify_int(
-            self.num_signals_max,
-            name = "num_signals_max",
-            low = 0
-        )
-
-        self.num_signals_min = verify_int(
-            self.num_signals_min,
-            name = "num_signals_min",
-            low = 0,
-            high = self.num_signals_max
-        )
-
-        self.snr_db_max = verify_float(
-            self.snr_db_max,
-            name = "snr_db_max",
-            low = None,
-        )
-
-        self.snr_db_min = verify_float(
-            self.snr_db_min,
-            name = "snr_db_min",
-            low = None,
-            high = self.snr_db_max
-        )
-
-        self.signal_duration_max = verify_float(
-            self.signal_duration_max,
-            name = "signal_duration_max",
-            low = self.dataset_duration_min,
-            high = self.dataset_duration_max
-        )
-
-        self.signal_duration_min = verify_float(
-            self.signal_duration_min,
-            name = "signal_duration_min",
-            low = self.dataset_duration_min,
-            high = self.dataset_duration_max
-        )
-
-        self.signal_bandwidth_min = verify_float(
-            self.signal_bandwidth_min,
-            name = "signal_bandwidth_min",
-            low = self.dataset_bandwidth_min,
-            high = self.dataset_bandwidth_max
-        )
-
-        self.signal_bandwidth_max = verify_float(
-            self.signal_bandwidth_max,
-            name = "signal_bandwidth_max",
-            low = self.dataset_bandwidth_min,
-            high = self.dataset_bandwidth_max
-        )
-
-        self.signal_center_freq_min = verify_float(
-            self.signal_center_freq_min,
-            name = "signal_center_freq_min",
-            low = self.dataset_center_freq_min,
-            high = self.dataset_center_freq_max
-        )
-
-        self.signal_center_freq_max = verify_float(
-            self.signal_center_freq_max,
-            name = "signal_center_freq_max",
-            low = self.dataset_center_freq_min,
-            high = self.dataset_center_freq_max
-        )
-
-        self.cochannel_overlap_probability = verify_float(
-            self.cochannel_overlap_probability,
-            name = "cochannel_overlap_probability",
-            low = 0,
-            high = 1
-        )
-
-        # check derived values
-        
-        verify_float(
-            self.fft_frequency_resolution,
-            name = "fft_frequency_resolution",
-            low = 0.0,
-            exclude_low = True
-        )
-
-
-        verify_float(
-            self.fft_frequency_max,
-            name = "fft_frequency_max",
-            low = None,
-            high = None,
-        )
-
-        verify_float(
-            self.fft_frequency_min,
-            name = "fft_frequency_max",
-            low = None,
-            high = self.fft_frequency_max,
-            exclude_high = True
-        )
-
-        verify_int(
-            self.signal_duration_in_samples_max,
-            name = "signal_duration_in_samples_max",
-            low = self.dataset_duration_in_samples_min,
-            exclude_low = True
-        )
-
-        verify_int(
-            self.signal_duration_in_samples_min,
-            name = "signal_duration_in_samples_min",
-            low = 0,
-            high = self.dataset_duration_in_samples_max,
-            exclude_low = True
-        )
 
     def __str__(self) -> str:
         return dataset_metadata_str(self)
@@ -605,105 +422,3 @@ class DatasetMetadata():
         """
         epsilon = 1e-10
         return (self.sample_rate/2)*(1-epsilon)
-
-
-class ExternalDatasetMetadata():
-    """Dataset Metadata class for external data, with less required infrastructure
-    and fields than the internal metadata class that generates TorchSig datasets.
-    """
-
-    minimum_params: List[str] = [
-        'num_iq_samples_dataset',
-        'class_list',
-        'sample_rate'
-    ]
-
-    def __init__(
-        self, 
-        num_iq_samples_dataset: int,
-        class_list: List[str] = [],
-        sample_rate: float = 10e6,
-        **kwargs
-    ):
-        """Initializes ExternalDatasetMetadata.
-
-        Args:
-            num_iq_samples_dataset (int): Length of I/Q array in dataset.
-            class_list (List[str], optional): Signal class name list. Defaults to []].
-            sample_rate (float, optional): Sample rate for dataset. Defaults to 10e6.
-        Raises:
-            ValueError: If any of the provided parameters are invalid or incompatible.
-        """            
-        self.num_iq_samples_dataset = num_iq_samples_dataset
-        self.sample_rate = sample_rate
-        self.class_list = class_list
-        self.kwargs = kwargs
-
-        # run _verify() to ensure metadata is valid
-        self.verify()
-
-    def verify(self) -> None:
-        """Verify that metadata is valid.
-
-        Raises:
-            ValueError: If any dataset configuration is invalid.
-        """
-
-        # check all of the input parameters
-        self.num_iq_samples_dataset = verify_int(
-            self.num_iq_samples_dataset,
-            name = "num_iq_samples_dataset",
-            low = 0,
-            exclude_low = True
-        )
-
-    def __str__(self) -> str:
-        return f"{self.__class__.__name__}"
-
-    def __repr__(self) -> str:
-        """Returns a string representation of the DatasetMetadata instance.
-        
-        This provides a concise summary of the key parameters such as `num_iq_samples_dataset`, 
-        `sample_rate`, `num_signals_max`, and `fft_size`.
-        
-        Returns:
-            str: String representation of the DatasetMetadata instance.
-        """
-        return f"{self.__class__.__name__}(num_iq_samples_dataset={self.num_iq_samples_dataset}, sample_rate={self.sample_rate})"
-    
-    def to_dict(self) -> Dict[str, Any]:
-        """Converts the dataset metadata into a dictionary format.
-
-        This method organizes various metadata fields related to the dataset into categories such as 
-        general dataset information, signal generation parameters, and dataset writing information.
-
-        Returns:
-            Dict[str, Any]: A dictionary representation of the dataset metadata.
-        """
-        # organize fields by area
-
-        required = {
-            'num_iq_samples_dataset': self.num_iq_samples_dataset,
-
-        }
-
-        overrides = {
-            'sample_rate': self.sample_rate,
-            'class_list': deepcopy(self.class_list),
-        }
-
-        # dataset information
-        dataset_info = {
-            'num_iq_samples_dataset': self.num_iq_samples_dataset,
-            'sample_rate': self.sample_rate,
-        }
-
-        read_only = {
-            'info': dataset_info
-        }
-
-        return {
-            'required': required,
-            'overrides': overrides,
-            'read_only': read_only
-        }
