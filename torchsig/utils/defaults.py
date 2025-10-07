@@ -7,7 +7,7 @@ from torchsig.transforms.impairments import Impairments
 from torchsig.utils.writer import default_collate_fn
 from torchsig.utils.data_loading import WorkerSeedingDataLoader
 
-from torch.data.utils import DataLoader
+from torch.utils.data import DataLoader
 
 from typing import List, Callable
 
