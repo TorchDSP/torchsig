@@ -1,10 +1,42 @@
+"""Helpful methods for quickly creating TorchSig datasts and dataloaders
+"""
+
 from torchsig.datasets.dataset_metadata import DatasetMetadata
 from torchsig.datasets.datasets import TorchSigIterableDataset
 from torchsig.transforms.impairments import Impairments
 from torchsig.utils.writer import default_collate_fn
 from torchsig.utils.data_loading import WorkerSeedingDataLoader
 
-def default_dataset(num_signals_min=1, num_signals_max=1, num_iq_samples_dataset=4096, fft_size=64, impairment_level=None, target_labels=None, transforms=[], component_transforms=[], **kwargs):
+from torch.data.utils import DataLoader
+
+from typing import List, Callable
+
+def default_dataset(
+    num_signals_min: int = 1, 
+    num_signals_max: int = 1, 
+    num_iq_samples_dataset: int = 4096, 
+    fft_size:int = 64,
+    impairment_level: int = None,
+    target_labels: list = None,
+    transforms: list = [],
+    component_transforms: list = [],
+    **kwargs
+) -> TorchSigIterableDataset:
+    """creates a TorchSigIterableDataset with given params, uses impairment_level
+
+    Args:
+        num_signals_min (int, optional): min number of signals per sample. Defaults to 1.
+        num_signals_max (int, optional): max number of signals per sample. Defaults to 1.
+        num_iq_samples_dataset (int, optional): sample length. Defaults to 4096.
+        fft_size (int, optional): fft size. Defaults to 64.
+        impairment_level (int, optional): Level of impairments to use (0, 1, 2). Defaults to None.
+        target_labels (list, optional): Labels for data. Defaults to None.
+        transforms (list, optional): dataset Transforms to apply. Defaults to [].
+        component_transforms (list, optional): Signal/busrt level of transforms to aply. Defaults to [].
+
+    Returns:
+        TorchSigIterableDataset: dataset accoriding to params.
+    """
     dataset_metadata = DatasetMetadata(
         num_iq_samples_dataset = num_iq_samples_dataset,
         fft_size = fft_size,
@@ -12,7 +44,7 @@ def default_dataset(num_signals_min=1, num_signals_max=1, num_iq_samples_dataset
         num_signals_min = num_signals_min,
         num_samples = None
     )
-    if impairment_level != None:
+    if impairment_level is None:
         impairments = Impairments(impairment_level)
         burst_impairments = impairments.signal_transforms
         signal_impairments = impairments.dataset_transforms
@@ -29,9 +61,31 @@ def default_dataset(num_signals_min=1, num_signals_max=1, num_iq_samples_dataset
         **kwargs
     )
 
-def default_dataloader(seed=False, collate_fn=default_collate_fn, batch_size=1, num_workers=1, **kwargs):
+def default_dataloader(
+    seed: int = False,
+    collate_fn: Callable = default_collate_fn,
+    batch_size: int = 1,
+    num_workers: int = 1,
+    **kwargs
+) -> WorkerSeedingDataLoader:
+    """Shortcut for creating a WorkerSeedingDataLoader
+
+    Args:
+        seed (int, optional): Dataloder seed. Defaults to False.
+        collate_fn (Callable, optional): Collate function to use. Defaults to default_collate_fn.
+        batch_size (int, optional): Batch size. Defaults to 1.
+        num_workers (int, optional): Number of workers. Defaults to 1.
+
+    Returns:
+        WorkerSeedingDataLoader: Dataloader according to params
+    """
     dataset = default_dataset(**kwargs)
-    dataloader = WorkerSeedingDataLoader(dataset, collate_fn=collate_fn, batch_size=batch_size, num_workers=num_workers)
+    dataloader = WorkerSeedingDataLoader(
+        dataset, 
+        collate_fn=collate_fn, 
+        batch_size=batch_size, 
+        num_workers=num_workers
+    )
     if seed:
         dataloader.seed(seed)
     return dataloader

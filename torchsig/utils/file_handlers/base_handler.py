@@ -32,6 +32,11 @@ def reset_folder(path: str) -> None:
 class FileWriter():
 
     def __init__(self, root: str, **kwargs):
+        """File writer base clas
+
+        Args:
+            root (str): Location on disk to write dataset
+        """        
         self.root: pathlib.Path = pathlib.Path(root)
 
     def _setup(self) -> None:
@@ -72,7 +77,7 @@ class FileWriter():
         """Destructor to ensure clean resource cleanup"""
         try:
             self.teardown()
-        except:
+        except Exception as e:
             pass  # Ignore errors during cleanup
 
     def __str__(self) -> str:
@@ -94,14 +99,27 @@ class FileWriter():
 class FileReader():
 
     def __init__(self, root: str, **kwargs):
+        """file reader base class
+
+        Args:
+            root (str): Dataset location on disk.
+        """        
         self.root = pathlib.Path(root)
         self.dataset_info_filepath = self.root.joinpath("dataset_info.yaml")
         
 
     def read(self, idx: int) -> Any:
-        raise NotImplementedError
+        """load data from disk
 
-    def size(self) -> int:
+        Args:
+            idx (int): data item to load
+
+        Raises:
+            NotImplementedError: Subclasses must implement this method
+
+        Returns:
+            Any: data and targets
+        """        
         raise NotImplementedError
 
     def __str__(self) -> str:
@@ -114,16 +132,33 @@ class FileReader():
         raise NotImplementedError
 
 class BaseFileHandler():
+    """File handler base class. Not be instantiated.
+
+    Usage:
+        >>> BaseFileHandler.create_handler(mode = "r", root = "./) # create a reader
+        >>> BaseFileHandler.create_handler(mode = "w", root = "./) # create a writer
+    """    
 
     reader_class: FileReader = FileReader
     writer_class: FileWriter = FileWriter
 
-    
     @staticmethod
     def create_handler(mode: str, root: str, **kwargs) -> FileWriter | FileReader:
+        """Creates FileWriter or FileReader
+
+        Args:
+            mode (str): read or write mode
+            root (str): where file handler will be running
+
+        Raises:
+            ValueError: invalid model
+
+        Returns:
+            FileWriter | FileReader: FileHandler's reader or writer.
+        """        
         if mode == "r":
             return BaseFileHandler.reader_class(root, **kwargs)
-        elif mode == "w":
+        if mode == "w":
             return BaseFileHandler.writer_class(root, **kwargs)
         else:
             raise ValueError(f"Invalid File Handler mode: {mode}")

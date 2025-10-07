@@ -21,10 +21,11 @@ import h5py
 
 # Built-In
 import threading
+from typing import Any, List, Tuple
 
 
 
-def populate_hdf5_group_with_signal(group, sig):
+def populate_hdf5_group_with_signal(group: h5py.Group, sig: Signal) -> None:
     """Inserts a Signal object's data and metadata into the HDF5 group.
 
     Args:
@@ -34,32 +35,48 @@ def populate_hdf5_group_with_signal(group, sig):
     group.create_dataset("data", data=sig.data)
     metadata_group = group.create_group("metadata")
     metadatas = sig.get_full_metadata()
-    counter = -1
-    for metadata in metadatas:
-        counter += 1
-        if metadata is not None:
-            index_group = metadata_group.create_group(str(counter))
-            metadata_dict = metadata.to_dict()
-            for key in metadata_dict.keys():
-                if metadata_dict[key] is not None:
-                    if isinstance(metadata_dict[key], str) or np.isscalar(metadata_dict[key]):
-                        index_group.create_dataset(key, data=metadata_dict[key])
-                    else:
-                        try:
-                            index_group.create_dataset(key, data=np.array(metadata_dict[key]))
-                        except:
-                            index_group.create_dataset(key, data=metadata_dict[key])
 
-def populate_hdf5_group_with_signals(group, sigs):
+    for index, metadata in enumerate(metadatas):
+        if metadata is None:
+            continue
+
+        index_group = metadata_group.create_group(str(index))
+
+        for key, value in metadata.to_dict().items():
+            if value is not None:
+                try:
+                    # Let h5py handle data conversion automatically
+                    index_group.create_dataset(key, data=value)
+                except Exception as e:
+                    # As a fallback for unsupported types, convert to a string
+                    index_group.create_dataset(key, data=str(value))
+
+    # counter = -1
+    # for metadata in metadatas:
+    #     counter += 1
+    #     if metadata is not None:
+    #         index_group = metadata_group.create_group(str(counter))
+    #         metadata_dict = metadata.to_dict()
+    #         for key in metadata_dict.keys():
+    #             if metadata_dict[key] is not None:
+    #                 if isinstance(metadata_dict[key], str) or np.isscalar(metadata_dict[key]):
+    #                     index_group.create_dataset(key, data=metadata_dict[key])
+    #                 else:
+    #                     try:
+    #                         index_group.create_dataset(key, data=np.array(metadata_dict[key]))
+    #                     except Exception as e:
+    #                         index_group.create_dataset(key, data=metadata_dict[key])
+
+def populate_hdf5_group_with_signals(group: h5py.Group, sigs: List[Signal]) -> None:
     """Inserts a list of Signal objects into the HDF5 group.
 
     Args:
         group (h5py.Group): The HDF5 group to add the Signals to.
         sigs (List[Signal]): The list of Signal objects.
     """
-    for i in range(len(sigs)):
+    for s in sigs:
         signal_group = group.create_group(str(len(group)))
-        populate_hdf5_group_with_signal(signal_group, sigs[i])
+        populate_hdf5_group_with_signal(signal_group, s)
 
 class HDF5Writer(FileWriter):
     """Handles writing Signal data to HDF5 files with specified compression and buffering."""
@@ -131,7 +148,7 @@ class HDF5Writer(FileWriter):
             try:
                 self._file.flush()
                 self._file.close()
-            except Exception:
+            except Exception as e:
                 pass  # File might already be closed
             del self._file
 
@@ -349,7 +366,7 @@ class HDF5FileHandler(BaseFileHandler):
         """
         if mode == "r":
             return HDF5FileHandler.reader_class(root, **kwargs)
-        elif mode == "w":
+        if mode == "w":
             return HDF5FileHandler.writer_class(root, **kwargs)
         else:
             raise ValueError(f"Invalid File Handler mode: {mode}")
