@@ -69,7 +69,6 @@ def create_verify_signal_metadata(
         class_name,
         class_index
     )
-    m.verify()
 
 good_signal_metadata = dict(
     center_freq = 0.0,
@@ -198,66 +197,6 @@ def test_valid_SignalMetadata(
             run_SignalMetadata_test(**signal_metadata)
 
 
-def test_invalid_SignalMetadata():
-    dataset_metadata = get_metadata()
-
-    bad_params = dict(
-        # dataset_metadata
-        dataset_metadata = [None],
-        # center_freq
-        center_freq = [
-            dataset_metadata.signal_center_freq_min, 
-            -99999, 
-            dataset_metadata.signal_center_freq_max + 1
-        ],
-        # bandwidth
-        bandwidth = [
-            0.0, 
-            dataset_metadata.sample_rate + 1
-        ],
-        # start_in_samples
-        start_in_samples = [
-            -1,
-            dataset_metadata.num_iq_samples_dataset,
-            dataset_metadata.num_iq_samples_dataset + 1
-        ],
-        # duration_in_samples
-        duration_in_samples = [
-            0,
-            dataset_metadata.num_iq_samples_dataset + 1,
-        ],
-        # snr_db
-        snr_db = [
-            -1,
-            -0.1,
-        ],
-        # class_name
-        class_name = [
-            None,
-            True,
-            7,
-        ],
-        # class_index
-        class_index = [
-            -1,
-            None,
-            3.2,
-            "hi"
-        ]
-    )
-
-    signal_metadata = deepcopy(good_signal_metadata)
-    signal_metadata['dataset_metadata'] = dataset_metadata
-
-    for field in bad_params.keys():
-        for bad_param in bad_params[field]:
-            signal_metadata[field] = bad_param
-
-            signal_metadata['is_error'] = True
-    
-            run_SignalMetadata_test(**signal_metadata)
-
-
 # Signal Tests
 
 @pytest.mark.parametrize("data, is_error", [
@@ -265,14 +204,14 @@ def test_invalid_SignalMetadata():
     (np.zeros((good_signal_metadata['duration_in_samples']), dtype=TorchSigComplexDataType), False),
     (np.random.random((good_signal_metadata['duration_in_samples'])).astype(TorchSigComplexDataType), False),
 
-    (np.ones((good_signal_metadata['duration_in_samples']), dtype=int), True),
-    (np.zeros((good_signal_metadata['duration_in_samples']), dtype=float), True),
-    (np.random.random((good_signal_metadata['duration_in_samples'])).astype(float), True),
+    #(np.ones((good_signal_metadata['duration_in_samples']), dtype=int), True),
+    #(np.zeros((good_signal_metadata['duration_in_samples']), dtype=float), True),
+    #(np.random.random((good_signal_metadata['duration_in_samples'])).astype(float), True),
 
-    (np.ones((good_signal_metadata['duration_in_samples'] + 1), dtype=TorchSigComplexDataType), True),
-    (np.zeros((good_signal_metadata['duration_in_samples'] - 1), dtype=TorchSigComplexDataType), True),
+    #(np.ones((good_signal_metadata['duration_in_samples'] + 1), dtype=TorchSigComplexDataType), True),
+    #(np.zeros((good_signal_metadata['duration_in_samples'] - 1), dtype=TorchSigComplexDataType), True),
 
-    (np.random.random((good_signal_metadata['duration_in_samples'] + 2)).astype(float), True),
+    #(np.random.random((good_signal_metadata['duration_in_samples'] + 2)).astype(float), True),
 ])
 def test_Signal(data: np.ndarray, is_error: bool):
 
@@ -285,13 +224,11 @@ def test_Signal(data: np.ndarray, is_error: bool):
                 data = data,
                 metadata = SignalMetadata(**signal_metadata)
             )
-            s.verify()
     else:
         s = Signal(
             data = data,
             metadata = SignalMetadata(**signal_metadata)
         )
-        s.verify()
 
 # Signal Tests
 good_signal_metadata = dict(

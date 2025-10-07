@@ -9,7 +9,7 @@ from torchsig.datasets.dataset_utils import (
     to_dataset_metadata, 
     frequency_shift_signal
 )
-from torchsig.signals.signal_types import Signal, SignalMetadataExternal
+from torchsig.signals.signal_types import Signal
 from torchsig.signals.builder import SignalBuilder
 import torchsig.signals.builders as signal_builders
 from torchsig.transforms.base_transforms import Transform
@@ -435,102 +435,3 @@ class StaticTorchSigDataset(Dataset, Seedable):
             f"file_handler_class={self.reader}"
         )
 
-
-
-
-
-class ExternalTorchSigDataset(Dataset):
-    """
-    Lightweight static dataset for importing external (not TorchSig generated) data and metadata from files.
-    
-    Args:
-        root (str): The root directory where the dataset is stored.
-        file_handler_class (ExternalFileHandler): Class used for reading dataset.
-        transforms (list, optional): Transforms to apply to the data (default: []).
-        target_transforms (list, optional): Target transforms to apply (default: []).        
-        
-    """
-    def __init__(
-        self, 
-        file_handler: ExternalFileHandler,
-        transforms: List[Transform] = [],  
-        target_labels: List[str] = []             
-    ):
-        self.transforms = transforms
-        self.target_labels = target_labels
-        self.file_handler = file_handler
-        self.dataset_length = self.file_handler.size()
-        self.dataset_metadata = self.file_handler.load_dataset_metadata()
-        self._verify()
-
-    
-    def _verify(self):
-        # Transforms
-        self.transforms = verify_transforms(self.transforms)   
-
-    
-    def __len__(self) -> int: 
-        return self.dataset_length
-            
-    def __getitem__(self, idx: int) -> Tuple[np.ndarray, Any]:
-        """
-        Retrieves a sample from the static dataset by index.
-
-        Args:
-            idx: sample index.
-
-        Returns:
-            Tuple[data, targets] returned data array and metadata.
-        """
-        if 0 <= idx < len(self):
-            data, signal_metadatas = self.file_handler.load(idx)
-            component_signals = []
-            for signal_metadata in signal_metadatas:
-                if not isinstance(signal_metadata, dict):
-                    raise ValueError(f"Signal metadata is not a dict: {type(signal_metadata)}.")
-                # create external signal metadata
-                esm = SignalMetadataExternal(
-                    self.dataset_metadata,
-                    **signal_metadata
-                )
-                # create component signal
-                component_signal = Signal(
-                    data = np.array([]),
-                    metadata = esm,
-                )
-                # add to component signals
-                component_signals.append(component_signal)
-            
-            # create Signal from component signals
-            sample = Signal(
-                data = data,
-                component_signals = component_signals
-            )
-
-            # apply user transforms
-            for transform in self.transforms:
-                sample = transform(sample)
-
-            # apply metadata transforms
-            # just return data if target_labels is None or empty list
-            if self.target_labels is None:
-                return sample
-            if len(self.target_labels) < 1:
-                return sample.data
-
-            metadatas = sample.get_full_metadata()
-            targets = []
-            if len(self.target_labels) == 1:
-                # just 1 target label
-                # set targets to single item
-                targets = [getattr(metadata, self.target_labels[0]) for metadata in metadatas]
-            else:
-                # multiple target labels
-                for metadata in metadatas:
-                    # for each signal metadata
-                    # apply all target labels
-                    targets += [[getattr(metadata, target_label) for target_label in self.target_labels]]
-
-            return sample.data, targets
-            
-        raise IndexError(f"Index {idx} is out of bounds. Must be [0, {self.__len__()}]")          

@@ -1,15 +1,15 @@
 """Unit Tests for datasets
 """
-from torchsig.datasets.dataset_metadata import DatasetMetadata, ExternalDatasetMetadata
-from torchsig.datasets.datasets import TorchSigIterableDataset, StaticTorchSigDataset, ExternalTorchSigDataset
+from torchsig.datasets.datasets import TorchSigIterableDataset, StaticTorchSigDataset
 from torchsig.utils.writer import DatasetCreator, default_collate_fn
 from torchsig.signals.signal_lists import TorchSigSignalLists
 from torchsig.transforms.metadata_transforms import YOLOLabel
 from torchsig.utils.data_loading import WorkerSeedingDataLoader
 from torchsig.transforms.transforms import Spectrogram, ComplexTo2D
 from torchsig.signals.signal_types import Signal
-from torchsig.utils.file_handlers import ExternalFileHandler
 from torchsig.utils.dsp import TorchSigRealDataType
+from torchsig.utils.file_handlers import FileReader
+from torchsig.datasets.dataset_metadata import DatasetMetadata
 
 # Third Party
 import numpy as np
@@ -37,7 +37,6 @@ RTOL = 1E-6
 wb_data_dir =  Path.joinpath(Path(__file__).parent,'datasets/dataset_data')
 wb_image_dir = Path.joinpath(Path(__file__).parent,'datasets/dataset_images')
 getitem_dir = Path.joinpath(Path(__file__).parent,'datasets/getitem_data')
-external_dir = Path.joinpath(Path(__file__).parent,'datasets/external_data')
 
 # directory for test data
 def setup_module(module):
@@ -188,216 +187,6 @@ def test_StaticDataset_getitem(num_signals_max: int, target_labels):
         sample = static_dataset[idx]
 
         # verify_getitem_targets(num_signals_max, target_labels, sample)
-
-
-class BYODExampleFileHandler(ExternalFileHandler):
-
-    def __init__(
-        self,
-        root: str
-    ):
-        super().__init__(root=root)
-
-        self.class_list = ['BPSK', 'QPSK', 'Noise']  
-
-    def size(self) -> int:
-        try:
-            with open(f"{self.root}/info.json", "r") as f:
-                dataset_info = json.load(f)
-
-            return dataset_info["size"]
-        except:
-            raise ValueError(f"Error loading {root}/info.json")
-    
-    def load_dataset_metadata(self) -> ExternalDatasetMetadata:
-        try:
-            with open(f"{self.root}/info.json", "r") as f:
-                dataset_info = json.load(f)
-
-            return ExternalDatasetMetadata(
-                # minimum fields required for ExternalDatasetMetadata
-                num_iq_samples_dataset = dataset_info["dataset_length"],
-                sample_rate = dataset_info["sample_rate"],
-                class_list = dataset_info["class_labels"],
-                dataset_length = dataset_info["size"]
-            )
-        except:
-            raise ValueError(f"Error loading {self.root}/info.json")
-
-    def load(self, idx: int) -> Tuple[np.ndarray, List[Dict]]:
-        try:
-            # load data
-            data = np.load(f"{self.root}/data.npy")[idx]
-
-            with open(f"{self.root}/metadata.csv", "r") as f:
-                reader = csv.DictReader(f, fieldnames=["index", "label", "modcod", "sample_rate"])
-                # get to idx row
-                row = next(itertools.islice(reader, idx, idx+1), None)
-                if row is None:
-                    raise IndexError(f"Metadata idx {idx} is out of bounds")
-
-                row["index"] = int(row["index"])
-                row["sample_rate"] = float(row["sample_rate"])
-                # add class_name
-                row["class_name"] = row["label"].lower()
-                # add class index
-                row["class_index"] = self.class_list.index(row["label"])
-
-                metadata = row
-
-            return data, [metadata]
-        except:
-            raise ValueError(f"Error loading {root}/info.json")
-
-
-class BYODExampleFileHandler(ExternalFileHandler):
-
-    def __init__(
-        self,
-        root: str
-    ):
-        super().__init__(root=root)
-
-        self.class_list = ['BPSK', 'QPSK', 'Noise']  
-
-    def size(self) -> int:
-        try:
-            with open(f"{self.root}/info.json", "r") as f:
-                dataset_info = json.load(f)
-
-            return dataset_info["dataset_length"]
-        except:
-            raise ValueError(f"Error loading {root}/info.json")
-    
-    def load_dataset_metadata(self) -> ExternalDatasetMetadata:
-        try:
-            with open(f"{self.root}/info.json", "r") as f:
-                dataset_info = json.load(f)
-
-            return ExternalDatasetMetadata(
-                # minimum fields required for ExternalDatasetMetadata
-                num_iq_samples_dataset = dataset_info["dataset_length"],
-                sample_rate = dataset_info["sample_rate"],
-                class_list = dataset_info["class_labels"],
-            )
-        except:
-            raise ValueError(f"Error loading {self.root}/info.json")
-
-    def load(self, idx: int) -> Tuple[np.ndarray, List[Dict]]:
-        try:
-            # load data
-            data = np.load(f"{self.root}/data.npy")[idx]
-
-            with open(f"{self.root}/metadata.csv", "r") as f:
-                reader = csv.DictReader(f, fieldnames=["index", "label", "modcod", "sample_rate"])
-                # get to idx row
-                row = next(itertools.islice(reader, idx, idx+1), None)
-                if row is None:
-                    raise IndexError(f"Metadata idx {idx} is out of bounds")
-
-                row["index"] = int(row["index"])
-                row["sample_rate"] = float(row["sample_rate"])
-                # add class_name
-                row["class_name"] = row["label"].lower()
-                # add class index
-                row["class_index"] = self.class_list.index(row["label"])
-
-                metadata = row
-
-            return data, [metadata]
-        except:
-            raise ValueError(f"Error loading {root}/info.json")
-
-def test_ExternalTorchSigDataset() -> None:
-    root = external_dir               # data file top-level folder 
-    seed = 1234567890                         # rng seed
-
-    # directories
-    os.makedirs(root, exist_ok=True)
-
-    # Parameters
-    fs = 1_000_000                              # 1 MHz sample-rate (fixed rate)
-    dataset_length = 1024                          # samples per data (fixed size)
-    dataset_size = 8                            # dataset size
-    labels = ['BPSK', 'QPSK', 'Noise']          # three arbitrary metadata class labels (strings)
-    modcod = [0, 1, 2]                          # three arbitrary metadata integers
-    rng = np.random.default_rng(seed)           # random number generator
-
-    # Create user's external data: non-TorchSig synthetic data along with metadata
-    signals_array = np.empty((dataset_size, dataset_length), dtype=np.complex64)  # store all data in memory
-    meta_rows = []                                           # store all metadata in memory
-
-    t = np.arange(dataset_length) / fs  # timesteps
-
-    # create dataset
-    for idx in range(dataset_size):
-        label = rng.choice(labels)
-        mc = rng.choice(modcod)
-        
-        if label == "BPSK":
-            bits   = rng.integers(0, 2, dataset_length)
-            sig    = (2*bits-1) + 0j
-        elif label == "QPSK":
-            bits   = rng.integers(0, 4, dataset_length)
-            table  = {0:1+1j, 1:1-1j, 2:-1+1j, 3:-1-1j}
-            sig    = np.vectorize(table.get)(bits)
-        else:  # white noise
-            sig = (rng.normal(size=dataset_length) + 1j*rng.normal(size=dataset_length)) * 0.1
-        
-        sig /= np.sqrt((np.abs(sig)**2).mean()) # normalize power for consistency
-        signals_array[idx] = sig.astype(np.complex64)
-        
-        # add to metadata
-        meta_rows.append(
-            dict(
-                index=idx, 
-                label=label, 
-                modcod=mc, 
-                sample_rate=fs
-            )
-        )
-
-    # write information about dataset
-    global_metadata = {
-        "size": dataset_size,
-        "dataset_length": dataset_length,
-        "class_labels": labels,
-        "sample_rate": fs
-    }
-    with open(f"{root}/info.json", 'w') as f:
-        json.dump(global_metadata, f, indent=4)
-
-    # write data as npy
-    np.save(f"{root}/data.npy", signals_array)
-
-    # write metadata
-    with open(f"{root}/metadata.csv", 'w', newline='') as f:
-        csv.DictWriter(f, fieldnames=meta_rows[0].keys()).writerows(meta_rows)
-
-    print(f"Synthetic signals + metadata staged in {root}")
-
-    custom_dataset = ExternalTorchSigDataset(
-        file_handler = BYODExampleFileHandler(root),
-        target_labels = None
-    )
-    print(f"Dataset size: {len(custom_dataset)}")
-
-    sample = custom_dataset[4]
-    print(f"data: {sample.data}")
-    print(f"metadata: {[meta.to_dict() for meta in sample.get_full_metadata()]}")
-
-    custom_dataset_2 = ExternalTorchSigDataset(
-        file_handler = BYODExampleFileHandler(root),
-        transforms = [ComplexTo2D()],
-        target_labels = ["modcod"]
-    )
-    print(f"Dataset size: {len(custom_dataset_2)}")
-
-    data, metadata = custom_dataset_2[4]
-    print(f"data: {data.shape}")
-    print(f"metadata: {metadata}")
-
-
 
 @pytest.mark.parametrize("params, is_error", [
     (

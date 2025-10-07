@@ -21,13 +21,6 @@ from torchsig.utils.dsp import (
     bandwidth_from_lower_upper_freq,
     TorchSigComplexDataType
 )
-from torchsig.utils.verify import (
-    verify_int,
-    verify_float,
-    verify_str,
-    verify_numpy_array,
-    # verify_dict
-)
 
 # Third Party
 import numpy as np
@@ -121,15 +114,6 @@ class SignalMetadata():
 
         for key in kwargs.keys():
             setattr(self, key, kwargs[key])
-
-    @property
-    def sample_rate(self) -> float:
-        """Signal sample rate
-
-        Returns:
-            float: sample rate
-        """
-        return self.dataset_metadata.sample_rate
 
     @property
     def start(self) -> float:
@@ -321,152 +305,23 @@ class SignalMetadata():
         """        
         return copy.deepcopy(self)
 
-
-    def verify(self) -> None:
-        """Verifies Signal Metadata fields
-
-        Raises:
-            MissingSignalMetadata: Metadata missing.
-            InvalidSignalMetadata: Metadata invalid.
-        """
-
-        if self.dataset_metadata is None:
-            raise ValueError("dataset_metadata is None.")
-
-        # only check the center frequency once it's been set. it is generated
-        # at baseband (f=0) first and then later updated once it reaches
-        # the dataset stage, when it can then be checked
-        if self._center_freq_set:
-            self.center_freq = verify_float(
-                self.center_freq,
-                name = "center_freq",
-                low = self.dataset_metadata.signal_center_freq_min,
-                high = self.dataset_metadata.signal_center_freq_max
-            )
-
-        self.bandwidth = verify_float(
-            self.bandwidth,
-            name = "bandwidth",
-            low = 0.0,
-            high = self.dataset_metadata.sample_rate,
-            exclude_low = True
-        )
-
-        self.start_in_samples = verify_int(
-            self.start_in_samples,
-            name = "start_in_samples",
-            low = 0,
-            high = self.dataset_metadata.num_iq_samples_dataset,
-            exclude_high = True
-        )
-
-        self.duration_in_samples = verify_int(
-            self.duration_in_samples,
-            name = "duration_in_samples",
-            low = 0,
-            high = self.dataset_metadata.num_iq_samples_dataset,
-            exclude_low = True
-        )
-
-        self.snr_db = verify_float(
-            self.snr_db,
-            name = "snr_db",
-            low = 0.0,
-        )
-
-        self.class_name = verify_str(
-            self.class_name,
-            name = "class_name",
-        )
-
-        self.class_index = verify_int(
-            self.class_index,
-            name = "class_index",
-            low = 0,
-        )
-
     def __repr__(self):
         class_dict = self.to_dict()
         params = [f"{k}={v}" for k,v in class_dict.items()]
         params_str = ",".join(params)
         return f"{self.__class__.__name__}({params_str})"
-        #return f"{self.__class__.__name__}(center_freq={self.center_freq}, bandwidth={self.bandwidth}, start_in_samples={self.start_in_samples}, duration_in_samples={self.duration_in_samples}, snr_db={self.snr_db}, class_name={self.class_name}, class_index={self.class_index})"
 
-class SignalMetadataExternal():
-    """Modified SignalMetadata with fewer structural requirements, suitable for importing incomplete external datasets.
-    """
-    def __init__(
-        self,
-        dataset_metadata: ExternalDatasetMetadata | DatasetMetadata = None,
-        **kwargs
-    ): 
-        """
-        Args:
-            dataset_metadata (ExternalDatasetMetadata, optional): Global metadata related to the dataset. Defaults to None.
-        """
-        self.dataset_metadata = dataset_metadata
+def targets_as_metadata(targets, target_labels, dataset_metadata=None):
+    """utility function for reading target labels as signal metadata objects; returns a new SignalMetadata"""
+    signal_metadata = SignalMetadata(dataset_metadata=dataset_metadata)
+    if not isinstance(targets,list):
+        targets = [targets]
+    for i in range(len(target_labels)):
+        setattr(signal_metadata, target_labels[i], targets[i])
+    return signal_metadata
 
-        # all metadata fields
-        for key,value in kwargs.items():
-            # do not overwrite these fields
-            if key not in ["sample_rate"]:
-                setattr(self, key, value)
-        
-
-        self.applied_transforms = []
-
-    @property
-    def sample_rate(self) -> float:
-        """Signal sample rate
-
-        Returns:
-            float: sample rate
-        """
-        return self.dataset_metadata.sample_rate
-
-    def to_dict(self) -> dict:
-        """Returns SignalMetadataExternal as a full dictionary
-        """
-        attributes_original = self.__dict__.copy()  # Start with the instance variables
-
-        for prop_name in dir(self):
-            prop = getattr(self.__class__, prop_name, None)
-            if isinstance(prop, property):
-                attributes_original[prop_name] = getattr(self, prop_name)
-
-        attributes = attributes_original.copy()
-
-        # exclude certain variables
-        for var in attributes_original:
-            if var in ["applied_transforms", "dataset_metadata", "_dataset_metadata"]:
-                del attributes[var]
-
-        return attributes
-
-    def deepcopy(self) -> SignalMetadataExternal:
-        """Returns a deep copy of itself
-
-        Returns:
-            SignalMetadataExternal: Deep copy of SignalMetadataExternal
-        """        
-        return copy.deepcopy(self)
-
-
-    def verify(self) -> None:
-        """Verifies Signal metadata fields
-
-        Raises:
-            MissingSignalMetadataExternal: Metadata missing.
-            InvalidSignalMetadataExternal: Metadata invalid.
-        """
-
-        if self.dataset_metadata is None:
-            raise ValueError("dataset_metadata is None.")
-
-    def __repr__(self):
-        # return f"{self.__class__.__name__}(class_name={self.class_name}, class_index={self.class_index})"
-        return generate_repr_str(self, exclude_params=["_dataset_metadata"])
-
+def dict_to_signal_metadata(metadata_dict, dataset_metadata=None):
+    return targets_as_metadata([metadata_dict[key] for key in metadata_dict.keys()], list(metadata_dict.keys()), dataset_metadata)
 
 ### Signal
 class Signal():
@@ -478,19 +333,25 @@ class Signal():
         """
     def __init__(
         self, 
-        data: np.ndarray = np.array([]), 
-        metadata: SignalMetadata | SignalMetadataExternal = None, 
-        component_signals: List[Signal] = []
+        data = np.array([]), 
+        metadata = None, 
+        component_signals: List[Signal] = [],
+        dataset_metadata = None,
     ):
         """Initializes the Signal with data and metadata.
 
         Args:
-            data (np.ndarray, optional): Signal IQ data. Defaults to np.array([]).
-            metadata (SignalMetadata | SignalMetadataExternal, optional): Signal metadata. Defaults to None.
-            component_signals (List[Signal], optional): individual components of the full signal, e.g. smaller individual signals collected together in a wideband signal. Defaults to [].
+            data: Signal IQ data. Defaults to np.array([])
+            metadata: Signal metadata; Defaults to None
+            component_signals (List[Signal], optional): individual components of the full signal, e.g. smaller individual signals collected together in a wideband signal. Defaults to []
+            dataset_metadata: overrides dataset_metadata for metadata; sometimes useful in constructors or custom file readers; generally safe to ignore
         """
         self.data = data
         self.metadata = metadata
+        if type(self.metadata) == dict:
+            self.metadata = dict_to_signal_metadata(self.metadata)
+        if dataset_metadata != None:
+            self.metadata.dataset_metadata = dataset_metadata
         self.component_signals = component_signals
 
     def verify(self):
@@ -514,7 +375,7 @@ class Signal():
     def get_full_metadata(self):
         """
         Returns a list of all top level metadata objects in the Signal. 
-        If no metadata is ddefined on a Signal, it's metadata is assumed to be the list of metadata of it's children.
+        If no metadata is defined on a Signal, it's metadata is assumed to be the list of metadata of it's children.
         This process is applied recursively until no more children without metadata can be found.
         """
         if not self.metadata is None:

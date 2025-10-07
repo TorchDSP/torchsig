@@ -202,7 +202,7 @@ class YOLOLabel(MetadataTransform):
                 "start",
                 "bandwidth",
                 "center_freq",
-                "sample_rate"
+                "dataset_metadata"
             ],
             **kwargs
         )
@@ -214,11 +214,11 @@ class YOLOLabel(MetadataTransform):
         # normalized to width of sample
         width = signal.duration
         # normalize bandwidth with sample rate
-        height = signal.bandwidth/signal.sample_rate
+        height = signal.bandwidth/signal.dataset_metadata.sample_rate
         x_center = signal.start + (width / 2.0)
         # normalize center frequency with sample rate
         # subtract from 1 since (0,0) for YOLO is upper left, but we define (0,0) lower left
-        y_center = 1 - ((signal.sample_rate/2.0) + signal.center_freq) / signal.sample_rate
+        y_center = 1 - ((signal.dataset_metadata.sample_rate/2.0) + signal.center_freq) / signal.dataset_metadata.sample_rate
         yolo_label = (class_index, x_center, y_center, width, height)
         setattr(signal, "yolo_label", yolo_label)
 
