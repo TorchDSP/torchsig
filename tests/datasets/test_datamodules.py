@@ -28,6 +28,31 @@ def test_TorchSigDataModule():
         dataset_metadata=copy.deepcopy(md),
         dataset_size=50,
         overwrite=True,
+        impairment_level = 0,
+        collate_fn=lambda x: x
+    )
+    datamodule.prepare_data()
+    datamodule.setup()
+
+    assert datamodule.impairment_level == 0
+
+    dataloaders = [
+        datamodule.train_dataloader(),
+        datamodule.val_dataloader(),
+        datamodule.test_dataloader()
+    ]
+
+    for d in dataloaders:
+        for batch in d:
+            print(batch)
+            break
+
+    datamodule = TorchSigDataModule(
+        root = Path.joinpath(data_dir, filename),
+        dataset_metadata=copy.deepcopy(md),
+        dataset_size=50,
+        overwrite=True,
+        impairment_level = None,
         collate_fn=lambda x: x
     )
     datamodule.prepare_data()

@@ -116,8 +116,8 @@ class TorchSigDataModule(pl.LightningDataModule):
         if self.impairment_level is not None:
             # add impairment transforms
             impairment_transforms = Impairments(level=self.impairment_level)
-            self.transforms = impairment_transforms.dataset_transforms + self.transforms
-            self.component_transforms = impairment_transforms.signal_transforms + self.component_transforms
+            self.transforms = impairment_transforms.dataset_transforms.transforms + self.transforms
+            self.component_transforms = impairment_transforms.signal_transforms.transforms + self.component_transforms
         self.target_labels = target_labels
         # initialize dataloader params
         self.batch_size = batch_size
