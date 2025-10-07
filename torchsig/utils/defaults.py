@@ -44,7 +44,7 @@ def default_dataset(
         num_signals_min = num_signals_min,
         num_samples = None
     )
-    if impairment_level is None:
+    if impairment_level is not None:
         impairments = Impairments(impairment_level)
         burst_impairments = impairments.signal_transforms
         signal_impairments = impairments.dataset_transforms
