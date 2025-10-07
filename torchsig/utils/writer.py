@@ -8,7 +8,7 @@ from torchsig.datasets.dataset_utils import dataset_yaml_name, writer_yaml_name
 from torchsig.utils.file_handlers.base_handler import FileWriter as TorchSigFileHandler
 from torchsig.utils.file_handlers.hdf5 import HDF5Writer as DEFAULT_FILE_HANDLER
 from torchsig.utils.yaml import write_dict_to_yaml
-from torchsig.signals.signal_types import Signal, SignalMetadata
+from torchsig.signals.signal_types import Signal, SignalMetadata, targets_as_metadata
 
 # Third Party
 from tqdm.auto import tqdm
@@ -42,15 +42,6 @@ def handle_non_numpy_datatypes(data):
         if isinstance(data, Tensor):
             data = data.numpy()
         return data
-
-def targets_as_metadata(targets, target_labels, dataset_metadata):
-    """utility function for reading target labels as signal metadata objects; returns a new SignalMetadata"""
-    signal_metadata = SignalMetadata(dataset_metadata=dataset_metadata)
-    if not isinstance(targets,list):
-        targets = [targets]
-    for i in range(len(target_labels)):
-        setattr(signal_metadata, target_labels[i], targets[i])
-    return signal_metadata
 
 def batch_as_signal_list(batch, target_labels = None, dataset_metadata = None):
     signal_list = []

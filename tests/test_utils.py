@@ -4,8 +4,6 @@ import matplotlib.pyplot as plt
 
 from typing import List, Tuple, Any
 
-from torchsig.datasets.dataset_metadata import ExternalDatasetMetadata
-
 # Signal Metadata type checking
 
 signal_metadata_floats = [

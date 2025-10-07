@@ -151,17 +151,12 @@ class SignalBuilder(Builder, Seedable):
         power of the signal based on the PSD estimate to have the appropriate
         SNR and then estimates the total occupied bandwidth of the signal,
         including sidelobes, to develop a more accurate bounding box.
-        `.verify()` ensures that the metadata values are within the appropriate
-        bounds. The Signal() object is then stored for the return call, and
-        `reset()` is called to reset the signal metadata fields to their dataset
-        metadata defaults.
 
         In order, calls:
         - `reset()`
         - `_update_metadata()`
         - `_update_data()`
         - `_correct_bandwidth_and_snr()`
-        - `_signal.verify()`
 
 
         Returns:
@@ -184,9 +179,6 @@ class SignalBuilder(Builder, Seedable):
         # reestimate bandwidth in order to better fit the bounding box
         # in the frequency domain
         self._correct_bandwith_and_snr()
-
-        # checks that signal and metadata set properly
-        self._signal.verify()
 
         # signal object to be returned
         new_signal = self._signal
@@ -399,8 +391,6 @@ class SignalBuilder(Builder, Seedable):
 #         """
 #         for b in self.builders:
 #             self._signal.signals.append(b.build())
-
-#         self._signal.verify()
 
 #         return self._signal
 
