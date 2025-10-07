@@ -21,7 +21,6 @@ from torchsig.datasets.default_configs.loader import get_default_yaml_config
 # Third Party
 import pytorch_lightning as pl
 from torch.utils.data import DataLoader, random_split
-import numpy as np
 
 # Built-In
 from typing import Callable, List
@@ -219,71 +218,4 @@ class TorchSigDataModule(pl.LightningDataModule):
             shuffle = False,
             num_workers = self.num_workers,
             collate_fn = self.collate_fn
-        )
-### DataModules for Official Dataset
-### uses default YAML configs in torchsig/datasets/default_configs
-class OfficialTorchSigDataModule(TorchSigDataModule):
-    """
-    A PyTorch Lightning DataModule for official TorchSignal datasets.
-    
-    This class manages the dataset metadata, configuration, and data loading process 
-    for datasets with official configurations instead of using custom metadata. 
-    It initializes the train and validation metadata based on the dataset type and 
-    impairment level.
-    Args:
-        root (str): Root directory where the dataset is stored.
-        impairment_level (int): Defines the impairment level of the dataset.
-        batch_size (int, optional): Batch size for the dataloaders. Default is 1.
-        num_workers (int, optional): Number of workers for data loading. Default is 1.
-        collate_fn (Callable, optional): Function to merge a list of samples into a batch. Default is None.
-        create_batch_size (int, optional): Batch size used during dataset creation. Default is 8.
-        create_num_workers (int, optional): Number of workers used during dataset creation. Default is 4.
-        file_handler (BaseFileHandler, optional): File handler used to read/write dataset. Default is HDF5FileHandler.
-        transforms (Transform | List[Callable | Transform], optional): List of transforms applied to dataset. Default is empty list.
-        target_transforms (MetadataTransform | List[Callable | MetadataTransform], optional): List of transforms applied to targets. Default is empty list.
-    """
-    def __init__(
-        self,
-        root: str,
-        impairment_level: int,
-
-        # dataloader params
-        batch_size: int = 1,
-        num_workers: int = 1,
-        collate_fn: Callable = None,
-
-        # dataset creator params
-        create_batch_size: int = 8,
-        create_num_workers: int = 4,
-        file_writer: BaseFileHandler = DEFAULT_WRITER,
-        file_reader: BaseFileHandler = DEFAULT_READER,
-
-        # applied after dataset written to disk
-        transforms: Transform | List[Callable | Transform]  = [],
-        target_transforms: MetadataTransform | List[Callable | MetadataTransform] = [],
-        seed = None,
-    ):
-        # sets train and val metadata
-        train_metadata = get_default_yaml_config(
-            impairment_level = impairment_level,
-            train = True
-        )
-        val_metadata = get_default_yaml_config(
-            impairment_level = impairment_level,
-            train = False
-        )
-        super().__init__(
-            root = root,
-            train_metadata = train_metadata,
-            val_metadata = val_metadata,
-            batch_size = batch_size,
-            num_workers = num_workers,
-            collate_fn = collate_fn,
-            create_batch_size = create_batch_size,
-            create_num_workers = create_num_workers,
-            file_writer = file_writer,
-            file_reader = file_reader,
-            transforms = transforms,
-            target_transforms = target_transforms,
-            seed = seed,
         )
