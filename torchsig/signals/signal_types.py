@@ -21,6 +21,7 @@ from torchsig.utils.dsp import (
     bandwidth_from_lower_upper_freq,
     TorchSigComplexDataType
 )
+from torchsig.utils.verify import verify_numpy_array
 
 # Third Party
 import numpy as np
@@ -112,8 +113,8 @@ class SignalMetadata():
 
         self.applied_transforms = []
 
-        for key in kwargs.keys():
-            setattr(self, key, kwargs[key])
+        for key, value in kwargs.items():
+            setattr(self, key, value)
 
     @property
     def start(self) -> float:
@@ -220,7 +221,7 @@ class SignalMetadata():
         try:
             self._upper_frequency = upper_freq_from_center_freq_bandwidth(self.center_freq,self.bandwidth)
             return self._upper_frequency
-        except:
+        except Exception as e:
             return self._upper_frequency
 
     @upper_freq.setter
@@ -234,7 +235,7 @@ class SignalMetadata():
             new_upper_freq (float): The new upper frequency value
         """
         self._upper_frequency = new_upper_freq
-        if not self._lower_frequency == None:
+        if self._lower_frequency is not None:
             self.bandwidth = bandwidth_from_lower_upper_freq(new_upper_freq,self.lower_freq)
             self.center_freq = center_freq_from_lower_upper_freq(new_upper_freq,self.lower_freq)
 
@@ -252,7 +253,7 @@ class SignalMetadata():
         try:
             self._lower_frequency = lower_freq_from_center_freq_bandwidth(self.center_freq,self.bandwidth)
             return self._lower_frequency
-        except:
+        except Exception as e:
             return self._lower_frequency
 
     @lower_freq.setter
@@ -266,7 +267,7 @@ class SignalMetadata():
             new_lower_freq (float): The new lower frequency value
         """        
         self._lower_frequency = new_lower_freq
-        if not self._upper_frequency == None:
+        if self._upper_frequency is not None:
             self.bandwidth = bandwidth_from_lower_upper_freq(self.upper_freq,new_lower_freq)
             self.center_freq = center_freq_from_lower_upper_freq(self.upper_freq,new_lower_freq)
 
@@ -311,16 +312,29 @@ class SignalMetadata():
         params_str = ",".join(params)
         return f"{self.__class__.__name__}({params_str})"
 
-def targets_as_metadata(targets, target_labels, dataset_metadata=None):
-    """utility function for reading target labels as signal metadata objects; returns a new SignalMetadata"""
+def targets_as_metadata(targets, target_labels, dataset_metadata: DatasetMetadata = None) -> SignalMetadata:
+    """Utility function for reading target labels as signal metadata objects; returns a new SignalMetadata
+
+    Returns:
+        SignalMetadata: new SignalMetadata object with target label
+    """    
     signal_metadata = SignalMetadata(dataset_metadata=dataset_metadata)
     if not isinstance(targets,list):
         targets = [targets]
-    for i in range(len(target_labels)):
-        setattr(signal_metadata, target_labels[i], targets[i])
+    for i, tl in enumerate(target_labels):
+        setattr(signal_metadata, tl, targets[i])
     return signal_metadata
 
-def dict_to_signal_metadata(metadata_dict, dataset_metadata=None):
+def dict_to_signal_metadata(metadata_dict: dict, dataset_metadata: DatasetMetadata = None) -> SignalMetadata:
+    """converts a dict to SignalMetadata
+
+    Args:
+        metadata_dict (dict): metadata
+        dataset_metadata (DatasetMetadata, optional): dataset metadata related to metadata. Defaults to None.
+
+    Returns:
+        SignalMetadata: dict converted to SignalMetadata object
+    """    
     return targets_as_metadata([metadata_dict[key] for key in metadata_dict.keys()], list(metadata_dict.keys()), dataset_metadata)
 
 ### Signal
@@ -348,9 +362,9 @@ class Signal():
         """
         self.data = data
         self.metadata = metadata
-        if type(self.metadata) == dict:
+        if isinstance(self.metadata, dict):
             self.metadata = dict_to_signal_metadata(self.metadata)
-        if dataset_metadata != None:
+        if dataset_metadata is not None:
             self.metadata.dataset_metadata = dataset_metadata
         self.component_signals = component_signals
 

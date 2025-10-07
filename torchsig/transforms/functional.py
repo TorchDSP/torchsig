@@ -250,8 +250,8 @@ def clock_drift(
     # discard extra samples from resampling process, or zero-pad if too short
     num_samples_to_discard = len(data_with_drift)-len(data)
 
-    if (num_samples_to_discard > 0):
-        if (is_even(num_samples_to_discard)):
+    if num_samples_to_discard > 0:
+        if is_even(num_samples_to_discard):
             slice_front = num_samples_to_discard//2
             slice_back = num_samples_to_discard//2
         else:
@@ -261,7 +261,7 @@ def clock_drift(
     else:
         # calculate number of zeros to pad
         num_samples_to_pad = len(data)-len(data_with_drift)
-        if (is_even(num_samples_to_pad)):
+        if is_even(num_samples_to_pad):
             pad_front = num_samples_to_pad//2
             pad_back = num_samples_to_pad//2
         else:
@@ -319,8 +319,8 @@ def clock_jitter(
     # discard extra samples from resampling process, or zero-pad if too short
     num_samples_to_discard = len(data_with_jitter)-len(data)
 
-    if (num_samples_to_discard > 0):
-        if (is_even(num_samples_to_discard)):
+    if num_samples_to_discard > 0:
+        if is_even(num_samples_to_discard):
             slice_front = num_samples_to_discard//2
             slice_back = num_samples_to_discard//2
         else:
@@ -330,7 +330,7 @@ def clock_jitter(
     else:
         # calculate number of zeros to pad
         num_samples_to_pad = len(data)-len(data_with_jitter)
-        if (is_even(num_samples_to_pad)):
+        if is_even(num_samples_to_pad):
             pad_front = num_samples_to_pad//2
             pad_back = num_samples_to_pad//2
         else:
@@ -982,7 +982,7 @@ def nonlinear_amplifier_table(
         np.ndarray: Nonlinearly distorted IQ data.
         
     """
-    if (len(p_in) != len(p_out)) or (len(p_in) != len(phi)):
+    if len(p_in) != len(p_out) or len(p_in) != len(phi):
         raise ValueError('Model array arguments are not the same size.')
 
     magnitude = np.abs(data)

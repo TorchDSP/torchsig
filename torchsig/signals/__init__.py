@@ -4,7 +4,7 @@ from .signal_types import Signal, SignalMetadata
 from .signal_lists import TorchSigSignalLists
 
 __all__ = [
+    "Signal",
     "SignalMetadata",
-    "SignalMetadataExternal",
     "TorchSigSignalLists"
 ]
