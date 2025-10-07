@@ -8,7 +8,6 @@ from copy import copy
 import torchaudio
 import torch
 from pathlib import Path
-import pickle
 
 from typing import Any
 
@@ -439,7 +438,7 @@ def multistage_polyphase_decimator(input_signal:np.ndarray, decimation_rate:floa
 
     return decimation_fractional_out
 
-def multistage_polyphase_interpolator (input_signal:np.ndarray, resample_rate_ideal:float) -> np.ndarray:
+def multistage_polyphase_interpolator(input_signal:np.ndarray, resample_rate_ideal:float) -> np.ndarray:
     """Multi-stage polyphase filterbank-based interpolation
 
     The interpolation is applied with two possible stages. The first stage implements the
@@ -481,7 +480,7 @@ def multistage_polyphase_interpolator (input_signal:np.ndarray, resample_rate_id
 
     return interpolate_integer_out
 
-def polyphase_fractional_resampler (input_signal:np.ndarray, fractional_rate:float) -> np.ndarray:
+def polyphase_fractional_resampler(input_signal:np.ndarray, fractional_rate:float) -> np.ndarray:
     """Fractional rate polyphase resampler
 
     Implements a fractional rate resampler through the SciPy upfirdn() function
@@ -518,7 +517,7 @@ def polyphase_fractional_resampler (input_signal:np.ndarray, fractional_rate:flo
 
     return fractional_interp_out
 
-def prototype_polyphase_filter_interpolation (num_branches:int, attenuation_db=120) -> np.ndarray:
+def prototype_polyphase_filter_interpolation(num_branches:int, attenuation_db=120) -> np.ndarray:
     """Designs polyphase filterbank weights for interpolation
 
     Args:
@@ -534,7 +533,7 @@ def prototype_polyphase_filter_interpolation (num_branches:int, attenuation_db=1
     weights *= num_branches
     return weights
 
-def prototype_polyphase_filter_decimation (num_branches:int, attenuation_db=120) -> np.ndarray:
+def prototype_polyphase_filter_decimation(num_branches:int, attenuation_db=120) -> np.ndarray:
     """Designs polyphase filterbank weights for decimation
 
     Args:
@@ -550,7 +549,7 @@ def prototype_polyphase_filter_decimation (num_branches:int, attenuation_db=120)
     weights /= num_branches
     return weights
 
-def prototype_polyphase_filter (num_branches:int, attenuation_db:float=120) -> np.ndarray:
+def prototype_polyphase_filter(num_branches:int, attenuation_db:float=120) -> np.ndarray:
     """Designs the prototype filter for a polyphase filter bank
 
     Args:
@@ -571,76 +570,35 @@ def prototype_polyphase_filter (num_branches:int, attenuation_db:float=120) -> n
 
     # set up path to pfb filter weights
     pfb_weights_directory_path = Path(__file__).parent.absolute().joinpath(pfb_weights_directory_name)
-
-    # does the sub-directory exist? if not, create it
-    if not pfb_weights_directory_path.exists():
-        pfb_weights_directory_path.mkdir(parents=True, exist_ok=True)
+    pfb_weights_directory_path.mkdir(parents=True, exist_ok=True)
 
     # formating for the weights filename
-    pfb_weights_filename = f'torchsig_{torchsig_version}_pfb_weights_num_branches_{num_branches}_attenuation_db_{attenuation_db:0.0f}.pkl'
+    pfb_weights_filename = f'torchsig_{torchsig_version}_pfb_weights_num_branches_{num_branches}_attenuation_db_{attenuation_db:0.0f}.npy'
 
     # create path to weights file
-    path_to_file = pfb_weights_directory_path.joinpath(pfb_weights_filename)
+    path_to_file = pfb_weights_directory_path / pfb_weights_filename
 
-    # does weights file exist?
-    weights_exist_boolean = path_to_file.is_file()
-
-    # can the weights be loaded? possibility of corrupted file
-    # if CTRL+C exit during write, or other misc file corruption.
-    design_weights_boolean = True
-    if weights_exist_boolean:
-        # read from file
-        filter_weights = read_pickle ( path_to_file )
-        # overwrite the default value of boolean, no need to recompute
-        design_weights_boolean = False       
-
-    # design and save new weights if the file does not exist OR the file read failed
-    if (not weights_exist_boolean or design_weights_boolean):
+    regen_weights = False
+    if path_to_file.is_file():
+        # weight file exists
+        try:
+            filter_weights = np.load(path_to_file)
+        except Exception as e:
+            # failed to load weights, corrupted file?
+            regen_weights = True
+    else:
+        regen_weights = True
+    
+    if regen_weights:
         # design prototype filter weights
         filter_weights = low_pass_iterative_design(cutoff,transition_bandwidth,sample_rate,attenuation_db)
-        # write weights to file for later
-        write_pickle ( filter_weights, path_to_file )
+        np.save(path_to_file, filter_weights)
 
     return filter_weights
 
-def read_pickle (path_to_file: str) -> Any:
-    """
-    Reads an object from a pickle file.
-
-    Args:
-        path_to_file (str): The path to the pickle file to be read.
-
-    Returns:
-        Any: The object loaded from the pickle file.
-
-    Raises:
-        FileNotFoundError: If the specified file does not exist.
-        pickle.UnpicklingError: If there is an error during the unpickling process.
-    """
-    with open(path_to_file, 'rb') as handle:
-        obj = pickle.load(handle)
-    return obj
-
-def write_pickle (obj: Any, path_to_file: str) -> None:
-    """
-    Writes an object to a pickle file.
-
-    Args:
-        obj (Any): The object to be pickled and written to the file.
-        path_to_file (str): The path where the pickle file will be saved.
-
-    Returns:
-        None: This function does not return any value.
-
-    Raises:
-        IOError: If there is an error writing to the file.
-    """
-    with open(path_to_file, 'wb') as handle:
-        pickle.dump(obj, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
 
-
-def polyphase_integer_interpolator (input_signal:np.ndarray, interpolation_rate:int) -> np.ndarray:
+def polyphase_integer_interpolator(input_signal:np.ndarray, interpolation_rate:int) -> np.ndarray:
     """Integer-rate polyphase filterbank-based interpolation
 
     Args:
@@ -685,7 +643,7 @@ def polyphase_integer_interpolator (input_signal:np.ndarray, interpolation_rate:
     return interpolate_out
 
 
-def polyphase_decimator (input_signal:np.ndarray, decimation_rate:int) -> np.ndarray:
+def polyphase_decimator(input_signal:np.ndarray, decimation_rate:int) -> np.ndarray:
     """Integer-rate polyphase filterbank-based decimation
 
     Args:
@@ -733,7 +691,7 @@ def polyphase_decimator (input_signal:np.ndarray, decimation_rate:int) -> np.nda
 
     return decimate_out
 
-def upsample (signal:np.ndarray, rate:int) -> np.ndarray:
+def upsample(signal:np.ndarray, rate:int) -> np.ndarray:
     """Upsamples a signal
 
     Upsamples a signal by insertion of zeros. Ex: upsample by
@@ -775,7 +733,7 @@ def upsample (signal:np.ndarray, rate:int) -> np.ndarray:
     return signal_upsampled
 
 
-def center_freq_from_lower_upper_freq (lower_freq:float, upper_freq:float) -> float:
+def center_freq_from_lower_upper_freq(lower_freq:float, upper_freq:float) -> float:
     """Calculates center frequency from lower frequency and upper frequency
 
     Args:
@@ -788,7 +746,7 @@ def center_freq_from_lower_upper_freq (lower_freq:float, upper_freq:float) -> fl
     center_freq = (lower_freq + upper_freq)/2
     return center_freq
 
-def bandwidth_from_lower_upper_freq (lower_freq:float, upper_freq:float) -> float:
+def bandwidth_from_lower_upper_freq(lower_freq:float, upper_freq:float) -> float:
     """Calculates bandwidth from lower frequency and upper frequency
 
     Args:
@@ -802,7 +760,7 @@ def bandwidth_from_lower_upper_freq (lower_freq:float, upper_freq:float) -> floa
     return bandwidth
 
 
-def lower_freq_from_center_freq_bandwidth (center_freq:float, bandwidth:float) -> float:
+def lower_freq_from_center_freq_bandwidth(center_freq:float, bandwidth:float) -> float:
     """Calculates the lower frequency from center frequency and bandwidth
 
     Args:
@@ -815,7 +773,7 @@ def lower_freq_from_center_freq_bandwidth (center_freq:float, bandwidth:float) -
     lower_freq = center_freq - (bandwidth/2)
     return lower_freq
 
-def upper_freq_from_center_freq_bandwidth (center_freq:float, bandwidth:float) -> float:
+def upper_freq_from_center_freq_bandwidth(center_freq:float, bandwidth:float) -> float:
     """Calculates upper frequency from center frequency and bandwidth
 
     Args:
@@ -863,9 +821,9 @@ def frequency_shift(signal:np.ndarray, frequency:float, sample_rate:float) -> np
     return signal*mixer
 
 def compute_spectrogram(
-        iq_samples:np.ndarray, 
-        fft_size:int, 
-        fft_stride:int
+    iq_samples:np.ndarray, 
+    fft_size:int, 
+    fft_stride:int
 ) -> np.ndarray:
     """Computes two-dimensional spectrogram values in dB.
 
