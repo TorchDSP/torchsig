@@ -39,9 +39,9 @@ def default_collate_fn(batch):
     return tuple(zip(*batch))
 
 def handle_non_numpy_datatypes(data):
-        if isinstance(data, Tensor):
-            data = data.numpy()
-        return data
+    if isinstance(data, Tensor):
+        data = data.numpy()
+    return data
 
 def batch_as_signal_list(batch, target_labels = None, dataset_metadata = None):
     signal_list = []

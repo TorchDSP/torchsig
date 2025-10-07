@@ -321,8 +321,8 @@ def targets_as_metadata(targets, target_labels, dataset_metadata: DatasetMetadat
     signal_metadata = SignalMetadata(dataset_metadata=dataset_metadata)
     if not isinstance(targets,list):
         targets = [targets]
-    for i, tl in enumerate(target_labels):
-        setattr(signal_metadata, tl, targets[i])
+    for i in range(len(target_labels)):
+        setattr(signal_metadata, target_labels[i], targets[i])
     return signal_metadata
 
 def dict_to_signal_metadata(metadata_dict: dict, dataset_metadata: DatasetMetadata = None) -> SignalMetadata:
