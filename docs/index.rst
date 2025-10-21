@@ -20,7 +20,7 @@ TorchSig
     image_datasets
     signals
     transforms
-    target_transforms
+    metadata_transforms
     utils
     api
    
