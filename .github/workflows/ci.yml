@@ -1,4 +1,4 @@
-name: Continious Integration
+name: Python
 
 on:
   push:
@@ -10,59 +10,50 @@ on:
 
 jobs:
 
-  pylint:
+  ruff:
     runs-on: ubuntu-22.04
-    # needs: build
     steps:
-    # Checkout code
-    - name: Checkout code
-      uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-    # Sets up python
-    - name: Install Python
-      uses: actions/setup-python@v5
-      with:
-        python-version: '3.10'
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
 
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install -e .
-        pip install pylint
-    
-    - name: Run pylint
-      run: pylint --rcfile=.pylintrc torchsig
-      # require success on main branch and PR to main branch
-      continue-on-error: ${{ github.ref != 'refs/heads/main' && (github.event_name != 'pull_request' || github.event.pull_request.base.ref != 'main') }}
+      - name: Install Python dependencies
+        run: |
+          uv venv
+          source .venv/bin/activate
+          uv sync --only-group dev
+
+      - name: Run ruff
+        run: |
+          uv run ruff check .
+
 
   pytest:
-    runs-on: ubuntu-22.04
-    # needs: build
     steps:
-    # Checkout code
-    - name: Checkout code
-      uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-    # Sets up python
-    - name: Install Python
-      uses: actions/setup-python@v5
-      with:
-        python-version: '3.10'
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
 
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install -e .
-    
-    - name: Run pytest
-      run: pytest
-        # require success on main branch and PR to main branch
-      continue-on-error: ${{ github.ref != 'refs/heads/main' && (github.event_name != 'pull_request' || github.event.pull_request.base.ref != 'main') }}
+      - name: Install Python dependencies
+        run: |
+          uv venv
+          source .venv/bin/activate
+          uv sync --only-group dev
 
-    - name: Comment coverage
-      if: github.event_name == 'pull_request'
-      uses: MishaKav/pytest-coverage-comment@main
-      with:
-        pytest-xml-coverage-path: coverage.xml
-      continue-on-error: true
+      - name: Run pytest
+        run: |
+          uv run pytest
+
+      - name: Comment coverage
+        if: github.event_name == 'pull_request'
+        uses: MishaKav/pytest-coverage-comment@main
+        with:
+          pytest-xml-coverage-path: coverage.xml
+        continue-on-error: true
 

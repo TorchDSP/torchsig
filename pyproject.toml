@@ -19,13 +19,12 @@ classifiers = [
     "Programming Language :: Rust"
 ]
 
-# --- Core runtime deps ---
 dependencies = [
     "torch",
     "torchvision",
     "torchaudio",
     "tqdm",
-    "numpy<2",
+    "numpy",
     "scipy",
     "h5py",
     "matplotlib",
@@ -33,7 +32,7 @@ dependencies = [
     "PyWavelets",
     "scikit-learn",
     "timm",
-    "pytorch_lightning>=2.0.0,<3.0.0",
+    "lightning>=2.0.0,<3.0.0",
     "ultralytics==8.3.57",
     "torchinfo",
     "sigmf",
@@ -43,11 +42,10 @@ dependencies = [
 ]
 
 # --- Optional dependency groups ---
-[project.optional-dependencies]
-dev = [
-    "ruff",
-    "pytest",
-    "pytest-cov",
+[dependency-groups]
+dev = [ # installed by default with `uv sync`
+    { include-group = "test" },
+    "ruff"
 ]
 
 test = [
