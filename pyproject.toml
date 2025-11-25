@@ -1,34 +1,30 @@
 [build-system]
-# Define build dependencies and backend
-requires = ["setuptools>=61", "setuptools-rust>=1.10"]
-build-backend = "setuptools.build_meta"
+requires = ["uv_build<=0.8.19,<0.9.0", "setuptools>=61", "setuptools-rust>=1.10"]
+build-backend = "uv_build"
 
 [project]
 name = "torchsig"
 description = "Signal Processing Machine Learning Toolkit"
-authors = [
-    {name = "TorchSig Team"},
-]
+version = "2.0.0"
+authors = [{ name = "TorchSig Team" }]
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.11,<=4.0"
 license = "MIT"
 license-files = ["LICENSE.md"]
 keywords = ["signal processing", "machine learning"]
-dynamic = ["version"]
 
 classifiers = [
     "Programming Language :: Python",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Rust",
+    "Programming Language :: Rust"
 ]
-# Runtime dependencies
+
 dependencies = [
-    # Core Libraries
     "torch",
     "torchvision",
     "torchaudio",
     "tqdm",
-    "numpy<2",
+    "numpy",
     "scipy",
     "h5py",
     "matplotlib",
@@ -36,22 +32,35 @@ dependencies = [
     "PyWavelets",
     "scikit-learn",
     "timm",
-    "pytorch_lightning>=2.0.0,<3.0.0",
-    "ultralytics==8.3.57",  # Keep the latest version
+    "lightning>=2.0.0,<3.0.0",
+    "ultralytics==8.3.57",
     "torchinfo",
     "sigmf",
     "numcodecs==0.13.1",
     "opencv-python==4.8.0.74",
     "jupyter_bbox_widget",
-    # Testing, CI/CD
-    "pytest",
-    "pylint",
-    "pytest-cov",
-
-    # Satnogs
-    "librosa",
 ]
 
+# --- Optional dependency groups ---
+[dependency-groups]
+dev = [ # installed by default with `uv sync`
+    { include-group = "test" },
+    "ruff"
+]
+
+test = [
+    "pytest",
+    "pytest-cov"
+]
+
+docs = [
+    "better-apidoc>=0.3.2",
+    "numba",
+    "recommonmark>=0.7.1",
+    "six",
+    "sphinx-rtd-theme==2.0.0",
+    "Sphinx>=7.4.7"
+]
 
 [project.urls]
 Homepage = "https://torchsig.com/"
@@ -59,21 +68,29 @@ Documentation = "https://torchsig.readthedocs.io/en/latest/index.html"
 Repository = "https://github.com/TorchDSP/torchsig.git"
 Issues = "https://github.com/TorchDSP/torchsig/issues"
 
-[tool.setuptools.packages.find]
-# Automatically find all packages starting in root directory
-where = ["."]
 
-[tool.setuptools.dynamic]
-# Dynamically read version from torchsig.__version__
-version = {attr = "torchsig.__version__"}
+[tool.uv.build-backend]
+module-name = "torchsig"
 
+# --- Rust extension module (PyO3) ---
 [[tool.setuptools-rust.ext-modules]]
-# Define the Rust extension module built with PyO3
-target = "torchsig.utils.rust_functions"  # Must match import path and lib.name in Cargo.toml
-path = "rust_functions/Cargo.toml"        # Path to Cargo.toml
-binding = "PyO3"                          # Bindings to use
-debug = false                             # Enable release mode for optimized builds
-optional = false                          # Crash if the extension build fails
+target = "torchsig.utils.rust_functions"
+path = "rust_functions/Cargo.toml"
+binding = "PyO3"
+debug = false
+optional = false
+
+# --- Ruff config ---
+[tool.ruff]
+line-length = 100
+extend-select = ["I", "E", "F", "W"]
+# ignore = ["E501"]  # preserve long lines from autoformatting
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["torchsig"]
 
 [tool.coverage.run]
 branch = true
@@ -88,9 +105,8 @@ omit = [
 ]
 
 [tool.pytest.ini_options]
-# Configure pytest behavior and test discovery
 markers = [
-    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')"
 ]
 addopts = "-m 'not slow' --cov=torchsig --cov-report=xml --cov-report=term --junitxml=report.xml"
 testpaths = ["tests"]

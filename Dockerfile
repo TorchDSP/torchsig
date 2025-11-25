@@ -1,77 +1,58 @@
 # +----------------------------------------------------------------------------+
-# |                       Stage 1: Builder (with CUDA Toolkit)                |
+# |                                 Stage 1: Builder                           |
 # +----------------------------------------------------------------------------+
-FROM nvidia/cuda:12.1.0-devel-ubuntu22.04 AS builder
+FROM nvidia/cuda:12.1.0-runtime-ubuntu22.04 AS builder
 WORKDIR /workspace
 
 # +----------------------------------------------------------------------------+
-# | Install system build tools, Python headers, pip and Git                   |
+# | Install packages and python                                                |
 # +----------------------------------------------------------------------------+
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
-      build-essential \          
-      curl \                    
-      libffi-dev libssl-dev \      
-      python3.10 python3-pip \      
-      git && \                       
-    rm -rf /var/lib/apt/lists/*     
-
-# +----------------------------------------------------------------------------+
-# | Install rustup and set up latest stable Rust (>=1.81)                     |
-# +----------------------------------------------------------------------------+
-ENV RUSTUP_HOME=/usr/local/rustup \
-    CARGO_HOME=/usr/local/cargo \
-    PATH=/usr/local/cargo/bin:$PATH
-
-RUN curl https://sh.rustup.rs -sSf | sh -s -- -y --default-toolchain stable \
-    && rustc --version           
-
-# +----------------------------------------------------------------------------+
-# | Upgrade pip and install Python packaging tools (setuptools-rust, wheel)    |
-# +----------------------------------------------------------------------------+
-RUN python3 -m pip install --upgrade pip setuptools setuptools-rust wheel
-
-# +----------------------------------------------------------------------------+
-# | Copy the entire project into the builder image                             |
-# +----------------------------------------------------------------------------+
-COPY . .
-
-# +----------------------------------------------------------------------------+
-# | Install TorchSig (builds the Rust extension in-place)                     |
-# +----------------------------------------------------------------------------+
-RUN pip install . --no-cache-dir
-
-# +============================================================================+
-# |                Stage 2: Runtime (CUDA Runtime Only)                       |
-# +============================================================================+
-FROM nvidia/cuda:12.1.0-runtime-ubuntu22.04
-WORKDIR /workspace
-
-# +----------------------------------------------------------------------------+
-# | Install minimal system libraries required at runtime (e.g., OpenCV deps)   |
-# +----------------------------------------------------------------------------+
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
-      python3.10 \
-      python-is-python3 \
-      libgl1 \   
-      libsm6 \   
+      build-essential curl \
+      libffi-dev libssl-dev \
+      libgl1 libsm6 \
       libxrender1 \
-      libxext6 && \ 
+      libxext6 git && \
     rm -rf /var/lib/apt/lists/*
 
-# +----------------------------------------------------------------------------+
-# | Copy installed Python packages from builder into runtime image             |
-# +----------------------------------------------------------------------------+
-COPY --from=builder /usr/local/lib/python3.10/dist-packages/ \
-                     /usr/local/lib/python3.10/dist-packages/
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
+ENV UV_LINK_MODE=copy
+ENV UV_MANAGED_PYTHON=1
+ENV UV_COMPILE_BYTECODE=1
+ARG CACHE_DIR=/opt/cache
+ENV UV_CACHE_DIR=${CACHE_DIR}/uv/cache/
+ENV UV_PYTHON_CACHE_DIR=${CACHE_DIR}/uv/python
 
 # +----------------------------------------------------------------------------+
-# | (Optional) Copy source/tests/scripts if you need them in the runtime       |
+# | Install rustup (uv will bootstrap)                                         |
 # +----------------------------------------------------------------------------+
-COPY --from=builder /workspace /workspace
+# ENV RUSTUP_HOME=/usr/local/rustup \
+#     CARGO_HOME=/usr/local/cargo \
+#     PATH=/usr/local/cargo/bin:$PATH
+#
+# RUN curl https://sh.rustup.rs -sSf | sh -s -- -y --default-toolchain stable \
+#     && rustc --version
 
 # +----------------------------------------------------------------------------+
-# | Default to bash for interactive GPU testing                                |
+# | Install Python package dependencies                                        |
 # +----------------------------------------------------------------------------+
+RUN --mount=type=cache,target=${CACHE_DIR} \
+    --mount=type=bind,source=uv.lock,target=uv.lock \
+    --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
+    --mount=type=bind,source=.python-version,target=.python-version \
+    uv sync --locked --no-install-project --no-editable
+
+
+# +============================================================================+
+# |                Stage 2: Runtime                                           |
+# +============================================================================+
+FROM builder AS app
+WORKDIR /workspace
+
+COPY . .
+
+RUN --mount=type=cache,target=${CACHE_DIR} \
+    uv sync --locked --no-editable
+
 CMD ["bash"]

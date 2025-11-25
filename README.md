@@ -16,18 +16,19 @@
 - Hard drive storage with 1 TB
 - CPU with &ge; 4 cores
 - GPU with &ge; 16 GB storage (recommended)
-- Python &ge; 3.10
+- Python &ge; 3.11
 
 We highly reccomend Ubuntu or using a Docker container.
 
 ## Installation
 Clone the `torchsig` repository and install using the following commands:
-```
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh
 git clone https://github.com/TorchDSP/torchsig.git
 cd torchsig
-pip install -e .
+uv sync --locked
 ```
- 
+
 # Examples and Tutorials
 
 TorchSig has a series of Jupyter notebooks in the `examples/` directory. View the README inside `examples/` to learn more.
@@ -146,7 +147,7 @@ TorchSig provides many useful tools to facilitate and accelerate research on sig
 Documentation can be found [online](https://torchsig.readthedocs.io/en/latest/) or built locally by following the instructions below.
 ```
 cd docs
-pip install -r docs-requirements.txt
+uv sync --group docs
 make html
 firefox build/html/index.html
 ```

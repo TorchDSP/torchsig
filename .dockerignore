@@ -1,0 +1,10 @@
+.venv/
+.github/
+build/
+dist/
+**/*.egg-info/
+*.pyc
+__pycache__/
+*.swp
+*.swo
+*.ruff_cache
