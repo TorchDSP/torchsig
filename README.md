@@ -16,13 +16,13 @@
 - Hard drive storage with 1 TB
 - CPU with &ge; 4 cores
 - GPU with &ge; 16 GB storage (recommended)
-- Python &ge; 3.10
+- Python &ge; 3.11
 
 We highly reccomend Ubuntu or using a Docker container.
 
 ## Installation
 Clone the `torchsig` repository and install using the following commands:
-```
+```bash
 curl -LsSf https://astral.sh/uv/install.sh | sh
 git clone https://github.com/TorchDSP/torchsig.git
 cd torchsig
