@@ -30,13 +30,6 @@ TorchSig Datasets
     :undoc-members:
     :show-inheritance:
 
-Dataset Metadata
-**********************
-.. automodule:: torchsig.datasets.dataset_metadata
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
 Datamodules
 ---------------------
 .. automodule:: torchsig.datasets.datamodules

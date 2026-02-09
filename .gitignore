@@ -1,50 +1,50 @@
 # Common Python Files
 __pycache__/
-.vscode/
-build/
-checkpoints/
-lightning_logs/
+_build/
 dist/
-**.ipynb_checkpoints**
 *.pytest_cache
 *.env
-**.pyc
-**.mdb
-**.pkl
-**.np
-**.npz
-**.swp
-**.p
-**.png
-**.txt
-**.npy
-**.jpg
-**.pt*
-**.ckpt*
-**.pth*
-**.yaml
-**.out
+*.pyc
+*.mdb
+*.pkl
+*.np
+*.npz
+*.swp
+*.p
+*.png
+*.txt
+*.npy
+*.jpg
+*.pt*
+*.ckpt*
+*.pth*
+*.yaml
+*.out
+# Jupyter Notebooks
+*.ipynb_checkpoints/
 
 # Rust
-rust_functions/target
+rust_functions/target/
 rust_functions/Cargo.lock
 **/*.rs.bk
-**.so
-**.bak
+*.so
+*.bak
 
 # TorchSig
-torchsig.egg-info
-!torchsig/datasets/default_configs
+torchsig.egg-info/
+!torchsig/datasets/default_configs/
 !torchsig/datasets/default_configs/*
 !torchsig/datasets/default_configs/*.yaml
-torchsig/utils/pfb_weights
+torchsig/utils/pfb_weights/
 
 # Keep license docs
-!**LICENSE*
+!**/LICENSE*
 
 # Docs
-docs/_static
-docs/src
+docs/_static/
+docs/src/
+docs/build/
+docs/_autosummary/
 
 # Tests
 tests/datasets/*
@@ -53,9 +53,9 @@ tests/datasets/*
 
 # Examples
 examples/*
-examples/datasets
+examples/datasets/
 !examples/*.ipynb
-!examples/transforms
+!examples/transforms/
 !examples/transforms/*.ipynb
 !examples/*.py
 !examples/*.yaml
@@ -69,9 +69,9 @@ tools/examples/datasets/yolo_annotation_data/annotated_yolo_sample_images
 !tools/examples/datasets/yolo_annotation_data/sample_images/*
 
 # Pytest Files
-**.coverage
-**coverage.xml
-**report.xml
+*.coverage
+coverage.xml
+report.xml
 
 # Python virtual environments
 venv/
@@ -79,15 +79,15 @@ venv/
 env/
 .env/
 
-# Specific to some virtual environment tools
 # For conda environments
 .conda/
 
-# Additional ignores
+# Specific ignores
+.vscode/
 *.h5
 *.conflict
-**.pyo
-**.pyd
+*.pyo
+*.pyd
 .Python
 develop-eggs/
 downloaded/

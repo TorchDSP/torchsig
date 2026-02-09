@@ -1,155 +1,171 @@
-""" AM Signal
-"""
+"""AM Signal Generator Module"""
 
-# TorchSig
-from torchsig.signals.builder import SignalBuilder
-from torchsig.datasets.dataset_metadata import DatasetMetadata
-from torchsig.utils.dsp import (
-    low_pass_iterative_design,
-    convolve,
-    frequency_shift,
-    polyphase_decimator,
-    TorchSigComplexDataType
-)
-from torchsig.signals.signal_lists import TorchSigSignalLists
+from __future__ import annotations
 
-# Third Party
 import numpy as np
 
+from torchsig.signals.builder import BaseSignalGenerator
+from torchsig.signals.signal_types import Signal
+from torchsig.utils.dsp import (
+    TorchSigComplexDataType,
+    convolve,
+    frequency_shift,
+    low_pass_iterative_design,
+    polyphase_decimator,
+)
 
-def am_modulator ( class_name:str, bandwidth:float, sample_rate:float, num_samples:int, rng=np.random.default_rng() ) -> np.ndarray:
-    """Amplitude Modulator (AM).
+
+def am_modulator(
+    am_mode: str,
+    bandwidth: float,
+    sample_rate: float,
+    num_samples: int,
+    rng: np.random.Generator | None = None,
+) -> np.ndarray:
+    """Amplitude Modulator (AM) signal generator.
+
+    Generates AM signals in various modes (DSB, DSB-SC, LSB, USB).
 
     Args:
-        class_name (str): Name of the signal to modulate, ex: 'am-dsb'.
-        bandwidth (float): The desired 3 dB bandwidth of the signal. Must be in the same
-            units as `sample_rate` and within the bounds 0 < `bandwidth` < `sample_rate`.
-        sample_rate (float): The sampling rate for the IQ signal. The sample rate can use a normalized value of 1, or it
-            can use a practical sample rate such as 10 MHz. However, it must use the same units as the bandwidth parameter.
-        num_samples (int): The number of IQ samples to produce.
-        rng (optional): Seedable random number generator for reproducibility.
+        am_mode: Mode of the AM signal ('dsb', 'dsb-sc', 'lsb', 'usb').
+        bandwidth: Desired 3 dB bandwidth of the signal (Hz).
+        sample_rate: Sampling rate for the IQ signal (Hz).
+        num_samples: Number of IQ samples to produce.
+        rng: Random number generator for reproducibility. If None, creates a new default generator.
 
     Returns:
         np.ndarray: AM modulated signal at the appropriate bandwidth.
-        
+
+    Raises:
+        ValueError: If bandwidth is not positive or exceeds sample_rate/2.
+        ValueError: If am_mode is not one of the supported modes.
+
+    Examples:
+        >>> rng = np.random.default_rng(42)
+        >>> dsb_signal = am_modulator('dsb', 1000, 10000, 1000, rng)
+        >>> dsb_sc_signal = am_modulator('dsb-sc', 1000, 10000, 1000, rng)
     """
+    # Input validation
+    if bandwidth <= 0:
+        raise ValueError("bandwidth must be positive")
+    if sample_rate <= 0:
+        raise ValueError("sample_rate must be positive")
+    if bandwidth > sample_rate / 2:
+        raise ValueError("bandwidth must be less than sample_rate/2")
+    if am_mode not in ["dsb", "dsb-sc", "lsb", "usb"]:
+        raise ValueError("am_mode must be one of: 'dsb', 'dsb-sc', 'lsb', 'usb'")
 
-    if ("lsb" in class_name or "usb" in class_name):
-        # must generate 2x the number of samples to account for the decimation by 2
-        # with the LSB and USB modulations
-        num_samples_mod = 2*num_samples
-    else:
-        # no rate change, so no change to number of samples
-        num_samples_mod = num_samples
+    # Create random number generator if not provided
+    if rng is None:
+        rng = np.random.default_rng()
 
-    # generate the random message, and make complex data type
-    message = rng.normal(0,1,num_samples_mod).astype(TorchSigComplexDataType)
-    # scale to unit power
-    message = message/np.sqrt(np.mean(np.abs(message)**2))
-    # calculate filter cutoff
-    cutoff = bandwidth/2
+    # Determine number of samples for modulation
+    num_samples_mod = (
+        2 * num_samples if "lsb" in am_mode or "usb" in am_mode else num_samples
+    )
 
-    # calculate maximum transition bandwidth
-    max_transition_bandwidth = (sample_rate/2) - cutoff
-    # derive actual transition bandwidth
-    transition_bandwidth = rng.uniform(0.05,0.25)*max_transition_bandwidth/2
+    # Generate random message signal
+    message = rng.normal(0, 1, num_samples_mod).astype(TorchSigComplexDataType)
+    message = message / np.sqrt(np.mean(np.abs(message) ** 2))  # Scale to unit power
 
-    # generate bandwidth-limiting LPF
-    lpf = low_pass_iterative_design(cutoff=cutoff, transition_bandwidth=transition_bandwidth, sample_rate=sample_rate)
-    # apply bandwidth-limiting filter
+    # Design bandwidth-limiting filter
+    cutoff = bandwidth / 2
+    max_transition_bandwidth = (sample_rate / 2) - cutoff
+    transition_bandwidth = rng.uniform(0.05, 0.25) * max_transition_bandwidth / 2
+    lpf = low_pass_iterative_design(
+        cutoff=cutoff,
+        transition_bandwidth=transition_bandwidth,
+        sample_rate=sample_rate,
+    )
+
+    # Apply bandwidth-limiting filter
     shaped_message = convolve(message, lpf)
-    if class_name == "am-dsb-sc":
+
+    # Generate baseband signal based on modulation mode
+    if am_mode == "dsb-sc":
         baseband_signal = shaped_message
-    elif class_name == "am-dsb":
-        # randomly determine modulation index
-        modulation_index = rng.uniform(0.8,4)
-        # find the max of the message
+    elif am_mode == "dsb":
+        modulation_index = rng.uniform(0.8, 4)
         shaped_message_max = np.max(np.abs(shaped_message))
-        # build and scale the carrier
-        carrier = (shaped_message_max/modulation_index)*np.ones(len(shaped_message))
-        # add in the carrier
-        baseband_signal = (modulation_index*shaped_message) + carrier
-    elif class_name == "am-lsb":
-        # upconvert signal to center frequency = bandwidth/2
-        dsb_upconverted = frequency_shift(shaped_message,bandwidth/2,sample_rate)
-        # the existing BW limiting filter can be be repurposed to discard upper band
-        lsb_signal_at_if = convolve(dsb_upconverted,lpf)
-        # mix LSB back down to baseband from center frequency = bandwidth/4
-        baseband_signal_oversampled = frequency_shift(lsb_signal_at_if,-bandwidth/4,sample_rate)
-        # since threw away 1/2 the bandwidth to only retain LSB, then downsample by 2 in order to match
-        # the requested self.bandwidth
-        baseband_signal = polyphase_decimator ( baseband_signal_oversampled, 2 )
-        # scale by 2
-        baseband_signal *= 2
-    elif class_name == "am-usb":
-        # downconvert signal to -bandwidth/2
-        dsb_downconverted = frequency_shift(shaped_message,-bandwidth/2,sample_rate)
-        # the existing BW limiting filter can be be repurposed to discard upper band
-        usb_signal_atif = convolve(dsb_downconverted,lpf)
-        # mix USB back up to baseband
-        baseband_signal_oversampled = frequency_shift(usb_signal_atif,bandwidth/4,sample_rate)
-        # since threw away 1/2 the bandwidth to only retain USB, then downsample by 2 in order to match
-        # the requested bandwidth
-        baseband_signal = polyphase_decimator ( baseband_signal_oversampled, 2 )
-        # scale by 2
-        baseband_signal *= 2
+        carrier = (shaped_message_max / modulation_index) * np.ones(len(shaped_message))
+        baseband_signal = (modulation_index * shaped_message) + carrier
+    elif am_mode == "lsb":
+        dsb_upconverted = frequency_shift(shaped_message, bandwidth / 2, sample_rate)
+        lsb_signal_at_if = convolve(dsb_upconverted, lpf)
+        baseband_signal_oversampled = frequency_shift(
+            lsb_signal_at_if, -bandwidth / 4, sample_rate
+        )
+        baseband_signal = polyphase_decimator(baseband_signal_oversampled, 2) * 2
+    elif am_mode == "usb":
+        dsb_downconverted = frequency_shift(shaped_message, -bandwidth / 2, sample_rate)
+        usb_signal_atif = convolve(dsb_downconverted, lpf)
+        baseband_signal_oversampled = frequency_shift(
+            usb_signal_atif, bandwidth / 4, sample_rate
+        )
+        baseband_signal = polyphase_decimator(baseband_signal_oversampled, 2) * 2
 
-    # convert to appropriate type
-    baseband_signal = baseband_signal.astype(TorchSigComplexDataType)
-
-    return baseband_signal
+    return baseband_signal.astype(TorchSigComplexDataType)
 
 
-# Builder
-class AMSignalBuilder(SignalBuilder):
-    """Implements SignalBuilder() for amplitude modulation (AM) waveform.
+class AMSignalGenerator(BaseSignalGenerator):
+    """AM Signal Generator.
 
-    Attributes:
-        dataset_metadata (DatasetMetadata): Parameters describing the dataset required for signal generation. 
-        supported_classes (List[str]): List of supported signal classes. Set to `["am-dsb-sc"]`.
-
+    Implements various AM modulation schemes (DSB, DSB-SC, LSB, USB).
     """
-    
-    supported_classes = TorchSigSignalLists.am_signals
 
-    
-    def __init__(self, dataset_metadata: DatasetMetadata, class_name='am-dsb-sc', **kwargs):
-        """Initializes AM Signal Builder. Sets `class_name= "am-dsb-sc"`.
+    def __init__(self, **kwargs: dict[str, str | float | int]) -> None:
+        """Initializes AM Signal Generator.
 
         Args:
-            dataset_metadata (DatasetMetadata): Dataset metadata.
-            class_name (str, optional): Class name.
-        """        
-        super().__init__(dataset_metadata=dataset_metadata, class_name=class_name, **kwargs)
+            **kwargs: Metadata parameters including:
+                - am_mode: AM modulation mode ('dsb', 'dsb-sc', 'lsb', 'usb')
+                - sample_rate: Sampling rate (Hz)
+                - bandwidth_min: Minimum bandwidth (Hz)
+                - bandwidth_max: Maximum bandwidth (Hz)
+                - signal_duration_in_samples_min: Minimum signal duration (samples)
+                - signal_duration_in_samples_max: Maximum signal duration (samples)
 
-    def _update_data(self) -> None:
-        """Creates the IQ samples for the AM waveform based on the signal metadata fields.
-        """        
-        # dataset params
-        sample_rate = self.dataset_metadata.sample_rate
+        Raises:
+            ValueError: If required metadata fields are missing or invalid.
+        """
+        super().__init__(**kwargs)
+        self.required_metadata_fields = [
+            "am_mode",
+            "sample_rate",
+            "bandwidth_min",
+            "bandwidth_max",
+            "signal_duration_in_samples_min",
+            "signal_duration_in_samples_max",
+        ]
+        self.set_default_class_name("am-" + str(self["am_mode"]))
 
-        # signal params
-        num_iq_samples_signal = self._signal.metadata.duration_in_samples
-        bandwidth = self._signal.metadata.bandwidth
-        class_name = self._signal.metadata.class_name
+    def generate(self) -> Signal:
+        """Generates an AM signal based on the configured parameters.
 
-        # AM modulator at complex baseband
-        self._signal.data = am_modulator(
-            class_name,
+        Returns:
+            Signal: Generated AM signal with metadata.
+
+        Raises:
+            ValueError: If required metadata fields are missing or invalid.
+        """
+        # Get parameters from metadata
+        sample_rate = self["sample_rate"]
+        num_iq_samples_signal = self.random_generator.integers(
+            low=self["signal_duration_in_samples_min"],
+            high=self["signal_duration_in_samples_max"] + 1,
+        )
+        bandwidth = self.random_generator.integers(
+            low=self["bandwidth_min"], high=self["bandwidth_max"] + 1
+        )
+        am_mode = self["am_mode"]
+
+        # Generate signal
+        signal_data = am_modulator(
+            am_mode,
             bandwidth,
             sample_rate,
             num_iq_samples_signal,
-            self.random_generator
+            self.random_generator,
         )
 
-    def _update_metadata(self) -> None:
-        """Performs a signals-specific update of signal metadata.
-
-        This does nothing because the signal does not need any 
-        fields to be updated. This `_update_metadata()` must be
-        implemented but is not required to create or modify any data
-        or fields for this particular signal case.
-        """
-
-
-
+        return Signal(data=signal_data, center_freq=0, bandwidth=bandwidth)

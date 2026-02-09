@@ -1,23 +1,22 @@
-""" Loads default yaml configs
-"""
+"""Loads default yaml configs"""
 
 # Built-In
-import yaml
-from pathlib import Path
 import sys
+from pathlib import Path
+
+import yaml
 
 sys.path.append(f"{Path(__file__).parent}")
 
 default_config_dir = Path(__file__).parent
 
+
 def get_default_yaml_config(
-    impairment_level: bool | int,
-    train: bool,
-    ret_config_path: bool = False
+    impairment_level: bool | int, train: bool, ret_config_path: bool = False
 ) -> dict:
     """Loads the default YAML configuration for a given dataset type, impairment level, and training/validation status.
 
-    This function constructs the path to the appropriate YAML configuration file based on the dataset type, impairment level, and whether the dataset is for training or validation. It then loads the YAML file and returns its contents as a dictionary. 
+    This function constructs the path to the appropriate YAML configuration file based on the dataset type, impairment level, and whether the dataset is for training or validation. It then loads the YAML file and returns its contents as a dictionary.
 
     Args:
         impairment_level (bool | int): The impairment level for the dataset:
@@ -32,15 +31,14 @@ def get_default_yaml_config(
 
     Raises:
         ValueError: If the impairment level is invalid or 1.
-    
+
     Example:
         # Load the default configuration for an impaired dataset for validation and get the config path
         config, path = get_default_yaml_config(impairment_level=2, train=False, ret_config_path=True)
     """
-
     if impairment_level == 1:
         raise ValueError("Default config does not exist for impairment level 1")
-    
+
     impairment_level = "impaired" if impairment_level == 2 else "clean"
 
     train = "train" if train else "val"
@@ -48,18 +46,17 @@ def get_default_yaml_config(
     config_path = f"dataset_{impairment_level}_{train}.yaml"
     full_config_path = f"{Path(__file__).parent}/{config_path}"
 
-    
-
-    with open(full_config_path, 'r') as f:
+    with open(full_config_path) as f:
         dataset_metadata = yaml.load(f, Loader=yaml.FullLoader)
 
     if ret_config_path:
         return dataset_metadata, config_path
-    # else:
+
     return dataset_metadata
 
+
 def get_yaml_filename(config_filename: str) -> dict:
-    """loads yaml file in default_configs
+    """Loads yaml file in default_configs
 
     Args:
         config_filename (str): config filename
@@ -69,11 +66,13 @@ def get_yaml_filename(config_filename: str) -> dict:
 
     Returns:
         dict: yaml loaded as dict.
-    """    
+    """
     full_config_path = f"{Path(__file__).parent}/{config_filename}"
     try:
-        with open(full_config_path, 'r') as f:
+        with open(full_config_path) as f:
             dataset_metadata = yaml.load(f, Loader=yaml.FullLoader)
         return dataset_metadata
     except Exception as exc:
-        raise ValueError(f"No config found at {Path(__file__).parent}: {config_filename}") from exc
+        raise ValueError(
+            f"No config found at {Path(__file__).parent}: {config_filename}"
+        ) from exc

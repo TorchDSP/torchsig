@@ -26,6 +26,7 @@ dependencies = [
     # Core Libraries
     "torch",
     "torchaudio",
+    "lightning",
     "tqdm",
     "numpy>=2",
     "scipy",
@@ -33,12 +34,11 @@ dependencies = [
     "matplotlib",
     "PyYAML",
     "opencv-python>=4.10",
-    # image_datasets
-    "jupyter_bbox_widget",
     # Testing, CI/CD
     "pytest",
     "pylint",
     "pytest-cov",
+    "ruff",
 ]
 
 
@@ -71,11 +71,80 @@ source = ["torchsig"]
 [tool.coverage.report]
 show_missing = true
 skip_covered = true
-omit = [
-    "torchsig/image_datasets/*",
-]
+omit = []
 
 [tool.pytest.ini_options]
 # Configure pytest behavior and test discovery
 addopts = "--cov=torchsig --cov-report=xml --cov-report=term-missing --junitxml=report.xml"
 testpaths = ["tests"]
+
+[tool.ruff]
+# Same line length as Black (200)
+line-length = 200
+target-version = "py310"
+exclude = ["docs", "rust_functions"]
+
+[tool.ruff.lint]
+# Enable all rules by default
+select = ["ALL"]
+# Ignore specific rules that don't apply to your project
+ignore = [
+    "ANN", # flake8-annotations
+    "COM", # flake8-commas
+    "C90", # mccabe complexity
+    "DJ",  # django
+    "EXE", # flake8-executable
+    "T10", # debugger
+    "TID", # flake8-tidy-imports
+    "B006", # Do not use mutable data structures for argument defaults
+    "E501",  # Line too long (handled by line-length)
+    "D100",  # Missing docstring in public module
+    "D104",  # Missing docstring in public package
+    "D107",  # Missing docstring in __init__
+    "D204", # 1 blank line required after class docstring
+    "D205", # 1 blank line required between summary line and description
+    "D400", # First line should end with a period
+    "D401", # First line of docstring should be in imperative mood
+    "D413", # Missing blank line after last section
+    "D415", # First line should end with a period, question mark, or exclamation point
+    "D417", # Missing argument description in the docstring for `__init__`: `**kwargs`
+    "C901",  # Function too complex
+    "PLR0913",  # Too many arguments
+    "PLR0912",  # Too many branches
+    "PLR0915",  # Too many statements
+    "PLW2901",  # Redefined loop name
+    "ANN101",  # Missing type annotation for self
+    "ANN102",  # Missing type annotation for cls
+    "TD002",  # Missing author in TODO
+    "TD003",  # Missing issue link in TODO
+    "TRY003", # external messages in exceptions are too verbose
+    "FIX002",  # Line contains TODO
+    "FBT001", # Boolean-typed positional argument in function definition
+    "FBT002", # Boolean default positional argument in function definition
+    "E722", # Do not use bare `except`
+    "EM101",  # Exception must not use a string literal
+    "EM102",  # Exception must not use an f-string literal
+    "G004",  # Logging statement uses f-string
+    "COM812",  # Trailing comma missing
+    "ISC001",  # Implicitly concatenated string literals
+    "D203",  # One blank line required before class docstring
+    "D213",  # Multi-line docstring summary should start at the second line
+    "T201", # `print` found
+]
+
+[tool.ruff.format]
+# Enable auto-formatting
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+docstring-code-format = true
+docstring-code-line-length = "dynamic"
+
+[tool.ruff.lint.per-file-ignores]
+# Ignore specific rules for test files
+"tests/*" = [
+    "S101",  # Use of assert
+    "PLR2004",  # Magic value used in comparison
+    "ARG001",  # Unused function argument
+    "D103",  # Missing docstring in public function
+]

@@ -1,101 +1,141 @@
-"""FM Signal Builder and Modulator
-"""
+"""FM Signal Builder and Modulator Module"""
 
-# TorchSig
-from torchsig.signals.builder import SignalBuilder
-from torchsig.datasets.dataset_metadata import DatasetMetadata
-from torchsig.utils.dsp import (
-    low_pass_iterative_design,
-    convolve,
-    TorchSigComplexDataType
-)
-from torchsig.signals.signal_lists import TorchSigSignalLists
+from __future__ import annotations
 
-# Third Party
 import numpy as np
 
-def fm_modulator ( bandwidth:float, sample_rate:float, num_samples:int, rng=np.random.default_rng() ) -> np.ndarray:
-    """Frequency Modulator (FM).
+from torchsig.signals.builder import BaseSignalGenerator
+from torchsig.signals.signal_types import Signal
+from torchsig.utils.dsp import (
+    TorchSigComplexDataType,
+    convolve,
+    low_pass_iterative_design,
+)
+
+
+def fm_modulator(
+    bandwidth: float,
+    sample_rate: float,
+    num_samples: int,
+    rng: np.random.Generator | None = None,
+) -> np.ndarray:
+    """Frequency Modulator (FM) signal generator.
+
+    Generates FM signals using Carson's Rule for bandwidth calculation.
 
     Args:
-        bandwidth (float): The desired 3 dB bandwidth of the signal. Must be in the same
-            units as `sample_rate` and within the bounds 0 < `bandwidth` < `sample_rate`.
-        sample_rate (float): The sampling rate for the IQ signal. The sample rate can use a normalized value of 1, or it
-            can use a practical sample rate such as 10 MHz. However, it must use the same units as the bandwidth parameter.
-        num_samples (int): The number of IQ samples to produce.
-        rng (optional): Seedable random number generator for reproducibility.
+        bandwidth: Desired 3 dB bandwidth of the signal (Hz).
+        sample_rate: Sampling rate for the IQ signal (Hz).
+        num_samples: Number of IQ samples to produce.
+        rng: Random number generator for reproducibility. If None, creates a new default generator.
 
     Returns:
         np.ndarray: FM modulated signal at the appropriate bandwidth.
+
+    Raises:
+        ValueError: If bandwidth or sample_rate are not positive.
+        ValueError: If bandwidth exceeds sample_rate/2.
+        ValueError: If num_samples is not positive.
+
+    Examples:
+        >>> rng = np.random.default_rng(42)
+        >>> fm_signal = fm_modulator(1000, 10000, 1000, rng)
+        >>> fm_signal.shape
+        (1000,)
     """
-    # randomly determine modulation index
-    mod_index = rng.uniform(1,10)
-    # calculate the frequency deviation using Carson's Rule
-    fdev = (bandwidth/2)/(1 + (1/mod_index))
-    # calculate the maximum deviation
-    fmax = fdev/mod_index
-    # compute input message
-    message = rng.normal(0,1,num_samples)
-    # scale to unit power
-    message = message/np.sqrt(np.mean(np.abs(message)**2))
-    # design LPF to limit frequencies based on fmax
-    lpf = low_pass_iterative_design(cutoff=fmax,transition_bandwidth=fmax,sample_rate=sample_rate)
-    # apply the LPF to noise to limit the bandwidth prior to modulation
-    source = convolve(message,lpf)
-    # apply FM modulation
-    modulated = np.exp(2j * np.pi * np.cumsum(source) * fdev/sample_rate)
-    # convert to appropriate data type
-    modulated = modulated.astype(TorchSigComplexDataType)
-    return modulated
+    # Input validation
+    if bandwidth <= 0:
+        raise ValueError("bandwidth must be positive")
+    if sample_rate <= 0:
+        raise ValueError("sample_rate must be positive")
+    if bandwidth > sample_rate / 2:
+        raise ValueError("bandwidth must be less than sample_rate/2")
+    if num_samples <= 0:
+        raise ValueError("num_samples must be positive")
+
+    # Create random number generator if not provided
+    if rng is None:
+        rng = np.random.default_rng()
+
+    # Randomly determine modulation index
+    mod_index = rng.uniform(1, 10)
+
+    # Calculate frequency deviation using Carson's Rule
+    fdev = (bandwidth / 2) / (1 + (1 / mod_index))
+
+    # Calculate maximum deviation
+    fmax = fdev / mod_index
+
+    # Generate and scale message signal
+    message = rng.normal(0, 1, num_samples)
+    message = message / np.sqrt(np.mean(np.abs(message) ** 2))  # Scale to unit power
+
+    # Design LPF to limit frequencies
+    lpf = low_pass_iterative_design(
+        cutoff=fmax, transition_bandwidth=fmax, sample_rate=sample_rate
+    )
+
+    # Apply LPF to limit bandwidth
+    source = convolve(message, lpf)
+
+    # Apply FM modulation
+    modulated = np.exp(2j * np.pi * np.cumsum(source) * fdev / sample_rate)
+
+    return modulated.astype(TorchSigComplexDataType)
 
 
-# Builder
-class FMSignalBuilder(SignalBuilder):
-    """Implements SignalBuilder() for frequency modulation (FM) waveform.
+class FMSignalGenerator(BaseSignalGenerator):
+    """FM Signal Generator.
 
-    Attributes:
-        dataset_metadata (DatasetMetadata): Parameters describing the dataset required for signal generation. 
-        supported_classes (List[str]): List of supported signal classes. Set to `["fm"]`.
+    Implements frequency modulation (FM) waveforms with configurable parameters.
     """
-    
-    supported_classes = TorchSigSignalLists.fm_signals
 
-    
-    def __init__(self, dataset_metadata: DatasetMetadata, class_name:str = 'fm', **kwargs):
-        """Initializes FM Signal Builder. Sets `class_name= "fm"`.
+    def __init__(self, **kwargs: dict[str, str | float | int]) -> None:
+        """Initializes FM Signal Generator.
 
         Args:
-            dataset_metadata (DatasetMetadata): Dataset metadata.
-            class_name (str, optional): Class name.
-        """        
-        super().__init__(dataset_metadata=dataset_metadata, class_name=class_name, **kwargs)
+            **kwargs: Metadata parameters including:
+                - sample_rate: Sampling rate (Hz)
+                - bandwidth_min: Minimum bandwidth (Hz)
+                - bandwidth_max: Maximum bandwidth (Hz)
+                - signal_duration_in_samples_min: Minimum signal duration (samples)
+                - signal_duration_in_samples_max: Maximum signal duration (samples)
 
-    def _update_data(self) -> None:
-        """Creates the IQ samples for the FM waveform based on the signal metadata fields.
-        """        
-        # dataset params
-        sample_rate = self.dataset_metadata.sample_rate
+        Raises:
+            ValueError: If required metadata fields are missing or invalid.
+        """
+        super().__init__(**kwargs)
+        self.required_metadata_fields = [
+            "sample_rate",
+            "bandwidth_min",
+            "bandwidth_max",
+            "signal_duration_in_samples_min",
+            "signal_duration_in_samples_max",
+        ]
+        self.set_default_class_name("fm")
 
-        # signal params
-        num_iq_samples_signal = self._signal.metadata.duration_in_samples
-        bandwidth = self._signal.metadata.bandwidth
+    def generate(self) -> Signal:
+        """Generates an FM signal based on the configured parameters.
 
-        # FM modulator at complex baseband
-        self._signal.data = fm_modulator(
-            bandwidth,
-            sample_rate,
-            num_iq_samples_signal,
-            self.random_generator
+        Returns:
+            Signal: Generated FM signal with metadata.
+
+        Raises:
+            ValueError: If required metadata fields are missing or invalid.
+        """
+        # Get parameters from metadata
+        sample_rate = self["sample_rate"]
+        num_iq_samples_signal = self.random_generator.integers(
+            low=self["signal_duration_in_samples_min"],
+            high=self["signal_duration_in_samples_max"] + 1,
+        )
+        bandwidth = self.random_generator.integers(
+            low=self["bandwidth_min"], high=self["bandwidth_max"] + 1
         )
 
-    def _update_metadata(self) -> None:
-        """Performs a signals-specific update of signal metadata.
+        # Generate signal
+        signal_data = fm_modulator(
+            bandwidth, sample_rate, num_iq_samples_signal, self.random_generator
+        )
 
-        This does nothing because the signal does not need any 
-        fields to be updated. This `_update_metadata()` must be
-        implemented but is not required to create or modify any data
-        or fields for this particular signal case.
-        """
-
-
-
+        return Signal(data=signal_data, center_freq=0, bandwidth=bandwidth)
