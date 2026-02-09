@@ -1,276 +1,277 @@
-"""Constellation Signal Builder and Modulator
-"""
-# TorchSig
-from torchsig.signals.builder import SignalBuilder
-from torchsig.datasets.dataset_metadata import DatasetMetadata
+"""Constellation Signal Builder and Modulator Module"""
+
+from __future__ import annotations
+
+import numpy as np
+import scipy.signal as sp
+
+from torchsig.signals.builder import BaseSignalGenerator
+from torchsig.signals.builders.constellation_maps import all_symbol_maps
+from torchsig.signals.signal_types import Signal
 from torchsig.utils.dsp import (
+    TorchSigComplexDataType,
     estimate_filter_length,
-    srrc_taps, 
     multistage_polyphase_resampler,
     pad_head_tail_to_length,
     slice_head_tail_to_length,
     slice_tail_to_length,
-    TorchSigComplexDataType
+    srrc_taps,
 )
-from torchsig.signals.signal_lists import TorchSigSignalLists
-from torchsig.signals.builders.constellation_maps import all_symbol_maps
-
-# Third Party
-import numpy as np
-import scipy.signal as sp
-
-# Built-In
-from copy import copy
 
 
-# Modulator
-
-def constellation_modulator_baseband ( class_name:str, pulse_shape_name:str, max_num_samples:int, oversampling_rate_nominal:int, alpha_rolloff:float=None, rng=np.random.default_rng() ) -> np.ndarray:
+def constellation_modulator_baseband(
+    constellation_name: str,
+    pulse_shape_name: str,
+    max_num_samples: int,
+    oversampling_rate_nominal: int,
+    alpha_rolloff: float | None = None,
+    rng: np.random.Generator | None = None,
+) -> np.ndarray:
     """Modulates constellation based signals (QAM/PSK/ASK/OOK) at complex baseband.
 
     Args:
-        class_name (str): Name of the signal to modulate, ex: 'qpsk'.
-        pulse_shape_name (str): Pulse shaping filter selection, 'rectangular' or 'srrc' (square-root raised cosine).
-        max_num_samples (int): Maximum number of samples to be produced. The length of
-            the output signal must be less than or equal to this number.
-        oversampling_rate_nominal (int): The amount of oversampling, which is equal to
-            the ratio of the ratio of the sampling rate and bandwidth.
-        alpha_rolloff (float, optional): The alpha-rolloff value for the SRRC filter. If pulse_shape_name == 'recantangular'
-            then this value is ignored. If pulse_shape_name == 'srrc' then this value must be defined, and within the range
-            0 < alpha_rolloff < 1. Defaults to None.
-        rng (optional): Seedable random number generator for reproducibility.
-
-    Raises:
-        ValueError: Raises ValueError if pulse_shape_name is neither 'rectangular' or 'srrc'.
-        ValueError: Raises ValueError if alpha_rolloff is not defined when selecting 'srrc'.
+        constellation_name: Name of the signal to modulate (e.g., 'qpsk').
+        pulse_shape_name: Pulse shaping filter selection ('rectangular' or 'srrc').
+        max_num_samples: Maximum number of samples to be produced.
+        oversampling_rate_nominal: The amount of oversampling (sampling_rate/bandwidth).
+        alpha_rolloff: The alpha-rolloff value for the SRRC filter (0 < alpha_rolloff < 1).
+        rng: Random number generator for reproducibility. If None, creates a new default generator.
 
     Returns:
         np.ndarray: IQ samples of the constellation-modulated complex baseband signal.
-    """
 
-    # also the samples per symbol
+    Raises:
+        ValueError: If pulse_shape_name is neither 'rectangular' or 'srrc'.
+        ValueError: If alpha_rolloff is not defined when selecting 'srrc'.
+        ValueError: If max_num_samples or oversampling_rate_nominal are not positive.
+    """
+    # Input validation
+    if max_num_samples <= 0:
+        raise ValueError("max_num_samples must be positive")
+    if oversampling_rate_nominal <= 0:
+        raise ValueError("oversampling_rate_nominal must be positive")
+
+    # Create random number generator if not provided
+    if rng is None:
+        rng = np.random.default_rng()
+
+    # Get symbol map and normalize to unit power
+    symbol_map = all_symbol_maps[constellation_name]
+    symbol_map = symbol_map / np.sqrt(np.mean(np.abs(symbol_map) ** 2))
+
+    # Pulse shaping
     samples_per_symbol = oversampling_rate_nominal
 
-    # get symbol map
-    symbol_map = all_symbol_maps[class_name]
-
-    # ensure symbol map is avg unit power
-    symbol_map = symbol_map / np.sqrt(np.mean(np.abs(symbol_map)**2))
-
-    # pulse shape
-    if pulse_shape_name == 'rectangular':
+    if pulse_shape_name == "rectangular":
         pulse_shape = np.ones(samples_per_symbol)
         pulse_shape_filter_span = 0
-    elif pulse_shape_name == 'srrc':
+    elif pulse_shape_name == "srrc":
         if alpha_rolloff is None:
-            raise ValueError('must define an alpha rolloff for SRRC filter')
-        # design the pulse shaping filter
+            raise ValueError("must define an alpha rolloff for SRRC filter")
+        if not 0 < alpha_rolloff < 1:
+            raise ValueError("alpha_rolloff must be between 0 and 1")
+
         attenuation_db = 120
-        pulse_shape_filter_length = estimate_filter_length(alpha_rolloff,attenuation_db,1)
-        pulse_shape_filter_span = int(np.ceil((pulse_shape_filter_length - 1) / (2*samples_per_symbol)))  # convert filter length into the span
-        pulse_shape = srrc_taps(samples_per_symbol, pulse_shape_filter_span, alpha_rolloff)
+        pulse_shape_filter_length = estimate_filter_length(
+            alpha_rolloff, attenuation_db, 1
+        )
+        pulse_shape_filter_span = int(
+            np.ceil((pulse_shape_filter_length - 1) / (2 * samples_per_symbol))
+        )
+        pulse_shape = srrc_taps(
+            samples_per_symbol, pulse_shape_filter_span, alpha_rolloff
+        )
     else:
-        raise ValueError('pulse shape ' + str(pulse_shape_name) + ' not supported')
+        raise ValueError(f"pulse shape {pulse_shape_name} not supported")
 
-    # number of symbols to subtract off from generation in order to produce
-    # a signal that is less than the desired length to avoid slicing a symbol
-    # 
-    # filter span = (number of symbols in pulse shape - 1)/2, therefore the span
-    # for a rectangular pulse shape is zero
-    subtract_off_symbols = 2*pulse_shape_filter_span
+    # Calculate number of symbols to generate
+    subtract_off_symbols = 2 * pulse_shape_filter_span
+    num_symbols = (
+        int(np.floor(max_num_samples / samples_per_symbol)) - subtract_off_symbols
+    )
+    num_symbols = max(num_symbols, 1)
 
-    # number of symbols to create. use floor() and subtract off based
-    # on filter span to ensure that a smaller number of samples is created
-    # and does not equal or exceed the max_num_samples. the idea is to avoid
-    # slicing a symbol, rather all samples from the transition periods are 
-    # to be retained
-    num_symbols = int(np.floor(max_num_samples/samples_per_symbol))-subtract_off_symbols
-
-    # enforce that the minimum number cannot be less than 1
-    num_symbols = 1 if num_symbols < 1 else num_symbols
-
-    # create symbols. because OOK has symbols which are zeros this needs to run
-    # a loop until 1 or more symbols are non-zero
+    # Generate symbols (handle OOK case where symbols might be zero)
     symbols = np.zeros(1)
     while np.equal(np.sum(np.abs(symbols)), 0):
-        # index into the symbol map
-        map_index = rng.integers(low=0,high=len(symbol_map),size=num_symbols)
-
-        # randomly generate symbols
+        map_index = rng.integers(low=0, high=len(symbol_map), size=num_symbols)
         symbols = symbol_map[map_index]
 
-    # interplate using pulse shaping filter
-    constellation_signal_baseband = sp.upfirdn(pulse_shape,symbols,up=samples_per_symbol,down=1)
+    # Apply pulse shaping
+    constellation_signal_baseband = sp.upfirdn(
+        pulse_shape, symbols, up=samples_per_symbol, down=1
+    )
 
-    # zero-pad if signal is too short
+    # Adjust signal length
     if len(constellation_signal_baseband) < max_num_samples:
-        constellation_signal_baseband = pad_head_tail_to_length ( constellation_signal_baseband, max_num_samples )
-    # slice if signal is too long
+        constellation_signal_baseband = pad_head_tail_to_length(
+            constellation_signal_baseband, max_num_samples
+        )
     elif len(constellation_signal_baseband) > max_num_samples:
-        constellation_signal_baseband = slice_tail_to_length ( constellation_signal_baseband, max_num_samples )
-    # else: signal correct length, do nothing
+        constellation_signal_baseband = slice_tail_to_length(
+            constellation_signal_baseband, max_num_samples
+        )
 
-    # ensure proper data type
-    constellation_signal_baseband = constellation_signal_baseband.astype(TorchSigComplexDataType)
+    return constellation_signal_baseband.astype(TorchSigComplexDataType)
 
-    return constellation_signal_baseband
 
-def constellation_modulator ( class_name:str, pulse_shape_name:str, bandwidth:float, sample_rate:float, num_samples:int, alpha_rolloff:float=None, rng=np.random.default_rng() ) -> np.ndarray:
+def constellation_modulator(
+    constellation_name: str,
+    pulse_shape_name: str,
+    bandwidth: float,
+    sample_rate: float,
+    num_samples: int,
+    alpha_rolloff: float | None = None,
+    rng: np.random.Generator | None = None,
+) -> np.ndarray:
     """Modulator for constellation-based signals (QAM/PSK/ASK/OOK).
 
     Args:
-        class_name (str): The modulation to create, ex: 'qpsk'.
-        pulse_shape_name (str): Pulse shaping filter selection, 'rectangular' or 'srrc' (square-root raised cosine).
-        bandwidth (float): The desired 3 dB bandwidth of the signal. Must be in the same
-            units as `sample_rate` and within the bounds 0 < `bandwidth` < `sample_rate`.
-        sample_rate (float): The sampling rate for the IQ signal. The sample rate can use a normalized value of 1, or it
-            can use a practical sample rate such as 10 MHz. However, it must use the same units as the bandwidth parameter.
-        num_samples (int): The number of IQ samples to produce.
-        alpha_rolloff (float, optional): The alpha-rolloff value for the SRRC filter. This is a pass through to
-            constellation_baseband_modulator(). If pulse_shape_name == 'recantangular' then this value is ignored. If
-            pulse_shape_name == 'srrc' then this value must be defined, and within the range 0 < alpha_rolloff < 1. Defaults
-            to None.
-        rng (optional): Seedable random number generator for reproducibility.
-
-    Raises:
-        ValueError: Raises ValueError if the number of samples produced is incorrect.
+        constellation_name: The modulation to create (e.g., 'qpsk').
+        pulse_shape_name: Pulse shaping filter selection ('rectangular' or 'srrc').
+        bandwidth: Desired 3 dB bandwidth of the signal (Hz).
+        sample_rate: Sampling rate for the IQ signal (Hz).
+        num_samples: Number of IQ samples to produce.
+        alpha_rolloff: The alpha-rolloff value for the SRRC filter (0 < alpha_rolloff < 1).
+        rng: Random number generator for reproducibility. If None, creates a new default generator.
 
     Returns:
-        np.ndarray: Returns the constellation-modulated IQ samples at the appropriate center frequency and bandwidth.
+        np.ndarray: Constellation-modulated IQ samples at the appropriate bandwidth.
+
+    Raises:
+        ValueError: If bandwidth or sample_rate are not positive.
+        ValueError: If bandwidth exceeds sample_rate/2.
+        ValueError: If num_samples is not positive.
+        ValueError: If the number of samples produced is incorrect.
     """
+    # Input validation
+    if bandwidth <= 0:
+        raise ValueError("bandwidth must be positive")
+    if sample_rate <= 0:
+        raise ValueError("sample_rate must be positive")
+    if bandwidth > sample_rate / 2:
+        raise ValueError("bandwidth must be less than sample_rate/2")
+    if num_samples <= 0:
+        raise ValueError("num_samples must be positive")
 
+    # Create random number generator if not provided
+    if rng is None:
+        rng = np.random.default_rng()
 
-    # calculate final oversampling rate
-    oversampling_rate = sample_rate/bandwidth
-
-    # modulate at a nominal oversampling rate. a resampling will be applied
-    # after the baseband modulation to bring it to the appropriate bandwidth.
+    # Calculate resampling parameters
+    oversampling_rate = sample_rate / bandwidth
     oversampling_rate_baseband = 4
+    resample_rate_ideal = oversampling_rate / oversampling_rate_baseband
 
-    # calculate the resampling rate needed to convert the baseband signal into proper bandwidth
-    resample_rate_ideal = oversampling_rate/oversampling_rate_baseband
+    # Determine baseband samples
+    num_samples_baseband_init = int(np.floor(num_samples / resample_rate_ideal))
+    num_samples_baseband = (
+        oversampling_rate_baseband
+        if num_samples_baseband_init <= 0
+        else num_samples_baseband_init
+    )
 
-    # determine how many samples baseband modulator needs to implement.
-    # use floor() to ensure that generated sequence is slightly less in
-    # order to avoid slicing any portion of the burst, and instead 
-    # zero-pad with a small number of samples at the end to bring up to 
-    # appropriate length
-    num_samples_baseband_init = int(np.floor(num_samples/resample_rate_ideal))
-    if num_samples_baseband_init <= 0:
-        num_samples_baseband = oversampling_rate_baseband
-    else:
-        num_samples_baseband = num_samples_baseband_init
-    
-    # modulate at baseband
-    constellation_signal_baseband = constellation_modulator_baseband ( class_name, pulse_shape_name, num_samples_baseband, oversampling_rate_baseband, alpha_rolloff, rng )
+    # Generate baseband signal
+    constellation_signal_baseband = constellation_modulator_baseband(
+        constellation_name,
+        pulse_shape_name,
+        num_samples_baseband,
+        oversampling_rate_baseband,
+        alpha_rolloff,
+        rng,
+    )
 
-    # apply resampling
-    constellation_mod_correct_bw = multistage_polyphase_resampler ( constellation_signal_baseband, resample_rate_ideal )
+    # Apply resampling
+    constellation_mod_correct_bw = multistage_polyphase_resampler(
+        constellation_signal_baseband, resample_rate_ideal
+    )
 
-    # either slice or pad the signal to the proper length
-    if len(constellation_mod_correct_bw) > num_samples:
-        constellation_mod_signal = slice_head_tail_to_length ( constellation_mod_correct_bw, num_samples )
-    else:
-        constellation_mod_signal = pad_head_tail_to_length ( constellation_mod_correct_bw, num_samples )
+    # Adjust signal length
+    constellation_mod_signal = (
+        slice_head_tail_to_length(constellation_mod_correct_bw, num_samples)
+        if len(constellation_mod_correct_bw) > num_samples
+        else pad_head_tail_to_length(constellation_mod_correct_bw, num_samples)
+    )
 
+    # Validate output length
     if len(constellation_mod_signal) != num_samples:
-        raise ValueError('constellation mod producing incorrect number of samples: ' + str(len(constellation_mod_signal)) + ' but requested: ' + str(num_samples))
+        raise ValueError(
+            f"constellation mod producing incorrect number of samples: "
+            f"{len(constellation_mod_signal)} but requested: {num_samples}"
+        )
 
-    # convert to appropriate type
-    constellation_mod_signal = constellation_mod_signal.astype(TorchSigComplexDataType)
-
-    return constellation_mod_signal
+    return constellation_mod_signal.astype(TorchSigComplexDataType)
 
 
+class ConstellationSignalGenerator(BaseSignalGenerator):
+    """Constellation Signal Generator.
 
-# Builder
-class ConstellationSignalBuilder(SignalBuilder):
-    """Implements the Constellation family signal generator.
-
-    Implements SignalBuilder() for the linearly modulated constellation-based families: QAM, PSK, PAM, ASK, OOK.
-
-    Attributes:
-        dataset_metadata (DatasetMetadata): Parameters describing the dataset required for signal generation. 
-        supported_classes (List[str]): List of supported signal classes. Set to `TorchSigSignalLists.constellation_signals`.
+    Implements multiple constellation based waveforms (QAM/PSK/ASK/OOK).
     """
-    supported_classes = TorchSigSignalLists.constellation_signals
 
-    
-    def __init__(self, dataset_metadata: DatasetMetadata, class_name: str, **kwargs):
-        """Initializes Constellation Signal Builder.
+    def __init__(self, **kwargs: dict[str, str | float | int]) -> None:
+        """Initializes Constellation Signal Generator.
 
         Args:
-            dataset_metadata (DatasetMetadata): Dataset metadata.
-            class_name (str, optional): Class name. 
-        """        
-        super().__init__(dataset_metadata=dataset_metadata, class_name=class_name, **kwargs)
+            **kwargs: Metadata parameters including:
+                - constellation_name: Name of the constellation (e.g., 'qpsk')
+                - sample_rate: Sampling rate (Hz)
+                - bandwidth_min: Minimum bandwidth (Hz)
+                - bandwidth_max: Maximum bandwidth (Hz)
+                - signal_duration_in_samples_min: Minimum signal duration (samples)
+                - signal_duration_in_samples_max: Maximum signal duration (samples)
 
+        Raises:
+            ValueError: If required metadata fields are missing or invalid.
+        """
+        super().__init__(**kwargs)
+        self.required_metadata_fields = [
+            "constellation_name",
+            "sample_rate",
+            "bandwidth_min",
+            "bandwidth_max",
+            "signal_duration_in_samples_min",
+            "signal_duration_in_samples_max",
+        ]
+        self.set_default_class_name(str(self["constellation_name"]))
 
-    def _update_data(self) -> None:
-        """Creates the IQ samples for the constellation waveform based on the signal metadata fields.
-        """        
-        # dataset params
-        sample_rate = self.dataset_metadata.sample_rate
+    def generate(self) -> Signal:
+        """Generates a constellation signal based on the configured parameters.
 
-        # signal params
-        class_name = self._signal.metadata.class_name
-        bandwidth = self._signal.metadata.bandwidth
-        num_iq_samples_signal = self._signal.metadata.duration_in_samples
+        Returns:
+            Signal: Generated constellation signal with metadata.
 
-        # randomize pulse shape selection
-        if np.equal(self.random_generator.integers(0,2),0):
-            pulse_shape_name = 'srrc'
-            # randomize alpha_rolloff
-            alpha_rolloff = self.random_generator.uniform(0.1,0.5)
+        Raises:
+            ValueError: If required metadata fields are missing or invalid.
+        """
+        # Get parameters from metadata
+        sample_rate = self["sample_rate"]
+        num_iq_samples_signal = self.random_generator.integers(
+            low=self["signal_duration_in_samples_min"],
+            high=self["signal_duration_in_samples_max"] + 1,
+        )
+        bandwidth = self.random_generator.integers(
+            low=self["bandwidth_min"], high=self["bandwidth_max"] + 1
+        )
+        constellation_name = self["constellation_name"]
+
+        # Randomize pulse shape selection
+        if self.random_generator.integers(0, 2) == 0:
+            pulse_shape_name = "srrc"
+            alpha_rolloff = self.random_generator.uniform(0.1, 0.5)
         else:
-            pulse_shape_name = 'rectangular'
+            pulse_shape_name = "rectangular"
             alpha_rolloff = None
 
-        # modulate waveform to complex baseband
-        self._signal.data = constellation_modulator(
-            class_name,
+        # Generate signal
+        signal_data = constellation_modulator(
+            constellation_name,
             pulse_shape_name,
             bandwidth,
             sample_rate,
             num_iq_samples_signal,
             alpha_rolloff,
-            self.random_generator
+            self.random_generator,
         )
 
-    def _update_metadata(self) -> None:
-        """Performs a signals-specific update of signal metadata.
-
-        The signal duration for a constellation waveform must be at least
-        1 symbol, which is greater than the default in dataset metadata which
-        is 1 sample. Therefore the duration needs to be recalculated based
-        on the other signal metadata fields, since a symbol period is dependent
-        on the oversampling rate (and therefore bandwidth).
-        """        
-        # the duration self._signal.metadata.duration_in_samples cannot be used for Constellation 
-        # waveform. the base class Builder() uses a minimum duration of 1 sample which is too small 
-        # for constellation and other modulated waveforms. instead, it has to be calculated to be at 
-        # least 1 symbol long which is based on the bandwidth and oversampling rate
-        minimum_duration_in_symbols = 1
-        oversampling_rate = int(np.ceil(self.dataset_metadata.sample_rate/self._signal.metadata.bandwidth))
-        minimum_duration_for_one_symbol = np.clip(oversampling_rate*minimum_duration_in_symbols, a_min=None, a_max=self.dataset_metadata.num_iq_samples_dataset)
-
-        # choose the larger of the two minimums
-        minimum_duration_in_samples = np.max((minimum_duration_for_one_symbol,self.dataset_metadata.signal_duration_in_samples_min))
-
-        # is duration parameter to be randomized?
-        if minimum_duration_in_samples == self.dataset_metadata.signal_duration_in_samples_max:
-            # the min and max fields are the same, so just use one of the fields
-            self._signal.metadata.duration_in_samples = copy(self.dataset_metadata.signal_duration_in_samples_min)
-        else:
-            # randomize the duration
-            self._signal.metadata.duration_in_samples = self.random_generator.integers(low=minimum_duration_in_samples, high=self.dataset_metadata.signal_duration_in_samples_max,dtype=int)
-
-        # is start parameter to be randomized?
-        if self._signal.metadata.duration_in_samples == self.dataset_metadata.num_iq_samples_dataset:
-            # duration is equal to the total dataset length, therefore start must be zero
-            self._signal.metadata.start_in_samples = 0
-        else:
-            # given duration, start is randomly set from 0 to rightmost time that the duration still fits inside the dataset iq samples
-            self._signal.metadata.start_in_samples = self.random_generator.integers(low=0, high=self.dataset_metadata.num_iq_samples_dataset - self._signal.metadata.duration_in_samples,dtype=int)
-
-
+        return Signal(data=signal_data, center_freq=0, bandwidth=bandwidth)

@@ -1,17 +1,16 @@
 """Collate function and DataLoader with worker seeding for TorchSig.
-
 Provides:
     - metadata_padding_collate_fn: pads variable-length metadata in each batch.
     - WorkerSeedingDataLoader: seeds each worker process differently for reproducibility.
 """
 
-from torchsig.utils.random import Seedable
+import warnings
 
+import numpy as np
 import torch
 from torch.utils.data import DataLoader
-import numpy as np
 
-import warnings
+from torchsig.utils.random import Seedable
 
 
 def metadata_padding_collate_fn(batch):
@@ -23,16 +22,15 @@ def metadata_padding_collate_fn(batch):
         3. Stacks data tensors and metadata fields into batched tensors.
 
     Args:
-        batch (List[Tuple[Any, List[Dict[str, Any]]]]):
-            A list where each element is a tuple of:
-                - x: any object convertible to a NumPy array (e.g., tensor, array).
-                - y: a list of metadata dicts, where each dict shares the same set of keys.
+        batch: A list where each element is a tuple of:
+            - x: any object convertible to a NumPy array (e.g., tensor, array).
+            - y: a list of metadata dicts, where each dict shares the same set of keys.
 
     Returns:
-        Tuple[torch.Tensor, Dict[str, torch.Tensor]]:
+        A tuple containing:
             - data_tensor: stacked torch.Tensor of all x values, shape (batch_size, ...).
             - metadata_tensors: dict mapping each metadata key to a Tensor of shape
-                (batch_size, max_sequence_length).
+              (batch_size, max_sequence_length).
 
     Raises:
         ValueError: if any element in `batch` is not a tuple of length 2.
@@ -54,7 +52,7 @@ def metadata_padding_collate_fn(batch):
         batch_max_len = max(batch_max_len, len(metadata_list))
 
         for metadata_obj in metadata_list:
-            for key in metadata_obj.keys():
+            for key in metadata_obj:
                 if key not in y_tensor_obj:
                     y_tensor_obj[key] = []
 
@@ -78,7 +76,7 @@ def metadata_padding_collate_fn(batch):
                     # Use .get() with default_y_value
                     value_lists[i].append(metadata_obj.get(key, default_y_value))
             else:
-                for key, value_lists in y_tensor_obj.items():
+                for value_lists in y_tensor_obj.values():
                     value_lists[i].append(default_y_value)
 
     # Convert lists to tensors, dropping invalid keys
@@ -88,9 +86,9 @@ def metadata_padding_collate_fn(batch):
             final_tensor_obj[key] = torch.Tensor(np.array(sequences))
         except (ValueError, TypeError, MemoryError) as e:
             warnings.warn(
-                f"Dropping key value: '{key}' because it contained invalid tensor values: {type(e).__name__}"
+                f"Dropping key value: '{key}' because it contained invalid tensor values: {type(e).__name__}",
+                stacklevel=2
             )
-
     return torch.Tensor(np.array(iqs)), final_tensor_obj
 
 
@@ -101,19 +99,24 @@ class WorkerSeedingDataLoader(DataLoader, Seedable):
     init function to ensure reproducible randomness in multi-worker pipelines.
     """
 
-    def __init__(self, dataset, **kwargs):
+    def __init__(self, dataset, seed=None, **kwargs):
         """Initialize DataLoader and Seedable, then assign custom worker init.
 
         Args:
-            dataset (Dataset): The dataset to load.
+            dataset: The dataset to load.
+            seed: Optional seed value. If None, a random seed is generated.
             **kwargs: Passed to both `DataLoader` and `Seedable` initializers.
 
         Raises:
             ValueError: if `worker_init_fn` is provided in kwargs.
         """
+        if seed is None:
+            seed = np.random.randint(
+                1000
+            )  # just pick a seed if none is given; should still seed with somehting
         DataLoader.__init__(self, dataset, **kwargs)
-        Seedable.__init__(self, **kwargs)
-
+        Seedable.__init__(self, seed=seed)
+        dataset.seed(seed)
         if self.worker_init_fn:
             raise ValueError(
                 "No worker_init_fn should be given to WorkerSeedingDataLoader; "
@@ -122,6 +125,15 @@ class WorkerSeedingDataLoader(DataLoader, Seedable):
 
         self.worker_init_fn = self.init_worker_seed
 
+    def seed(self, seed_val):
+        """Set the seed value for both the loader and its dataset.
+
+        Args:
+            seed_val: The seed value to set.
+        """
+        Seedable.seed(self, seed_val)
+        self.dataset.seed(seed_val)
+
     def init_worker_seed(self, worker_id):
         """Set a unique random seed for each worker process.
 
@@ -129,9 +141,10 @@ class WorkerSeedingDataLoader(DataLoader, Seedable):
         a new seed per `worker_id`.
 
         Args:
-            worker_id (int): The integer ID of the worker process.
+            worker_id: The integer ID of the worker process.
         """
         from torch.utils.data import get_worker_info
 
         seed = int(self.random_generator.random() * 100 + 1) * (worker_id + 1)
+        print(worker_id, "seed: ", seed)
         get_worker_info().dataset.seed(seed)

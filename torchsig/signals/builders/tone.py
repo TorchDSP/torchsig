@@ -1,72 +1,78 @@
-"""Tone Signal Builder and Modulator
-"""
+"""Tone Signal Builder and Modulator Module"""
 
-# TorchSig
-from torchsig.signals.builder import SignalBuilder
-from torchsig.datasets.dataset_metadata import DatasetMetadata
-from torchsig.utils.dsp import TorchSigComplexDataType
-from torchsig.signals.signal_lists import TorchSigSignalLists
+from __future__ import annotations
 
-# Third Party
 import numpy as np
 
+from torchsig.signals.builder import BaseSignalGenerator
+from torchsig.signals.signal_types import Signal
+from torchsig.utils.dsp import TorchSigComplexDataType
 
-# Modulator
-def tone_modulator ( num_samples:int ) -> np.ndarray:
+
+def tone_modulator(num_samples: int) -> np.ndarray:
     """Implements a tone modulator.
 
+    Generates a constant tone signal at baseband (all ones).
+
     Args:
-        num_samples (float): number of samples of shaped noise to create.
+        num_samples: Number of samples to generate.
 
     Returns:
-        np.ndarray: Modulated tone IQ samples with proper center frequency.
+        np.ndarray: Tone signal (array of ones) with shape (num_samples,).
+
+    Raises:
+        ValueError: If num_samples is not positive.
     """
-    # the tone at baseband is all ones
-    iq_samples = np.ones(num_samples,dtype=TorchSigComplexDataType)
-    return iq_samples
+    # Input validation
+    if num_samples <= 0:
+        raise ValueError("num_samples must be positive")
+
+    # Generate tone signal (all ones at baseband)
+    return np.ones(num_samples, dtype=TorchSigComplexDataType)
 
 
+class ToneSignalGenerator(BaseSignalGenerator):
+    """Tone Signal Generator.
 
-# Builder
-class ToneSignalBuilder(SignalBuilder):
-    """Implements SignalBuilder() for tone waveform.
-
-    Attributes:
-        dataset_metadata (DatasetMetadata): Parameters describing the dataset required for signal generation. 
-        supported_classes (List[str]): List of supported signal classes. Set to `["tone"]`.
+    Implements tone waveforms with configurable parameters.
     """
-    
-    supported_classes = TorchSigSignalLists.tone_signals
 
-    
-    def __init__(self, dataset_metadata: DatasetMetadata, class_name:str = 'tone', **kwargs):
-        """Initializes Tone Signal Builder. Sets `class_name= "tone"`.
+    def __init__(self, **kwargs: dict[str, str | float | int]) -> None:
+        """Initializes Tone Signal Generator.
 
         Args:
-            dataset_metadata (DatasetMetadata): Dataset metadata.
-            class_name (str, optional): Class name.
-        """        
-        super().__init__(dataset_metadata=dataset_metadata, class_name=class_name, **kwargs)
+            **kwargs: Metadata parameters including:
+                - signal_duration_in_samples_min: Minimum signal duration (samples)
+                - signal_duration_in_samples_max: Maximum signal duration (samples)
 
-    
-    def _update_data(self) -> None:
-        """Creates the IQ samples for the tone waveform based on the signal metadata fields.
-        """        
+        Raises:
+            ValueError: If required metadata fields are missing or invalid.
+        """
+        super().__init__(**kwargs)
+        self.required_metadata_fields = [
+            "signal_duration_in_samples_min",
+            "signal_duration_in_samples_max",
+        ]
+        self.set_default_class_name("tone")
 
-        # signal params
-        num_iq_samples_signal = self._signal.metadata.duration_in_samples
+    def generate(self) -> Signal:
+        """Generates a tone signal based on the configured parameters.
 
-        # tone modulator at complex baseband
-        self._signal.data = tone_modulator(
-            num_iq_samples_signal
+        Returns:
+            Signal: Generated tone signal with metadata.
+
+        Raises:
+            ValueError: If required metadata fields are missing or invalid.
+        """
+        # Get parameters from metadata
+        num_iq_samples_signal = self.random_generator.integers(
+            low=self["signal_duration_in_samples_min"],
+            high=self["signal_duration_in_samples_max"] + 1,
         )
 
-    def _update_metadata(self) -> None:
-        """Performs a signals-specific update of signal metadata.
+        # Generate signal
+        signal_data = tone_modulator(num_iq_samples_signal)
 
-        This does nothing because the signal does not need any 
-        fields to be updated. This `_update_metadata()` must be
-        implemented but is not required to create or modify any data
-        or fields for this particular signal case.
-        """
-
+        return Signal(
+            data=signal_data, center_freq=0, bandwidth=1  # Tone has 1Hz bandwidth
+        )

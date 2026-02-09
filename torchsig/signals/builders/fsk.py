@@ -1,287 +1,303 @@
-"""Frequency Shift Keying (FSK) and related Signal Builder and Modulator
-"""
+"""Frequency Shift Keying (FSK) and related Signal Builder and Modulator Module"""
 
-# TorchSig
-from torchsig.signals.builder import SignalBuilder
-from torchsig.datasets.dataset_metadata import DatasetMetadata
+from __future__ import annotations
+
+import numpy as np
+import scipy.signal as sp
+
+from torchsig.signals.builder import BaseSignalGenerator
+from torchsig.signals.signal_types import Signal
 from torchsig.utils.dsp import (
+    TorchSigComplexDataType,
     multistage_polyphase_resampler,
     pad_head_tail_to_length,
     slice_head_tail_to_length,
     slice_tail_to_length,
-    TorchSigComplexDataType
 )
-from torchsig.signals.signal_lists import TorchSigSignalLists
-
-# Third Party
-import numpy as np
-import scipy.signal as sp
-from copy import copy
-
-# Built-In
-from collections import OrderedDict
-
-def get_fsk_freq_map ( ):
-    """Contains symbol maps for FSK and MSK variants.
-
-    Returns:
-        OrderedDict: a dictionary of all symbol maps.
-    """
-    freq_map = OrderedDict(
-        {
-            "2fsk": np.linspace(-1 + (1 / 2), 1 - (1 / 2), 2, endpoint=True),
-            "2gfsk": np.linspace(-1 + (1 / 2), 1 - (1 / 2), 2, endpoint=True),
-            "2msk": np.linspace(-1 + (1 / 2), 1 - (1 / 2), 2, endpoint=True),
-            "2gmsk": np.linspace(-1 + (1 / 2), 1 - (1 / 2), 2, endpoint=True),
-            "4fsk": np.linspace(-1 + (1 / 4), 1 - (1 / 4), 4, endpoint=True),
-            "4gfsk": np.linspace(-1 + (1 / 4), 1 - (1 / 4), 4, endpoint=True),
-            "4msk": np.linspace(-1 + (1 / 4), 1 - (1 / 4), 4, endpoint=True),
-            "4gmsk": np.linspace(-1 + (1 / 4), 1 - (1 / 4), 4, endpoint=True),
-            "8fsk": np.linspace(-1 + (1 / 8), 1 - (1 / 8), 8, endpoint=True),
-            "8gfsk": np.linspace(-1 + (1 / 8), 1 - (1 / 8), 8, endpoint=True),
-            "8msk": np.linspace(-1 + (1 / 8), 1 - (1 / 8), 8, endpoint=True),
-            "8gmsk": np.linspace(-1 + (1 / 8), 1 - (1 / 8), 8, endpoint=True),
-            "16fsk": np.linspace(-1 + (1 / 16), 1 - (1 / 16), 16, endpoint=True),
-            "16gfsk": np.linspace(-1 + (1 / 16), 1 - (1 / 16), 16, endpoint=True),
-            "16msk": np.linspace(-1 + (1 / 16), 1 - (1 / 16), 16, endpoint=True),
-            "16gmsk": np.linspace(-1 + (1 / 16), 1 - (1 / 16), 16, endpoint=True),
-        }
-    )
-    return freq_map
 
 
-def get_fsk_mod_index( class_name:str, rng=np.random.default_rng() ) -> float:
-    """FSK modulation index.
-
-    The modulation index is a parameter that is derived from the symbol
-    spacing in the frequency domain. Orthogonal FSK has a modulation index of
-    1.0, and MSK and GMSK have a modulation index of 0.5. The modulation index
-    is randomized over a wide range for both GFSK and FSK.
+def get_fsk_freq_map(n: int) -> np.ndarray:
+    """Generates frequency symbol maps for FSK and MSK variants.
 
     Args:
-        class_name (str): Class name to return modulation index, ex: '2fsk'.
-        rng (optional): Seedable random number generator for reproducibility.
+        n: Number of frequency points in the constellation.
+
+    Returns:
+        np.ndarray: Array of frequency points for the constellation.
+    """
+    return np.linspace(-1 + (1 / n), 1 - (1 / n), n, endpoint=True)
+
+
+def get_fsk_mod_index(fsk_type: str, rng: np.random.Generator | None = None) -> float:
+    """Determines the modulation index for different FSK variants.
+
+    The modulation index is derived from the symbol spacing in the frequency domain.
+    Orthogonal FSK has a modulation index of 1.0, and MSK/GMSK have 0.5.
+
+    Args:
+        fsk_type: Type of FSK modulation ('fsk', 'gfsk', 'msk', 'gmsk').
+        rng: Random number generator for reproducibility. If None, creates a new default generator.
 
     Returns:
         float: Modulation index.
-    """
-    # returns the modulation index based on the modulation
-    if "gfsk" in class_name:
-        # bluetooth
-        mod_idx = rng.uniform(0.1,0.5)
-    elif "msk" in class_name:
-        # MSK, GMSK
-        mod_idx = 0.5
-    else: # FSK
-        # 50% chance to use mod index of 1 (orthogonal) ...
-        if rng.uniform(0,1) < 0.5:
-            mod_idx = 1
-        else:
-            # ... or something else (non-orthogonal). include
-            # a modulation index both less than 1 and greater
-            # than 1 to train over a variety of parameters
-            mod_idx = rng.uniform(0.7,1.01)
-    return mod_idx
 
-def gaussian_taps(samples_per_symbol: int, bt:float, rng=np.random.default_rng()) -> np.ndarray:
-    """Designs a gaussian pulse shape for GMSK and GFSK.
+    Raises:
+        ValueError: If fsk_type is not one of the supported types.
+    """
+    if rng is None:
+        rng = np.random.default_rng()
+
+    if fsk_type == "gfsk":
+        # Bluetooth GFSK
+        return rng.uniform(0.1, 0.5)
+    if fsk_type in ("msk", "gmsk"):
+        # MSK and GMSK
+        return 0.5
+    if fsk_type == "fsk":
+        # FSK - 50% chance for orthogonal (mod_idx=1) or non-orthogonal
+        orthogonal_probability = 0.50
+        return (
+            1.0
+            if rng.uniform(0, 1) < orthogonal_probability
+            else rng.uniform(0.7, 1.01)
+        )
+    raise ValueError(f"Unexpected fsk_type: {fsk_type}")
+
+
+def gaussian_taps(
+    samples_per_symbol: int, bt: float, rng: np.random.Generator | None = None
+) -> np.ndarray:
+    """Designs a Gaussian pulse shape for GMSK and GFSK.
 
     Args:
-        samples_per_symbol (int): Number of samples per symbol.
-        bt (float): The time-bandwidth product for the Gaussian pulse shape. On the range 0.0 to 1.0.
-        rng (optional): Seedable random number generator for reproducibility.
+        samples_per_symbol: Number of samples per symbol.
+        bt: Time-bandwidth product (0.0 to 1.0).
+        rng: Random number generator for reproducibility. If None, creates a new default generator.
 
     Returns:
-        np.ndarray: Filter weights for the gaussian pulse shape.
+        np.ndarray: Filter weights for the Gaussian pulse shape.
+
+    Raises:
+        ValueError: If bt is not in the valid range (0.0 to 1.0).
     """
-    # pre-modulation Bb*T product which sets the bandwidth of the Gaussian lowpass filter
-    m = rng.integers(1,5) # randomize the filter span
+    if rng is None:
+        rng = np.random.default_rng()
+
+    if not 0.0 <= bt <= 1.0:
+        raise ValueError("bt must be between 0.0 and 1.0")
+
+    m = rng.integers(1, 5)  # Randomize filter span
     n = np.arange(-m * samples_per_symbol, m * samples_per_symbol + 1)
     p = np.exp(-2 * np.pi**2 * bt**2 / np.log(2) * (n / float(samples_per_symbol)) ** 2)
-    p = p / np.sum(p)
-    return p
+    return p / np.sum(p)
 
 
-def fsk_modulator_baseband ( class_name:str, max_num_samples:int, oversampling_rate_nominal:int, rng=np.random.default_rng() ) -> np.ndarray:
+def fsk_modulator_baseband(
+    constellation_size: int,
+    fsk_type: str,
+    max_num_samples: int,
+    oversampling_rate_nominal: int,
+    rng: np.random.Generator | None = None,
+) -> np.ndarray:
     """FSK modulator at baseband.
 
     Args:
-        class_name (str): Name of the signal to modulate, ex: '2fsk'.
-        max_num_samples (int): Maximum number of samples to be produced. The length of
-            the output signal must be less than or equal to this number.
-        oversampling_rate_nominal (int): The amount of oversampling, which is equal to
-            the ratio of the ratio of the sampling rate and bandwidth.
-        rng (optional): Seedable random number generator for reproducibility.
+        constellation_size: Number of points in the constellation.
+        fsk_type: Type of FSK modulation ('fsk', 'gfsk', 'msk', 'gmsk').
+        max_num_samples: Maximum number of samples to produce.
+        oversampling_rate_nominal: Oversampling rate (sampling_rate/bandwidth).
+        rng: Random number generator for reproducibility. If None, creates a new default generator.
 
     Returns:
         np.ndarray: FSK modulated signal at baseband.
+
+    Raises:
+        ValueError: If max_num_samples or oversampling_rate_nominal are not positive.
     """
+    # Input validation
+    if max_num_samples <= 0:
+        raise ValueError("max_num_samples must be positive")
+    if oversampling_rate_nominal <= 0:
+        raise ValueError("oversampling_rate_nominal must be positive")
 
-    # determine modulation index
-    mod_idx = get_fsk_mod_index(class_name,rng)
+    if rng is None:
+        rng = np.random.default_rng()
 
-    # get the FSK frequency symbol map
-    freq_map = get_fsk_freq_map()
+    # Determine modulation index
+    mod_idx = get_fsk_mod_index(fsk_type, rng)
 
-    # get the constellation to modulate
-    const = freq_map[class_name]
-
-    # scale the frequency map by the oversampling rate such that the tones
-    # are packed tighter around f=0 the larger the oversampling rate
+    # Get FSK frequency symbol map
+    const = get_fsk_freq_map(constellation_size)
     const_oversampled = const / oversampling_rate_nominal
 
-    # calculate the modulation order, ex: the "4" in "4-FSK"
+    # Calculate modulation order and samples per symbol
     mod_order = len(const)
-
-    # determine how many samples are in each symbol
     samples_per_symbol = int(mod_order * oversampling_rate_nominal)
 
-    # rectangular pulse shape
+    # Create pulse shape
     pulse_shape = np.ones(samples_per_symbol)
 
-    if "g" in class_name: # GMSK, GFSK
-        # design the gaussian pulse shape with the bandwidth as dictated by the oversampling rate
-        #preresample_bandwidth = 1/oversampling_rate_nominal
-        bt = rng.uniform(0.1,0.5) # randomize the time-bandwdith product
+    if "g" in fsk_type:  # GMSK, GFSK
+        bt = rng.uniform(0.1, 0.5)  # Randomize time-bandwidth product
         taps = gaussian_taps(samples_per_symbol, bt, rng)
-        pulse_shape = sp.convolve(taps,pulse_shape)
+        pulse_shape = sp.convolve(taps, pulse_shape)
 
-    # account for the increase in samples due to convolution of pulse shaping filter
+    # Calculate number of symbols
     max_num_samples_minus_pulse_shape = max_num_samples - len(pulse_shape) + 1
+    num_symbols = max(
+        1, int(np.floor(max_num_samples_minus_pulse_shape / samples_per_symbol))
+    )
 
-    # convert number of samples into number of symbols
-    num_symbols = int(np.floor(max_num_samples_minus_pulse_shape/samples_per_symbol))
-
-    num_symbols = 1 if num_symbols <= 0 else num_symbols
-
-    # calculate the indexes into symbol table
+    # Generate symbols
     symbol_nums = rng.integers(0, len(const_oversampled), num_symbols)
-
-    # produce data symbols
     symbols = const_oversampled[symbol_nums]
 
-    # upsample symbols and apply pulse shaping
-    filtered = sp.upfirdn(pulse_shape,symbols,up=samples_per_symbol,down=1)
-
-    # phase accumulator and scaling
+    # Apply pulse shaping and modulation
+    filtered = sp.upfirdn(pulse_shape, symbols, up=samples_per_symbol, down=1)
     phase = np.cumsum(np.array(filtered) * 1j * mod_idx * np.pi)
-
-    # apply frequency modulation
     modulated = np.exp(phase)
 
-    # pad if signal is too long
+    # Adjust signal length
     if len(modulated) > max_num_samples:
-        # slice to max length
-        modulated = slice_tail_to_length ( modulated, max_num_samples )
+        modulated = slice_tail_to_length(modulated, max_num_samples)
     elif len(modulated) < max_num_samples:
-        # pad to full length
-        modulated = pad_head_tail_to_length ( modulated, max_num_samples )
-    # else: correct length do nothing
+        modulated = pad_head_tail_to_length(modulated, max_num_samples)
 
     return modulated
 
-def fsk_modulator ( class_name:str, bandwidth:float, sample_rate:float, num_samples:int, rng=np.random.default_rng() ) -> np.ndarray:
+
+def fsk_modulator(
+    constellation_size: int,
+    fsk_type: str,
+    bandwidth: float,
+    sample_rate: float,
+    num_samples: int,
+    rng: np.random.Generator | None = None,
+) -> np.ndarray:
     """FSK modulator.
 
     Args:
-        class_name (str): The modulation to create, ex: '2fsk'.
-        bandwidth (float): The desired 3 dB bandwidth of the signal. Must be in the same
-            units as `sample_rate` and within the bounds 0 < `bandwidth` < `sample_rate`.
-        sample_rate (float): The sampling rate for the IQ signal. The sample rate can use a normalized value of 1, or it
-            can use a practical sample rate such as 10 MHz. However, it must use the same units as the bandwidth parameter.
-        num_samples (int): The number of IQ samples to produce.
-        rng (optional): Seedable random number generator for reproducibility.
+        constellation_size: Number of points in the constellation.
+        fsk_type: Type of FSK modulation ('fsk', 'gfsk', 'msk', 'gmsk').
+        bandwidth: Desired 3 dB bandwidth of the signal (Hz).
+        sample_rate: Sampling rate for the IQ signal (Hz).
+        num_samples: Number of IQ samples to produce.
+        rng: Random number generator for reproducibility. If None, creates a new default generator.
 
     Returns:
-        np.ndarray: FSK modulated at the appropriate bandwidth.
-    """
+        np.ndarray: FSK modulated signal at the appropriate bandwidth.
 
-    # define the baseband oversampling rate
+    Raises:
+        ValueError: If bandwidth or sample_rate are not positive.
+        ValueError: If bandwidth exceeds sample_rate/2.
+        ValueError: If num_samples is not positive.
+    """
+    # Input validation
+    if bandwidth <= 0:
+        raise ValueError("bandwidth must be positive")
+    if sample_rate <= 0:
+        raise ValueError("sample_rate must be positive")
+    if bandwidth > sample_rate / 2:
+        raise ValueError("bandwidth must be less than sample_rate/2")
+    if num_samples <= 0:
+        raise ValueError("num_samples must be positive")
+
+    if rng is None:
+        rng = np.random.default_rng()
+
+    # Baseband modulation parameters
     oversampling_rate_nominal = 4
+    oversampling_rate = sample_rate / bandwidth
+    resample_rate_ideal = oversampling_rate / oversampling_rate_nominal
 
-    # calculate the output resampling rate
-    oversampling_rate = sample_rate/bandwidth
+    # Calculate baseband samples
+    max_num_samples = max(
+        oversampling_rate_nominal, int(np.floor(num_samples / resample_rate_ideal))
+    )
 
-    # how much to resample the baseband signal to match the bandwidth
-    resample_rate_ideal = oversampling_rate/oversampling_rate_nominal
+    # Generate and resample signal
+    baseband_signal = fsk_modulator_baseband(
+        constellation_size, fsk_type, max_num_samples, oversampling_rate_nominal, rng
+    )
 
-    # calculate the maximum number of samples to be produced by the baseband modulator
-    max_num_samples = int(np.floor(num_samples/resample_rate_ideal))
+    fsk_correct_bw = multistage_polyphase_resampler(
+        baseband_signal, resample_rate_ideal
+    )
+    fsk_correct_bw *= 1 / resample_rate_ideal
 
-    # ensures a minimum number of samples
-    if max_num_samples < oversampling_rate_nominal:
-        max_num_samples = copy(oversampling_rate_nominal)
+    # Adjust signal length
+    fsk_correct_bw = (
+        slice_head_tail_to_length(fsk_correct_bw, num_samples)
+        if len(fsk_correct_bw) > num_samples
+        else pad_head_tail_to_length(fsk_correct_bw, num_samples)
+    )
 
-    # modulate the baseband signal
-    baseband_signal = fsk_modulator_baseband ( class_name, max_num_samples, oversampling_rate_nominal, rng )
-
-    # apply resampling
-    fsk_correct_bw = multistage_polyphase_resampler ( baseband_signal, resample_rate_ideal )
-
-    # scale to account for the resampling
-    fsk_correct_bw *= 1/resample_rate_ideal
-
-    # either slice or pad the signal to the proper length
-    if len(fsk_correct_bw) > num_samples:
-        fsk_correct_bw = slice_head_tail_to_length ( fsk_correct_bw, num_samples )
-    else:
-        fsk_correct_bw = pad_head_tail_to_length ( fsk_correct_bw, num_samples )
-
-    # convert into the appropriate data type
-    fsk_correct_bw = fsk_correct_bw.astype(TorchSigComplexDataType)
-
-    return fsk_correct_bw
+    return fsk_correct_bw.astype(TorchSigComplexDataType)
 
 
-# Builder
-class FSKSignalBuilder(SignalBuilder):
-    """Implements SignalBuilder() for frequency shift keying modulation (FSK) waveform.
+class FSKSignalGenerator(BaseSignalGenerator):
+    """FSK Signal Generator.
 
-    Attributes:
-        dataset_metadata (DatasetMetadata): Parameters describing the dataset required for signal generation. 
-        supported_classes (List[str]): List of supported signal classes. Set to `["2fsk"]`.
+    Implements FSK waveforms with configurable parameters.
     """
-    
-    supported_classes = TorchSigSignalLists.fsk_signals
 
-    
-    def __init__(self, dataset_metadata: DatasetMetadata, class_name:str = '2fsk', **kwargs):
-        """Initializes FSK Signal Builder. Sets `class_name= "2fsk"`.
+    def __init__(self, **kwargs: dict[str, str | float | int]) -> None:
+        """Initializes FSK Signal Generator.
 
         Args:
-            dataset_metadata (DatasetMetadata): Dataset metadata.
-            class_name (str, optional): Class name.
-        """        
-        super().__init__(dataset_metadata=dataset_metadata, class_name=class_name, **kwargs)
+            **kwargs: Metadata parameters including:
+                - sample_rate: Sampling rate (Hz)
+                - bandwidth_min: Minimum bandwidth (Hz)
+                - bandwidth_max: Maximum bandwidth (Hz)
+                - fsk_type: Type of FSK ('fsk', 'gfsk', 'msk', 'gmsk')
+                - constellation_size: Number of points in the constellation
+                - signal_duration_in_samples_min: Minimum signal duration (samples)
+                - signal_duration_in_samples_max: Maximum signal duration (samples)
 
-    def _update_data(self) -> None:
-        """Creates the IQ samples for the FSK waveform based on the signal metadata fields.
-        """        
-        # dataset params
-        sample_rate = self.dataset_metadata.sample_rate
+        Raises:
+            ValueError: If required metadata fields are missing or invalid.
+        """
+        super().__init__(**kwargs)
+        self.required_metadata_fields = [
+            "sample_rate",
+            "bandwidth_min",
+            "bandwidth_max",
+            "fsk_type",
+            "constellation_size",
+            "signal_duration_in_samples_min",
+            "signal_duration_in_samples_max",
+        ]
+        self.set_default_class_name(f"{self['constellation_size']}{self['fsk_type']}")
 
-        # signal params
-        num_iq_samples_signal = self._signal.metadata.duration_in_samples
-        bandwidth = self._signal.metadata.bandwidth
-        class_name = self._signal.metadata.class_name
+    def generate(self) -> Signal:
+        """Generates an FSK signal based on the configured parameters.
 
-        # FSK modulator at complex baseband
-        self._signal.data = fsk_modulator(
-            class_name,
+        Returns:
+            Signal: Generated FSK signal with metadata.
+
+        Raises:
+            ValueError: If required metadata fields are missing or invalid.
+        """
+        # Get parameters from metadata
+        sample_rate = self["sample_rate"]
+        num_iq_samples_signal = self.random_generator.integers(
+            low=self["signal_duration_in_samples_min"],
+            high=self["signal_duration_in_samples_max"] + 1,
+        )
+        bandwidth = self.random_generator.integers(
+            low=self["bandwidth_min"], high=self["bandwidth_max"] + 1
+        )
+        fsk_type = self["fsk_type"]
+        constellation_size = self["constellation_size"]
+
+        # Generate signal
+        signal_data = fsk_modulator(
+            constellation_size,
+            fsk_type,
             bandwidth,
             sample_rate,
             num_iq_samples_signal,
-            self.random_generator
+            self.random_generator,
         )
 
-    def _update_metadata(self) -> None:
-        """Performs a signals-specific update of signal metadata.
-
-        This does nothing because the signal does not need any 
-        fields to be updated. This `_update_metadata()` must be
-        implemented but is not required to create or modify any data
-        or fields for this particular signal case.
-        """
-
-
-
+        return Signal(data=signal_data, center_freq=0, bandwidth=bandwidth)

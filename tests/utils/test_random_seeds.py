@@ -1,5 +1,4 @@
-""" Testing the random seeding functionality of the Seedable class
-"""
+"""Testing the random seeding functionality of the Seedable class"""
 
 import pytest
 
@@ -32,6 +31,7 @@ def test_single_seedable():
     assert val_1 == other_new_val_1
     assert val_2 == other_new_val_2
 
+
 def test_parent_seedable():
     s0 = Seedable()
     s0.seed(1776)
@@ -52,4 +52,3 @@ def test_parent_seedable():
     assert val_0 == new_val_0
     assert val_1 == new_val_1
     assert val_2 == new_val_2
-

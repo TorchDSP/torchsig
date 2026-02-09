@@ -17,15 +17,11 @@ TorchSig
     :caption: Contents:
 
     datasets
-    image_datasets
     signals
     transforms
     metadata_transforms
     utils
     api
-   
-.. .. automodule:: torchsig
-..     :members:
 
 Indices and tables
 ==================
