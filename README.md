@@ -35,24 +35,41 @@ TorchSig has a series of Jupyter notebooks in the `examples/` directory. View th
 # Usage
 
 ## Generating Datasets with Python API
-TorchSig 2.0 uses a unified dataset architecture. Create datasets using the Python API:
+TorchSig uses a unified dataset architecture. Create datasets using the Python API:
 ```python
-from torchsig.datasets.datasets import TorchSigIterableDataset
-from torchsig.utils.writer import DatasetCreator
-from torchsig.datasets.dataset_metadata import DatasetMetadata
+# define dataset metadata, can override defaults
+dataset_metadata = TorchSigDefaults().default_dataset_metadata
 
-# Create dataset metadata
-metadata = DatasetMetadata(
-    num_iq_samples_dataset=4096,
-    num_samples=100,
-    impairment_level=1,  # 0=perfect, 1=cabled, 2=wireless
-    num_signals_max=1,   # 1 for classification, >1 for detection
+# optionally, apply impairments
+impairments = Impairments(level=0)
+burst_impairments = impairments.signal_transforms
+whole_signal_impairments = impairments.dataset_transforms
+
+# create the dataset
+dataset = TorchSigIterableDataset(
+  metadata=dataset_metadata,
+  transforms=[whole_signal_impairments, Spectrogram(fft_size=dataset_metadata["fft_size"])],
+  component_transforms=[burst_impairments],
+)
+# create a dataloader (reproducible)
+dataloader = WorkerSeedingDataLoader(dataset, batch_size=2)
+
+# save the dataset to disk
+dataset_creator = DatasetCreator(
+  dataset_length=20,
+  dataloader=dataloader,
+  root="./sample_dataset",
+  overwrite=True,
+  multithreading=False,
+)
+dataset_creator.create()
+
+# load the dataset in from disk
+static_dataset = StaticTorchSigDataset(
+  root="./sample_dataset",
 )
 
-# Create and write dataset
-dataset = TorchSigIterableDataset(metadata)
-creator = DatasetCreator(dataset, root="<path to root>")
-creator.create()
+print(static_dataset[0])
 ```
 
 # Docker
@@ -68,29 +85,83 @@ To create datasets with the Docker container, create a Python script and run it:
 # create_dataset.py
 from torchsig.datasets.datasets import TorchSigIterableDataset
 from torchsig.utils.writer import DatasetCreator
-from torchsig.datasets.dataset_metadata import DatasetMetadata
+from torchsig.utils.defaults import TorchSigDefaults
+from torchsig.transforms.impairments import Impairments
+from torchsig.transforms.transforms import Spectrogram
 
 # Classification dataset (single signal)
-metadata = DatasetMetadata(
-    num_iq_samples_dataset=100,
-    num_samples=10,
-    impairment_level=2,  # wireless
-    num_signals_max=1,
+dataset_metadata = TorchSigDefaults().default_dataset_metadata
+dataset_metadata["num_iq_samples_dataset"] = 100
+dataset_metadata["num_signals_min"] = 1
+dataset_metadata["num_signals_max"] = 1
+
+impairments = Impairments(level=0)
+burst_impairments = impairments.signal_transforms
+whole_signal_impairments = impairments.dataset_transforms
+
+dataset = TorchSigIterableDataset(
+    metadata=dataset_metadata,
+    transforms=[
+        whole_signal_impairments,
+        Spectrogram(fft_size=dataset_metadata["fft_size"]),
+    ],
+    component_transforms=[burst_impairments],
 )
-dataset = TorchSigIterableDataset(metadata)
-creator = DatasetCreator(dataset, root="/path/to/classification_dataset")
-creator.create()
+
+dataloader = WorkerSeedingDataLoader(dataset, batch_size=4)
+
+dataset_creator = DatasetCreator(
+    dataset_length=10,
+    dataloader=dataloader,
+    root="/path/to/classification_dataset",
+    overwrite=True,
+    multithreading=False,
+)
+dataset_creator.create()
 
 # Detection dataset (multiple signals)
-metadata = DatasetMetadata(
+dataset_metadata = DatasetMetadata(
     num_iq_samples_dataset=100,
     num_samples=10,
     impairment_level=2,  # wireless
     num_signals_max=3,
 )
-dataset = TorchSigIterableDataset(metadata)
+dataset = TorchSigIterableDataset(
+    metadata=dataset_metadata,
+    transforms=[Spectrogram(fft_size=dataset_metadata["fft_size"])],
+)
 creator = DatasetCreator(dataset, root="/path/to/detection_dataset")
 creator.create()
+
+dataset_metadata = TorchSigDefaults().default_dataset_metadata
+dataset_metadata["num_iq_samples_dataset"] = 100
+dataset_metadata["num_signals_min"] = 1
+dataset_metadata["num_signals_max"] = 3
+
+impairments = Impairments(level=2)
+burst_impairments = impairments.signal_transforms
+whole_signal_impairments = impairments.dataset_transforms
+
+dataset = TorchSigIterableDataset(
+    metadata=dataset_metadata,
+    transforms=[
+        whole_signal_impairments,
+        Spectrogram(fft_size=dataset_metadata["fft_size"]),
+    ],
+    component_transforms=[burst_impairments],
+)
+
+dataloader = WorkerSeedingDataLoader(dataset, batch_size=4)
+
+dataset_creator = DatasetCreator(
+    dataset_length=10,
+    dataloader=dataloader,
+    root="/path/to/detection_dataset",
+    overwrite=True,
+    multithreading=False,
+)
+dataset_creator.create()
+
 ```
 
 ```bash
@@ -123,22 +194,19 @@ Then use the URL in the output in your browser to run the examples and notebooks
 
 # Key Features
 TorchSig provides many useful tools to facilitate and accelerate research on signals processing machine learning technologies:
-- **Unified Dataset Architecture**: TorchSig 2.0 features a single, flexible dataset system that supports both signal classification (single signal) and signal detection (multiple signals) tasks through configuration.
-- **Comprehensive Signal Library**: Support for 70+ signal types across all major modulation families (FSK, QAM, PSK, ASK, OFDM, Analog) with realistic impairments and channel effects.
+- **Unified Dataset Architecture**: TorchSig features a single, flexible dataset system that supports both signal classification (single signal) and signal detection (multiple signals) tasks through configuration.
+- **Comprehensive Signal Library**: Support for 60+ signal types across all major modulation families (FSK, QAM, PSK, ASK, OFDM, Analog) with realistic impairments and channel effects.
 - **Advanced Transform System**: Numerous signals processing transforms enable existing ML techniques to be employed on signals data, with unified impairment models supporting perfect, cabled, and wireless channel conditions.
-- **Web-based UI**: Complete offline web interface for dataset creation, model training, interactive labeling, and visualization - no internet connection required.
-- TorchSig also includes a model API similar to open source code in other ML domains, where several state-of-the-art convolutional and transformer-based neural architectures have been adapted to the signals domain. These models can be easily used for follow-on research in the form of additional hyperparameter tuning, out-of-the-box comparative analysis/evaluations, and/or fine-tuning to custom datasets.
 
 ## Core Classes
-- **`Signal` and `SignalMetadata`**: Enable signal objects and metadata to be seamlessly handled and operated on throughout the TorchSig infrastructure.
+- **`Signal` and `SignalMetadataObject`**: Enable signal objects and metadata to be seamlessly handled and operated on throughout the TorchSig infrastructure.
 - **`TorchSigIterableDataset`**: Unified dataset class that synthetically creates, augments, and transforms signals datasets. Behavior (classification vs detection) is determined by configuration parameters.
   - Can generate samples infinitely when `num_samples=None`, or finite datasets when `num_samples` is specified.
   - Dataset type determined by `num_signals_max`: 1 for classification, >1 for detection tasks.
-- **`DatasetCreator`**: Writes `TorchSigIterableDataset` objects to disk with progress tracking and memory optimization.
+- **`DatasetCreator`**: Writes a PyTorch `DataLoader` containing a `TorchSigIterableDataset` objects to disk with progress tracking and memory optimization.
 - **`StaticTorchSigDataset`**: Loads previously generated datasets from disk back into memory.
   - Can access previously generated samples efficiently.
   - Supports both classification and detection datasets through unified interface.
-- **`DatasetMetadata`**: Unified configuration class that replaces separate narrowband/wideband metadata classes.
 
 
 

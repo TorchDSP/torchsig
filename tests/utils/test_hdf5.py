@@ -17,49 +17,61 @@ YOLO_8 = (20, 0.8094482421875, 0.18160910573387345, 0.154541015625, 0.3632182113
 # --- Test Cases based on the provided table ---
 TEST_CASES_test_find_first_target = [
     # id, targets, expected_output
-    ("single_str", ('ofdm-300', [], [], []), 'ofdm-300'),
-    ("multi_str", (['ofdm-300', 'ook', '16psk'], ['am-dsb-sc', 'ofdm-256', '32psk'], ['am-lsb', '16msk'], []), 'ofdm-300'),
+    ("single_str", ("ofdm-300", [], [], []), "ofdm-300"),
+    ("multi_str", (["ofdm-300", "ook", "16psk"], ["am-dsb-sc", "ofdm-256", "32psk"], ["am-lsb", "16msk"], []), "ofdm-300"),
     ("single_int", (41, [], [], []), 41),
     ("multi_int", ([41, 0, 25], [49, 40, 26], [51, 20], []), 41),
     ("multi_int_with_zero", ([0, 41, 25], [49, 40, 26]), 0),
-    ("single_composite_tuple_name_index", (('ofdm-300', 41), [], [], []), ('ofdm-300', 41)),
-    ("multi_composite_tuple_name_index", ([('ofdm-300', 41), ('ook', 0), ('16psk', 25)], [('am-dsb-sc', 49)], [],), ('ofdm-300', 41)),
+    ("single_composite_tuple_name_index", (("ofdm-300", 41), [], [], []), ("ofdm-300", 41)),
+    (
+        "multi_composite_tuple_name_index",
+        (
+            [("ofdm-300", 41), ("ook", 0), ("16psk", 25)],
+            [("am-dsb-sc", 49)],
+            [],
+        ),
+        ("ofdm-300", 41),
+    ),
     ("single_yolo", (YOLO_1, [], [], []), YOLO_1),
     ("multi_yolo", ([YOLO_1, YOLO_2, YOLO_3], [YOLO_4, YOLO_5, YOLO_6], [YOLO_7, YOLO_8], []), YOLO_1),
-    ("single_composite_tuple_name_yolo", (('ofdm-300', YOLO_1), [], [], []), ('ofdm-300', YOLO_1)),
-    ("multi_composite_tuple_name_yolo", ([('ofdm-300', YOLO_1), ('ook', YOLO_2)], [('am-dsb-sc', YOLO_4)],), ('ofdm-300', YOLO_1)),
-    ("empty_first_then_valid_str", ([], 'ofdm-300', []), 'ofdm-300'),
-    ("empty_first_then_valid_list", ([], ['ofdm-300', 'ook'], []), 'ofdm-300'),
+    ("single_composite_tuple_name_yolo", (("ofdm-300", YOLO_1), [], [], []), ("ofdm-300", YOLO_1)),
+    (
+        "multi_composite_tuple_name_yolo",
+        (
+            [("ofdm-300", YOLO_1), ("ook", YOLO_2)],
+            [("am-dsb-sc", YOLO_4)],
+        ),
+        ("ofdm-300", YOLO_1),
+    ),
+    ("empty_first_then_valid_str", ([], "ofdm-300", []), "ofdm-300"),
+    ("empty_first_then_valid_list", ([], ["ofdm-300", "ook"], []), "ofdm-300"),
     ("all_empty", ([], [], (), []), None),
-    ("empty_tuple_then_valid", ((), 'ofdm-300'), 'ofdm-300'),
+    ("empty_tuple_then_valid", ((), "ofdm-300"), "ofdm-300"),
     ("empty_batch", (), None),
 ]
 
 
 YOLO_TUPLE = (41, 0.227, 0.253, 0.199, 0.078)
-YOLO_DTYPE = np.dtype([('f0', np.int32), ('f1', np.float32), ('f2', np.float32), ('f3', np.float32), ('f4', np.float32)])
+YOLO_DTYPE = np.dtype([("f0", np.int32), ("f1", np.float32), ("f2", np.float32), ("f3", np.float32), ("f4", np.float32)])
 YOLO_PADDING = (-1, -1.0, -1.0, -1.0, -1.0)
 
 COMPLEX_TUPLE = ("ofdm", YOLO_TUPLE)
-COMPLEX_DTYPE = np.dtype([('f0', '<S32'), ('f1', YOLO_DTYPE)])
-COMPLEX_PADDING = (b'-1', YOLO_PADDING)
+COMPLEX_DTYPE = np.dtype([("f0", "<S32"), ("f1", YOLO_DTYPE)])
+COMPLEX_PADDING = (b"-1", YOLO_PADDING)
 
 
 # --- Test Cases ---
 TEST_CASES_test_get_target_properties = [
     # id, target, expected_dtype, expected_shape, expected_padding
-    ("base_string", "a_string", '<S32', (), b'-1'),
+    ("base_string", "a_string", "<S32", (), b"-1"),
     ("base_int", 42, np.int32, (), -1),
     ("base_float", 3.14, np.float32, (), -1.0),
-
     ("uniform_list_int", [1, 2, 3], np.int32, (3,), (-1, -1, -1)),
-    ("uniform_list_str", ["a", "b"], '<S32', (2,), (b'-1', b'-1')),
+    ("uniform_list_str", ["a", "b"], "<S32", (2,), (b"-1", b"-1")),
     ("uniform_nested_list", [[1.0, 2.0], [3.0, 4.0]], np.float32, (2, 2), ((-1.0, -1.0), (-1.0, -1.0))),
-
     ("struct_yolo_tuple", YOLO_TUPLE, YOLO_DTYPE, (), YOLO_PADDING),
     ("struct_complex_tuple", COMPLEX_TUPLE, COMPLEX_DTYPE, (), COMPLEX_PADDING),
     ("struct_list_of_yolos", [YOLO_TUPLE, YOLO_TUPLE], YOLO_DTYPE, (2,), (YOLO_PADDING, YOLO_PADDING)),
-
     # --- Error Cases ---
     ("error_empty_list", [], None, None, pytest.raises(ValueError)),
     ("error_empty_tuple", (), None, None, pytest.raises(ValueError)),

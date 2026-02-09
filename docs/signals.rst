@@ -42,3 +42,10 @@ Signal Modulation Classes
     :members:
     :undoc-members:
     :show-inheritance:
+
+Signal Utilities
+--------------------------
+.. automodule:: torchsig.signals.signal_utils
+    :members:
+    :undoc-members:
+    :show-inheritance:

@@ -5,6 +5,7 @@ rectangles, and to detect overlaps between rectangles using line-segment interse
 and containment tests.
 """
 
+
 # class object to contain (x, y) coordinates
 class Coordinate:
     """Represents a point in 2D space with x and y coordinates.
@@ -30,7 +31,7 @@ class Coordinate:
         Returns:
             str: Formatted as 'x = {x}, y = {y}'.
         """
-        return f'x = {self.x}, y = {self.y}'
+        return f"x = {self.x}, y = {self.y}"
 
 
 # represents a rectangle shape with four vertices, each a Coordinate
@@ -58,12 +59,10 @@ class Rectangle:
         self.coord_upper_right = upper_coord
 
         self.coord_upper_left = Coordinate(
-            self.coord_lower_left.x,
-            self.coord_upper_right.y
+            self.coord_lower_left.x, self.coord_upper_right.y
         )
         self.coord_lower_right = Coordinate(
-            self.coord_upper_right.x,
-            self.coord_lower_left.y
+            self.coord_upper_right.x, self.coord_lower_left.y
         )
 
 
@@ -85,10 +84,7 @@ def counter_clock_wise(a: Coordinate, b: Coordinate, c: Coordinate) -> bool:
 
 # determine if two line segments (AB and CD) intersect
 def line_intersection(
-    a: Coordinate,
-    b: Coordinate,
-    c: Coordinate,
-    d: Coordinate
+    a: Coordinate, b: Coordinate, c: Coordinate, d: Coordinate
 ) -> bool:
     """Check if the line segments AB and CD intersect.
 
@@ -103,17 +99,14 @@ def line_intersection(
     Returns:
         bool: True if segments AB and CD intersect.
     """
-    return (
-        counter_clock_wise(a, c, d) != counter_clock_wise(b, c, d) and
-        counter_clock_wise(a, b, c) != counter_clock_wise(a, b, d)
-    )
+    return counter_clock_wise(a, c, d) != counter_clock_wise(
+        b, c, d
+    ) and counter_clock_wise(a, b, c) != counter_clock_wise(a, b, d)
 
 
 # determine if a point lies within the 1D interval [left, right]
 def is_within_range(
-    test_coord_x: float,
-    rectangle_left_x: float,
-    rectangle_right_x: float
+    test_coord_x: float, rectangle_left_x: float, rectangle_right_x: float
 ) -> bool:
     """Check if a coordinate lies within a closed interval on the x-axis.
 
@@ -129,10 +122,7 @@ def is_within_range(
 
 
 # determine if a rectangle corner lies inside another rectangle
-def is_corner_in_rectangle(
-    corner_coord: Coordinate,
-    reference_box: Rectangle
-) -> bool:
+def is_corner_in_rectangle(corner_coord: Coordinate, reference_box: Rectangle) -> bool:
     """Check if a corner point is within the bounds of a reference rectangle.
 
     Args:
@@ -145,20 +135,19 @@ def is_corner_in_rectangle(
     x_inside = is_within_range(
         corner_coord.x,
         reference_box.coord_lower_left.x,
-        reference_box.coord_lower_right.x
+        reference_box.coord_lower_right.x,
     )
     y_inside = is_within_range(
         corner_coord.y,
         reference_box.coord_lower_left.y,
-        reference_box.coord_upper_left.y
+        reference_box.coord_upper_left.y,
     )
     return x_inside and y_inside
 
 
 # determine if one rectangle is entirely within another
 def is_rectangle_inside_rectangle(
-    rectangle_1: Rectangle,
-    rectangle_2: Rectangle
+    rectangle_1: Rectangle, rectangle_2: Rectangle
 ) -> bool:
     """Check if rectangle_1 is completely inside rectangle_2.
 
@@ -175,16 +164,13 @@ def is_rectangle_inside_rectangle(
         rectangle_1.coord_lower_left,
         rectangle_1.coord_upper_left,
         rectangle_1.coord_upper_right,
-        rectangle_1.coord_lower_right
+        rectangle_1.coord_lower_right,
     ]
     return all(is_corner_in_rectangle(c, rectangle_2) for c in corners)
 
 
 # determine if two rectangles have any overlap
-def is_rectangle_overlap(
-    rectangle_a: Rectangle,
-    rectangle_b: Rectangle
-) -> bool:
+def is_rectangle_overlap(rectangle_a: Rectangle, rectangle_b: Rectangle) -> bool:
     """Check if two rectangles overlap by intersection or containment.
 
     Overlap occurs if:
@@ -203,25 +189,23 @@ def is_rectangle_overlap(
         (rectangle_a.coord_lower_left, rectangle_a.coord_lower_right),
         (rectangle_a.coord_lower_left, rectangle_a.coord_upper_left),
         (rectangle_a.coord_upper_left, rectangle_a.coord_upper_right),
-        (rectangle_a.coord_upper_right, rectangle_a.coord_lower_right)
+        (rectangle_a.coord_upper_right, rectangle_a.coord_lower_right),
     ]
     b_sides = [
         (rectangle_b.coord_lower_left, rectangle_b.coord_lower_right),
         (rectangle_b.coord_lower_left, rectangle_b.coord_upper_left),
         (rectangle_b.coord_upper_left, rectangle_b.coord_upper_right),
-        (rectangle_b.coord_upper_right, rectangle_b.coord_lower_right)
+        (rectangle_b.coord_upper_right, rectangle_b.coord_lower_right),
     ]
 
     # check for any side intersection
-    for (a1, a2) in a_sides:
-        for (b1, b2) in b_sides:
+    for a1, a2 in a_sides:
+        for b1, b2 in b_sides:
             if line_intersection(a1, a2, b1, b2):
                 return True
 
     # check for full containment either way
-    if is_rectangle_inside_rectangle(rectangle_a, rectangle_b):
-        return True
-    if is_rectangle_inside_rectangle(rectangle_b, rectangle_a):
-        return True
+    a_inside_b = is_rectangle_inside_rectangle(rectangle_a, rectangle_b)
+    b_inside_a = is_rectangle_inside_rectangle(rectangle_b, rectangle_a)
 
-    return False
+    return a_inside_b or b_inside_a

@@ -1,15 +1,14 @@
-"""File Handler Base and Utility Classes for reading and writing datasets to/from disk.
-"""
+"""File Handler Base and Utility Classes for reading and writing datasets to/from disk."""
 
 # TorchSig
-from torchsig.utils.printing import generate_repr_str
-
 # Third Party
-
 # Built-In
 import pathlib
 import shutil
 from typing import Any
+
+from torchsig.utils.printing import generate_repr_str
+
 
 def reset_folder(path: str) -> None:
     folder_path = pathlib.Path(path)
@@ -22,21 +21,23 @@ def reset_folder(path: str) -> None:
         else:
             # folder is not a directory
             raise ValueError(f"Path is not a directory: {path}")
-    
+
     # folder does not exists / is deleted
 
     # Recreate the folder
-    folder_path.mkdir(parents=True, exist_ok=True)  # 'parents=True' allows creation of intermediate dirs if needed
+    folder_path.mkdir(
+        parents=True, exist_ok=True
+    )  # 'parents=True' allows creation of intermediate dirs if needed
 
 
-class FileWriter():
+class FileWriter:
 
     def __init__(self, root: str, **kwargs):
         """File writer base clas
 
         Args:
             root (str): Location on disk to write dataset
-        """        
+        """
         self.root: pathlib.Path = pathlib.Path(root)
 
     def _setup(self) -> None:
@@ -77,7 +78,7 @@ class FileWriter():
         """Destructor to ensure clean resource cleanup"""
         try:
             self.teardown()
-        except Exception as e:
+        except Exception:
             pass  # Ignore errors during cleanup
 
     def __str__(self) -> str:
@@ -92,24 +93,25 @@ class FileWriter():
     def __enter__(self):
         self.setup()
         return self
+
     def __exit__(self, exc_type, exc_value, traceback):
         self.teardown()
         return False
 
-class FileReader():
+
+class FileReader:
 
     def __init__(self, root: str, **kwargs):
-        """file reader base class
+        """File reader base class
 
         Args:
             root (str): Dataset location on disk.
-        """        
+        """
         self.root = pathlib.Path(root)
         self.dataset_info_filepath = self.root.joinpath("dataset_info.yaml")
-        
 
     def read(self, idx: int) -> Any:
-        """load data from disk
+        """Load data from disk
 
         Args:
             idx (int): data item to load
@@ -119,7 +121,7 @@ class FileReader():
 
         Returns:
             Any: data and targets
-        """        
+        """
         raise NotImplementedError
 
     def __str__(self) -> str:
@@ -131,13 +133,14 @@ class FileReader():
     def __len__(self) -> int:
         raise NotImplementedError
 
-class BaseFileHandler():
+
+class BaseFileHandler:
     """File handler base class. Not be instantiated.
 
     Usage:
         >>> BaseFileHandler.create_handler(mode = "r", root = "./) # create a reader
         >>> BaseFileHandler.create_handler(mode = "w", root = "./) # create a writer
-    """    
+    """
 
     reader_class: FileReader = FileReader
     writer_class: FileWriter = FileWriter
@@ -155,13 +158,12 @@ class BaseFileHandler():
 
         Returns:
             FileWriter | FileReader: FileHandler's reader or writer.
-        """        
+        """
         if mode == "r":
             return BaseFileHandler.reader_class(root, **kwargs)
         if mode == "w":
             return BaseFileHandler.writer_class(root, **kwargs)
-        else:
-            raise ValueError(f"Invalid File Handler mode: {mode}")
+        raise ValueError(f"Invalid File Handler mode: {mode}")
 
     def __str__(self) -> str:
         return f"{self.__class__.__name__}"
