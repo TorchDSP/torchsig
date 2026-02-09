@@ -1,0 +1,15 @@
+name: Trigger RTD on main or release
+on:
+  push:
+    branches: [ main ]  # Only trigger on main
+  release:
+    types: [ published ]  # Only trigger on new releases
+jobs:
+  trigger-rtd:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger RTD build
+        run: |
+          curl -X POST \
+            -H "Authorization: token ${{ secrets.RTD_WEBHOOK_SECRET }}" \
+            "https://app.readthedocs.org/api/v2/webhook/torchsig/213963/"

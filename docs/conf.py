@@ -21,7 +21,7 @@ from torchsig import __version__
 # If extensions (or modules to document with autodoc) are in another directory,
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute, like shown here.
-sys.path.insert(0, os.path.abspath('..'))
+sys.path.insert(0, os.path.abspath(".."))
 
 # -- General configuration -----------------------------------------------------
 
@@ -31,36 +31,36 @@ sys.path.insert(0, os.path.abspath('..'))
 # Add any Sphinx extension module names here, as strings. They can be extensions
 # coming with Sphinx (named 'sphinx.ext.*') or your custom ones.
 extensions = [
-    'sphinx.ext.autodoc',
-    'sphinx.ext.doctest',
-    'sphinx.ext.intersphinx',
-    'sphinx.ext.todo',
-    'sphinx.ext.coverage',
-    'sphinx.ext.mathjax',
-    'sphinx.ext.viewcode',
-    'sphinx.ext.napoleon', # allows autodoc from Google Style docstrings
-    'sphinx.ext.autosummary'
+    "sphinx.ext.autodoc",
+    "sphinx.ext.doctest",
+    "sphinx.ext.intersphinx",
+    "sphinx.ext.todo",
+    "sphinx.ext.coverage",
+    "sphinx.ext.mathjax",
+    "sphinx.ext.viewcode",
+    "sphinx.ext.napoleon",  # allows autodoc from Google Style docstrings
+    "sphinx.ext.autosummary",
 ]
 
 autosummary_generate = True
-autodoc_member_order = 'bysource'
-autodoc_default_flags = ['members', 'inherited-members']
+autodoc_member_order = "bysource"
+autodoc_default_flags = ["members", "inherited-members"]
 
 # Add any paths that contain templates here, relative to this directory.
-templates_path = ['_templates']
+templates_path = ["_templates"]
 
 # The suffix of source filenames.
-source_suffix = '.rst'
+source_suffix = ".rst"
 
 # The encoding of source files.
 # source_encoding = 'utf-8-sig'
 
 # The master toctree document.
-master_doc = 'index'
+master_doc = "index"
 
 # General information about the project.
-project = u'torchsig'
-copyright = u'2022, torchsig contributors'
+project = "torchsig"
+copyright = "2022, torchsig contributors"
 
 # The version info for the project you're documenting, acts as replacement for
 # |version| and |release|, also used in various other places throughout the
@@ -100,7 +100,7 @@ exclude_patterns = []
 # show_authors = False
 
 # The name of the Pygments (syntax highlighting) style to use.
-pygments_style = 'sphinx'
+pygments_style = "sphinx"
 
 # A list of ignored prefixes for module index sorting.
 # modindex_common_prefix = []
@@ -110,7 +110,7 @@ pygments_style = 'sphinx'
 
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
-html_theme = 'sphinx_rtd_theme'
+html_theme = "sphinx_rtd_theme"
 
 # Theme options are theme-specific and customize the look and feel of a theme
 # further.  For a list of options available for each theme, see the
@@ -149,7 +149,7 @@ html_theme_path = [sphinx_rtd_theme.get_html_theme_path()]
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
-html_static_path = ['_static']
+html_static_path = ["_static"]
 
 # html_context = {
 #     'css_files': [
@@ -200,17 +200,15 @@ html_show_sphinx = False
 # html_file_suffix = None
 
 # Output file base name for HTML help builder.
-htmlhelp_basename = 'torchsig'
+htmlhelp_basename = "torchsig"
 
 # -- Options for LaTeX output --------------------------------------------------
 
 latex_elements = {
     # The paper size ('letterpaper' or 'a4paper').
     # 'papersize': 'letterpaper',
-
     # The font size ('10pt', '11pt' or '12pt').
     # 'pointsize': '10pt',
-
     # Additional stuff for the LaTeX preamble.
     # 'preamble': '',
 }
@@ -218,7 +216,7 @@ latex_elements = {
 # Grouping the document tree into LaTeX files. List of tuples
 # (source start file, target name, title, author, documentclass [howto/manual]).
 latex_documents = [
-    ('index', 'torchsig.tex', u'torchsig Documentation', u'torchsig Contributors', 'manual'),
+    ("index", "torchsig.tex", "torchsig Documentation", "torchsig Contributors", "manual"),
 ]
 
 # The name of an image file (relative to this directory) to place at the top of
@@ -246,9 +244,7 @@ latex_documents = [
 
 # One entry per manual page. List of tuples
 # (source start file, name, description, authors, manual section).
-man_pages = [
-    ('index', 'torchsig', u'torchsig Documentation', [u'torchsig Contributors'], 1)
-]
+man_pages = [("index", "torchsig", "torchsig Documentation", ["torchsig Contributors"], 1)]
 
 # If true, show URL addresses after external links.
 # man_show_urls = False
@@ -260,9 +256,7 @@ man_pages = [
 # (source start file, target name, title, author,
 #  dir menu entry, description, category)
 texinfo_documents = [
-    ('index', 'torchsig', u'torchsig Documentation',
-     u'torchsig Contributors', 'torchsig', 'One line description of project.',
-     'Miscellaneous'),
+    ("index", "torchsig", "torchsig Documentation", "torchsig Contributors", "torchsig", "One line description of project.", "Miscellaneous"),
 ]
 
 # Documents to append as an appendix to all manuals.
@@ -276,8 +270,4 @@ texinfo_documents = [
 
 
 # Example configuration for intersphinx: refer to the Python standard library.
-intersphinx_mapping = {
-    'python': ('https://docs.python.org/3.6', None),
-    'numpy': ('https://docs.scipy.org/doc/numpy/', None),
-    'scipy': ('http://docs.scipy.org/doc/scipy/reference/', None)
-}
+intersphinx_mapping = {"python": ("https://docs.python.org/3.6", None), "numpy": ("https://docs.scipy.org/doc/numpy/", None), "scipy": ("http://docs.scipy.org/doc/scipy/reference/", None)}
