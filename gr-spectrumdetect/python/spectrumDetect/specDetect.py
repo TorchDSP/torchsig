@@ -46,6 +46,9 @@ class specDetect(gr.sync_block):
         if self.gpuDevice == 'cpu':
             self.wb_model.to('cpu')
             self.gpuHalf = False
+        elif self.gpuDevice == 'mps':
+            self.wb_model.to('mps')
+            self.gpuHalf = False
         elif self.gpuDevice:
             torch.set_default_device('cuda'+':'+str(int(self.gpuDevice)))
             self.wb_model.to('cuda'+':'+str(int(self.gpuDevice)))         
@@ -71,6 +74,9 @@ class specDetect(gr.sync_block):
             self.nb_model_mod_rec = XCiTClassifier.load_from_checkpoint(checkpoint_path=self.trainedNarrowbandModel)
             if self.gpuDevice == 'cpu':
                 self.nb_model_mod_rec.to('cpu')
+                self.gpuHalf = False
+            elif self.gpuDevice == 'mps':
+                self.nb_model_mod_rec.to('mps')
                 self.gpuHalf = False
             elif self.gpuDevice:
                 self.nb_model_mod_rec.to('cuda'+':'+str(int(self.gpuDevice)))  
@@ -143,7 +149,25 @@ class specDetect(gr.sync_block):
 
 
     def baseband_downsample_complex_to_complex(self,input_data,r_cfreq,signal_freq,israte,osrate,truncate):
-        if self.gpuDevice != 'cpu':
+        if self.gpuDevice == 'mps':
+            input_data = input_data.to('mps')
+            x = torch.linspace(0,len(input_data)-1,len(input_data),dtype=torch.complex64,device='mps')
+            fshift = (r_cfreq-signal_freq)/(israte*1.0)
+            fv = e**(1j*2*pi*fshift*x)
+            fv = fv.to('mps')
+            input_data = input_data * fv
+            num_samples_in = len(input_data)
+            num_samples = int(np.ceil(num_samples_in/(israte/osrate)))
+            osrate_new = int((num_samples*israte)/num_samples_in)
+            down_factor = int(israte/osrate_new)
+            transform = torchaudio.transforms.Resample(int(israte/osrate_new),1,dtype=torch.float32).to('mps')
+            if truncate:
+                test = transform(input_data.real) + 1j*transform(input_data.imag)
+                return test[:4096].cpu().numpy(),israte/down_factor, False
+            else:
+                test = transform(input_data.real) + 1j*transform(input_data.imag)
+                return test.cpu().numpy(),israte/down_factor, False
+        elif self.gpuDevice != 'cpu' and self.gpuDevice != 'mps':
             with torch.cuda.device('cuda'+':'+str(int(self.gpuDevice))):
                 input_data.to('cuda'+':'+str(int(self.gpuDevice)))
                 x = torch.linspace(0,len(input_data)-1,len(input_data),dtype=torch.complex64,device='cuda'+':'+str(int(self.gpuDevice)))
@@ -163,25 +187,25 @@ class specDetect(gr.sync_block):
                     test = transform(input_data.real) + 1j*transform(input_data.imag)
                     return test,israte/down_factor, True
         elif self.gpuDevice == 'cpu':
-            with torch.cuda.device('cpu'):
-                input_data.to('cpu')
-                x = torch.linspace(0,len(input_data)-1,len(input_data),dtype=torch.complex64,device='cpu')
-                fshift = (r_cfreq-signal_freq)/(israte*1.0)
-                fv = e**(1j*2*pi*fshift*x)
-                fv.to('cpu')
-                input_data = input_data * fv
-                num_samples_in = len(input_data)
-                num_samples = int(np.ceil(num_samples_in/(israte/osrate)))
-                osrate_new = int((num_samples*israte)/num_samples_in)
-                down_factor = int(israte/osrate_new)
-                transform = torchaudio.transforms.Resample(int(israte/osrate_new),1,dtype=torch.float32).to('cpu')
-                if truncate:
-                    test = transform(input_data.real) + 1j*transform(input_data.imag)
-                    return test[:4096],israte/down_factor, False
-                else:
-                    test = transform(input_data.real) + 1j*transform(input_data.imag)
-                    return test,israte/down_factor, False                    
-
+            input_data = input_data.to('cpu')
+            x = torch.linspace(0,len(input_data)-1,len(input_data),dtype=torch.complex64,device='cpu')
+            fshift = (r_cfreq-signal_freq)/(israte*1.0)
+            fv = e**(1j*2*pi*fshift*x)
+            fv = fv.to('cpu')
+            input_data = input_data * fv
+            num_samples_in = len(input_data)
+            num_samples = int(np.ceil(num_samples_in/(israte/osrate)))
+            osrate_new = int((num_samples*israte)/num_samples_in)
+            down_factor = int(israte/osrate_new)
+            transform = torchaudio. transforms.Resample(int(israte/osrate_new),1,dtype=torch.float32).to('cpu')
+            if truncate:
+                test = transform(input_data.real) + 1j*transform(input_data.imag)
+                # return test[:4096],israte/down_factor, False
+                return test[: 4096].cpu().numpy(),israte/down_factor, False
+            else:
+                test = transform(input_data.real) + 1j*transform(input_data. imag)
+                # return test,israte/down_factor, False
+                return test.cpu().numpy(),israte/down_factor, False
                 
     def work(self, input_items, output_items):
 
@@ -235,8 +259,10 @@ class specDetect(gr.sync_block):
                         SigMFFile.FREQUENCY_KEY: self.fc,
                         SigMFFile.DATETIME_KEY: dt.isoformat()+'Z',
                     })
-                if torch.cuda.is_available() == True and self.gpuDevice != 'cpu':
+                if torch.cuda.is_available() == True and self.gpuDevice != 'cpu' and self.gpuDevice != 'mps':
                     data = torch.from_numpy(in0[inIdx]).to('cuda'+':'+str(int(self.gpuDevice)))
+                elif torch.backends.mps.is_available() == True and self.gpuDevice == 'mps':
+                    data = torch.from_numpy(in0[inIdx]).to('mps')
                 else:
                     data = torch.from_numpy(in0[inIdx])
                     self.gpuDevice = 'cpu'
@@ -252,7 +278,9 @@ class specDetect(gr.sync_block):
                               onesided=False,
                               power=2,
                               )
-                if self.gpuDevice != 'cpu':
+                if self.gpuDevice == 'mps':
+                    spectrogram.to('mps')
+                elif self.gpuDevice != 'cpu':
                     spectrogram.to('cuda'+':'+str(int(self.gpuDevice)))   
                     if self.gpuHalf:
                         spectrogram.half()
@@ -264,13 +292,26 @@ class specDetect(gr.sync_block):
                               keepdim=True,
                               )      
                 x = spectrogram(data)
-                if self.gpuDevice != 'cpu':
-                    x.to('cuda'+':'+str(int(self.gpuDevice)))                 
+                if self.gpuDevice == 'mps':
+                    x = x.to('mps')
+                elif self.gpuDevice != 'cpu':
+                    x = x.to('cuda'+':'+str(int(self.gpuDevice)))                 
                 x = x * (1 / norm(x.flatten()))
                 x = torch.fft.fftshift(x,dim=0).flipud()
                 x = 10*torch.log10(x+1e-12)
 
-                if self.gpuDevice != 'cpu':
+                if self.gpuDevice == 'mps':
+                    img_new = torch.zeros((self.nfft,self.nfft,3),device='mps')
+                    a = torch.tensor([[1,torch.max(torch.max(x))],[1,torch.min(torch.min(x))]],device='mps')
+                    b = torch.tensor([1,0],device='mps').type(torch.float)
+                    xx = torch.linalg.solve(a,b).to('mps') 
+                    intercept = xx[0]
+                    slope = xx[1]
+                    for j in range(3):
+                        img_new[:,:,j] = (x*slope + intercept)
+                    new_img_new = img_new.permute(-1,0,1).reshape(1,3,img_new.size(0),img_new.size(1)).to('mps')
+                    new_img_new = 1 - new_img_new
+                elif self.gpuDevice != 'cpu' and self.gpuDevice != 'mps':
                     img_new = torch.zeros((self.nfft,self.nfft,3),device='cuda'+':'+str(int(self.gpuDevice)))
                     a = torch.tensor([[1,torch.max(torch.max(x))],[1,torch.min(torch.min(x))]],device='cuda'+':'+str(int(self.gpuDevice)))
                     b = torch.tensor([1,0],device='cuda'+':'+str(int(self.gpuDevice))).type(torch.float)
@@ -363,16 +404,16 @@ class specDetect(gr.sync_block):
                             truncate = False
                             gpu = False
                             if self.writeNBIQFile or self.trainedNarrowbandModel != None and num_samples > 0:
-                                if self.trainedNarrowbandModel != None and num_samples >= 4096 and self.gpuDevice != 'cpu':
+                                if self.trainedNarrowbandModel != None and num_samples >= 4096 and self.gpuDevice != 'cpu' and self.gpuDevice != 'mps':
                                     truncate = True
                                     gpu = True
-                                elif self.trainedNarrowbandModel != None and num_samples >= 4096 and self.gpuDevice == 'cpu':   
+                                elif self.trainedNarrowbandModel != None and num_samples >= 4096 and (self.gpuDevice == 'cpu' or self.gpuDevice == 'mps'):   
                                     truncate = True
                                     gpu = False 
-                                elif self.trainedNarrowbandModel == None and num_samples >= 0 and self.gpuDevice != 'cpu' and self.writeNBIQFile:   
+                                elif self.trainedNarrowbandModel == None and num_samples >= 0 and self.gpuDevice != 'cpu' and self.gpuDevice != 'mps' and self.writeNBIQFile:   
                                     truncate = False
                                     gpu = True                         
-                                elif self.trainedNarrowbandModel == None and num_samples >= 0 and self.gpuDevice == 'cpu' and self.writeNBIQFile:
+                                elif self.trainedNarrowbandModel == None and num_samples >= 0 and (self.gpuDevice == 'cpu' or self.gpuDevice == 'mps') and self.writeNBIQFile:
                                     truncate = False  
                                     gpu = False  
                                 if num_samples >= 0 and (self.writeNBIQFile or self.trainedNarrowbandModel != None):
@@ -395,6 +436,17 @@ class specDetect(gr.sync_block):
                                             logits_mod = self.nb_model_mod_rec(data_mod.unsqueeze(0))
                                             preds_mod = torch.argmax(logits_mod, dim=1)
                                             mod_nb = self.nb_mod_rec_list[int(preds_mod.cpu().numpy())]
+                                elif self.trainedNarrowbandModel != None and self.gpuDevice == 'mps':
+                                    self.nb_model_mod_rec.to('mps')
+                                    self.nb_model_mod_rec.eval()
+                                    with torch.no_grad():
+                                        data_mod = torch.from_numpy(new_data).to('mps')
+                                        data_mod = torch.stack((data_mod.real,data_mod.imag))
+                                        nrm = torch.norm(data_mod,p=torch.inf,keepdim=True)
+                                        data_mod = data_mod/nrm
+                                        logits_mod = self.nb_model_mod_rec(data_mod.unsqueeze(0))
+                                        preds_mod = torch.argmax(logits_mod, dim=1)
+                                        mod_nb = self.nb_mod_rec_list[int(preds_mod.cpu().numpy())]
                                 elif self.trainedNarrowbandModel != None and gpu != True:
                                     self.nb_model_mod_rec.eval()
                                     with torch.no_grad():
