@@ -1,9 +1,9 @@
 name: Trigger RTD on main or release
 on:
   push:
-    branches: [ main ]  # Only trigger on main
+    branches: [ main ]
   release:
-    types: [ published ]  # Only trigger on new releases
+    types: [ published ]
 jobs:
   trigger-rtd:
     runs-on: ubuntu-latest
