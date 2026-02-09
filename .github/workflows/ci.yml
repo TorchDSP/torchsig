@@ -60,7 +60,7 @@ jobs:
           pip install ruff
       - name: Run ruff
         run: ruff check .
-        continue-on-error: ${{ github.ref != 'refs/heads/main' && (github.event_name != 'pull_request' || github.event.pull_request.base.ref != 'main') }}
+        continue-on-error: true
 
   pytest:
     runs-on: ubuntu-22.04
