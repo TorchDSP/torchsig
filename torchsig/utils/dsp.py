@@ -1283,7 +1283,7 @@ def noise_generator(
     return np.sqrt(power / est_power) * noise
 
 
-def update_signal_snr_bandwidth(dataset: TorchSigIterableDataset, new_signal: Signal) -> None:
+def update_signal_snr_bandwidth(dataset: "TorchSigIterableDataset", new_signal: "Signal") -> None:
     """Updates the SNR and bandwidth of a signal based on dataset parameters.
 
     This function performs two main operations:
