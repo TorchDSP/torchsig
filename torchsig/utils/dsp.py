@@ -9,10 +9,15 @@ import torchaudio
 from scipy import signal as sp
 
 from torchsig import __version__ as torchsig_version
+from typing import TYPE_CHECKING
 
 # data types to be used internally within torchsig
 TorchSigComplexDataType = np.complex64
 TorchSigRealDataType = np.float32
+
+if TYPE_CHECKING:
+    from torchsig.datasets.datasets import TorchSigIterableDataset
+    from torchsig.signals.signal_types import Signal
 
 
 def slice_tail_to_length(input_signal: np.ndarray, num_samples: int) -> np.ndarray:
@@ -1276,3 +1281,107 @@ def noise_generator(
     noise = np.fft.ifft(x_shaped, norm="ortho")
     est_power = np.sum(np.abs(noise) ** 2) / len(noise)
     return np.sqrt(power / est_power) * noise
+
+
+def update_signal_snr_bandwidth(dataset: TorchSigIterableDataset, new_signal: Signal) -> None:
+    """Updates the SNR and bandwidth of a signal based on dataset parameters.
+
+    This function performs two main operations:
+    1. Corrects the SNR of the signal by comparing the estimated SNR from the signal's
+       spectrogram with the target SNR range defined in the signal metadata.
+    2. Updates the signal's bandwidth metadata to better fit the bounding box by
+       estimating the 99% bandwidth from the signal's spectral content.
+
+    Args:
+        dataset (TorchSigIterableDataset): The dataset object containing FFT parameters, noise floor information,
+            and other metadata needed for processing.
+        new_signal (Signal): The signal object to be processed, containing:
+            - data: The time-domain signal data
+            - snr_db_min: Minimum target SNR in dB
+            - snr_db_max: Maximum target SNR in dB
+            - bandwidth: Current bandwidth value (will be updated)
+
+    Returns:
+        None: The function modifies the new_signal object in place.
+
+    Notes:
+        The SNR correction is performed by:
+        1. Computing a spectrogram of the signal
+        2. Estimating the current SNR from the spectrogram
+        3. Calculating a correction factor to match the target SNR
+        4. Applying this correction to the signal data
+
+        The bandwidth update is performed by:
+        1. Finding frequency bins where the signal exceeds the noise floor by 3dB
+        2. Determining the frequency range of these bins
+        3. Widening this range by half the FFT frequency resolution
+        4. Updating the signal's bandwidth metadata with this new range
+
+        The signal data itself is not resampled - only the metadata is updated.
+    """
+    # corrects snr of signal according to dataset
+    snr_db = np.round(dataset.random_generator.uniform(new_signal.snr_db_min, new_signal.snr_db_max) , 1)
+    # compute spectral estimate of signal. use a large stride to process only a
+    # subset of the data to reduce computation
+    signal_spectrogram_db = compute_spectrogram(
+        new_signal.data,
+        dataset.fft_size,
+        dataset.fft_stride,
+    )
+    # average over time, used in PSD estimate for SNR calculation
+    signal_avg_fft_db = np.mean(signal_spectrogram_db,axis=1)
+    # estimate the frequency response maximum value
+    max_value_db = np.max(signal_avg_fft_db)
+    # estimate SNR
+    snr_estimate_db = max_value_db - dataset.noise_power_db
+    # calculate the appropriate correction to set SNR
+    correction_db = snr_db - snr_estimate_db
+    # convert correction value to linear
+    correction = 10**(correction_db/10)
+    # apply correction value to signal
+    new_signal.data *= np.sqrt(correction)
+    signal_avg_fft_db += correction_db
+    signal_spectrogram_db += correction_db
+
+    # updating for better bounding box
+    # Compute max hold for bandwidth estimation
+    signal_max_fft_db = np.max(signal_spectrogram_db, axis=1)
+    relative_threshold_db = 3
+    bandwidth_estimation_threshold_db = dataset.noise_power_db + relative_threshold_db
+    exceedance_indices = np.where(signal_max_fft_db > bandwidth_estimation_threshold_db)[0]
+
+    # Determine if bandwidth needs updating
+    update_bandwidth = False
+    if len(exceedance_indices) == 1:
+        # Single threshold exceedance - bandwidth equals 1 FFT bin width
+        lower_edge_index = upper_edge_index = exceedance_indices[0]
+        update_bandwidth = True
+    elif len(exceedance_indices) > 1:
+        # Multiple exceedances - compute bandwidth
+        lower_edge_index = exceedance_indices[0]
+        upper_edge_index = exceedance_indices[-1]
+        update_bandwidth = True
+
+    if update_bandwidth:
+        # Create frequency vector for the FFT
+        f = np.linspace(
+            -0.5,
+            0.5 - (1 / dataset.fft_size),
+            dataset.fft_size
+        ) * dataset.sample_rate
+
+        # Determine estimated frequency bounds
+        upper_freq = f[upper_edge_index]
+        lower_freq = f[lower_edge_index]
+
+        # Widen bandwidth by a small proportion
+        fft_frequency_resolution = dataset.sample_rate / dataset.fft_size
+        widen_bandwidth_value = fft_frequency_resolution / 2
+        lower_freq = max(lower_freq - widen_bandwidth_value, dataset.frequency_min)
+        upper_freq = min(upper_freq + widen_bandwidth_value, dataset.frequency_max)
+
+        # Compute 99% bandwidth
+        bandwidth99 = upper_freq - lower_freq
+
+        # Update metadata bandwidth (cannot resample tone signal)
+        new_signal["bandwidth"] = bandwidth99

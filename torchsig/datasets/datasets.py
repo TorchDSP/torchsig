@@ -14,7 +14,7 @@ from torchsig.signals.builder import BaseSignalGenerator, ConcatSignalGenerator
 from torchsig.signals.signal_types import Signal
 from torchsig.utils.abstractions import HierarchicalMetadataObject
 from torchsig.utils.coordinate_system import Coordinate, Rectangle, is_rectangle_overlap
-from torchsig.utils.dsp import compute_spectrogram
+from torchsig.utils.dsp import compute_spectrogram, update_signal_snr_bandwidth
 from torchsig.utils.file_handlers.hdf5 import HDF5Reader
 from torchsig.utils.random import Seedable
 from torchsig.utils.signal_building import lookup_signal_generator_by_string
@@ -352,6 +352,9 @@ class TorchSigIterableDataset(HierarchicalMetadataObject, IterableDataset):
             for ctransform in self.component_transforms:
                 new_signal = ctransform(new_signal)
 
+            # Update snr and bbox of signal
+            update_signal_snr_bandwidth(self, new_signal)
+
             # frequency shift signal
             # after signal transforms applied at complex baseband
             new_signal = frequency_shift_signal(
@@ -379,11 +382,14 @@ class TorchSigIterableDataset(HierarchicalMetadataObject, IterableDataset):
             # check if the new_rectangle overlaps with any others in spectrogram
             has_overlap = self._check_if_overlap(new_rectangle, signal_rectangle_list)
 
+            print(f"not has_overlap: {not has_overlap}")
+            p = self.random_generator.uniform(0, 1)
+            p_o = p < self["cochannel_overlap_probability"]
+            print(f"less cochannel overlap: {p_o}")
             # signal is used if there is no overlap OR with some random chance
             if (
-                has_overlap is False
-                or self.random_generator.uniform(0, 1)
-                < self["cochannel_overlap_probability"]
+                not has_overlap or
+                p_o
             ):
                 num_signals_created += 1
                 # store the rectangle for future overlap checking
@@ -394,6 +400,7 @@ class TorchSigIterableDataset(HierarchicalMetadataObject, IterableDataset):
                 ] += new_signal.data
                 # append the signal on the list
                 new_signal["start_in_samples"] = start_sample
+                print("here")
                 signals.append(new_signal)
         # form the sample (dataset object)
         sample = Signal(
