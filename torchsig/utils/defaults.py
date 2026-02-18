@@ -21,6 +21,8 @@ class TorchSigDefaults:
             "fft_stride": 512,
             "sample_rate": 10000000,
             "noise_power_db": 0.0,
+            "snr_db_min": 0.0,
+            "snr_db_max": 50.0,
             "cochannel_overlap_probability": 0.2,
             "signal_duration_in_samples_min": 262144 * 0.8,
             "signal_duration_in_samples_max": 262144 * 1.0,
