@@ -1342,6 +1342,7 @@ def update_signal_snr_bandwidth(dataset: "TorchSigIterableDataset", new_signal: 
     new_signal.data *= np.sqrt(correction)
     signal_avg_fft_db += correction_db
     signal_spectrogram_db += correction_db
+    new_signal["snr_db"] = snr_db
 
     # updating for better bounding box
     # Compute max hold for bandwidth estimation
