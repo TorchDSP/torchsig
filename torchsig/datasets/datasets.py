@@ -382,10 +382,8 @@ class TorchSigIterableDataset(HierarchicalMetadataObject, IterableDataset):
             # check if the new_rectangle overlaps with any others in spectrogram
             has_overlap = self._check_if_overlap(new_rectangle, signal_rectangle_list)
 
-            print(f"not has_overlap: {not has_overlap}")
             p = self.random_generator.uniform(0, 1)
             p_o = p < self["cochannel_overlap_probability"]
-            print(f"less cochannel overlap: {p_o}")
             # signal is used if there is no overlap OR with some random chance
             if (
                 not has_overlap or
@@ -400,7 +398,6 @@ class TorchSigIterableDataset(HierarchicalMetadataObject, IterableDataset):
                 ] += new_signal.data
                 # append the signal on the list
                 new_signal["start_in_samples"] = start_sample
-                print("here")
                 signals.append(new_signal)
         # form the sample (dataset object)
         sample = Signal(
