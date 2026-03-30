@@ -38,8 +38,8 @@ htmlcov/
 report.xml
 
 # Rust
-rust_functions/target/
-rust_functions/Cargo.lock
+rust/target/
+rust/Cargo.lock
 **/*.rs.bk
 
 # TorchSig package

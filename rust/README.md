@@ -1,10 +1,10 @@
 # Rust Functions for TorchSig
 
-Rust implementations for various DSP computations for TorchSig library. Code is automatically compiled and accessible under torchsig using [setuptools-rust](https://pypi.org/project/setuptools-rust/).
+Rust implementations for various DSP computations for TorchSig. The code is built as part of the package using [maturin](https://www.maturin.rs/).
 
 ## Rust File Structure
 ```
-rust_functions/
+rust/
 ├── Cargo.toml
 ├── README.md
 ├── src
@@ -22,7 +22,7 @@ Most users do not need to do anything to this code in order to use TorchSig. How
 
 2. Bind your Rust functions inside `src/lib.rs` in order to use in TorchSig. See [PyO3 user guide](https://pyo3.rs/v0.25.1/rust-from-python.html) to learn more about exposing Rust code to Python.
 
-3. Reinstall TorchSig. `setuptools-rust` will automatically compile and copy the binaries, and make them usable within torchsig.
+3. Reinstall TorchSig. `maturin` will compile the extension module and make it available within `torchsig`.
 ```bash
 pip install -e .
 ```
@@ -31,4 +31,3 @@ pip install -e .
 ```python
 from torchsig.utils.rust_functions import <insert_rust_function_name>
 ```
-

@@ -228,18 +228,13 @@ class RealtimeSpectrogramService:
 ## Build Integration
 
 ```toml
-# Add to pyproject.toml for optional Rust acceleration
-[tool.setuptools.packages.find]
-exclude = ["torchsig_fft*"]  # Exclude Rust crate from Python package
-
 [build-system]
-requires = ["setuptools", "wheel", "setuptools-rust"]
-build-backend = "setuptools.build_meta"
+requires = ["maturin>=1.7,<2"]
+build-backend = "maturin"
 
-[[tool.setuptools-rust.ext-modules]]
-target = "torchsig.utils._rust_fft"
-path = "torchsig_fft/Cargo.toml"
-binding = "PyO3"
+[tool.maturin]
+module-name = "torchsig.utils._rust_fft"
+python-source = "src"
 ```
 
 This design provides a path for ultra-high performance when needed, while maintaining compatibility with the current Python-based system.
