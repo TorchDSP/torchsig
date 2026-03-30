@@ -1,104 +1,84 @@
-# Common Python Files
+# Python
 __pycache__/
-_build/
+*.py[cod]
+*$py.class
+*.so
+*.egg
+*.egg-info/
 dist/
-*.pytest_cache
-*.env
-*.pyc
-*.mdb
-*.pkl
-*.np
-*.npz
+build/
+*.whl
+
+# Virtual Environments
+.venv/
+.env
+venv/
+env/
+ENV/
+.uv/
+.uv-env*
+
+# IDE
+.vscode/
+.idea/
 *.swp
-*.p
-*.png
-*.txt
-*.npy
-*.jpg
-*.pt*
-*.ckpt*
-*.pth*
-*.yaml
-*.out
-# Jupyter Notebooks
-*.ipynb_checkpoints/
+*.swo
+*~
+.DS_Store
+
+# Jupyter
+*.ipynb_checkpoints
+.ipynb_checkpoints/
+
+# Pytest
+.pytest_cache/
+.coverage
+coverage.xml
+htmlcov/
+report.xml
 
 # Rust
 rust_functions/target/
 rust_functions/Cargo.lock
 **/*.rs.bk
-*.so
-*.bak
 
-# TorchSig
-torchsig.egg-info/
+# TorchSig package
+src/torchsig.egg-info/
+src/torchsig/__pycache__/
+
+# Dataset and model files
+torchsig/datasets/default_configs/*.yaml
 !torchsig/datasets/default_configs/
-!torchsig/datasets/default_configs/*
-!torchsig/datasets/default_configs/*.yaml
 torchsig/utils/pfb_weights/
 
-# Keep license docs
-!**/LICENSE*
+# Temporary files
+*.tmp
+*.bak
+*.swp
+*.swo
+*~
+.#*
 
-# Docs
-docs/_static/
-docs/src/
-docs/build/
-docs/_autosummary/
+# Build artifacts
+_build/
+.mypy_cache/
+.ruff_cache/
+*.ckpt
+*.pt
+*.pth
 
 # Tests
 tests/datasets/*
-!tests/datasets/*.pyprep_release.sh
-!tests/datasets/*.yaml
+!tests/datasets/.gitkeep
 
-# Examples
-examples/*
-examples/datasets/
-!examples/*.ipynb
-!examples/transforms/
-!examples/transforms/*.ipynb
-!examples/*.py
-!examples/*.yaml
+# Documentation
+docs/_static/
+docs/_autosummary/
+docs/build/
 
-# Tools
-tools/examples/datasets/*
-tools/examples/datasets/yolo_annotation_data/annotated_yolo_sample_images
-!tools/examples/datasets
-!tools/examples/datasets/yolo_annotation_data
-!tools/examples/datasets/yolo_annotation_data/sample_images
-!tools/examples/datasets/yolo_annotation_data/sample_images/*
+# Allow specific default configs
+!torchsig/datasets/default_configs/
+!torchsig/datasets/default_configs/*.yaml
 
-# Pytest Files
-*.coverage
-coverage.xml
-report.xml
-
-# Python virtual environments
-venv/
-.venv/
-env/
-.env/
-
-# For conda environments
-.conda/
-
-# Specific ignores
-.vscode/
-*.h5
-*.conflict
-*.pyo
-*.pyd
-.Python
-develop-eggs/
-downloaded/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
+# License docs should be tracked
+!**/LICENSE*

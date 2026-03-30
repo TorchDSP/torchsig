@@ -1,4 +1,5 @@
 name: Continuous Integration
+
 on:
   push:
     branches:
@@ -6,82 +7,77 @@ on:
   pull_request:
     branches:
       - main
+
 jobs:
-  pip-install:
+  lint:
     runs-on: ubuntu-22.04
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-      - name: Install Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.10'
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -e .
-      - name: Verify installation
-        run: |
-          python -c "import torchsig; print('Successfully imported torchsig')"
 
-  pylint:
-    runs-on: ubuntu-22.04
-    needs: pip-install
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-      - name: Install Python
-        uses: actions/setup-python@v5
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
         with:
-          python-version: '3.10'
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -e .
-          pip install pylint
-      - name: Run pylint
-        run: pylint --rcfile=.pylintrc torchsig
-        continue-on-error: ${{ github.ref != 'refs/heads/main' && (github.event_name != 'pull_request' || github.event.pull_request.base.ref != 'main') }}
+          enable-cache: true
+          cache-dependency-glob: |
+            uv.lock
+            pyproject.toml
 
-  ruff:
-    runs-on: ubuntu-22.04
-    needs: pip-install
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-      - name: Install Python
+      - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.10'
-      - name: Install dependencies
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install dependencies with uv
         run: |
-          python -m pip install --upgrade pip
-          pip install -e .
-          pip install ruff
-      - name: Run ruff
-        run: ruff check .
+          uv sync --group dev
+
+      - name: Run ruff check
+        run: |
+          uv run ruff check .
         continue-on-error: true
 
-  pytest:
+      - name: Run ty type checking
+        run: |
+          uv run ty check ./src
+        continue-on-error: true
+
+  test:
     runs-on: ubuntu-22.04
-    needs: pip-install
+    strategy:
+      matrix:
+        python-version: ['3.10', '3.11', '3.12']
+    needs: lint
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-      - name: Install Python
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+          cache-dependency-glob: |
+            uv.lock
+            pyproject.toml
+
+      - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.10'
-      - name: Install dependencies
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install dependencies with uv
         run: |
-          python -m pip install --upgrade pip
-          pip install -e .
+          uv sync --group dev
+
       - name: Run pytest
-        run: pytest
-        continue-on-error: ${{ github.ref != 'refs/heads/main' && (github.event_name != 'pull_request' || github.event.pull_request.base.ref != 'main') }}
-      - name: Comment coverage
-        if: github.event_name == 'pull_request'
-        uses: MishaKav/pytest-coverage-comment@main
+        run: |
+          uv run pytest -v
+
+      - name: Upload coverage reports
+        if: matrix.python-version == '3.10'
+        uses: codecov/codecov-action@v3
         with:
-          pytest-xml-coverage-path: coverage.xml
-        continue-on-error: true
+          files: ./coverage.xml
+          flags: unittests
+          name: codecov-umbrella
+          fail_ci_if_error: false

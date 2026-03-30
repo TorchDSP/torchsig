@@ -1,28 +1,17 @@
-# Read the Docs configuration file for Sphinx projects
-# See https://docs.readthedocs.io/en/stable/config-file/v2.html for details
-
-# Required
 version: 2
 
-# Set the OS, Python version and other tools you might need
 build:
   os: ubuntu-22.04
   tools:
-    python: "3.10"
-    rust: "1.86"
+    python: "3.12"
 
-# Build documentation in the "docs/" directory with Sphinx
-sphinx:
+docs:
   configuration: docs/conf.py
-  # You can configure Sphinx to use a different builder, for instance use the dirhtml builder for simpler URLs
-  # builder: "dirhtml"
-  # Fail on all warnings to avoid broken references
-  # fail_on_warning: true
+  fail_on_warning: false
 
-
-# Install necessary python packages for doc builds
 python:
   install:
     - method: pip
       path: .
-    - requirements: docs/docs-requirements.txt
+      extra_requirements:
+        - docs
