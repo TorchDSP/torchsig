@@ -76,6 +76,8 @@ Repository = "https://github.com/TorchDSP/torchsig.git"
 Issues = "https://github.com/TorchDSP/torchsig/issues"
 
 [tool.maturin]
+manifest-path = "rust/Cargo.toml"
+bindings = "pyo3"
 python-source = "src"
 module-name = "torchsig.utils.rust_functions"
 python-packages = ["torchsig"]
