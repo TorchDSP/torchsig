@@ -28,6 +28,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libglib2.0-0 \
     && rm -rf /var/lib/apt/lists/*
 
+# Replace opencv-python with opencv-python-headless
+RUN sed -i 's/opencv-python/opencv-python-headless/g' pyproject.toml
+
 # Install Python dependencies
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install build setuptools
