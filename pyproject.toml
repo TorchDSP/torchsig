@@ -1,6 +1,6 @@
 [build-system]
 # Define build dependencies and backend
-requires = ["setuptools>=61", "setuptools-rust>=1.10"]
+requires = ["setuptools>=61"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -19,7 +19,6 @@ dynamic = ["version"]
 classifiers = [
     "Programming Language :: Python",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Rust",
 ]
 # Runtime dependencies
 dependencies = [
@@ -54,15 +53,7 @@ where = ["."]
 
 [tool.setuptools.dynamic]
 # Dynamically read version from torchsig.__version__
-version = {attr = "torchsig.__version__"}
-
-[[tool.setuptools-rust.ext-modules]]
-# Define the Rust extension module built with PyO3
-target = "torchsig.utils.rust_functions"  # Must match import path and lib.name in Cargo.toml
-path = "rust_functions/Cargo.toml"        # Path to Cargo.toml
-binding = "PyO3"                          # Bindings to use
-debug = false                             # Enable release mode for optimized builds
-optional = false                          # Crash if the extension build fails
+version = {attr = "torchsig.__version__"}                     # Crash if the extension build fails
 
 [tool.coverage.run]
 branch = true
@@ -82,7 +73,7 @@ testpaths = ["tests"]
 # Same line length as Black (200)
 line-length = 200
 target-version = "py310"
-exclude = ["docs", "rust_functions"]
+exclude = ["docs"]
 
 [tool.ruff.lint]
 # Enable all rules by default

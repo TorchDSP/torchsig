@@ -1,0 +1,1902 @@
+diff --git a/.dockerignore b/.dockerignore
+new file mode 100644
+index 000000000..fe174a2bf
+--- /dev/null
++++ b/.dockerignore
+@@ -0,0 +1,83 @@
++# Version control
++.git/
++.gitignore
++.github/
++
++# Python
++__pycache__/
++*.py[cod]
++*.so
++*.egg-info/
++.pytest_cache/
++.venv/
++venv/
++env/
++.conda/
++.ruff_cache
++
++# Build artifacts
++_build/
++dist/
++*.egg
++*.egg-info/
++.installed.cfg
++
++# Documentation
++docs/_build/
++docs/_static/
++docs/src/
++docs/build/
++docs/_autosummary/
++
++# Examples (keeping only specific files)
++examples/*
++!examples/transforms/
++!examples/transforms/*.ipynb
++!examples/*.py
++!examples/*.yaml
++!examples/*.ipynb
++
++# Jupyter
++*.ipynb_checkpoints/
++
++# IDE and editor
++.vscode/
++.idea/
++*.swp
++*.swo
++
++# Data and model files
++*.h5
++*.pkl
++*.np*
++*.mdb
++*.pt*
++*.ckpt*
++*.pth*
++*.yaml
++*.out
++*.txt
++*.png
++*.jpg
++*.npy
++
++# Docker
++docker/
++Dockerfile*
++.dockerignore
++
++# Other
++*.conflict
++*.coverage
++*.xml
++develop-eggs/
++downloaded/
++eggs/
++.eggs/
++lib/
++lib64/
++parts/
++sdist/
++var/
++wheels/
++.Python
+\ No newline at end of file
+diff --git a/.github/ISSUE_TEMPLATE/bug_report.yml b/.github/ISSUE_TEMPLATE/bug_report.yml
+index d819eee7d..16275c903 100644
+--- a/.github/ISSUE_TEMPLATE/bug_report.yml
++++ b/.github/ISSUE_TEMPLATE/bug_report.yml
+@@ -21,7 +21,8 @@ body:
+       label: Version
+       description: What version of TorchSig? Note that any bugs before 1.0.0 are not prioritized.
+       options:
+-        - 2.1.0 (Default)
++        - 2.1.1 (Default)
++        - 2.1.0
+         - 2.0.0
+         - 1.1.0
+         - 1.0.0
+diff --git a/.gitignore b/.gitignore
+index 68a250c17..1b5db9402 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -22,13 +22,8 @@ dist/
+ *.out
+ # Jupyter Notebooks
+ *.ipynb_checkpoints/
+-
+-# Rust
+-rust_functions/target/
+-rust_functions/Cargo.lock
+-**/*.rs.bk
+-*.so
+-*.bak
++# Ruff
++.ruff_cache
+ 
+ # TorchSig
+ torchsig.egg-info/
+@@ -48,7 +43,7 @@ docs/_autosummary/
+ 
+ # Tests
+ tests/datasets/*
+-!tests/datasets/*.pyprep_release.sh
++!tests/datasets/*.py
+ !tests/datasets/*.yaml
+ 
+ # Examples
+@@ -60,14 +55,6 @@ examples/datasets/
+ !examples/*.py
+ !examples/*.yaml
+ 
+-# Tools
+-tools/examples/datasets/*
+-tools/examples/datasets/yolo_annotation_data/annotated_yolo_sample_images
+-!tools/examples/datasets
+-!tools/examples/datasets/yolo_annotation_data
+-!tools/examples/datasets/yolo_annotation_data/sample_images
+-!tools/examples/datasets/yolo_annotation_data/sample_images/*
+-
+ # Pytest Files
+ *.coverage
+ coverage.xml
+@@ -101,4 +88,5 @@ var/
+ wheels/
+ *.egg-info/
+ .installed.cfg
+-*.egg
+\ No newline at end of file
++*.egg
++*.so
+\ No newline at end of file
+diff --git a/.gitlab-ci.yml b/.gitlab-ci.yml
+new file mode 100644
+index 000000000..2e30738be
+--- /dev/null
++++ b/.gitlab-ci.yml
+@@ -0,0 +1,435 @@
++workflow:
++  rules:
++    # Never run pipelines on main or *-dev
++    - if: $CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH =~ /-dev$/
++      when: never
++    # Always run on -dev-internal branches
++    - if: $CI_COMMIT_BRANCH =~ /-dev-internal$/
++      when: always
++    # Always run on MR to -dev-internal branches
++    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_TARGET_BRANCH_NAME =~ /-dev-internal$/
++      when: always
++    # Allow manual pipeline creation (UI or trigger token) on all other branches
++    - if: $CI_PIPELINE_SOURCE == "web" || $CI_PIPELINE_SOURCE == "trigger"
++      when: always
++    # Skip everything else (push, schedule, API)
++    - when: never
++
++stages:
++  - build
++  - test
++
++variables:
++  DOCKER_HOST: tcp://docker:2375/
++  DOCKER_TLS_CERTDIR: ""  # Disable TLS for simplicity
++  PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
++
++# Build: Build docker and pip ------------------------------------------------------------------------------------------
++build-pip:
++  stage: build
++  tags:
++    - large
++  image: registry.external.ltsnet.net/spacepit/torchsig-github:latest
++  cache:
++    key: pip-cache
++    paths:
++      - .cache/pip
++  script:
++    - pip install -e . --quiet
++  rules:
++    - if: $CI_COMMIT_BRANCH =~ /-dev-internal$/
++      when: always
++      allow_failure: false
++    - when: never
++
++build-dockerfile:
++  stage: build
++  tags:
++    - large
++  image: docker:24.0.5
++  services:
++    - name: docker:24.0.5-dind
++  script:
++    - docker build -t torchsig -f docker/Dockerfile .
++  rules:
++    - if: $CI_COMMIT_BRANCH =~ /-dev-internal$/
++      when: always
++      allow_failure: false
++    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_TARGET_BRANCH_NAME =~ /-dev-internal$/
++      when: always
++      allow_failure: false
++    - when: never
++
++build-dockerfile-gpu:
++  stage: build
++  tags:
++    - large
++  image: docker:24.0.5
++  services:
++    - name: docker:24.0.5-dind
++  script:
++    - docker build -t torchsig-gpu -f docker/Dockerfile.gpu .
++  rules:
++    - if: $CI_COMMIT_BRANCH =~ /-dev-internal$/
++      when: always
++      allow_failure: false
++    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_TARGET_BRANCH_NAME =~ /-dev-internal$/
++      when: always
++      allow_failure: false
++    - when: never
++
++
++# Lint: Run code quality checks --------------------------------------------------------------------
++ruff-check:
++  stage: test
++  tags:
++    - fast
++  image: registry.external.ltsnet.net/spacepit/torchsig-github:latest
++  cache:
++    key: pip-cache
++    paths:
++      - .cache/pip
++  script:
++    - pip install ruff --quiet
++    # Run Ruff and generate report (ignore warnings)
++    - ruff check --output-format=json . > ruff-results.json || true
++    # Calculate Ruff score (0-100) with error handling
++    - |
++      python3 << 'PYTHON'
++      import json
++      import os
++
++      # Default values
++      score = 100
++      metrics = {
++          "metrics": [
++              {
++                  "title": "Ruff Score",
++                  "value": "100.0",
++                  "unit": "%",
++                  "min": 0,
++                  "max": 100
++              }
++          ]
++      }
++
++      # Process results if file exists
++      if os.path.exists('ruff-results.json'):
++          try:
++              with open('ruff-results.json') as f:
++                  results = json.load(f)
++              total_issues = sum(len(issues) for issues in results.values())
++              score = max(0, 100 - total_issues)
++              metrics["metrics"][0]["value"] = f"{score:.1f}"
++          except Exception as e:
++              print(f"Error processing Ruff results: {e}")
++
++      # Print score for CI
++      print(f"RUFF_SCORE={score}")
++
++      # Write metrics file
++      with open('ruff-metrics.json', 'w') as f:
++          json.dump(metrics, f)
++      PYTHON
++  artifacts:
++    reports:
++      metrics: ruff-metrics.json
++  rules:
++    - if: $CI_COMMIT_BRANCH =~ /-dev-internal$/
++      when: on_success
++    - when: never
++
++pylint:
++  stage: test
++  tags:
++    - fast
++  image: registry.external.ltsnet.net/spacepit/torchsig-github:latest
++  cache:
++    key: pip-cache
++    paths:
++      - .cache/pip
++  script:
++    - pip install -e . --quiet
++    # Run Pylint and generate report (ignore errors)
++    - pylint --rcfile=.pylintrc torchsig --output-format=json > pylint-results.json || true
++    # Calculate Pylint score (0-10) with error handling
++    - |
++      python3 << 'PYTHON'
++      import json
++      import os
++
++      # Default values
++      score = 10.0
++      metrics = {
++          "metrics": [
++              {
++                  "title": "Pylint Score",
++                  "value": "10.0",
++                  "unit": "/10",
++                  "min": 0,
++                  "max": 10
++              }
++          ]
++      }
++
++      # Process results if file exists
++      if os.path.exists('pylint-results.json'):
++          try:
++              with open('pylint-results.json') as f:
++                  results = json.load(f)
++              score = results.get('global_note', 10.0)
++              metrics["metrics"][0]["value"] = f"{score:.1f}"
++          except Exception as e:
++              print(f"Error processing Pylint results: {e}")
++
++      # Print score for CI
++      print(f"PYLINT_SCORE={score}")
++
++      # Write metrics file
++      with open('pylint-metrics.json', 'w') as f:
++          json.dump(metrics, f)
++      PYTHON
++  artifacts:
++    reports:
++      metrics: pylint-metrics.json
++  rules:
++    - if: $CI_COMMIT_BRANCH =~ /-dev-internal$/
++      when: on_success
++    - when: never
++
++# Test
++pytest:
++  image: registry.external.ltsnet.net/spacepit/torchsig-github:fast
++  stage: test
++  tags:
++    - fast
++  script:
++    - pip install -e .
++    - pytest
++  allow_failure: true
++  artifacts:
++    when: on_success
++    paths:
++      - report.xml
++      - coverage.xml
++    reports:
++      junit: report.xml
++      coverage_report:
++        coverage_format: cobertura
++        path: coverage.xml
++  coverage: '/TOTAL\s+\d+\s+\d+\s+(\d+%)/'
++  rules:
++    - if: $CI_COMMIT_BRANCH =~ /-dev-internal$/
++      allow_failure: false
++    - if: $CI_PIPELINE_SOURCE == "merge_request_event" &&
++          $CI_MERGE_REQUEST_TARGET_BRANCH_NAME =~ /-dev-internal$/
++      allow_failure: false
++    - when: on_success
++
++notebooks-examples:
++  stage: test
++  image: registry.external.ltsnet.net/spacepit/torchsig-github:fast
++  tags:
++    - large
++  variables:
++    NOTEBOOK_DIR: "examples"
++    BASE_PACKAGES: "jupyter nbconvert python-frontmatter jq nbval"
++    KERNEL_NAME: "python3"
++  script:
++    - apt update && apt install -y jq
++    - pip install ${BASE_PACKAGES} || { echo "Failed to install base packages"; exit 1; }
++    - pip install -e . || { echo "Failed to install package"; exit 1; }
++    - pip install nbconvert[execute]
++    - python3 -m ipykernel install --user --name ${KERNEL_NAME} --display-name "Python 3 (TorchSig)"
++    - |
++      # First ensure all notebooks have complete valid structure
++      for notebook in ${NOTEBOOK_DIR}/*.ipynb; do
++        echo "Validating and fixing structure for $notebook..."
++
++        # Create complete valid notebook structure with all required fields
++        jq '
++          # Ensure notebook has required top-level fields
++          .nbformat //= 4 |
++          .nbformat_minor //= 0 |
++          .metadata //= {} |
++          .cells //= []
++
++          # Ensure each cell has required fields
++          | .cells |= map(
++            if .cell_type == "code" then
++              .execution_count //= null |
++              .outputs //= []
++            else
++              .
++            end
++          )
++
++          # Set kernel metadata
++          | .metadata.kernelspec = {
++            display_name: "Python 3 (TorchSig)",
++            language: "python",
++            name: $kernel_name
++          }
++        ' --arg kernel_name ${KERNEL_NAME} "$notebook" > "${notebook}.tmp" && mv "${notebook}.tmp" "$notebook"
++      done
++    - |
++      # Clean metadata while preserving required structure
++      for notebook in ${NOTEBOOK_DIR}/*.ipynb; do
++        echo "Cleaning metadata for $notebook..."
++        jupyter nbconvert --ClearMetadataPreprocessor.enabled=True --inplace "$notebook"
++
++        # Re-apply kernel metadata after cleaning
++        jq --arg name ${KERNEL_NAME} '
++          .metadata.kernelspec = {
++            display_name: "Python 3 (TorchSig)",
++            language: "python",
++            name: $name
++          }
++        ' "$notebook" > "${notebook}.tmp" && mv "${notebook}.tmp" "$notebook"
++      done
++    - |
++      # Final validation pass to ensure all required fields exist
++      for notebook in ${NOTEBOOK_DIR}/*.ipynb; do
++        echo "Final validation for $notebook..."
++        jq '
++          # Ensure all code cells have execution_count (can be null)
++          .cells |= map(
++            if .cell_type == "code" then
++              .execution_count //= null
++            else
++              .
++            end
++          )
++        ' "$notebook" > "${notebook}.tmp" && mv "${notebook}.tmp" "$notebook"
++      done
++    - rm -f /root/.config/Ultralytics/settings.json
++    - |
++      failed_notebooks=()
++      for notebook in ${NOTEBOOK_DIR}/*.ipynb; do
++        echo "Running $notebook..."
++        if ! jupyter nbconvert --to html --execute \
++          --ExecutePreprocessor.kernel_name=${KERNEL_NAME} \
++          --ExecutePreprocessor.allow_errors=False \
++          --ExecutePreprocessor.timeout=600 \
++          "$notebook" \
++          --output "executed-${notebook##*/}.html"; then
++          echo "Failed to execute $notebook"
++          failed_notebooks+=("$notebook")
++        fi
++      done
++      if [ ${#failed_notebooks[@]} -gt 0 ]; then
++        echo "The following notebooks failed:"
++        printf '%s\n' "${failed_notebooks[@]}"
++        exit 1
++      fi
++  artifacts:
++    paths:
++      - examples/executed-*.html
++    expire_in: 4 days
++  rules:
++    - if: $CI_COMMIT_BRANCH =~ /-dev-internal$/
++      when: always
++      allow_failure: true
++    - if: $CI_PIPELINE_SOURCE == "merge_request_event" &&
++          $CI_MERGE_REQUEST_TARGET_BRANCH_NAME =~ /-dev-internal$/
++      when: always
++      allow_failure: true
++    - when: never
++
++notebooks-transforms:
++  stage: test
++  image: registry.external.ltsnet.net/spacepit/torchsig-github:fast
++  tags:
++    - large
++  variables:
++    NOTEBOOK_DIR: "examples/transforms"
++    BASE_PACKAGES: "jupyter nbconvert python-frontmatter jq"
++    KERNEL_NAME: "python3"
++  script:
++    - apt update && apt install -y jq
++    - pip install ${BASE_PACKAGES} || { echo "Failed to install base packages"; exit 1; }
++    - pip install -e . || { echo "Failed to install package"; exit 1; }
++    - pip install nbconvert[execute]
++    - python3 -m ipykernel install --user --name ${KERNEL_NAME} --display-name "Python 3 (TorchSig)"
++    - |
++      for notebook in ${NOTEBOOK_DIR}/*.ipynb; do
++        echo "Fixing metadata for $notebook..."
++        jq --arg name ${KERNEL_NAME} '
++          .metadata.kernelspec = {
++            display_name: "Python 3 (TorchSig)",
++            language: "python",
++            name: $name
++          } |
++          .nbformat = 4 |
++          .nbformat_minor = 0
++        ' "$notebook" > "${notebook}.tmp" && mv "${notebook}.tmp" "$notebook"
++      done
++    - rm -f /root/.config/Ultralytics/settings.json
++    - |
++      failed_notebooks=()
++      for notebook in ${NOTEBOOK_DIR}/*.ipynb; do
++        echo "Running $notebook..."
++        if ! jupyter nbconvert --to html --execute \
++          --ExecutePreprocessor.kernel_name=${KERNEL_NAME} \
++          --ExecutePreprocessor.allow_errors=True \
++          "$notebook" \
++          --output "executed-${notebook##*/}.html"; then
++          echo "Failed to execute $notebook"
++          failed_notebooks+=("$notebook")
++        fi
++      done
++      if [ ${#failed_notebooks[@]} -gt 0 ]; then
++        echo "The following notebooks failed:"
++        printf '%s\n' "${failed_notebooks[@]}"
++        exit 1
++      fi
++  artifacts:
++    paths:
++      - examples/transforms/executed-*.html
++    expire_in: 4 days
++  rules:
++    - if: $CI_COMMIT_BRANCH =~ /-dev-internal$/
++      when: always
++      allow_failure: true
++    - if: $CI_PIPELINE_SOURCE == "merge_request_event" &&
++          $CI_MERGE_REQUEST_TARGET_BRANCH_NAME =~ /-dev-internal$/
++      when: always
++      allow_failure: true
++    - when: never
++
++# Documentation: test docs can be built -------------------------------------------------------------
++docs-build:
++  stage: test
++  tags:
++    - fast
++  image: registry.external.ltsnet.net/spacepit/torchsig-github:latest
++  cache:
++    key: pip-cache
++    paths:
++      - .cache/pip
++  variables:
++    READTHEDOCS_OUTPUT: "docs/_build"
++    VIRTUALENV_PATH: "$CI_PROJECT_DIR/.venv"
++  before_script:
++    - pip install virtualenv
++  script:
++    - python -m virtualenv $VIRTUALENV_PATH
++    - source $VIRTUALENV_PATH/bin/activate
++    - python -m pip install --upgrade --no-cache-dir pip setuptools
++    - python -m pip install --upgrade --no-cache-dir sphinx
++    - python -m pip install --upgrade --upgrade-strategy only-if-needed --no-cache-dir .
++    - python -m pip install --exists-action=w --no-cache-dir -r docs/docs-requirements.txt
++    - python -m sphinx -T -b html -d _build/doctrees -D language=en docs/ $READTHEDOCS_OUTPUT/html
++  artifacts:
++    paths:
++      - docs/_build/html/
++    expire_in: 4 days
++  rules:
++    - if: $CI_COMMIT_BRANCH =~ /-dev-internal$/
++      when: always
++      allow_failure: false
++    - if: $CI_PIPELINE_SOURCE == "merge_request_event" &&
++          $CI_MERGE_REQUEST_TARGET_BRANCH_NAME =~ /-dev-internal$/
++      when: always
++      allow_failure: false
++    - when: never
+\ No newline at end of file
+diff --git a/Dockerfile b/Dockerfile
+deleted file mode 100755
+index ffb7e7ae3..000000000
+--- a/Dockerfile
++++ /dev/null
+@@ -1,77 +0,0 @@
+-# +----------------------------------------------------------------------------+
+-# |                       Stage 1: Builder (with CUDA Toolkit)                |
+-# +----------------------------------------------------------------------------+
+-FROM nvidia/cuda:12.1.0-devel-ubuntu22.04 AS builder
+-WORKDIR /workspace
+-
+-# +----------------------------------------------------------------------------+
+-# | Install system build tools, Python headers, pip and Git                   |
+-# +----------------------------------------------------------------------------+
+-RUN apt-get update && \
+-    apt-get install -y --no-install-recommends \
+-      build-essential \          
+-      curl \                    
+-      libffi-dev libssl-dev \      
+-      python3.10 python3-pip \      
+-      git && \                       
+-    rm -rf /var/lib/apt/lists/*     
+-
+-# +----------------------------------------------------------------------------+
+-# | Install rustup and set up latest stable Rust (>=1.81)                     |
+-# +----------------------------------------------------------------------------+
+-ENV RUSTUP_HOME=/usr/local/rustup \
+-    CARGO_HOME=/usr/local/cargo \
+-    PATH=/usr/local/cargo/bin:$PATH
+-
+-RUN curl https://sh.rustup.rs -sSf | sh -s -- -y --default-toolchain stable \
+-    && rustc --version           
+-
+-# +----------------------------------------------------------------------------+
+-# | Upgrade pip and install Python packaging tools (setuptools-rust, wheel)    |
+-# +----------------------------------------------------------------------------+
+-RUN python3 -m pip install --upgrade pip setuptools setuptools-rust wheel
+-
+-# +----------------------------------------------------------------------------+
+-# | Copy the entire project into the builder image                             |
+-# +----------------------------------------------------------------------------+
+-COPY . .
+-
+-# +----------------------------------------------------------------------------+
+-# | Install TorchSig (builds the Rust extension in-place)                     |
+-# +----------------------------------------------------------------------------+
+-RUN pip install . --no-cache-dir
+-
+-# +============================================================================+
+-# |                Stage 2: Runtime (CUDA Runtime Only)                       |
+-# +============================================================================+
+-FROM nvidia/cuda:12.1.0-runtime-ubuntu22.04
+-WORKDIR /workspace
+-
+-# +----------------------------------------------------------------------------+
+-# | Install minimal system libraries required at runtime (e.g., OpenCV deps)   |
+-# +----------------------------------------------------------------------------+
+-RUN apt-get update && \
+-    apt-get install -y --no-install-recommends \
+-      python3.10 \
+-      python-is-python3 \
+-      libgl1 \   
+-      libsm6 \   
+-      libxrender1 \
+-      libxext6 && \ 
+-    rm -rf /var/lib/apt/lists/*
+-
+-# +----------------------------------------------------------------------------+
+-# | Copy installed Python packages from builder into runtime image             |
+-# +----------------------------------------------------------------------------+
+-COPY --from=builder /usr/local/lib/python3.10/dist-packages/ \
+-                     /usr/local/lib/python3.10/dist-packages/
+-
+-# +----------------------------------------------------------------------------+
+-# | (Optional) Copy source/tests/scripts if you need them in the runtime       |
+-# +----------------------------------------------------------------------------+
+-COPY --from=builder /workspace /workspace
+-
+-# +----------------------------------------------------------------------------+
+-# | Default to bash for interactive GPU testing                                |
+-# +----------------------------------------------------------------------------+
+-CMD ["bash"]
+diff --git a/README.md b/README.md
+index b3a5e3271..95cdee598 100755
+--- a/README.md
++++ b/README.md
+@@ -13,7 +13,7 @@
+ 
+ ## Prerequisites
+ - Ubuntu &ge; 22.04
+-- Hard drive storage with 1 TB
++- Hard drive storage with &ge; 1 TB
+ - CPU with &ge; 4 cores
+ - GPU with &ge; 16 GB storage (recommended)
+ - Python &ge; 3.10
+@@ -75,122 +75,15 @@ print(static_dataset[0])
+ # Docker
+ One option for running TorchSig is within Docker. Start by building the Docker container:
+ 
+-```
+-docker build -t torchsig -f Dockerfile .
+-```
+-
+-## Generating Datasets with Docker
+-To create datasets with the Docker container, create a Python script and run it:
+-```python
+-# create_dataset.py
+-from torchsig.datasets.datasets import TorchSigIterableDataset
+-from torchsig.utils.writer import DatasetCreator
+-from torchsig.utils.defaults import TorchSigDefaults
+-from torchsig.transforms.impairments import Impairments
+-from torchsig.transforms.transforms import Spectrogram
+-
+-# Classification dataset (single signal)
+-dataset_metadata = TorchSigDefaults().default_dataset_metadata
+-dataset_metadata["num_iq_samples_dataset"] = 100
+-dataset_metadata["num_signals_min"] = 1
+-dataset_metadata["num_signals_max"] = 1
+-
+-impairments = Impairments(level=0)
+-burst_impairments = impairments.signal_transforms
+-whole_signal_impairments = impairments.dataset_transforms
+-
+-dataset = TorchSigIterableDataset(
+-    metadata=dataset_metadata,
+-    transforms=[
+-        whole_signal_impairments,
+-        Spectrogram(fft_size=dataset_metadata["fft_size"]),
+-    ],
+-    component_transforms=[burst_impairments],
+-)
+-
+-dataloader = WorkerSeedingDataLoader(dataset, batch_size=4)
+-
+-dataset_creator = DatasetCreator(
+-    dataset_length=10,
+-    dataloader=dataloader,
+-    root="/path/to/classification_dataset",
+-    overwrite=True,
+-    multithreading=False,
+-)
+-dataset_creator.create()
+-
+-# Detection dataset (multiple signals)
+-dataset_metadata = DatasetMetadata(
+-    num_iq_samples_dataset=100,
+-    num_samples=10,
+-    impairment_level=2,  # wireless
+-    num_signals_max=3,
+-)
+-dataset = TorchSigIterableDataset(
+-    metadata=dataset_metadata,
+-    transforms=[Spectrogram(fft_size=dataset_metadata["fft_size"])],
+-)
+-creator = DatasetCreator(dataset, root="/path/to/detection_dataset")
+-creator.create()
+-
+-dataset_metadata = TorchSigDefaults().default_dataset_metadata
+-dataset_metadata["num_iq_samples_dataset"] = 100
+-dataset_metadata["num_signals_min"] = 1
+-dataset_metadata["num_signals_max"] = 3
+-
+-impairments = Impairments(level=2)
+-burst_impairments = impairments.signal_transforms
+-whole_signal_impairments = impairments.dataset_transforms
+-
+-dataset = TorchSigIterableDataset(
+-    metadata=dataset_metadata,
+-    transforms=[
+-        whole_signal_impairments,
+-        Spectrogram(fft_size=dataset_metadata["fft_size"]),
+-    ],
+-    component_transforms=[burst_impairments],
+-)
+-
+-dataloader = WorkerSeedingDataLoader(dataset, batch_size=4)
+-
+-dataset_creator = DatasetCreator(
+-    dataset_length=10,
+-    dataloader=dataloader,
+-    root="/path/to/detection_dataset",
+-    overwrite=True,
+-    multithreading=False,
+-)
+-dataset_creator.create()
+-
+-```
+-
+ ```bash
+-docker run -u $(id -u ${USER}):$(id -g ${USER}) -v `pwd`:/workspace/code/torchsig torchsig python3 create_dataset.py
++docker build -t torchsig -f docker/Dockerfile .
+ ```
+ 
+-## Running Jupyter Notebooks with Docker
+-To run with GPU support use `--gpus all`:
+-```
+-docker run -d --rm --network=host --shm-size=32g --gpus all --name torchsig_workspace torchsig tail -f /dev/null
+-```
+-
+-To run without GPU support:
+-```
+-docker run -d --rm --network=host --shm-size=32g --name torchsig_workspace torchsig tail -f /dev/null
+-```
+-
+-Run Jupyter Lab:
+-```
+-docker exec torchsig_workspace jupyter lab --allow-root --ip=0.0.0.0 --no-browser
+-```
+-
+-To start an interactive shell:
+-```
+-docker exec -it torchsig_workspace bash
++And then you can launch a Docker instance:
++```bash
++docker run -it torchsig
+ ```
+-
+-Then use the URL in the output in your browser to run the examples and notebooks.
+-
++See `docker/README.md` to learn more.
+ 
+ # Key Features
+ TorchSig provides many useful tools to facilitate and accelerate research on signals processing machine learning technologies:
+diff --git a/docker/Dockerfile b/docker/Dockerfile
+new file mode 100755
+index 000000000..d81eaff23
+--- /dev/null
++++ b/docker/Dockerfile
+@@ -0,0 +1,38 @@
++FROM python:3.10-slim
++
++# Prevents Python from writing .pyc files
++ENV PYTHONDONTWRITEBYTECODE=1
++# Ensures Python output is not buffered
++ENV PYTHONUNBUFFERED=1
++
++WORKDIR /workspace
++
++# Create and activate virtual environment
++# RUN python -m venv /opt/venv
++# ENV PATH="/opt/venv/bin:$PATH"
++
++# Copy torchsig
++COPY ../. .
++
++# Install system dependencies
++RUN apt-get update && apt-get install -y --no-install-recommends \
++    build-essential \
++    cmake \
++    curl \
++    git \
++    libffi-dev libssl-dev \
++    libgl1 \
++    libsm6 \
++    libxrender1 \
++    libxext6 \
++    libglib2.0-0 \
++    && rm -rf /var/lib/apt/lists/*
++
++# Install Python dependencies
++RUN pip install --no-cache-dir --upgrade pip && \
++    pip install build setuptools
++
++# Install torchsig
++RUN pip install --no-cache-dir .
++
++CMD ["bash"]
+diff --git a/docker/Dockerfile.gpu b/docker/Dockerfile.gpu
+new file mode 100644
+index 000000000..ecc3edffd
+--- /dev/null
++++ b/docker/Dockerfile.gpu
+@@ -0,0 +1,46 @@
++FROM nvidia/cuda:11.8.0-base-ubuntu22.04
++
++# Install Python 3.10
++RUN apt-get update && apt-get install -y --no-install-recommends \
++    python3.10 \
++    python3-pip \
++    python3.10-venv \
++    && rm -rf /var/lib/apt/lists/*
++
++# Set Python 3.10 as default
++RUN update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.10 1
++RUN update-alternatives --install /usr/bin/pip pip /usr/bin/pip3.10 1
++
++# Prevents Python from writing .pyc files
++ENV PYTHONDONTWRITEBYTECODE=1
++# Ensures Python output is not buffered
++ENV PYTHONUNBUFFERED=1
++
++WORKDIR /workspace
++
++# Install system dependencies
++RUN apt-get update && apt-get install -y --no-install-recommends \
++    build-essential \
++    cmake \
++    curl \
++    git \
++    libffi-dev \
++    libssl-dev \
++    libgl1 \
++    libsm6 \
++    libxrender1 \
++    libxext6 \
++    libglib2.0-0 \
++    && rm -rf /var/lib/apt/lists/*
++
++# Install Python dependencies
++RUN pip install --no-cache-dir --upgrade pip && \
++    pip install build setuptools
++
++# Copy torchsig
++COPY ../. .
++
++# Install torchsig
++RUN pip install --no-cache-dir .
++
++CMD ["bash"]
+\ No newline at end of file
+diff --git a/docker/README.md b/docker/README.md
+new file mode 100644
+index 000000000..6782be3b6
+--- /dev/null
++++ b/docker/README.md
+@@ -0,0 +1,22 @@
++# TorchSig: Docker
++
++## Base TorchSig Image (`Dockerfile`)
++- CPU only
++- 7 GB
++```bash
++docker build -t torchsig -f docker/Dockerfile .
++docker run -it torchsig
++```
++
++## GPU TorchSig Image (`Dockerfile.gpu`)
++- Ubuntu 22.04
++- NVIDIA CUDA 11.8.0
++- Python 3.10
++- 7 GB
++```bash
++docker build -t torchsig-gpu -f docker/Dockerfile.gpu .
++docker run -it torchsig-gpu
++```
++
++## Tips
++- To run with GPU support add `--gpus all` in `docker run` command
+\ No newline at end of file
+diff --git a/docs/rust_fft_design.md b/docs/rust_fft_design.md
+deleted file mode 100644
+index 5a7d11897..000000000
+--- a/docs/rust_fft_design.md
++++ /dev/null
+@@ -1,245 +0,0 @@
+-# Rust FFT Processing Module Design
+-
+-## Overview
+-Optional Rust module for ultra-high performance FFT processing to further accelerate real-time spectrogram generation. This is designed to be a future enhancement when maximum performance is needed.
+-
+-## Performance Targets
+-- **Sub-millisecond spectrogram generation** for typical RF signals
+-- **10-100x faster** than current Python implementation
+-- **Memory efficient** with zero-copy operations where possible
+-- **SIMD optimized** for modern processors
+-
+-## Architecture
+-
+-### Rust Crate Structure
+-```
+-torchsig_fft/
+-├── Cargo.toml
+-├── src/
+-│   ├── lib.rs              # Main library interface
+-│   ├── fft.rs              # Core FFT implementations
+-│   ├── spectrogram.rs      # Spectrogram computation
+-│   ├── windowing.rs        # Window functions (Hann, Hamming, etc.)
+-│   └── python_bindings.rs  # PyO3 Python bindings
+-└── benches/
+-    └── performance.rs      # Performance benchmarks
+-```
+-
+-### Dependencies
+-```toml
+-[dependencies]
+-pyo3 = "0.20"
+-numpy = "0.20"
+-rustfft = "6.1"      # High-performance FFT
+-rayon = "1.7"        # Data parallelism
+-num-complex = "0.4"  # Complex number support
+-```
+-
+-### Core API Design
+-
+-```rust
+-use pyo3::prelude::*;
+-use numpy::{PyArray2, PyReadonlyArray1};
+-
+-#[pyclass]
+-pub struct RustSpectrogramProcessor {
+-    // Pre-allocated FFT planner for different sizes
+-    fft_cache: FftCache,
+-    // Thread pool for parallel processing
+-    thread_pool: rayon::ThreadPool,
+-}
+-
+-#[pymethods]
+-impl RustSpectrogramProcessor {
+-    #[new]
+-    pub fn new(max_fft_size: usize, num_threads: Option<usize>) -> Self {
+-        // Initialize with optimized thread count and FFT cache
+-    }
+-    
+-    #[pyo3(signature = (signal, n_fft, hop_length, window_type, normalize=true))]
+-    pub fn compute_spectrogram<'py>(
+-        &self,
+-        py: Python<'py>,
+-        signal: PyReadonlyArray1<num_complex::Complex<f32>>,
+-        n_fft: usize,
+-        hop_length: usize,
+-        window_type: &str,
+-        normalize: bool,
+-    ) -> PyResult<&'py PyArray2<f32>> {
+-        // Ultra-fast spectrogram computation with SIMD optimization
+-    }
+-    
+-    pub fn compute_spectrogram_streaming(
+-        &self,
+-        signal_chunk: PyReadonlyArray1<num_complex::Complex<f32>>,
+-        // ... parameters
+-    ) -> PyResult<()> {
+-        // Real-time streaming spectrogram for continuous processing
+-    }
+-}
+-```
+-
+-### Key Optimizations
+-
+-#### 1. FFT Optimization
+-```rust
+-use rustfft::{FftPlanner, Fft};
+-
+-struct FftCache {
+-    planners: HashMap<usize, Arc<dyn Fft<f32>>>,
+-}
+-
+-impl FftCache {
+-    fn get_or_create(&mut self, n_fft: usize) -> Arc<dyn Fft<f32>> {
+-        // Cache FFT planners for different sizes
+-        // Use SIMD-optimized implementations
+-    }
+-}
+-```
+-
+-#### 2. Parallel Processing
+-```rust
+-use rayon::prelude::*;
+-
+-fn compute_parallel_stft(
+-    signal: &[Complex<f32>],
+-    n_fft: usize,
+-    hop_length: usize,
+-    window: &[f32],
+-) -> Vec<Vec<Complex<f32>>> {
+-    // Parallel computation of STFT frames
+-    (0..num_frames)
+-        .into_par_iter()
+-        .map(|frame_idx| {
+-            // Process each frame in parallel
+-            compute_fft_frame(signal, frame_idx, n_fft, hop_length, window)
+-        })
+-        .collect()
+-}
+-```
+-
+-#### 3. SIMD Window Functions
+-```rust
+-use std::arch::x86_64::*;
+-
+-#[target_feature(enable = "avx2")]
+-unsafe fn apply_hann_window_avx2(signal: &mut [f32], window: &[f32]) {
+-    // Vectorized window application using AVX2
+-    for (signal_chunk, window_chunk) in 
+-        signal.chunks_exact_mut(8).zip(window.chunks_exact(8)) {
+-        
+-        let sig = _mm256_loadu_ps(signal_chunk.as_ptr());
+-        let win = _mm256_loadu_ps(window_chunk.as_ptr());
+-        let result = _mm256_mul_ps(sig, win);
+-        _mm256_storeu_ps(signal_chunk.as_mut_ptr(), result);
+-    }
+-}
+-```
+-
+-### Python Integration
+-
+-```python
+-# torchsig/utils/rust_fft.py
+-from typing import Optional
+-import numpy as np
+-
+-try:
+-    from torchsig_fft import RustSpectrogramProcessor
+-    RUST_FFT_AVAILABLE = True
+-except ImportError:
+-    RUST_FFT_AVAILABLE = False
+-    RustSpectrogramProcessor = None
+-
+-class FastSpectrogramProcessor:
+-    def __init__(self, use_rust: bool = True, max_fft_size: int = 8192):
+-        self.use_rust = use_rust and RUST_FFT_AVAILABLE
+-        
+-        if self.use_rust:
+-            self.rust_processor = RustSpectrogramProcessor(
+-                max_fft_size=max_fft_size,
+-                num_threads=None  # Auto-detect optimal thread count
+-            )
+-    
+-    def compute_spectrogram(
+-        self,
+-        signal: np.ndarray,
+-        n_fft: int,
+-        hop_length: int,
+-        window: str = 'hann',
+-        normalize: bool = True
+-    ) -> np.ndarray:
+-        
+-        if self.use_rust:
+-            # Ultra-fast Rust implementation
+-            return self.rust_processor.compute_spectrogram(
+-                signal, n_fft, hop_length, window, normalize
+-            )
+-        else:
+-            # Fallback to PyTorch/SciPy
+-            return self._fallback_spectrogram(signal, n_fft, hop_length, window)
+-```
+-
+-### Integration with Real-time Service
+-
+-```python
+-# In services/realtime_spectrogram.py
+-from torchsig.utils.rust_fft import FastSpectrogramProcessor
+-
+-class RealtimeSpectrogramService:
+-    def __init__(self):
+-        # Try to use Rust FFT for maximum performance
+-        self.spectrogram_processor = FastSpectrogramProcessor(use_rust=True)
+-        # ... rest of initialization
+-    
+-    def compute_spectrogram_fast(self, iq_data: np.ndarray, params: SpectrogramParams):
+-        # Use Rust implementation if available, fallback to Python
+-        return self.spectrogram_processor.compute_spectrogram(
+-            iq_data, params.n_fft, params.hop_length, params.window
+-        )
+-```
+-
+-## Performance Expectations
+-
+-### Benchmarks (Estimated)
+-| Implementation | Signal Length | FFT Size | Computation Time |
+-|---------------|---------------|----------|------------------|
+-| Current Scipy | 1M samples    | 1024     | ~50ms           |
+-| Current PyTorch| 1M samples    | 1024     | ~15ms (GPU)     |
+-| **Rust + SIMD** | 1M samples  | 1024     | **~2ms**        |
+-| **Rust Parallel**| 1M samples  | 1024     | **~0.5ms**      |
+-
+-### Memory Usage
+-- **Zero-copy** where possible using PyO3
+-- **In-place** FFT computations
+-- **Optimized allocation** patterns
+-
+-## Implementation Priority
+-
+-**Phase 1 (Optional Enhancement)**
+-- Basic Rust FFT implementation with PyO3 bindings
+-- Integration with existing Python service
+-- Performance benchmarking
+-
+-**Phase 2 (Future)**  
+-- SIMD optimizations for specific architectures
+-- Streaming/real-time processing capabilities
+-- Multi-GPU support for batch processing
+-
+-## Build Integration
+-
+-```toml
+-# Add to pyproject.toml for optional Rust acceleration
+-[tool.setuptools.packages.find]
+-exclude = ["torchsig_fft*"]  # Exclude Rust crate from Python package
+-
+-[build-system]
+-requires = ["setuptools", "wheel", "setuptools-rust"]
+-build-backend = "setuptools.build_meta"
+-
+-[[tool.setuptools-rust.ext-modules]]
+-target = "torchsig.utils._rust_fft"
+-path = "torchsig_fft/Cargo.toml"
+-binding = "PyO3"
+-```
+-
+-This design provides a path for ultra-high performance when needed, while maintaining compatibility with the current Python-based system.
+\ No newline at end of file
+diff --git a/pyproject.toml b/pyproject.toml
+index c5f5d2960..d8e7930e2 100755
+--- a/pyproject.toml
++++ b/pyproject.toml
+@@ -1,6 +1,6 @@
+ [build-system]
+ # Define build dependencies and backend
+-requires = ["setuptools>=61", "setuptools-rust>=1.10"]
++requires = ["setuptools>=61"]
+ build-backend = "setuptools.build_meta"
+ 
+ [project]
+@@ -19,7 +19,6 @@ dynamic = ["version"]
+ classifiers = [
+     "Programming Language :: Python",
+     "Programming Language :: Python :: 3",
+-    "Programming Language :: Rust",
+ ]
+ # Runtime dependencies
+ dependencies = [
+@@ -54,15 +53,7 @@ where = ["."]
+ 
+ [tool.setuptools.dynamic]
+ # Dynamically read version from torchsig.__version__
+-version = {attr = "torchsig.__version__"}
+-
+-[[tool.setuptools-rust.ext-modules]]
+-# Define the Rust extension module built with PyO3
+-target = "torchsig.utils.rust_functions"  # Must match import path and lib.name in Cargo.toml
+-path = "rust_functions/Cargo.toml"        # Path to Cargo.toml
+-binding = "PyO3"                          # Bindings to use
+-debug = false                             # Enable release mode for optimized builds
+-optional = false                          # Crash if the extension build fails
++version = {attr = "torchsig.__version__"}                     # Crash if the extension build fails
+ 
+ [tool.coverage.run]
+ branch = true
+@@ -82,7 +73,7 @@ testpaths = ["tests"]
+ # Same line length as Black (200)
+ line-length = 200
+ target-version = "py310"
+-exclude = ["docs", "rust_functions"]
++exclude = ["docs"]
+ 
+ [tool.ruff.lint]
+ # Enable all rules by default
+diff --git a/rust_functions/Cargo.toml b/rust_functions/Cargo.toml
+deleted file mode 100644
+index 47c105e60..000000000
+--- a/rust_functions/Cargo.toml
++++ /dev/null
+@@ -1,20 +0,0 @@
+-[package]
+-name = "rust_functions"
+-version = "2.1.0"
+-edition = "2021"
+-rust-version = "1.86"
+-
+-[lib]
+-name = "rust_functions"
+-crate-type = ["cdylib"]
+-
+-[dependencies]
+-pyo3 = { version = "0.21", features = ["extension-module"] }
+-numpy = "0.21.0"
+-ndrustfft = "0.4.5"
+-futuredsp = "0.0.6"
+-fixed = "1.28.0"
+-ndarray = "0.15"
+-rand_distr = "0.5.1"
+-rand = "0.9.1"
+-num-complex = "0.4"
+\ No newline at end of file
+diff --git a/rust_functions/README.md b/rust_functions/README.md
+deleted file mode 100644
+index f79466c88..000000000
+--- a/rust_functions/README.md
++++ /dev/null
+@@ -1,34 +0,0 @@
+-# Rust Functions for TorchSig
+-
+-Rust implementations for various DSP computations for TorchSig library. Code is automatically compiled and accessible under torchsig using [setuptools-rust](https://pypi.org/project/setuptools-rust/).
+-
+-## Rust File Structure
+-```
+-rust_functions/
+-├── Cargo.toml
+-├── README.md
+-├── src
+-│   └── lib.rs
+-```
+-
+-
+-## For Developers/Advanced Users
+-Most users do not need to do anything to this code in order to use TorchSig. However, if you want to see how we have implemented our code or want to override it for a specific purpose, see below.
+-
+-
+-### Build Code for TorchSig
+-
+-1. Code your changes/functions inside `src/`. Most of our code is in `src/lib.rs`
+-
+-2. Bind your Rust functions inside `src/lib.rs` in order to use in TorchSig. See [PyO3 user guide](https://pyo3.rs/v0.25.1/rust-from-python.html) to learn more about exposing Rust code to Python.
+-
+-3. Reinstall TorchSig. `setuptools-rust` will automatically compile and copy the binaries, and make them usable within torchsig.
+-```bash
+-pip install -e .
+-```
+-
+-4. Now you can call the Rust functions in Python:
+-```python
+-from torchsig.utils.rust_functions import <insert_rust_function_name>
+-```
+-
+diff --git a/rust_functions/src/lib.rs b/rust_functions/src/lib.rs
+deleted file mode 100644
+index 47f6d11c0..000000000
+--- a/rust_functions/src/lib.rs
++++ /dev/null
+@@ -1,243 +0,0 @@
+-use pyo3::prelude::*;
+-use numpy::PyReadonlyArray1;
+-use numpy::{Complex32, Complex64, PyArray1, PyArrayMethods, PyArray};
+-use rand::SeedableRng;
+-use rand::rngs::StdRng;
+-use rand_distr::{Normal, Distribution};
+-use pyo3::Bound; 
+-use pyo3::wrap_pyfunction;
+-
+-// implements the jitter & drift transform
+-#[pyfunction]
+-#[pyo3(signature = (h, x, uprate, drate, jitter_ppm, drift_ppm, seed))]
+-fn sampling_clock_impairments<'py>(
+-    py: Python<'py>, 
+-    h: PyReadonlyArray1<'py,f32>, 
+-    x: PyReadonlyArray1<'py,Complex32>, 
+-    uprate: i32, 
+-    drate: f32, 
+-    jitter_ppm: f32, 
+-    drift_ppm: f32, 
+-    seed: u64
+-) -> Bound<'py,PyArray1<Complex32>> {
+-
+-   // run the transform
+-   let output_vec = irrational_rate_resampler(h.to_vec().unwrap(),&x.to_vec().unwrap(),uprate as u32, drate, jitter_ppm, drift_ppm, seed);
+-   // return the output
+-   PyArray::from_vec_bound(py, output_vec)
+-}
+-
+-// function to emulate SciPy's upfirdn() call
+-#[pyfunction]
+-#[pyo3(signature = (h, x, uprate, drate))]
+-fn upfirdn<'py>(
+-    py: Python<'py>, 
+-    h: PyReadonlyArray1<'py,f32>, 
+-    x: PyReadonlyArray1<'py,Complex32>, 
+-    uprate: i32, 
+-    drate: f32
+-) -> Bound<'py,PyArray1<Complex32>> {
+-
+-    // // run the resampler
+-    // Convert inputs into owned Rust types
+-    let h_vec = h.to_vec().unwrap();
+-    let x_vec = x.to_vec().unwrap();
+-
+-    // Call your Rust resampler function
+-    // we use nominal seed = 0
+-    let output_array: Vec<Complex32> = irrational_rate_resampler(h_vec.to_vec(), &x_vec, uprate as u32, drate, 0.0, 0.0, 0);
+-
+-    // Convert the output Vec<Complex32> into a NumPy array and return
+-    PyArray::from_vec_bound(py, output_array)
+-}
+-
+-// 
+-// implements an irrational rate resampler using pfb
+-pub fn irrational_rate_resampler(
+-    h: Vec<f32>,
+-    input_samples: &Vec<Complex32>,
+-    up_rate: u32,
+-    down_rate: f32,
+-    jitter_ppm: f32,
+-    drift_ppm: f32,
+-    seed: u64
+-) -> Vec<Complex32> {
+-
+-    // compute the number of taps per phase in PFB
+-    let taps_per_phase = (h.len() as f32 / up_rate as f32).ceil() as u32;
+-
+-    let mut rng = StdRng::seed_from_u64(seed);
+-    let normal_jitter = Normal::new(0.0, jitter_ppm*1e-6).unwrap();
+-    let normal_drift = Normal::new(0.0, drift_ppm * 1e-6).unwrap();
+-
+-    // let mut rng = rand::rng();
+-    
+-    // design and partition the polyphase filter bank
+-    let h_pfb: Vec<Vec<f32>> = partition_polyphase(h, up_rate, taps_per_phase);
+-
+-    let padded_len: usize = input_samples.len() + taps_per_phase as usize * 2 - 1;
+-    // zero-pad the samples to flush the sample buffer on output
+-    let mut input_samples_padded: Vec<Complex32> = vec![Complex32::ZERO; padded_len];  //input_samples.clone();
+-    let start = taps_per_phase as usize - 1; // minus 2 is to accurately replicate scipy's upfirdn function
+-    let end = start + input_samples.len();
+-    input_samples_padded[start..end].copy_from_slice(&input_samples);
+-
+-    // commutator
+-    let mut q_step: f32 = up_rate as f32 / down_rate as f32;
+-
+-    // calculate number of output samples
+-    let num_output_samples_estimated = (input_samples_padded.len() as f32 * up_rate as f32 / down_rate as f32).ceil() as u32 + 1;
+-    // pre-allocate memory for the output samples
+-    let mut output_samples = vec![Complex32::ZERO;num_output_samples_estimated as usize];
+-
+-    // initialize indexing for input and output sample streams
+-    let mut input_idx = 0;
+-    let mut output_idx = 0;
+-    let mut clock_drift: f32 = 0.0;
+-
+-    let idx_stop = input_samples_padded.len() - taps_per_phase as usize;
+-
+-    // run the resampler. run until all input samples are processed
+-    while input_idx < idx_stop {
+-        // run commutator to determine how many input samples correspond to output samples
+-        while q_step >= up_rate as f32 {
+-            // update commutator position
+-            q_step -= up_rate as f32;
+-            // update index into input time series
+-            input_idx += 1;
+-        }
+-        let delay_slice: &[Complex32] = &input_samples_padded[input_idx..input_idx + taps_per_phase as usize];
+-        if q_step >= up_rate as f32 {
+-            break;
+-        }
+-        // "phase" or branch selector into filter bank
+-        let phase = q_step as i32 as usize;
+-        // get filter weights from PFB
+-        let h_phase = &h_pfb[phase][..taps_per_phase as usize];
+-        // get input samples from sample buffer
+-        // implement the multiply and add using iterators
+-        let (acc_re, acc_im) = h_phase
+-            .iter()
+-            .zip(delay_slice.iter().rev())
+-            .fold((0.0f32, 0.0f32), |(sum_re, sum_im), (&h_coef, &sample)| {
+-                (
+-                    sum_re + h_coef * sample.re,
+-                    sum_im + h_coef * sample.im,
+-                )
+-            });
+-
+-        // define output sample
+-        let pfb_out = Complex32::new(acc_re, acc_im);
+-
+-        // place the output sample at the proper index
+-        output_samples[output_idx] = pfb_out;
+-        // increment output index
+-        output_idx += 1;
+-
+-        // increment commutator based on resampling rate
+-        if jitter_ppm != 0.0 || drift_ppm != 0.0 {
+-            let clock_jitter: f32 = normal_jitter.sample(&mut rng);
+-            clock_drift += normal_drift.sample(&mut rng);
+-            q_step += down_rate + clock_jitter + clock_drift;
+-
+-        } else {
+-            q_step += down_rate;
+-        }
+-    }
+-
+-    // slices output to proper length. subtract off 1 from output_idx
+-    // because of most recent +1 does not correspond to an output sample
+-    // output_samples[0..output_idx-1].to_vec()
+-    if output_idx == 0 {
+-        vec![]
+-    } else {
+-        output_samples[0..output_idx-1].to_vec()
+-    }
+-}
+-
+-
+-// transforms the prototype filter weights into a polyphase filter bank,
+-// which is a two-dimensional vector
+-fn partition_polyphase(h: Vec<f32>, up_rate: u32, taps_per_phase: u32) -> Vec<Vec<f32>> {
+-    // pre-allocate two-dimensional vector which will hold PFB weights
+-    let mut h_pfb: Vec<Vec<f32>> = vec![vec![0.0 as f32; taps_per_phase as usize]; up_rate as usize];
+-    // perform the polyphase partition
+-    for phase in 0..up_rate {
+-        let mut tap_idx = phase;
+-        for idx in 0..taps_per_phase {
+-            if tap_idx >= h.len() as u32 {
+-                h_pfb[phase as usize][idx as usize] = 0.0;
+-
+-            } else {
+-                h_pfb[phase as usize][idx as usize] = h[tap_idx as usize] * up_rate as f32;
+-            }
+-            tap_idx += up_rate as u32;
+-        }
+-    }
+-    h_pfb
+-}
+-
+-#[pyfunction]
+-#[pyo3(signature = (data, 
+-    alpha_smooth= 1e-4,
+-    alpha_track= 1e-3,
+-    alpha_overflow =0.1,
+-    alpha_acquire = 1e-3,
+-    ref_level_db = 0.0,
+-    track_range_db = 1.0,
+-    low_level_db = -80.0,
+-    high_level_db = 10.0,
+-
+-))]
+-fn digital_agctran<'py>(data:PyReadonlyArray1<'py,Complex64>, py: Python<'py>,
+-    alpha_smooth:f32, alpha_track:f32, alpha_overflow:f32, alpha_acquire:f32, ref_level_db:f32, 
+-    track_range_db:f32, low_level_db:f32,  high_level_db:f32)-> Bound<'py,PyArray1<Complex64>> {
+-
+-    let input_vec = data.to_vec().unwrap();
+-    let mut output = vec![Complex64::ZERO;input_vec.len() as usize];
+-
+-    let mut gain_db:f32 = 0.0;
+-    let mut level_db:f32 = 0.0;
+-
+-    let mut sample_idx:i32 = 0;
+-    for sample in input_vec {
+-        if sample.re == 0.0f64 && sample.im == 0.0f64 {
+-            level_db = -200.0;
+-        }else if sample_idx == 0 {
+-            level_db = (sample.re + sample.im).abs().ln() as f32;
+-        }else{
+-            level_db = level_db * alpha_smooth + ((sample.re + sample.im).abs().log2() as f32) * (1.0 - alpha_smooth);
+-        }
+-        let output_db = level_db + gain_db;
+-        let diff_db = ref_level_db - output_db;
+-
+-        let alpha_adjust;
+-        if level_db <= low_level_db {
+-            alpha_adjust = 0.0;
+-        }else if level_db > high_level_db{
+-            alpha_adjust = alpha_overflow;
+-        }else if diff_db.abs() > track_range_db {
+-            alpha_adjust = alpha_track;
+-        } else {
+-            alpha_adjust = alpha_acquire;
+-        }
+-            
+-        gain_db += diff_db * alpha_adjust;
+-
+-        let gain = gain_db.exp();
+-
+-        output[sample_idx as usize ] = sample * gain as f64;
+-        sample_idx += 1; 
+-    }
+-    // println!("{:?}", output);
+-    PyArray::from_vec_bound(py, output)
+-}
+-
+-// bind rust functions such that they are callable from python
+-#[pymodule]
+-fn rust_functions(_py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
+-    m.add_function(wrap_pyfunction!(upfirdn, m)?)?;
+-    m.add_function(wrap_pyfunction!(sampling_clock_impairments, m)?)?;
+-    m.add_function(wrap_pyfunction!(digital_agctran, m)?)?;
+-    Ok(())
+-}
+diff --git a/tests/utils/profile_rust.py b/tests/utils/profile_rust.py
+deleted file mode 100644
+index a3c0923ec..000000000
+--- a/tests/utils/profile_rust.py
++++ /dev/null
+@@ -1,97 +0,0 @@
+-"""Profile Rust Functions"""
+-
+-from torchsig.utils.rust_functions import upfirdn as upfirdn_RUST
+-
+-import numpy as np
+-from scipy.signal import firwin
+-from scipy.signal import upfirdn as upfirdn_SCIPY
+-
+-import cProfile
+-import pstats
+-import os
+-import sys
+-import datetime
+-
+-THIS_DIR = os.path.dirname(os.path.abspath(__file__))
+-
+-
+-def profile_upfirdn():
+-    print(f"\nProfiling upfirdn (resampler)...........")
+-
+-    # initialize profiler
+-    profiler = cProfile.Profile()
+-
+-    up_rate = 10000
+-    down_rate = 9700
+-    input_len = 5310
+-
+-    print(f"up = {up_rate}, down = {down_rate}")
+-    print(f"num input samples = {input_len}")
+-
+-    # build input signal
+-    cfo = 1 / input_len
+-    in_array = np.array(np.exp(1j * 2 * np.pi * cfo * np.arange(input_len)), dtype=np.complex64)
+-
+-    # number of iterations to test speed
+-    num_iter = 100
+-
+-    # filter design params
+-    num_taps = 10 * up_rate
+-    # num_taps = 197000 # ** test case breaks resampler **
+-    fs = 1
+-    cutoff = 0.5 / up_rate
+-    weights = firwin(num_taps, cutoff, fs=fs)
+-    weights = weights.astype(np.float32)
+-
+-    # profile resampler
+-    profiler.enable()
+-    for this_iter in range(num_iter):
+-        out_array_rust = upfirdn_RUST(weights, in_array, up_rate, down_rate)
+-    profiler.disable()
+-    print("Profile done.")
+-
+-    stats = pstats.Stats(profiler)
+-    stats.strip_dirs()
+-
+-    stats.sort_stats("cumtime")
+-    stats.print_stats(20)
+-
+-    total_time_rust = stats.total_tt
+-
+-    # profile scipy's resampler
+-    profiler_2 = cProfile.Profile()
+-    profiler_2.enable()
+-    for this_iter in range(num_iter):
+-        out_array_scipy = upfirdn_SCIPY(weights, in_array, up_rate, down_rate)
+-    profiler_2.disable()
+-    print("Profile done.")
+-
+-    stats = pstats.Stats(profiler_2)
+-    stats.strip_dirs()
+-
+-    stats.sort_stats("cumtime")
+-    stats.print_stats(20)
+-
+-    total_time_scipy = stats.total_tt
+-
+-    print(f"Rust Resampler Timer: {total_time_rust}s")
+-    print(f"Scipy Resampler Timer: {total_time_scipy}s")
+-
+-    print(f"\nRust resampler is {total_time_scipy/total_time_rust}x faster than scipy.")
+-
+-
+-def main():
+-    print(f"\nOutput will be saved to {THIS_DIR}/profile_rust.out")
+-
+-    with open(f"{THIS_DIR}/profile_rust.out", "w") as terminal_output:
+-        sys.stdout = terminal_output
+-
+-        # Timestamp output file
+-        now = datetime.datetime.now()
+-        print("Profile Run at: ", now.strftime("%Y-%m-%d %H:%M:%S"))
+-
+-        profile_upfirdn()
+-
+-
+-if __name__ == "__main__":
+-    main()
+diff --git a/tests/utils/test_rust_functions.py b/tests/utils/test_rust_functions.py
+deleted file mode 100644
+index b63927adf..000000000
+--- a/tests/utils/test_rust_functions.py
++++ /dev/null
+@@ -1,45 +0,0 @@
+-"""Test DSP Rust Code"""
+-
+-from torchsig.utils.rust_functions import upfirdn as upfirdn_RUST
+-
+-from scipy.signal import firwin
+-import pytest
+-import numpy as np
+-
+-
+-def test_rust_upfirdn():
+-    up_rate = 10000
+-    down_rate = 9700
+-    input_len = 5310
+-
+-    print("up = " + str(up_rate) + ", down = " + str(down_rate))
+-    print("num input samples = " + str(input_len))
+-
+-    # build input signal
+-    cfo = 1 / input_len
+-    in_array = np.array(np.exp(1j * 2 * np.pi * cfo * np.arange(input_len)), dtype=np.complex64)
+-
+-    # number of iterations to test speed
+-    num_iter = 100
+-
+-    # filter design params
+-    num_taps = 10 * up_rate
+-    fs = 1
+-    cutoff = 0.5 / up_rate
+-    weights = firwin(num_taps, cutoff, fs=fs)
+-    weights = weights.astype(np.float32)
+-
+-    # rust resampler
+-    for this_iter in range(num_iter):
+-        out_array_rust = upfirdn_RUST(weights, in_array, up_rate, down_rate)
+-
+-    # check for reproducibility
+-    for this_iter in range(num_iter):
+-        out_array_rust_2 = upfirdn_RUST(weights, in_array, up_rate, down_rate)
+-
+-    assert out_array_rust.dtype == np.complex64
+-    assert all(out_array_rust == out_array_rust_2)
+-
+-
+-def test_sampling_clock_impairments():
+-    pass
+diff --git a/torchsig/__init__.py b/torchsig/__init__.py
+index 68702c93b..af0adb79b 100755
+--- a/torchsig/__init__.py
++++ b/torchsig/__init__.py
+@@ -1,2 +1,2 @@
+ # pylint: disable=missing-module-docstring
+-__version__ = "2.1.0"
++__version__ = "2.1.1"
+diff --git a/torchsig/transforms/functional.py b/torchsig/transforms/functional.py
+index 1e5cb60b3..d6f6fad1f 100644
+--- a/torchsig/transforms/functional.py
++++ b/torchsig/transforms/functional.py
+@@ -19,8 +19,8 @@ from torchsig.utils.dsp import (
+     is_even,
+     multistage_polyphase_resampler,
+     prototype_polyphase_filter,
++    sampling_clock_impairments
+ )
+-from torchsig.utils.rust_functions import sampling_clock_impairments
+ 
+ __all__ = [
+     "add_slope",
+@@ -231,9 +231,6 @@ def clock_drift(
+     # enforce data to be the correct complex type
+     data = data.astype(TorchSigComplexDataType)
+ 
+-    # create a random seed for rust
+-    rust_seed = rng.integers(low=0, high=2**32)
+-
+     # define up/down rates
+     uprate = 5000
+     downrate = copy(uprate)
+@@ -252,7 +249,7 @@ def clock_drift(
+         drate=downrate,
+         jitter_ppm=0,
+         drift_ppm=drift_ppm,
+-        seed=rust_seed,
++        rng=rng
+     )
+ 
+     # discard extra samples from resampling process, or zero-pad if too short
+@@ -308,9 +305,6 @@ def clock_jitter(
+     # enforce data to be the correct complex type
+     data = data.astype(TorchSigComplexDataType)
+ 
+-    # create a random seed for rust
+-    rust_seed = rng.integers(low=0, high=2**32)
+-
+     # define up/down rates
+     uprate = 5000
+     downrate = copy(uprate)
+@@ -329,7 +323,7 @@ def clock_jitter(
+         drate=downrate,
+         jitter_ppm=jitter_ppm,
+         drift_ppm=0,
+-        seed=rust_seed,
++        rng=rng,
+     )
+ 
+     # discard extra samples from resampling process, or zero-pad if too short
+diff --git a/torchsig/utils/dsp.py b/torchsig/utils/dsp.py
+index adf07bb1c..d59f1abb2 100755
+--- a/torchsig/utils/dsp.py
++++ b/torchsig/utils/dsp.py
+@@ -751,6 +751,120 @@ def polyphase_decimator(input_signal: np.ndarray, decimation_rate: int) -> np.nd
+ 
+     return decimate_out
+ 
++def partition_polyphase(h: np.ndarray, up_rate: int, taps_per_phase: int) -> np.ndarray:
++    """Partitions filter coefficients into a polyphase filter bank.
++
++    Args:
++        h: Filter coefficients (1D array of floats)
++        up_rate: Upsampling factor (integer)
++        taps_per_phase: Number of taps per phase (integer)
++
++    Returns:
++        2D array representing the polyphase filter bank
++    """
++    h_pfb = np.zeros((up_rate, taps_per_phase), dtype=TorchSigRealDataType)
++
++    for phase in range(up_rate):
++        tap_idx = phase
++        for idx in range(taps_per_phase):
++            if tap_idx < len(h):
++                h_pfb[phase, idx] = h[tap_idx] * up_rate
++            else:
++                h_pfb[phase, idx] = 0.0
++            tap_idx += up_rate
++
++    return h_pfb
++
++def sampling_clock_impairments(
++    h: np.ndarray,
++    x: np.ndarray,
++    uprate: int,
++    drate: float,
++    jitter_ppm: float,
++    drift_ppm: float,
++    rng: np.random.Generator | None = None,
++) -> np.ndarray:
++    """Implements sampling clock impairments (jitter and drift) using polyphase filtering.
++
++    This function applies clock jitter and drift to a signal by introducing random variations
++    in the sampling rate during resampling. It uses a polyphase filter bank approach for
++    efficient implementation.
++
++    Args:
++        h: Filter coefficients (1D array of floats)
++        x: Input signal (1D array of complex numbers)
++        uprate: Upsampling factor (integer)
++        drate: Downsampling factor (float)
++        jitter_ppm: Jitter in parts per million (float)
++        drift_ppm: Drift in parts per million (float)
++        seed: Random seed (optional)
++
++    Returns:
++        Output signal with clock impairments (1D array of complex numbers)
++    """
++    # Compute taps per phase for polyphase filter bank
++    taps_per_phase = int(np.ceil(len(h) / uprate))
++
++    # Design and partition the polyphase filter bank
++    h_pfb = partition_polyphase(h, uprate, taps_per_phase)
++
++    # Zero-pad the input samples
++    padded_len = len(x) + 2 * taps_per_phase - 1
++    input_padded = np.zeros(padded_len, dtype=TorchSigComplexDataType)
++    start = taps_per_phase - 1
++    end = start + len(x)
++    input_padded[start:end] = x
++
++    # Initialize variables
++    q_step = uprate / drate
++    num_output_samples = int(np.ceil(len(input_padded) * uprate / drate)) + 1
++    output_samples = np.zeros(num_output_samples, dtype=TorchSigComplexDataType)
++    input_idx = 0
++    output_idx = 0
++    clock_drift = 0.0
++    idx_stop = len(input_padded) - taps_per_phase
++
++    # Generate random jitter and drift
++    jitter_std = jitter_ppm * 1e-6
++    drift_std = drift_ppm * 1e-6
++
++    # Run the resampler
++    while input_idx < idx_stop:
++        # Update commutator position
++        while q_step >= uprate:
++            q_step -= uprate
++            input_idx += 1
++
++        delay_slice = input_padded[input_idx:input_idx + taps_per_phase]
++
++        if q_step >= uprate:
++            break
++
++        # Get filter weights from PFB
++        phase = int(q_step)
++        h_phase = h_pfb[phase][:taps_per_phase]
++
++        # Multiply and accumulate
++        acc_re = np.sum(h_phase * delay_slice[::-1].real)
++        acc_im = np.sum(h_phase * delay_slice[::-1].imag)
++        pfb_out = acc_re + 1j * acc_im
++
++        # Store output sample
++        output_samples[output_idx] = pfb_out
++        output_idx += 1
++
++        # Update commutator with jitter and drift
++        if jitter_ppm != 0.0 or drift_ppm != 0.0:
++            clock_jitter = rng.normal(0.0, jitter_std)
++            clock_drift += rng.normal(0.0, drift_std)
++            q_step += drate + clock_jitter + clock_drift
++        else:
++            q_step += drate
++
++    # Return properly sized output
++    return output_samples[:output_idx-1] if output_idx > 0 else np.array([], dtype=TorchSigComplexDataType)
++
++
+ 
+ def upsample(signal: np.ndarray, rate: int) -> np.ndarray:
+     """Upsamples a signal

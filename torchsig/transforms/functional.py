@@ -19,8 +19,8 @@ from torchsig.utils.dsp import (
     is_even,
     multistage_polyphase_resampler,
     prototype_polyphase_filter,
+    sampling_clock_impairments
 )
-from torchsig.utils.rust_functions import sampling_clock_impairments
 
 __all__ = [
     "add_slope",
@@ -231,9 +231,6 @@ def clock_drift(
     # enforce data to be the correct complex type
     data = data.astype(TorchSigComplexDataType)
 
-    # create a random seed for rust
-    rust_seed = rng.integers(low=0, high=2**32)
-
     # define up/down rates
     uprate = 5000
     downrate = copy(uprate)
@@ -252,7 +249,7 @@ def clock_drift(
         drate=downrate,
         jitter_ppm=0,
         drift_ppm=drift_ppm,
-        seed=rust_seed,
+        rng=rng
     )
 
     # discard extra samples from resampling process, or zero-pad if too short
@@ -308,9 +305,6 @@ def clock_jitter(
     # enforce data to be the correct complex type
     data = data.astype(TorchSigComplexDataType)
 
-    # create a random seed for rust
-    rust_seed = rng.integers(low=0, high=2**32)
-
     # define up/down rates
     uprate = 5000
     downrate = copy(uprate)
@@ -329,7 +323,7 @@ def clock_jitter(
         drate=downrate,
         jitter_ppm=jitter_ppm,
         drift_ppm=0,
-        seed=rust_seed,
+        rng=rng,
     )
 
     # discard extra samples from resampling process, or zero-pad if too short
