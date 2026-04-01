@@ -1,8 +1,10 @@
 # TorchSig: Docker
 
+Run TorchSig using Docker. We have two Dockerfiles, one CPU only and the other GPU capable.
+
 ## Base TorchSig Image (`Dockerfile`)
 - CPU only
-- 7 GB
+- Image size: ~7 GB
 ```bash
 docker build -t torchsig -f docker/Dockerfile .
 docker run -it torchsig
@@ -12,7 +14,7 @@ docker run -it torchsig
 - Ubuntu 22.04
 - NVIDIA CUDA 11.8.0
 - Python 3.10
-- 7 GB
+- Image size: ~7 GB
 ```bash
 docker build -t torchsig-gpu -f docker/Dockerfile.gpu .
 docker run -it torchsig-gpu
