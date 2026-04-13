@@ -70,7 +70,7 @@ class TorchSigDataModule(pl.LightningDataModule):
         file_reader: BaseFileHandler = HDF5Reader,
         overwrite: bool = False,
         # transforms
-        impairment_level: int | None = None,
+        impairment_level: int = 0,
         transforms=[],
         target_labels: list[str] | None = None,
         seed: int | None = None,
@@ -90,7 +90,7 @@ class TorchSigDataModule(pl.LightningDataModule):
             file_writer: FileWriter class for disk I/O.
             file_reader: FileReader class for disk I/O.
             overwrite: If True, existing data at `root` will be overwritten. Defaults to False.
-            impairment_level: Level of synthetic impairment to apply. Defaults to None (no impairment).
+            impairment_level: Level of synthetic impairment to apply. Defaults to 0 (no impairment).
             transforms: List of transforms applied to each sample's input. Defaults to [].
             target_labels: Names of metadata fields to include. Defaults to None.
             seed: Seed for randomness and reproducibility. Defaults to None.
@@ -107,19 +107,17 @@ class TorchSigDataModule(pl.LightningDataModule):
         self.dataset_splits = dataset_splits
         # metadatas
         self.metadata = metadata
-        # transforms
+        # transforms, based on Impairment level 
         self.impairment_level = impairment_level
-        self.transforms = transforms
-        if self.impairment_level is not None:
-            # add impairment transforms
-            impairment_transforms = Impairments(level=self.impairment_level)
-            self.transforms = (
-                impairment_transforms.dataset_transforms.transforms + self.transforms
-            )
+        impairments = Impairments(level=impairment_level)
+        self.burst_impairments = impairments.signal_transforms
+        self.whole_signal_impairments = impairments.dataset_transforms       
+        self.transforms = [self.whole_signal_impairments] + transforms
+
         self.target_labels = target_labels
         # initialize dataloader params
         self.batch_size = batch_size
-        self.num_workers = num_workers
+        self.num_workers = 0 if num_workers is None else num_workers
         self.collate_fn = collate_fn
 
         # dataset creator params
@@ -146,7 +144,11 @@ class TorchSigDataModule(pl.LightningDataModule):
             RuntimeError: If dataset creation fails.
         """
         dataset = TorchSigIterableDataset(
-            metadata=self.metadata, transforms=self.transforms, seed=self.seed
+            metadata=self.metadata, 
+            transforms=self.transforms,
+            component_transforms=[self.burst_impairments],
+            target_labels=self.target_labels,
+            seed=self.seed
         )
         loader = DataLoader(
             dataset=dataset,
@@ -196,6 +198,8 @@ class TorchSigDataModule(pl.LightningDataModule):
             batch_size=self.batch_size,
             shuffle=True,
             collate_fn=self.collate_fn,
+            num_workers=self.num_workers,
+            pin_memory=True,
         )
 
     def val_dataloader(self) -> DataLoader:
@@ -212,6 +216,8 @@ class TorchSigDataModule(pl.LightningDataModule):
             batch_size=self.batch_size,
             shuffle=False,
             collate_fn=self.collate_fn,
+            num_workers=self.num_workers,
+            pin_memory=True,
         )
 
     def test_dataloader(self) -> DataLoader:
@@ -228,4 +234,6 @@ class TorchSigDataModule(pl.LightningDataModule):
             batch_size=self.batch_size,
             shuffle=False,
             collate_fn=self.collate_fn,
+            num_workers=self.num_workers,
+            pin_memory=True,
         )

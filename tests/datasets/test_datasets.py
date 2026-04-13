@@ -2,54 +2,22 @@
 
 from torchsig.datasets.datasets import TorchSigIterableDataset, StaticTorchSigDataset
 from torchsig.utils.writer import DatasetCreator, default_collate_fn
-from torchsig.signals.signal_lists import TorchSigSignalLists
 from torchsig.transforms.metadata_transforms import YOLOLabel
 from torchsig.utils.data_loading import WorkerSeedingDataLoader
-from torchsig.transforms.transforms import Spectrogram, ComplexTo2D
+from torchsig.transforms.transforms import Spectrogram
 from torchsig.signals.signal_types import Signal
 from torchsig.utils.dsp import TorchSigRealDataType
-from torchsig.utils.file_handlers import FileReader
 
 from torchsig.utils.defaults import TorchSigDefaults
 from torchsig.transforms.impairments import Impairments
 
 # Third Party
 import numpy as np
-import matplotlib.pyplot as plt
-from tqdm import tqdm
-import shutil
-import pytest
-
-
-from typing import List, Any, Tuple, Dict
-from collections.abc import Iterable
+from typing import Any, List
 import itertools
-import csv
-import math
-import json
-import pprint
 from copy import deepcopy
-from pathlib import Path
-import os
-import random
-
-
-RTOL = 1e-6
-
-wb_data_dir = Path.joinpath(Path(__file__).parent, "datasets/dataset_data")
-wb_image_dir = Path.joinpath(Path(__file__).parent, "datasets/dataset_images")
-getitem_dir = Path.joinpath(Path(__file__).parent, "datasets/getitem_data")
-
-
-# directory for test data
-def setup_module(module):
-    if os.path.exists(wb_data_dir):
-        shutil.rmtree(wb_data_dir)
-    if os.path.exists(wb_image_dir):
-        shutil.rmtree(wb_image_dir)
-
-    os.makedirs(wb_data_dir)
-    os.makedirs(wb_image_dir)
+import yaml
+import pytest
 
 
 test_dataset_getitem_params = list(
@@ -66,6 +34,8 @@ test_dataset_getitem_params = list(
             ["class_name", "yolo_label"],
             ["class_name", "class_index", "start", "stop", "snr_db"],
         ],
+        # num_workers
+        [0, 2]
     )
 )
 num_check = 5
@@ -118,6 +88,9 @@ def test_IterableDataset_transforms():
     whole_signal_impairments = impairments.dataset_transforms
 
     md = TorchSigDefaults().default_dataset_metadata
+    md["fft_size"] = 64
+    md["fft_stride"] = 64
+    md["num_iq_samples_dataset"] = 64**2
 
     dataset_unimpaired = TorchSigIterableDataset(
         metadata=md,
@@ -175,10 +148,11 @@ def test_IterableDataset_transforms():
 
 
 
-@pytest.mark.parametrize("num_signals_max, target_labels", test_dataset_getitem_params)
+@pytest.mark.parametrize("num_signals_max, target_labels, num_workers", test_dataset_getitem_params)
 def test_IterableDataset_getitem(
     num_signals_max: int,
     target_labels: List[str],
+    num_workers: int
 ):
     """Tests targets from target transform are properly returned from dataset's getitem
 
@@ -187,23 +161,21 @@ def test_IterableDataset_getitem(
     Args:
         num_signals_max (str): Maximum number of signals.
         target_labels: List[str] (List[TargetTransform]): target labels to test.
+        num_workers (int): Number of worker processes for the dataloader.
     """
-    print(f"\nnum_signals_max={num_signals_max}, target_labels={target_labels}")
-    dataset = None
-    fft_size = 64
-
+    print(f"\nnum_signals_max={num_signals_max}, target_labels={target_labels}, num_workers={num_workers}")
     dm = TorchSigDefaults().default_dataset_metadata
     dataset = TorchSigIterableDataset(metadata=dm, transforms=[YOLOLabel()])
 
-    for i in range(num_check):
+    for _ in range(num_check):
         sample = next(dataset)
         # data, targets = sample.data, [x.to_dict() for x in sample.get_full_metadata()]
 
         verify_getitem_targets(num_signals_max, None, sample)
 
 
-@pytest.mark.parametrize("num_signals_max, target_labels", test_dataset_getitem_params)
-def test_StaticDataset_getitem(num_signals_max: int, target_labels):
+@pytest.mark.parametrize("num_signals_max, target_labels, num_workers", test_dataset_getitem_params)
+def test_StaticDataset_getitem(tmp_path, num_signals_max: int, target_labels: List[str], num_workers: int):
     """Tests targets from target transform are properly returned from dataset's getitem
 
     >>> pytest test_datasets.py -s
@@ -211,26 +183,23 @@ def test_StaticDataset_getitem(num_signals_max: int, target_labels):
     Args:
         num_signals_max (int): Maximum number of signals.
         target_labels (List[TargetTransform]): target labels to test.
+        num_workers (int): Number of worker processes for the dataloader.
     """
-    print(f"\nnum_signals_max={num_signals_max}, target_labels={target_labels}")
+    print(f"\nnum_signals_max={num_signals_max}, target_labels={target_labels}, num_workers={num_workers}")
     if target_labels is None or len(target_labels) == 0:
         # skip
         return
-    new_dataset = None
-    fft_size = 64
-    root = getitem_dir
+    root = tmp_path / "run0"
     num_generate = num_check * 2
 
     dm = TorchSigDefaults().default_dataset_metadata
     new_dataset = TorchSigIterableDataset(metadata=dm, transforms=[YOLOLabel()])
-    new_dataloader = WorkerSeedingDataLoader(new_dataset)
+    new_dataloader = WorkerSeedingDataLoader(new_dataset, num_workers=num_workers)
     dc = DatasetCreator(dataloader=new_dataloader, root=root, overwrite=True, dataset_length=num_generate)
 
     dc.create()
 
-    static_dataset = StaticTorchSigDataset(
-        root=root,
-    )
+    static_dataset = StaticTorchSigDataset(root=root)
 
     for i in range(num_check):
         idx = np.random.randint(len(static_dataset))
@@ -239,8 +208,11 @@ def test_StaticDataset_getitem(num_signals_max: int, target_labels):
         # verify_getitem_targets(num_signals_max, target_labels, sample)
 
 
-@pytest.mark.parametrize("params, is_error", [({"dataset_length": 10}, False)])
-def test_datasets(params: dict, is_error: bool) -> None:
+@pytest.mark.parametrize("params, is_error", 
+                        [({"dataset_length": 10, "num_workers": 0}, False),
+                         ({"dataset_length": 10, "num_workers": 2}, False)]
+    )
+def test_datasets(tmp_path, params: dict, is_error: bool) -> None:
     """Test datasets with pytest - TorchSigIterableDataset and StaticTorchSigDataset.
 
     Args:
@@ -250,72 +222,40 @@ def test_datasets(params: dict, is_error: bool) -> None:
         AssertionError: If unexpected test outcome.
 
     """
+    root0 = tmp_path / "run0"
+
     seed = 123456789
     rng = np.random.default_rng(seed)
-
-    # signals to simulate
-    class_list = TorchSigSignalLists.all_signals
-
-    # distribution of classes
-    class_dist = np.ones(len(class_list)) / len(class_list)
-
-    # number of samples to test generation
     dataset_length = params["dataset_length"]
-    save_num_signals = 5
-    num_signals_min = 1  # always generate a signal
-    num_signals_max = 1
-
-    # FFT/spectrogram params
+    num_workers = params["num_workers"]
     fft_size = rng.integers(128, 1024, dtype=int)
-    # num_iq_samples_dataset = fft_size * rng.integers(128,1024,dtype=int)
-    num_iq_samples_dataset = fft_size**2
-
-    # testing to handle cases in which number of samples is not an integer multiple of FFT size
-    num_iq_samples_dataset = int(num_iq_samples_dataset + rng.integers(0, fft_size, dtype=int))
-
-    # works for variable sample rates
-    sample_rate = rng.uniform(100e6, 200e6)
-
-    # minimum and maximum SNR for signals
-    snr_db_max = 50
-    snr_db_min = 0
-
-    # probability for each sample to contain N signals where N is the index,
-    # for example, num_signals_dist = [0.15, 0.5, 0.35] is 25% probability to
-    # generate 0 signals, 50% probability to generate 1 signal, 35%
-    # probability to generate 2 signals
-    num_signals_dist = np.ones(num_signals_max - num_signals_min + 1) / (num_signals_max - num_signals_min + 1)
-
-    # define transforms
     transforms = [Spectrogram(fft_size=fft_size)]
 
-    # build the dataset metadata
     md = TorchSigDefaults().default_dataset_metadata
 
     if is_error:
         with pytest.raises(Exception, match=r".*"):
             DS = TorchSigIterableDataset(metadata=md, target_labels=["class_index"], transforms=transforms)
-            DL = WorkerSeedingDataLoader(DS, collate_fn=default_collate_fn)
+            DL = WorkerSeedingDataLoader(DS, num_workers=num_workers, collate_fn=default_collate_fn)
             DL.seed(seed)
-            dc = DatasetCreator(dataloader=DL, root=wb_data_dir, dataset_length=dataset_length, overwrite=True)
+            dc = DatasetCreator(dataloader=DL, root=root0, dataset_length=dataset_length, overwrite=True)
             dc.create()
             SDS = StaticTorchSigDataset(
-                root=wb_data_dir,
+                root=root0,
             )
     else:
         # create the dataset object, derived from the metadata object
         DS0 = TorchSigIterableDataset(metadata=deepcopy(md), target_labels=None, seed=seed, transforms=transforms)
-        DS1 = TorchSigIterableDataset(metadata=deepcopy(md), target_labels=None, seed=seed, transforms=transforms)  # reproducible copy
 
         # save dataset to disk
-        DL0 = WorkerSeedingDataLoader(DS0, collate_fn=lambda x: x)
+        DL0 = WorkerSeedingDataLoader(DS0, num_workers=num_workers, collate_fn=lambda x: x)
         DL0.seed(seed)
-        dc = DatasetCreator(dataloader=DL0, root=wb_data_dir, dataset_length=dataset_length, overwrite=True)
+        dc = DatasetCreator(dataloader=DL0, root=root0, dataset_length=dataset_length, overwrite=True)
         dc.create()
 
         # load dataset from disk
-        SDS0 = StaticTorchSigDataset(root=wb_data_dir, target_labels=["class_index"])
-        SDS1 = StaticTorchSigDataset(root=wb_data_dir, target_labels=["class_index"])
+        SDS0 = StaticTorchSigDataset(root=root0, target_labels=["class_index"])
+        SDS1 = StaticTorchSigDataset(root=root0, target_labels=["class_index"])
 
         # dataset
         assert isinstance(DS0, TorchSigIterableDataset)
@@ -330,4 +270,7 @@ def test_datasets(params: dict, is_error: bool) -> None:
             assert type(data0) == np.ndarray
             assert data0.dtype == TorchSigRealDataType
             assert meta0 == meta1
-            assert np.allclose(data0, data1, RTOL)
+            assert np.allclose(data0, data1, 1e-6)
+
+        ds_yaml = yaml.safe_load(open(root0 / "dataset_info.yaml", "r")) or {}
+        assert ds_yaml["dataset_length"] == dataset_length

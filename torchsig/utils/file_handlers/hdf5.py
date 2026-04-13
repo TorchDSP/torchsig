@@ -21,65 +21,72 @@ from torchsig.signals.signal_types import Signal
 from torchsig.utils.abstractions import HierarchicalMetadataObject
 from torchsig.utils.file_handlers import BaseFileHandler, FileReader, FileWriter
 
+def _hdf5_key(obj) -> str:
+    """Return the HDF5 group key to use for *obj*.
 
-def _load_metadata_lazy(*args, **kwargs):
-    """Deferred to avoid touching torchsig.datasets at import time."""
-    from torchsig.datasets.dataset_metadata import load_dataset_metadata
+    Ephemeral objects (generated Signal instances) receive a short sequential
+    integer key that is stamped onto them by ``HDF5Writer._assign_hdf5_keys``
+    immediately before writing. Persistent objects (generators, datasets)
+    that are never garbage-collected within a write session fall back to
+    ``str(id(obj))``, which is stable for the lifetime of the writer.
 
-    return load_dataset_metadata(*args, **kwargs)
-
-
-
-
-def populate_hdf5_group_with_metadata(group, metadata_obj):
-    """Makes sure this and all parent metadata objects are represented in the hdf5 group (returns true iff a new group was added)"""
-    id_string = str(id(metadata_obj))
+    Using a counter for signals avoids the id()-reuse hazard that arises when
+    CPython recycles the memory address of a freed signal and a later signal
+    lands at the same address, causing the "already exists" guard to skip the
+    write silently.
+    """
     try:
-        # if there is already metadata awith this id, do nothing
-        temp = group[id_string]
-        return False
-    except KeyError:
-        # there is not already metadata with this id
-        metadata_group = group.create_group(id_string)
-        for key in metadata_obj.keys():
-            if not metadata_obj[key] == None:
-                metadata_group.create_dataset(key, data=metadata_obj[key])
-        if not metadata_obj.parent == None:
-            try:
-                metadata_group.create_dataset(
-                    "parent_metadata_id", data=str(id(metadata_obj.parent))
-                )
-                populate_hdf5_group_with_metadata(group, metadata_obj.parent)
-            except ValueError:
-                pass
-        return True
+        return obj._hdf5_key
+    except AttributeError:
+        return str(id(obj))
 
 
-def populate_hdf5_group_with_signal_data(group, signal):
-    """Makes sure this and all parent metadata objects are represented in the hdf5 group (returns true iff a new group was added)"""
-    id_string = str(id(signal))
-    try:
-        # if there is already data awith this id, do nothing
-        temp = group[id_string]
-        return False
-    except KeyError:
-        # there is not already data with this id
+def populate_hdf5_group_with_metadata(group, metadata_obj) -> bool:
+    """Makes sure this and all parent metadata objects are represented in the hdf5 group 
+    (returns true iff a new group was added).
+    """
+    key = _hdf5_key(metadata_obj)
+    # Persistent objects (generators, datasets) share a stable key across
+    # many signal writes and must only be written once; skip if present.
+    # Signal objects always get a unique counter key so this check is a no-op
+    # for them, but keeping it here is harmless
+    if key in group:
+        return False    
+    metadata_group = group.create_group(key)
+    for k in metadata_obj.keys():
+        if not metadata_obj[k] == None:
+            metadata_group.create_dataset(k, data=metadata_obj[k])
+    if not metadata_obj.parent == None:
         try:
-            group.create_dataset(id_string, data=signal.data)
+            metadata_group.create_dataset(
+                "parent_metadata_id", data=_hdf5_key(metadata_obj.parent)
+            )
+            populate_hdf5_group_with_metadata(group, metadata_obj.parent)
         except ValueError:
             pass
-        return True
+    return True
 
+def populate_hdf5_group_with_signal_data(group, signal):
+    """Makes sure this and all parent metadata objects are represented in the hdf5 group 
+    (returns true iff a new group was added).
+    """
+    key = _hdf5_key(signal)
+    # Signal keys are unique counters so this check only fires for persistent
+    # objects that reuse id()-based keys; skip them if already written.
+    if key in group:
+        return False
+    try:
+        group.create_dataset(key, data=signal.data)
+    except ValueError:
+        pass
+    return True
 
 def populate_hdf5_group_with_component_signals(group, signal):
     if len(signal.component_signals) > 0:
         try:
             group.create_dataset(
-                str(id(signal)),
-                data=[
-                    str(id(component_signal))
-                    for component_signal in signal.component_signals
-                ],
+                _hdf5_key(signal),
+                data=[_hdf5_key(cs) for cs in signal.component_signals],
             )
         except ValueError:
             pass
@@ -99,7 +106,7 @@ def populate_hdf5_group_with_signal(group, signal, index=True):
     _populate_hdf5_group_with_signal(group, signal)
     if index:
         group["index"].create_dataset(
-            str(len(group["index"])), data=str(id(signal))
+            str(len(group["index"])), data=_hdf5_key(signal)
         )  # keep track of this index in a dataset
 
 
@@ -144,6 +151,12 @@ class HDF5Writer(FileWriter):
         self._file = None
         self._data_group = None
         self._batch_buffer: list[tuple[int, Any]] = []
+        # Monotonically-increasing counter used to stamp each Signal with a
+        # unique short string key (_hdf5_key attribute) before it is written.
+        # This replaces the previous str(id(signal)) approach, which required
+        # keeping every written Signal alive to prevent CPython from recycling
+        # its address and causing a silent key collision.
+        self._key_counter: int = 0        
 
         self._current_sample_index = 0
         super().__init__(root=root)
@@ -186,12 +199,30 @@ class HDF5Writer(FileWriter):
                 pass  # File might already be closed
             del self._file
 
+    def _assign_hdf5_keys(self, signal) -> None:
+        """Stamp *signal* and all its component signals with a unique ``_hdf5_key``.
+
+        Called immediately before each batch is written so that every Signal
+        object receives a short, monotonically-increasing string key.  The key
+        is used by the module-level populate helpers instead of ``str(id(signal))``,
+        making the HDF5 layout independent of CPython memory addresses and
+        allowing signals to be garbage-collected as soon as they leave scope.
+        """
+        signal._hdf5_key = str(self._key_counter)
+        self._key_counter += 1
+        for cs in signal.component_signals:
+            self._assign_hdf5_keys(cs)
+
     def _write_batch_to_hdf5(self, data) -> None:
         """Writes a batch of signals (as List[Signal]) to the file.
 
         Args:
             data (List[Signal]): The list of signals to write to the HDF5 file.
         """
+        # Assign stable write keys before touching HDF5 so the populate
+        # helpers never fall back to id()-based keys for signal objects.
+        for signal in data:
+            self._assign_hdf5_keys(signal)        
         populate_hdf5_group_with_signals(self._file, data)
 
     def _flush_buffer(self) -> None:
@@ -304,7 +335,21 @@ class HDF5Reader(FileReader):
         """
         super().__init__(root=root)
         self.datapath = self.root.joinpath("data.h5")
-        self._file = h5py.File(self.datapath, "r")
+        self._file = None
+        self._len_cache = None
+        self._locking = False # do not lock data file
+
+    def __len__(self) -> int:
+        """Returns the total number of samples in the dataset.
+
+        Returns:
+            int: The number of samples in the dataset.
+        """
+        if self._len_cache is None:
+            # Open ONLY to read metadata, then close immediately
+            with h5py.File(self.datapath, "r", locking=self._locking) as f:
+                self._len_cache = len(f["index"])
+        return self._len_cache
 
     def read(self, idx: int) -> Signal:
         """Reads a single sample and its corresponding targets from the HDF5 file.
@@ -315,21 +360,22 @@ class HDF5Reader(FileReader):
         Returns:
             Signal: The sample as a Signal object.
         """
+        self._ensure_open()
         return load_signal_from_group_by_index(self._file, idx)
-
-    def __len__(self) -> int:
-        """Returns the total number of samples in the dataset.
-
-        Returns:
-            int: The number of samples in the dataset.
-        """
-        return len(self._file["index"])
 
     def teardown(self) -> None:
         """Closes the HDF5 file handle."""
         if self._file:
             self._file.close()
             self._file = None
+
+    def _ensure_open(self) -> None:
+        """Ensures that the HDF5 file is open for reading. Note that the file
+        is opened lazily to mitigate issues with multiprocessing and worker 
+        initialization in PyTorch DataLoaders.
+        """
+        if self._file is None:
+            self._file = h5py.File(self.datapath, "r", locking=self._locking)
 
 
 class HDF5FileHandler(BaseFileHandler):

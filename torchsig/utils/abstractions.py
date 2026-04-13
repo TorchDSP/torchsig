@@ -206,6 +206,10 @@ class HierarchicalMetadataObject(Seedable):
             e.add_note("key missing: '" + str(key) + "'; ")
             raise e
 
+    def __setstate__(self, data):
+        """Workaround pickling with multiple workers."""
+        self.__dict__.update(data)
+
     def __getattribute__(self, key: str) -> Any:
         """Get an attribute, falling back to metadata lookup if not found.
 

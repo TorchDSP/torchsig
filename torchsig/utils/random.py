@@ -37,7 +37,7 @@ class Seedable:
         self.random_generator = None
         self.kwargs = kwargs
 
-        if not seed:
+        if seed is None:
             # choose random seed
             seed = secrets.randbits(64)
 
@@ -49,14 +49,21 @@ class Seedable:
             # add parents
             self.add_parent(parent)
 
-    def add_parent(self, parent: "Seedable") -> None:
+    def add_parent(self, parent: "Seedable", register: bool = True) -> None:
         """Add parent Seedable object and set up RNGs accordingly.
 
         Args:
             parent: Parent Seedable object to add.
+            register: If True (default), add self to parent.children so that
+                future seed propagation reaches this object. Pass False for
+                transient objects (e.g. per-sample Signal instances) that only
+                need the parent link for metadata/RNG access during their
+                lifetime but must not accumulate in the parent's child list,
+                which would otherwise cause unbounded memory growth.
         """
         self.parent = parent
-        self.parent.children += [self]
+        if register:
+            self.parent.children += [self]
         self.update_from_parent()
 
     def update_from_parent(self) -> None:

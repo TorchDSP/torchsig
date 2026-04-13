@@ -1166,6 +1166,15 @@ def quantize(
     if not isinstance(num_bits, int):
         raise TypeError("quantize() num_bits must be an integer.")
 
+    data = np.asarray(data) # force ndarray for consistent behavior
+    orig_shape = data.shape
+
+    # reject non-finite inputs
+    if np.isnan(data).any():
+        raise ValueError("quantize() input contains one or more NaN (np.nan) values.")
+    if np.isinf(data).any():
+        raise ValueError("quantize() input contains one or more infinite (np.inf) values.")    
+
     # calculate number of levels
     num_levels = int(2**num_bits)
 
@@ -1189,6 +1198,10 @@ def quantize(
     max_value_signal_real = np.max(np.abs(data.real))
     max_value_signal_imag = np.max(np.abs(data.imag))
     max_value_signal = np.max((max_value_signal_real, max_value_signal_imag))
+
+    # all-zero input: quantization is identity (zeros), avoid divide-by-zero
+    if max_value_signal == 0:
+        return np.zeros(orig_shape, dtype=TorchSigComplexDataType)    
 
     # convert the reference level adjustment into a linear value.
     # +3 dB -> 3 dB above max scaling (saturation)

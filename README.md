@@ -34,7 +34,7 @@ TorchSig has a series of Jupyter notebooks in the `examples/` directory. View th
 
 # Usage
 
-## Generating Datasets with Python API
+## Generating Datasets with Python
 TorchSig uses a unified dataset architecture. Create datasets using the Python API:
 ```python
 # define dataset metadata, can override defaults
@@ -84,6 +84,22 @@ And then you can launch a Docker instance:
 docker run -it torchsig
 ```
 See `docker/README.md` to learn more.
+
+# Development
+To contribute to our library, please make sure to run the following:
+
+```bash
+# pytests all pass
+pytest
+
+# pylint score > 9/10
+pylint --rcfile=.pylintrc torchsig
+
+# not required
+# but helpful for maintaining PEP 8 Style Guide
+ruff check torchsig
+```
+Both need to pass in order to contribute to our Github.
 
 # Key Features
 TorchSig provides many useful tools to facilitate and accelerate research on signals processing machine learning technologies:
