@@ -120,7 +120,7 @@ TorchSig provides many useful tools to facilitate and accelerate research on sig
 
 
 # Documentation
-Documentation can be found [online](https://torchsig.readthedocs.io/en/latest/) or built locally by following the instructions below.
+Documentation can be found [online](https://torchsig.readthedocs.io/latest/) or built locally by following the instructions below.
 ```
 cd docs
 pip install -r docs-requirements.txt
