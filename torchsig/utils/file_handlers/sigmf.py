@@ -10,7 +10,7 @@ import numpy as np
 
 # TorchSig
 from torchsig.signals.signal_types import Signal
-from torchsig.utils.file_handlers.base_handler import BaseFileHandler, FileReader, FileWriter
+from torchsig.utils.file_handlers.base_handler import BaseFileHandler, FileReader
 
 _SIGMF_DTYPE_MAP: dict = {
     "cf32_le": (np.float32, "<"),
@@ -71,7 +71,7 @@ def _find_meta_for_data(data_path: Path) -> Path:
     Raises:
         FileNotFoundError: If neither naming convention yields an existing file.
     """
-    candidate_a = data_path.with_suffix("").with_suffix(".sigmf-meta")
+    candidate_a = data_path.parent / data_path.name.replace(".sigmf-data", ".sigmf-meta")
     candidate_b = Path(str(data_path) + ".sigmf-meta")
     for candidate in (candidate_a, candidate_b):
         if candidate.exists():
@@ -202,6 +202,11 @@ class SigMFReader(FileReader):
         sample_start = annotation.get("core:sample_start", 0)
         sample_count = annotation.get("core:sample_count", 0)
 
+        if not sample_count:
+            raise ValueError(
+                f"Annotation {idx} has sample_count=0; cannot read zero-length signal."
+            )
+
         datatype = meta["global"]["core:datatype"]
         elem_type, endian = _SIGMF_DTYPE_MAP[datatype]
         scale = _SIGMF_SCALE_MAP[elem_type]
@@ -231,11 +236,10 @@ class SigMFReader(FileReader):
 
         label = annotation.get("core:label", "") or ""
         class_name = label.lower() if label else "unknown"
-        class_index = (
-            self._class_list.index(class_name)
-            if class_name in self._class_list
-            else -1
+        assert class_name in self._class_list, (
+            f"class_name {class_name!r} not found in class list — this is a bug in SigMFReader"
         )
+        class_index = self._class_list.index(class_name)
 
         metadata = {
             "sample_rate": sample_rate,
@@ -252,7 +256,7 @@ class SigMFReader(FileReader):
         _skip_keys = {"core:sample_start", "core:sample_count", "core:label"}
         for ann_key, ann_val in annotation.items():
             if ann_key not in _skip_keys:
-                metadata[ann_key] = ann_val
+                metadata[ann_key.replace(":", "_")] = ann_val
 
         return Signal(data=iq, component_signals=[], **metadata)
 
@@ -265,7 +269,7 @@ class SigMFFileHandler(BaseFileHandler):
     """
 
     reader_class = SigMFReader
-    writer_class = FileWriter
+    writer_class = None  # write mode not supported; create_handler raises for mode "w"
 
     @staticmethod
     def create_handler(mode: str, root: str, **kwargs):
