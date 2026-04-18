@@ -2,6 +2,7 @@
 
 # Built-In
 import json
+import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -11,6 +12,7 @@ import pytest
 
 # TorchSig
 from torchsig.datasets.datasets import StaticTorchSigDataset
+from torchsig.transforms.transforms import ComplexTo2D
 from torchsig.utils.file_handlers.sigmf import SigMFFileHandler, SigMFReader
 
 
@@ -402,6 +404,23 @@ class TestSigMFReaderMetadata:
         signal = reader.read(0)
         assert signal["class_name"] == "bpsk"
 
+    def test_no_sigmf_library_imported(self, tmp_path: Path) -> None:
+        """SigMFReader must not import the 'sigmf' third-party library (zero-dependency contract)."""
+        # Confirm the optional 'sigmf' package is not pulled in at test-collection time
+        assert "sigmf" not in sys.modules, (
+            "'sigmf' was already in sys.modules before this test ran; "
+            "SigMFReader's zero-dependency contract may be broken."
+        )
+        rng = np.random.default_rng(75)
+        sig = (rng.standard_normal(32) + 1j * rng.standard_normal(32)).astype(np.complex64)
+        _make_sigmf_pair(tmp_path, [sig], 1e6, "cf32_le", "cap")
+        reader = SigMFReader(root=str(tmp_path))
+        reader.read(0)
+        assert "sigmf" not in sys.modules, (
+            "Constructing or reading from SigMFReader caused the 'sigmf' library to be imported; "
+            "the implementation must remain zero-dependency."
+        )
+
 
 # ---------------------------------------------------------------------------
 # StaticTorchSigDataset integration
@@ -435,6 +454,23 @@ class TestSigMFStaticDatasetIntegration:
         dataset = self._create_dataset(tmp_path)
         reader = SigMFReader(root=str(tmp_path))
         assert len(dataset) == len(reader)
+
+    def test_transforms_applied(self, tmp_path: Path) -> None:
+        """ComplexTo2D transform produces a (2, N) shaped output array."""
+        rng = np.random.default_rng(85)
+        sig = (rng.standard_normal(64) + 1j * rng.standard_normal(64)).astype(np.complex64)
+        _make_sigmf_pair(tmp_path, [sig], 1e6, "cf32_le", "cap")
+        dataset = StaticTorchSigDataset(
+            root=str(tmp_path),
+            file_handler_class=SigMFReader,
+            target_labels=["class_name"],
+            transforms=[ComplexTo2D()],
+        )
+        data, label = dataset[0]
+        assert data.shape[0] == 2, (
+            f"Expected 2 channels after ComplexTo2D, got shape {data.shape}"
+        )
+        assert label == "bpsk"
 
 
 # ---------------------------------------------------------------------------
