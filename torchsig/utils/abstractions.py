@@ -228,4 +228,12 @@ class HierarchicalMetadataObject(Seedable):
         except MetadataAttributeError:
             raise
         except AttributeError:
+            # Guard against unpickling: _metadata is not yet in __dict__ when
+            # object.__new__ creates the instance before __init__ or __setstate__
+            # runs. Without this check, key_lookup → self[key] → self._metadata
+            # → __getattribute__('_metadata') → key_lookup → ... infinite recursion.
+            try:
+                super().__getattribute__('_metadata')
+            except AttributeError as exc:
+                raise AttributeError(key) from exc
             return self.key_lookup(key)
