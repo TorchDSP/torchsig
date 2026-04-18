@@ -92,19 +92,27 @@ class _WriteContext:
 
 
 def populate_hdf5_group_with_metadata(group, metadata_obj):
-    """Makes sure this and all parent metadata objects are represented in the hdf5 group (returns true iff a new group was added)"""
+    """Ensure this and all parent metadata objects are represented in the HDF5 group.
+
+    Args:
+        group: The HDF5 group to write metadata into.
+        metadata_obj: The metadata object to serialize.
+
+    Returns:
+        bool: True iff a new group was added.
+    """
     id_string = _key_for(metadata_obj)
     try:
-        # if there is already metadata awith this id, do nothing
-        temp = group[id_string]
+        # if there is already metadata with this id, do nothing
+        _ = group[id_string]
         return False
     except KeyError:
         # there is not already metadata with this id
         metadata_group = group.create_group(id_string)
         for key in metadata_obj.keys():
-            if not metadata_obj[key] == None:
+            if metadata_obj[key] is not None:
                 metadata_group.create_dataset(key, data=metadata_obj[key])
-        if not metadata_obj.parent == None:
+        if metadata_obj.parent is not None:
             try:
                 metadata_group.create_dataset(
                     "parent_metadata_id", data=_key_for(metadata_obj.parent)
@@ -116,11 +124,19 @@ def populate_hdf5_group_with_metadata(group, metadata_obj):
 
 
 def populate_hdf5_group_with_signal_data(group, signal):
-    """Makes sure this and all parent metadata objects are represented in the hdf5 group (returns true iff a new group was added)"""
+    """Ensure signal data is represented in the HDF5 group.
+
+    Args:
+        group: The HDF5 group to write signal data into.
+        signal: The Signal object whose data to serialize.
+
+    Returns:
+        bool: True iff a new dataset was added.
+    """
     id_string = _key_for(signal)
     try:
-        # if there is already data awith this id, do nothing
-        temp = group[id_string]
+        # if there is already data with this id, do nothing
+        _ = group[id_string]
         return False
     except KeyError:
         # there is not already data with this id
@@ -132,6 +148,15 @@ def populate_hdf5_group_with_signal_data(group, signal):
 
 
 def populate_hdf5_group_with_component_signals(group, signal):
+    """Write component-signal key references into the HDF5 group.
+
+    Args:
+        group: The HDF5 component_signals group.
+        signal: The Signal object whose component signals to index.
+
+    Returns:
+        bool: True iff component signals were written.
+    """
     if len(signal.component_signals) > 0:
         try:
             group.create_dataset(
@@ -156,6 +181,13 @@ def _populate_hdf5_group_with_signal(group, signal):
 
 
 def populate_hdf5_group_with_signal(group, signal, index=True):
+    """Write a single Signal and all its metadata into an HDF5 group.
+
+    Args:
+        group: The HDF5 group to write into.
+        signal: The Signal object to serialize.
+        index (bool): If True, append the signal key to the group's index dataset.
+    """
     with _WriteContext():
         _populate_hdf5_group_with_signal(group, signal)
         if index:
@@ -165,6 +197,13 @@ def populate_hdf5_group_with_signal(group, signal, index=True):
 
 
 def populate_hdf5_group_with_signals(group, signals, index=True):
+    """Write multiple Signal objects into an HDF5 group.
+
+    Args:
+        group: The HDF5 group to write into.
+        signals: Iterable of Signal objects to serialize.
+        index (bool): If True, append each signal key to the group's index dataset.
+    """
     for signal in signals:
         populate_hdf5_group_with_signal(group, signal, index=index)
 
@@ -265,16 +304,12 @@ class HDF5Writer(FileWriter):
         if not self._file:
             self._setup()
 
-        if not hasattr(self, "_lock"):
-            self._lock = threading.Lock()
-
         with self._lock:
             # Sort buffer by batch index to maintain order
             self._batch_buffer.sort(key=lambda x: x[0])
 
             # Process all batches in buffer
-            for batch_idx, data in self._batch_buffer:
-                # breakpoint()
+            for _, data in self._batch_buffer:
                 self._write_batch_to_hdf5(data)
 
             # Clear buffer
@@ -303,6 +338,14 @@ class HDF5Writer(FileWriter):
 
 
 def handle_bytes_as_string(bts):
+    """Convert bytes or object-dtype ndarray to string/str-array.
+
+    Args:
+        bts: Value to convert — bytes, np.ndarray, or passthrough.
+
+    Returns:
+        str | np.ndarray | original type: Decoded string representation.
+    """
     if isinstance(bts, bytes):
         return str(bts.decode())
     if isinstance(bts, np.ndarray):
@@ -312,12 +355,31 @@ def handle_bytes_as_string(bts):
 
 
 def load_value_from_group(group, key):
+    """Read and decode a single scalar dataset from an HDF5 group.
+
+    Args:
+        group: The HDF5 group to read from.
+        key (str): Dataset key within the group.
+
+    Returns:
+        Decoded value (str, ndarray, or scalar).
+    """
     return handle_bytes_as_string(group[key][()])
 
 
 def fill_object_metadata_from_group_and_id(obj, group, id_str):
+    """Populate a metadata object from an HDF5 group by its stored key.
+
+    Args:
+        obj: The metadata object to populate (mutated in-place).
+        group: The HDF5 group containing the 'metadata' sub-group.
+        id_str (str): The string key identifying the metadata entry.
+
+    Returns:
+        The populated metadata object.
+    """
     for key in group["metadata"][id_str].keys():
-        if not key == "parent_metadata_id":
+        if key != "parent_metadata_id":
             obj[key] = load_value_from_group(group["metadata"][id_str], key)
     try:
         parent_id = load_value_from_group(
@@ -327,19 +389,28 @@ def fill_object_metadata_from_group_and_id(obj, group, id_str):
             HierarchicalMetadataObject(), group, parent_id
         )
         obj.add_parent(metadata_obj)
-    except:
-        pass  # we have no parent set; do nothing
+    except (KeyError, AttributeError):
+        pass  # no parent metadata stored; do nothing
     return obj
 
 
 def load_signal_from_group_by_id(group, id_str):
+    """Reconstruct a Signal from an HDF5 group using its stored key.
+
+    Args:
+        group: The HDF5 group containing 'data', 'metadata', and 'component_signals'.
+        id_str (str): The string key identifying the signal entry.
+
+    Returns:
+        Signal: The reconstructed Signal object.
+    """
     component_signals = []
     try:
         component_signals = [
             load_signal_from_group_by_id(group, temp_id)
             for temp_id in load_value_from_group(group["component_signals"], id_str)
         ]
-    except:
+    except (KeyError, TypeError):
         pass
     signal = Signal(
         data=load_value_from_group(group["data"], id_str),
@@ -350,6 +421,15 @@ def load_signal_from_group_by_id(group, id_str):
 
 
 def load_signal_from_group_by_index(group, ind):
+    """Reconstruct a Signal from an HDF5 group by integer index.
+
+    Args:
+        group: The HDF5 group containing the 'index' sub-group.
+        ind (int): Zero-based integer index of the signal to load.
+
+    Returns:
+        Signal: The reconstructed Signal object.
+    """
     id_str = load_value_from_group(group["index"], str(ind))
     return load_signal_from_group_by_id(group, id_str)
 
