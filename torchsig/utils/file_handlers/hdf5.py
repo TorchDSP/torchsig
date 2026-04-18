@@ -175,8 +175,8 @@ class HDF5Writer(FileWriter):
     def __init__(
         self,
         root,
-        compression: str = "gzip",
-        compression_opts: int = 6,
+        compression: str = "lzf",
+        compression_opts: int | None = None,
         shuffle: bool = True,
         fletcher32: bool = True,
         chunk_cache_size: int = 1024 * 1024 * 10,  # 10MB cache
@@ -186,8 +186,9 @@ class HDF5Writer(FileWriter):
 
         Args:
             root (str): Where to write dataset on disk.
-            compression (str, optional): Compression algorithm ('gzip', 'szip', 'lzf'). Defaults to 'gzip'.
-            compression_opts (int, optional): Compression level (0-9 for gzip). Defaults to 6.
+            compression (str, optional): Compression algorithm ('gzip', 'szip', 'lzf'). Defaults to 'lzf'.
+            compression_opts (int | None, optional): Compression level for gzip (0-9). Ignored for lzf. Defaults to None.
+                For gzip, pass compression_opts=6 explicitly to restore the old default behaviour.
             shuffle (bool, optional): Enable shuffle filter for better compression. Defaults to True.
             fletcher32 (bool, optional): Enable Fletcher32 checksum filter. Defaults to True.
             chunk_cache_size (int, optional): HDF5 chunk cache size in bytes. Defaults to 10MB.
