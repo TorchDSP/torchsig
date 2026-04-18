@@ -6,6 +6,7 @@ High-performance HDF5 storage with optimized compression and chunking.
 from __future__ import annotations
 
 # Built-In
+import itertools
 import threading
 from typing import Any
 
@@ -29,11 +30,70 @@ def _load_metadata_lazy(*args, **kwargs):
     return load_dataset_metadata(*args, **kwargs)
 
 
+# ---------------------------------------------------------------------------
+# Stable write-key infrastructure
+#
+# Python's id() returns the memory address of an object. In multi-worker
+# DataLoader pipelines, Signal objects are unpickled in the main process and
+# can receive memory addresses previously used by already-GC'd Signal objects.
+# HDF5Writer uses id()-derived strings as group keys; the deduplication check
+# ("if key already in group, skip") then silently reuses metadata from the
+# previous object, merging annotations from different samples.
+#
+# Fix: replace id()-based keys with a per-write-hierarchy monotonic counter.
+# Each call to populate_hdf5_group_with_signal() activates a fresh _WriteContext
+# (thread-local), so:
+#   - Within one signal hierarchy the same Python object always maps to the same
+#     key (deduplication for shared parent metadata still works).
+#   - Across different populate_hdf5_group_with_signal() calls, counters advance
+#     monotonically → keys never collide with previously written entries.
+# ---------------------------------------------------------------------------
+
+_global_counter: itertools.count = itertools.count()
+_counter_lock = threading.Lock()
+_write_ctx = threading.local()
+
+
+def _next_key() -> str:
+    """Return a globally unique, monotonically increasing string key."""
+    with _counter_lock:
+        return str(next(_global_counter))
+
+
+def _key_for(obj: object) -> str:
+    """Return the stable write key for *obj* within the active write context.
+
+    If a write context is active (inside populate_hdf5_group_with_signal), the
+    key is looked up or freshly assigned via the monotonic counter.  Falls back
+    to str(id(obj)) when called outside any write context (should not happen in
+    normal use).
+    """
+    key_map: dict[int, str] | None = getattr(_write_ctx, "key_map", None)
+    if key_map is not None:
+        obj_id = id(obj)
+        if obj_id not in key_map:
+            key_map[obj_id] = _next_key()
+        return key_map[obj_id]
+    # Fallback — outside a write context; use id() so existing behaviour is
+    # preserved for any direct callers that bypass HDF5Writer.
+    return str(id(obj))
+
+
+class _WriteContext:
+    """Context manager that activates per-signal-hierarchy key assignment."""
+
+    def __enter__(self) -> "_WriteContext":
+        _write_ctx.key_map = {}
+        return self
+
+    def __exit__(self, *_: object) -> None:
+        _write_ctx.key_map = None
+
 
 
 def populate_hdf5_group_with_metadata(group, metadata_obj):
     """Makes sure this and all parent metadata objects are represented in the hdf5 group (returns true iff a new group was added)"""
-    id_string = str(id(metadata_obj))
+    id_string = _key_for(metadata_obj)
     try:
         # if there is already metadata awith this id, do nothing
         temp = group[id_string]
@@ -47,7 +107,7 @@ def populate_hdf5_group_with_metadata(group, metadata_obj):
         if not metadata_obj.parent == None:
             try:
                 metadata_group.create_dataset(
-                    "parent_metadata_id", data=str(id(metadata_obj.parent))
+                    "parent_metadata_id", data=_key_for(metadata_obj.parent)
                 )
                 populate_hdf5_group_with_metadata(group, metadata_obj.parent)
             except ValueError:
@@ -57,7 +117,7 @@ def populate_hdf5_group_with_metadata(group, metadata_obj):
 
 def populate_hdf5_group_with_signal_data(group, signal):
     """Makes sure this and all parent metadata objects are represented in the hdf5 group (returns true iff a new group was added)"""
-    id_string = str(id(signal))
+    id_string = _key_for(signal)
     try:
         # if there is already data awith this id, do nothing
         temp = group[id_string]
@@ -75,9 +135,9 @@ def populate_hdf5_group_with_component_signals(group, signal):
     if len(signal.component_signals) > 0:
         try:
             group.create_dataset(
-                str(id(signal)),
+                _key_for(signal),
                 data=[
-                    str(id(component_signal))
+                    _key_for(component_signal)
                     for component_signal in signal.component_signals
                 ],
             )
@@ -96,11 +156,12 @@ def _populate_hdf5_group_with_signal(group, signal):
 
 
 def populate_hdf5_group_with_signal(group, signal, index=True):
-    _populate_hdf5_group_with_signal(group, signal)
-    if index:
-        group["index"].create_dataset(
-            str(len(group["index"])), data=str(id(signal))
-        )  # keep track of this index in a dataset
+    with _WriteContext():
+        _populate_hdf5_group_with_signal(group, signal)
+        if index:
+            group["index"].create_dataset(
+                str(len(group["index"])), data=_key_for(signal)
+            )  # keep track of this index in a dataset
 
 
 def populate_hdf5_group_with_signals(group, signals, index=True):
@@ -229,11 +290,10 @@ class HDF5Writer(FileWriter):
             batch_idx (int): Index of the batch being written.
             data (Any): Signal data to write.
         """
-        # Add to buffer
-        self._batch_buffer.append((batch_idx, data))
-
-        # Flush buffer if it's getting too large
-        if len(self._batch_buffer) >= self.max_batches_in_memory:
+        with self._lock:
+            self._batch_buffer.append((batch_idx, data))
+            should_flush = len(self._batch_buffer) >= self.max_batches_in_memory
+        if should_flush:
             self._flush_buffer()
 
     def __len__(self) -> int:
