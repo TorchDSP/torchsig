@@ -1,6 +1,6 @@
 # default_configs/wideband_impaired_train_all.yaml
 # wideband, with impairments, all per-signals classes
-schema_version: "2.1.0"
+schema_version: "2.1.1"
 dataset_id: "wideband_impaired_train_all"
 dataset_length: 250_000   # ~4.4k items per signal class (57 classes)
 seed: 1234567892

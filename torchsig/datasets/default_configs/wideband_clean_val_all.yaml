@@ -1,6 +1,6 @@
 # default_configs/wideband_clean_val_all.yaml
 # wideband, no impairments, all per-signals classes
-schema_version: "2.1.0"
+schema_version: "2.1.1"
 dataset_id: "wideband_clean_val_all"
 dataset_length: 25_000   # ~439 items per signal class (57 classes)
 seed: 1234567891

@@ -1,6 +1,6 @@
 # default_configs/narrowband_impaired_train_all.yaml
 # narrowband, with impairments, all per-signals classes
-schema_version: "2.1.0"
+schema_version: "2.1.1"
 dataset_id: "narrowband_impaired_train_all"
 dataset_length: 5_700_000   # 100k items per signal class (57 classes)
 seed: 1234567892
