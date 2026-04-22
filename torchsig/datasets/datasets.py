@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 import warnings
-from pathlib import Path
-from typing import TYPE_CHECKING
 from dataclasses import dataclass
-from typing import Any, Literal
+from pathlib import Path
+from typing import TYPE_CHECKING, Any, Literal
+
 import numpy as np
 from torch.utils.data import Dataset, IterableDataset
 
@@ -28,7 +28,7 @@ if TYPE_CHECKING:
 @dataclass(frozen=True)
 class TorchSigDatasetConfig:
     """Configuration dataclass for TorchSig datasets.
-    
+
     Attributes:
         dataset_id: A unique identifier for the dataset.
         dataset_length: The total number of samples in the dataset.
@@ -441,7 +441,7 @@ class TorchSigIterableDataset(HierarchicalMetadataObject, IterableDataset):
             # needs the parent link so transforms and label extraction can
             # inherit dataset-level metadata, but it must NOT be appended to
             # self.children, which would retain every sample in memory for the
-            # lifetime of the dataset            
+            # lifetime of the dataset
             sample.add_parent(self, register=False) # transient parent link
         return sample
 

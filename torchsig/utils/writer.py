@@ -8,18 +8,20 @@ import threading
 from dataclasses import dataclass
 from pathlib import Path
 from time import time
-from typing import Any, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
+
 import yaml
+from torch.utils.data._utils.collate import default_collate as torch_default_collate
 from tqdm.auto import tqdm
+
+from torchsig.utils.file_handlers.hdf5 import HDF5Writer
 
 # TorchSig
 from torchsig.utils.yaml import write_dict_to_yaml
-from torchsig.utils.file_handlers.hdf5 import HDF5Writer
-from torch.utils.data._utils.collate import default_collate as torch_default_collate
-
 
 if TYPE_CHECKING:
     from torch.utils.data import DataLoader
+
     from torchsig.utils.file_handlers.base_handler import FileWriter
 
 
@@ -45,7 +47,7 @@ def identity_collate_fn(batch):
 class _DatasetExistenceProbe:
     """Configurable notion of 'dataset exists' without entering FileWriter.__enter__()."""
     root: Path
-    maybe_data_file: Optional[Path]
+    maybe_data_file: Path | None
 
     def exists(self) -> bool:
         if not self.root.exists() or not self.root.is_dir():
@@ -72,13 +74,13 @@ def _deep_equal(a: Any, b: Any, *, float_rtol: float = 1e-9, float_atol: float =
     if isinstance(a, dict) and isinstance(b, dict):
         if set(a.keys()) != set(b.keys()):
             return False
-        return all(_deep_equal(a[k], b[k], float_rtol=float_rtol, float_atol=float_atol) for k in a.keys())
+        return all(_deep_equal(a[k], b[k], float_rtol=float_rtol, float_atol=float_atol) for k in a)
 
     # Sequences
     if isinstance(a, (list, tuple)) and isinstance(b, (list, tuple)):
         if len(a) != len(b):
             return False
-        return all(_deep_equal(x, y, float_rtol=float_rtol, float_atol=float_atol) for x, y in zip(a, b))
+        return all(_deep_equal(x, y, float_rtol=float_rtol, float_atol=float_atol) for x, y in zip(a, b, strict=True))
 
     return a == b
 
@@ -104,12 +106,12 @@ class DatasetCreator:
         dataloader: DataLoader,
         dataset_length: int | None = None,
         root: str = ".",
-        overwrite: bool = True,  
+        overwrite: bool = True,
         tqdm_desc: str | None = None,
         file_handler: FileWriter = HDF5Writer,
-        multithreading: bool = True, 
+        multithreading: bool = True,
         max_inflight_futures: int = 32,
-        **kwargs, 
+        **kwargs,
     ):
         """Initializes the DatasetCreator.
 
@@ -137,7 +139,7 @@ class DatasetCreator:
 
         self.dataloader = dataloader
         self.dataset_length_requested = self._infer_dataset_length(dataset_length)
-        
+
         # optional
         self.batch_size = getattr(dataloader, "batch_size", None)
         self.num_workers = getattr(dataloader, "num_workers", None)
@@ -163,7 +165,7 @@ class DatasetCreator:
         """
         if dataset_length is not None:
             return int(dataset_length)
-    
+
         # map-style datasets: try len(dataloader.dataset) to infer dataset length
         try:
             inferred_length = len(self.dataloader.dataset)
@@ -196,8 +198,7 @@ class DatasetCreator:
         ds = self.dataloader.dataset
         if hasattr(ds, "get_full_metadata"):
             return ds.get_full_metadata()
-        else:
-            return {}
+        return {}
 
     def get_dataset_info_dict(self, *, dataset_length: int, original_target_labels: Any) -> dict[str, Any]:
         """Get metadata content for the dataset_info.yaml file.
@@ -213,7 +214,7 @@ class DatasetCreator:
             "seed": None if seed is None else int(seed),
             "target_labels": original_target_labels,
             "dataset_metadata": self._get_dataset_metadata_dict(),
-        }   
+        }
 
     def get_writer_info_dict(self, *, complete: bool) -> dict[str, Any]:
         """Returns a dictionary with information about the dataset writing configuration.
@@ -230,7 +231,7 @@ class DatasetCreator:
             "file_handler": getattr(self.file_handler, "__name__", str(self.file_handler)),
             "multithreading": bool(self.multithreading),
             "dataset_length_requested": int(self.dataset_length_requested),
-            "items_written": int(self.items_written), 
+            "items_written": int(self.items_written),
             "complete": bool(complete),
             "timestamp_unix": int(time()),
         }
@@ -238,21 +239,21 @@ class DatasetCreator:
     def check_yamls(self, *, expected_dataset_info: dict[str, Any]) -> tuple[bool, list[tuple[str, Any, Any]]]:
         """Returns (complete, differences) without mutating dataset or entering writer context."""
         differences: list[tuple[str, Any, Any]] = []
-        
+
         if not self.writer_info_filepath.exists():
             return False, [("writer_info.yaml", "missing", "expected present")]
 
-        with open(self.writer_info_filepath, "r") as f:
+        with open(self.writer_info_filepath) as f:
             writer_disk = yaml.safe_load(f) or {}
-        complete = bool(writer_disk.get("complete", False))                
-        
+        complete = bool(writer_disk.get("complete", False))
+
         if not self.dataset_info_filepath.exists():
             differences.append(("dataset_info.yaml", "missing", "expected present"))
-            return complete, differences  
-        
-        with open(self.dataset_info_filepath, "r") as f:
-            dataset_disk = yaml.safe_load(f) or {}        
-        
+            return complete, differences
+
+        with open(self.dataset_info_filepath) as f:
+            dataset_disk = yaml.safe_load(f) or {}
+
         stable_keys = ["seed", "target_labels", "dataset_metadata"]
         for k in stable_keys:
             if k not in dataset_disk:
@@ -260,14 +261,14 @@ class DatasetCreator:
                 continue
             if not _deep_equal(dataset_disk.get(k), expected_dataset_info.get(k)):
                 differences.append((k, dataset_disk.get(k), expected_dataset_info.get(k)))
-        
+
         # Length must match requested for "no regeneration needed"
         disk_len = dataset_disk.get("dataset_length", None)
         if disk_len is None or int(disk_len) != int(self.dataset_length_requested):
             differences.append(("dataset_length", disk_len, int(self.dataset_length_requested)))
 
         return complete, differences
-        
+
     def _ensure_signal_batch_mode(self) -> tuple[Any, Any]:
         """Mutate dataset/dataloader so DataLoader yields Signal objects; return (orig_target_labels, orig_collate_fn)."""
         ds = self.dataloader.dataset
@@ -328,7 +329,7 @@ class DatasetCreator:
             self._msg_timer = time()
 
             with self.file_handler(root=self.root) as writer:
-                # Write initial YAMLs            
+                # Write initial YAMLs
                 write_dict_to_yaml(self.dataset_info_filepath, self.get_dataset_info_dict(
                     dataset_length=0, original_target_labels=orig_target_labels,
                 ))

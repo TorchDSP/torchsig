@@ -3,7 +3,7 @@ This code is used behind the scenes in several places, and sensitive to errors; 
 """
 from __future__ import annotations
 
-from typing import Any, Optional
+from typing import Any
 
 from torchsig.utils.random import Seedable
 
@@ -41,7 +41,7 @@ class HierarchicalMetadataObject(Seedable):
     def __init__(
         self,
         seed: int | None = None,
-        parent: Optional["HierarchicalMetadataObject"] = None,
+        parent: HierarchicalMetadataObject | None = None,
         metadata: dict[str, Any] | None = None,
         **kwargs: Any
     ) -> None:
@@ -99,7 +99,7 @@ class HierarchicalMetadataObject(Seedable):
         """
         return self._metadata.keys()
 
-    def copy(self) -> "HierarchicalMetadataObject":
+    def copy(self) -> HierarchicalMetadataObject:
         """Create a copy of the object.
 
         Returns:

@@ -21,6 +21,7 @@ from torchsig.signals.signal_types import Signal
 from torchsig.utils.abstractions import HierarchicalMetadataObject
 from torchsig.utils.file_handlers import BaseFileHandler, FileReader, FileWriter
 
+
 def _hdf5_key(obj) -> str:
     """Return the HDF5 group key to use for *obj*.
 
@@ -42,7 +43,7 @@ def _hdf5_key(obj) -> str:
 
 
 def populate_hdf5_group_with_metadata(group, metadata_obj) -> bool:
-    """Makes sure this and all parent metadata objects are represented in the hdf5 group 
+    """Makes sure this and all parent metadata objects are represented in the hdf5 group
     (returns true iff a new group was added).
     """
     key = _hdf5_key(metadata_obj)
@@ -51,7 +52,7 @@ def populate_hdf5_group_with_metadata(group, metadata_obj) -> bool:
     # Signal objects always get a unique counter key so this check is a no-op
     # for them, but keeping it here is harmless
     if key in group:
-        return False    
+        return False
     metadata_group = group.create_group(key)
     for k in metadata_obj.keys():
         if not metadata_obj[k] == None:
@@ -63,11 +64,11 @@ def populate_hdf5_group_with_metadata(group, metadata_obj) -> bool:
             )
             populate_hdf5_group_with_metadata(group, metadata_obj.parent)
         except ValueError:
-            print(f"hdf5: metadata_group create dataset ValueError")
+            print("hdf5: metadata_group create dataset ValueError")
     return True
 
 def populate_hdf5_group_with_signal_data(group, signal, dataset_kwargs=None):
-    """Makes sure this and all parent metadata objects are represented in the hdf5 group 
+    """Makes sure this and all parent metadata objects are represented in the hdf5 group
     (returns true iff a new group was added).
     """
     key = _hdf5_key(signal)
@@ -78,10 +79,19 @@ def populate_hdf5_group_with_signal_data(group, signal, dataset_kwargs=None):
     try:
         group.create_dataset(key, data=signal.data, **(dataset_kwargs or {}))
     except ValueError:
-        print(f"hdf5: signal data create dataset ValueError")
+        print("hdf5: signal data create dataset ValueError")
     return True
 
 def populate_hdf5_group_with_component_signals(group, signal):
+    """Populates the HDF5 group with component signals.
+
+    Args:
+        group: The HDF5 group to populate.
+        signal: The signal whose component signals should be added.
+
+    Returns:
+        bool: True if component signals were added, False otherwise.
+    """
     if len(signal.component_signals) > 0:
         try:
             group.create_dataset(
@@ -89,12 +99,19 @@ def populate_hdf5_group_with_component_signals(group, signal):
                 data=[_hdf5_key(cs) for cs in signal.component_signals],
             )
         except ValueError:
-            print(f"hdf5: component signals create dataset ValueError")
+            print("hdf5: component signals create dataset ValueError")
         return True
     return False
 
 
 def _populate_hdf5_group_with_signal(group, signal, data_dataset_kwargs=None):
+    """Internal helper to populate HDF5 group with signal data.
+
+    Args:
+        group: The HDF5 group to populate.
+        signal: The signal to add to the group.
+        data_dataset_kwargs: Optional keyword arguments for dataset creation.
+    """
     populate_hdf5_group_with_metadata(group["metadata"], signal)
     populate_hdf5_group_with_signal_data(
         group["data"], signal, dataset_kwargs=data_dataset_kwargs
@@ -107,6 +124,14 @@ def _populate_hdf5_group_with_signal(group, signal, data_dataset_kwargs=None):
 
 
 def populate_hdf5_group_with_signal(group, signal, index=True, data_dataset_kwargs=None):
+    """Populates an HDF5 group with a signal and optionally indexes it.
+
+    Args:
+        group: The HDF5 group to populate.
+        signal: The signal to add to the group.
+        index: Whether to index the signal.
+        data_dataset_kwargs: Optional keyword arguments for dataset creation.
+    """
     _populate_hdf5_group_with_signal(
         group, signal, data_dataset_kwargs=data_dataset_kwargs
     )
@@ -117,6 +142,14 @@ def populate_hdf5_group_with_signal(group, signal, index=True, data_dataset_kwar
 
 
 def populate_hdf5_group_with_signals(group, signals, index=True, data_dataset_kwargs=None):
+    """Populates an HDF5 group with multiple signals and optionally indexes them.
+
+    Args:
+        group: The HDF5 group to populate.
+        signals: The signals to add to the group.
+        index: Whether to index the signals.
+        data_dataset_kwargs: Optional keyword arguments for dataset creation.
+    """
     for signal in signals:
         populate_hdf5_group_with_signal(
             group, signal, index=index, data_dataset_kwargs=data_dataset_kwargs
@@ -270,7 +303,6 @@ class HDF5Writer(FileWriter):
 
             # Process all batches in buffer
             for batch_idx, data in self._batch_buffer:
-                # breakpoint()
                 self._write_batch_to_hdf5(data)
 
             # Clear buffer
@@ -302,19 +334,45 @@ class HDF5Writer(FileWriter):
 
 
 def handle_bytes_as_string(bts):
+    """Converts bytes to string if needed.
+
+    Args:
+        bts: The value to potentially convert.
+
+    Returns:
+        The converted value.
+    """
     if isinstance(bts, bytes):
         return str(bts.decode())
-    if isinstance(bts, np.ndarray):
-        if bts.dtype == np.dtype("O"):
-            return bts.astype(np.str_)
+    if isinstance(bts, np.ndarray) and bts.dtype == np.dtype("O"):
+        return bts.astype(np.str_)
     return bts
 
 
 def load_value_from_group(group, key):
+    """Loads a value from an HDF5 group.
+
+    Args:
+        group: The HDF5 group to load from.
+        key: The key of the value to load.
+
+    Returns:
+        The loaded value.
+    """
     return handle_bytes_as_string(group[key][()])
 
 
 def fill_object_metadata_from_group_and_id(obj, group, id_str):
+    """Fills an object's metadata from an HDF5 group.
+
+    Args:
+        obj: The object to fill metadata for.
+        group: The HDF5 group to load from.
+        id_str: The ID string of the metadata to load.
+
+    Returns:
+        The object with filled metadata.
+    """
     for key in group["metadata"][id_str].keys():
         if not key == "parent_metadata_id":
             obj[key] = load_value_from_group(group["metadata"][id_str], key)
@@ -332,6 +390,15 @@ def fill_object_metadata_from_group_and_id(obj, group, id_str):
 
 
 def load_signal_from_group_by_id(group, id_str):
+    """Loads a signal from an HDF5 group by its ID.
+
+    Args:
+        group: The HDF5 group to load from.
+        id_str: The ID string of the signal to load.
+
+    Returns:
+        Signal: The loaded signal.
+    """
     component_signals = []
     try:
         component_signals = [
@@ -349,6 +416,15 @@ def load_signal_from_group_by_id(group, id_str):
 
 
 def load_signal_from_group_by_index(group, ind):
+    """Loads a signal from an HDF5 group by its index.
+
+    Args:
+        group: The HDF5 group to load from.
+        ind: The index of the signal to load.
+
+    Returns:
+        Signal: The loaded signal.
+    """
     id_str = load_value_from_group(group["index"], str(ind))
     return load_signal_from_group_by_id(group, id_str)
 
@@ -400,7 +476,7 @@ class HDF5Reader(FileReader):
 
     def _ensure_open(self) -> None:
         """Ensures that the HDF5 file is open for reading. Note that the file
-        is opened lazily to mitigate issues with multiprocessing and worker 
+        is opened lazily to mitigate issues with multiprocessing and worker
         initialization in PyTorch DataLoaders.
         """
         if self._file is None:

@@ -539,11 +539,11 @@ class ChannelSwap(SignalTransform):
 
         # swapping I/Q channels creates a frequency mirroring
 
-        # metadata: signal
+        # update metadata: signal
         if hasattr(signal, "center_freq"):
             signal["center_freq"] *= -1
 
-        # metadata: signal_components
+        # update metadata: signal_components
         for component in signal.component_signals:
             if hasattr(component, "center_freq"):
                 component["center_freq"] *= -1
@@ -1057,13 +1057,13 @@ class Doppler(SignalTransform):
             propagation_speed=self.propagation_speed,
         )
 
-         # metadata: signal
+         # update metadata: signal
         if hasattr(signal, "center_freq"):
             signal["center_freq"] *= alpha
         if hasattr(signal, "bandwidth"):
             signal["bandwidth"] *= alpha
-        
-        # metadata: component_signals
+
+        # update metadata: component_signals
         for component in signal.component_signals:
 
             if hasattr(component, "center_freq"):
@@ -1726,12 +1726,12 @@ class SpectralInversion(SignalTransform):
             Signal with spectral inversion applied.
         """
         signal.data = F.spectral_inversion(signal.data)
-         
-        # metadata: signal
+
+        # update metadata: signal
         if hasattr(signal, "center_freq"):
             signal["center_freq"] *= -1
-        
-        # metadata: signal_components
+
+        # update metadata: signal_components
         for component in signal.component_signals:
             if hasattr(component, "center_freq"):
                 component["center_freq"] *= -1
@@ -1969,15 +1969,15 @@ class TimeReversal(SignalTransform):
             signal.data = F.spectral_inversion(signal.data)
 
         num_data_samples = len(signal.data)
-        
-        # metadata: signal
+
+        # update metadata: signal
         if hasattr(signal, "stop_in_samples"):
             original_stop = signal.stop_in_samples
             signal["start_in_samples"] = num_data_samples - original_stop
         if hasattr(signal, "center_freq") and not do_si:
             signal["center_freq"] *= -1
 
-        # metadata: component_signals
+        # update metadata: component_signals
         for component in signal.component_signals:
             if hasattr(component, "stop_in_samples"):
                 original_stop = component.stop_in_samples

@@ -1,8 +1,5 @@
 """File Handler Base and Utility Classes for reading and writing datasets to/from disk."""
 
-# TorchSig
-# Third Party
-# Built-In
 import pathlib
 import shutil
 from typing import Any
@@ -11,6 +8,14 @@ from torchsig.utils.printing import generate_repr_str
 
 
 def reset_folder(path: str) -> None:
+    """Resets a folder by deleting it if it exists and recreating it.
+
+    Args:
+        path (str): Path to the folder to reset.
+
+    Raises:
+        ValueError: If the path exists but is not a directory.
+    """
     folder_path = pathlib.Path(path)
 
     if folder_path.exists():
@@ -31,12 +36,16 @@ def reset_folder(path: str) -> None:
 
 
 class FileWriter:
+    """Base class for writing datasets to disk.
 
+    Attributes:
+        root (pathlib.Path): Location on disk to write dataset.
+    """
     def __init__(self, root: str, **kwargs):
-        """File writer base clas
+        """Initializes the FileWriter.
 
         Args:
-            root (str): Location on disk to write dataset
+            root (str): Location on disk to write dataset.
         """
         self.root: pathlib.Path = pathlib.Path(root)
 
@@ -100,7 +109,12 @@ class FileWriter:
 
 
 class FileReader:
+    """Base class for reading datasets from disk.
 
+    Attributes:
+        root (pathlib.Path): Dataset location on disk.
+        dataset_info_filepath (pathlib.Path): Path to dataset info file.
+    """
     def __init__(self, root: str, **kwargs):
         """File reader base class
 

@@ -2,6 +2,7 @@
 
 from copy import copy
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import numpy as np
 import torch
@@ -9,7 +10,6 @@ import torchaudio
 from scipy import signal as sp
 
 from torchsig import __version__ as torchsig_version
-from typing import TYPE_CHECKING
 
 # data types to be used internally within torchsig
 TorchSigComplexDataType = np.complex64

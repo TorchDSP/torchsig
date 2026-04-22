@@ -107,12 +107,12 @@ class TorchSigDataModule(pl.LightningDataModule):
         self.dataset_splits = dataset_splits
         # metadatas
         self.metadata = metadata
-        # transforms, based on Impairment level 
+        # transforms, based on Impairment level
         self.impairment_level = impairment_level
         impairments = Impairments(level=impairment_level)
         self.burst_impairments = impairments.signal_transforms
-        self.whole_signal_impairments = impairments.dataset_transforms       
-        self.transforms = [self.whole_signal_impairments] + transforms
+        self.whole_signal_impairments = impairments.dataset_transforms
+        self.transforms = [self.whole_signal_impairments, *transforms]
 
         self.target_labels = target_labels
         # initialize dataloader params
@@ -144,7 +144,7 @@ class TorchSigDataModule(pl.LightningDataModule):
             RuntimeError: If dataset creation fails.
         """
         dataset = TorchSigIterableDataset(
-            metadata=self.metadata, 
+            metadata=self.metadata,
             transforms=self.transforms,
             component_transforms=[self.burst_impairments],
             target_labels=self.target_labels,

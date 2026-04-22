@@ -97,7 +97,7 @@ def additive_noise(
     Returns:
         Data with complex noise samples with specified power added.
     """
-    rng = rng if rng else np.random.default_rng()
+    rng = rng or np.random.default_rng()
     n = len(data)
     noise_samples = dsp.noise_generator(n, power, color, continuous, rng)
     return (data + noise_samples).astype(TorchSigComplexDataType)
@@ -133,7 +133,7 @@ def adjacent_channel_interference(
     Returns:
         Data with added adjacent interference.
     """
-    rng = rng if rng else np.random.default_rng()
+    rng = rng or np.random.default_rng()
     filter_weights = dsp.low_pass(0.25, 0.25, 4.0) if filter_weights is None else filter_weights
 
     n = len(data)
@@ -177,7 +177,7 @@ def awgn(
     Returns:
         Data with added noise.
     """
-    rng = rng if rng else np.random.default_rng()
+    rng = rng or np.random.default_rng()
 
     real_noise = rng.standard_normal(*data.shape)
     imag_noise = rng.standard_normal(*data.shape)
@@ -226,7 +226,7 @@ def clock_drift(
     Returns:
         Data with LO drift applied.
     """
-    rng = rng if rng else np.random.default_rng()
+    rng = rng or np.random.default_rng()
 
     # enforce data to be the correct complex type
     data = data.astype(TorchSigComplexDataType)
@@ -300,7 +300,7 @@ def clock_jitter(
     Returns:
         Data with LO drift applied.
     """
-    rng = rng if rng else np.random.default_rng()
+    rng = rng or np.random.default_rng()
 
     # enforce data to be the correct complex type
     data = data.astype(TorchSigComplexDataType)
@@ -375,7 +375,7 @@ def cochannel_interference(
     Returns:
         Data with added uncorrelated co-channel interference.
     """
-    rng = rng if rng else np.random.default_rng()
+    rng = rng or np.random.default_rng()
     filter_weights = dsp.low_pass(0.25, 0.25, 4.0) if filter_weights is None else filter_weights
 
     n = len(data)
@@ -443,7 +443,7 @@ def cut_out(
     Returns:
         CutOut IQ data.
     """
-    rng = rng if rng else np.random.default_rng()
+    rng = rng or np.random.default_rng()
 
     num_iq_samples = data.shape[0]
     cut_start = int(cut_start * num_iq_samples)
@@ -647,7 +647,7 @@ def fading(
     Returns:
         IQ data with fading applied.
     """
-    rng = rng if rng else np.random.default_rng()
+    rng = rng or np.random.default_rng()
 
     num_taps = int(
         np.ceil(1.0 / coherence_bandwidth)
@@ -822,7 +822,7 @@ def carrier_frequency_drift(
     Returns:
         Data with LO drift applied.
     """
-    rng = rng if rng else np.random.default_rng()
+    rng = rng or np.random.default_rng()
     n = data.size
 
     # convert drift PPM units
@@ -857,7 +857,7 @@ def carrier_phase_noise(
     Returns:
         Data mixed with noisy LO.
     """
-    rng = rng if rng else np.random.default_rng()
+    rng = rng or np.random.default_rng()
     n = data.size
 
     # generate phase noise with given standard deviation
@@ -1060,7 +1060,7 @@ def passband_ripple(
     Returns:
         Filtered data with passband ripple applied.
     """
-    rng = rng if rng else np.random.default_rng()
+    rng = rng or np.random.default_rng()
     # counter avoids infinite loop
     counter = 0
     max_counter = 1000
@@ -1109,7 +1109,7 @@ def patch_shuffle(
     Returns:
         Data that has undergone patch shuffling.
     """
-    rng = rng if rng else np.random.default_rng()
+    rng = rng or np.random.default_rng()
 
     for patch_idx in patches_to_shuffle:
         patch_start = int(patch_idx * patch_size)
@@ -1173,7 +1173,7 @@ def quantize(
     if np.isnan(data).any():
         raise ValueError("quantize() input contains one or more NaN (np.nan) values.")
     if np.isinf(data).any():
-        raise ValueError("quantize() input contains one or more infinite (np.inf) values.")    
+        raise ValueError("quantize() input contains one or more infinite (np.inf) values.")
 
     # calculate number of levels
     num_levels = int(2**num_bits)
@@ -1201,7 +1201,7 @@ def quantize(
 
     # all-zero input: quantization is identity (zeros), avoid divide-by-zero
     if max_value_signal == 0:
-        return np.zeros(orig_shape, dtype=TorchSigComplexDataType)    
+        return np.zeros(orig_shape, dtype=TorchSigComplexDataType)
 
     # convert the reference level adjustment into a linear value.
     # +3 dB -> 3 dB above max scaling (saturation)
@@ -1286,7 +1286,7 @@ def shadowing(
     Returns:
         Data with shadowing applied.
     """
-    rng = rng if rng else np.random.default_rng()
+    rng = rng or np.random.default_rng()
     power_db = rng.normal(mean_db, sigma_db)  # normal distribution in log domain
     data = data * 10 ** (power_db / 20)
     return data.astype(TorchSigComplexDataType)
@@ -1566,7 +1566,7 @@ def time_varying_noise(
     Returns:
         IQ data with time-varying noise added.
     """
-    rng = rng if rng else np.random.default_rng()
+    rng = rng or np.random.default_rng()
     real_noise = rng.standard_normal(*data.shape)
     imag_noise = rng.standard_normal(*data.shape)
     noise_power = np.zeros(data.shape)

@@ -239,47 +239,46 @@ def verify_distribution_list(
 
 
 def verify_list(
-    l: list,
+    list_check: list,
     name: str,
     no_duplicates: bool = False,
     data_type=None,
 ) -> list:
-    """Verifies that the value `l` is a list and optionally checks for duplicates or verifies item types.
+    """Verifies that the value `list_check` is a list and optionally checks for duplicates or verifies item types.
 
     Args:
-        l (list): The value to be checked.
+        list_check (list): The value to be checked.
         name (str): The name of the value to be used in error messages.
         no_duplicates (bool, optional): If True, raises an error if the list contains duplicates. Defaults to False.
         data_type (type, optional): The type each item in the list should have. Defaults to None.
 
     Raises:
-        ValueError: If `l` is not a list, if it contains duplicates (when `no_duplicates=True`),
+        ValueError: If `list_check` is not a list, if it contains duplicates (when `no_duplicates=True`),
                     or if any item in the list is not of the required type.
 
     Returns:
-        list: The verified list `l`.
+        list: The verified list `list_check`.
     """
-    if isinstance(l, np.ndarray):
-        l = l.tolist()
-    elif isinstance(l, tuple):
-        l = list(l)
-    elif not isinstance(l, list):
-        raise ValueError(f"{name} is not a list: {type(l)}")
+    if isinstance(list_check, np.ndarray):
+        list_check = list_check.tolist()
+    elif isinstance(list_check, tuple):
+        list_check = list(list_check)
+    elif not isinstance(list_check, list):
+        raise TypeError(f"{name} is not a list: {type(list_check)}")
 
-    if no_duplicates:
-        if len(l) != len(set(l)):
-            counts = Counter(l)
-            duplicates = [item for item, count in counts.items() if count > 1]
-            raise ValueError(f"{name} has duplicates {duplicates}")
+    if no_duplicates and len(list_check) != len(set(list_check)):
+        counts = Counter(list_check)
+        duplicates = [item for item, count in counts.items() if count > 1]
+        raise ValueError(f"{name} has duplicates {duplicates}")
 
     if data_type is not None:
-        for i, item in enumerate(l):
+        for i, item in enumerate(list_check):
             if not isinstance(item, data_type):
-                raise ValueError(
+                raise TypeError(
                     f"{name}[{i}] = {item} is not correct data type {data_type}: {type(item)}"
                 )
 
-    return l
+    return list_check
 
 
 def verify_numpy_array(
@@ -367,11 +366,10 @@ def verify_dict(
     for i, k in enumerate(required_keys):
         if k not in d:
             raise ValueError(f"{name} is missing required key {k}: {d.keys()}")
-        if len(required_keys) > 0:
-            if not isinstance(d[k], required_types[i]):
-                raise ValueError(
-                    f"{name}[{k}] is not required type {required_types[i]}: {type(k)}"
-                )
+        if len(required_keys) > 0 and not isinstance(d[k], required_types[i]):
+            raise ValueError(
+                f"{name}[{k}] is not required type {required_types[i]}: {type(k)}"
+            )
 
     return d
 

@@ -8,11 +8,12 @@ Usage:
 
 from __future__ import annotations
 
-from math import ceil
 from collections import Counter
-from tqdm import tqdm
-import numpy as np
+from math import ceil
+
 import matplotlib.pyplot as plt
+import numpy as np
+from tqdm import tqdm
 
 from torchsig.datasets.datasets import StaticTorchSigDataset
 
@@ -86,7 +87,7 @@ class DatasetSummary:
     ) -> None:
         """Single-pass collection and histogramming."""
         if isinstance(n_bins, int):
-            n_bins = {k: n_bins for k in ("center_freq", "bandwidth", "duration", "snr_db")}
+            n_bins = dict.fromkeys(("center_freq", "bandwidth", "duration", "snr_db"), n_bins)
 
         self.dataset_length = len(dataset)
         if self.dataset_length == 0:
@@ -158,7 +159,7 @@ class DatasetSummary:
             The matplotlib ``(fig, axes)`` tuple.
         """
         if metrics is None:
-            metrics = ["class"] + [k for k in self.histograms]
+            metrics = ["class", *self.histograms]
 
         n = len(metrics)
         cols = min(n, max_cols)
@@ -168,10 +169,7 @@ class DatasetSummary:
         fig.set_layout_engine("constrained")
 
         # Normalize axes to a flat list
-        if n == 1:
-            axes = [axes]
-        else:
-            axes = np.asarray(axes).flatten()
+        axes = [axes] if n == 1 else np.asarray(axes).flatten()
 
         for i, metric in enumerate(metrics):
             ax = axes[i]
