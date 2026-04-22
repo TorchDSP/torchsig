@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from math import ceil
 from collections import Counter
-
+from tqdm import tqdm
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -100,7 +100,7 @@ class DatasetSummary:
         snrs: list[float] = []
         n_signals: list[int] = []
 
-        for i in range(self.dataset_length):
+        for i in tqdm(range(self.dataset_length)):
             signal = dataset[i]
             components = signal.component_signals or [signal]
             n_signals.append(len(components))

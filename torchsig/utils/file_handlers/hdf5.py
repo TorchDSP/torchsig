@@ -63,22 +63,22 @@ def populate_hdf5_group_with_metadata(group, metadata_obj) -> bool:
             )
             populate_hdf5_group_with_metadata(group, metadata_obj.parent)
         except ValueError:
-            pass
+            print(f"hdf5: metadata_group create dataset ValueError")
     return True
 
-def populate_hdf5_group_with_signal_data(group, signal):
+def populate_hdf5_group_with_signal_data(group, signal, dataset_kwargs=None):
     """Makes sure this and all parent metadata objects are represented in the hdf5 group 
     (returns true iff a new group was added).
     """
     key = _hdf5_key(signal)
     # Signal keys are unique counters so this check only fires for persistent
-    # objects that reuse id()-based keys; skip them if already written.
+    # objects that reuse id()-based keys; skip them if already written
     if key in group:
         return False
     try:
-        group.create_dataset(key, data=signal.data)
+        group.create_dataset(key, data=signal.data, **(dataset_kwargs or {}))
     except ValueError:
-        pass
+        print(f"hdf5: signal data create dataset ValueError")
     return True
 
 def populate_hdf5_group_with_component_signals(group, signal):
@@ -89,30 +89,38 @@ def populate_hdf5_group_with_component_signals(group, signal):
                 data=[_hdf5_key(cs) for cs in signal.component_signals],
             )
         except ValueError:
-            pass
+            print(f"hdf5: component signals create dataset ValueError")
         return True
     return False
 
 
-def _populate_hdf5_group_with_signal(group, signal):
+def _populate_hdf5_group_with_signal(group, signal, data_dataset_kwargs=None):
     populate_hdf5_group_with_metadata(group["metadata"], signal)
-    populate_hdf5_group_with_signal_data(group["data"], signal)
+    populate_hdf5_group_with_signal_data(
+        group["data"], signal, dataset_kwargs=data_dataset_kwargs
+    )
     populate_hdf5_group_with_component_signals(group["component_signals"], signal)
     for component_signal in signal.component_signals:
-        _populate_hdf5_group_with_signal(group, component_signal)
+        _populate_hdf5_group_with_signal(
+            group, component_signal, data_dataset_kwargs=data_dataset_kwargs
+        )
 
 
-def populate_hdf5_group_with_signal(group, signal, index=True):
-    _populate_hdf5_group_with_signal(group, signal)
+def populate_hdf5_group_with_signal(group, signal, index=True, data_dataset_kwargs=None):
+    _populate_hdf5_group_with_signal(
+        group, signal, data_dataset_kwargs=data_dataset_kwargs
+    )
     if index:
         group["index"].create_dataset(
             str(len(group["index"])), data=_hdf5_key(signal)
         )  # keep track of this index in a dataset
 
 
-def populate_hdf5_group_with_signals(group, signals, index=True):
+def populate_hdf5_group_with_signals(group, signals, index=True, data_dataset_kwargs=None):
     for signal in signals:
-        populate_hdf5_group_with_signal(group, signal, index=index)
+        populate_hdf5_group_with_signal(
+            group, signal, index=index, data_dataset_kwargs=data_dataset_kwargs
+        )
 
 
 class HDF5Writer(FileWriter):
@@ -121,8 +129,8 @@ class HDF5Writer(FileWriter):
     def __init__(
         self,
         root,
-        compression: str = "gzip",
-        compression_opts: int = 6,
+        compression: str = "lzf",
+        compression_opts: int | None = None,
         shuffle: bool = True,
         fletcher32: bool = True,
         chunk_cache_size: int = 1024 * 1024 * 10,  # 10MB cache
@@ -132,8 +140,8 @@ class HDF5Writer(FileWriter):
 
         Args:
             root (str): Where to write dataset on disk.
-            compression (str, optional): Compression algorithm ('gzip', 'szip', 'lzf'). Defaults to 'gzip'.
-            compression_opts (int, optional): Compression level (0-9 for gzip). Defaults to 6.
+            compression (str, optional): Compression algorithm ('gzip', 'szip', 'lzf'). Defaults to 'lzf'.
+            compression_opts (int | None, optional): Compression level (0-9 for gzip). Defaults to None.
             shuffle (bool, optional): Enable shuffle filter for better compression. Defaults to True.
             fletcher32 (bool, optional): Enable Fletcher32 checksum filter. Defaults to True.
             chunk_cache_size (int, optional): HDF5 chunk cache size in bytes. Defaults to 10MB.
@@ -153,16 +161,32 @@ class HDF5Writer(FileWriter):
         self._batch_buffer: list[tuple[int, Any]] = []
         # Monotonically-increasing counter used to stamp each Signal with a
         # unique short string key (_hdf5_key attribute) before it is written.
-        # This replaces the previous str(id(signal)) approach, which required
-        # keeping every written Signal alive to prevent CPython from recycling
-        # its address and causing a silent key collision.
-        self._key_counter: int = 0        
+        self._key_counter: int = 0
 
         self._current_sample_index = 0
         super().__init__(root=root)
-        self.datapath = self.root.joinpath("data.h5")
+        self.datapath = self.root.joinpath("data.h5") # fixed data file name
         # Thread safety
         self._lock = threading.Lock()
+
+    def _data_dataset_kwargs(self) -> dict[str, Any]:
+        """Handle HDF5 dataset kwarg tracking and implementation."""
+        kwargs: dict[str, Any] = {}
+
+        if self.compression is not None:
+            kwargs["compression"] = self.compression
+            if self.compression != "lzf" and self.compression_opts is not None:
+                kwargs["compression_opts"] = self.compression_opts
+
+        if self.shuffle:
+            kwargs["shuffle"] = True
+        if self.fletcher32:
+            kwargs["fletcher32"] = True
+
+        if kwargs:
+            kwargs["chunks"] = True  # explicit, testable, and required for filters
+
+        return kwargs
 
     def _setup(self) -> None:
         """Set up HDF5 file and initial structure."""
@@ -222,8 +246,11 @@ class HDF5Writer(FileWriter):
         # Assign stable write keys before touching HDF5 so the populate
         # helpers never fall back to id()-based keys for signal objects.
         for signal in data:
-            self._assign_hdf5_keys(signal)        
-        populate_hdf5_group_with_signals(self._file, data)
+            self._assign_hdf5_keys(signal)
+
+        populate_hdf5_group_with_signals(
+            self._file, data, data_dataset_kwargs=self._data_dataset_kwargs(),
+        )
 
     def _flush_buffer(self) -> None:
         """Flush buffered batches to HDF5 file."""
@@ -261,10 +288,12 @@ class HDF5Writer(FileWriter):
             data (Any): Signal data to write.
         """
         # Add to buffer
-        self._batch_buffer.append((batch_idx, data))
+        with self._lock:
+            self._batch_buffer.append((batch_idx, data))
+            should_flush = len(self._batch_buffer) >= self.max_batches_in_memory
 
-        # Flush buffer if it's getting too large
-        if len(self._batch_buffer) >= self.max_batches_in_memory:
+        # Flush buffer if it is getting too large
+        if should_flush:
             self._flush_buffer()
 
     def __len__(self) -> int:

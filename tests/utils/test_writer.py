@@ -119,7 +119,7 @@ def test_DatasetCreator_tqdm_output(tmp_path, capsys, dataset_length, multithrea
     seed = 12345
     batch_size = 4
 
-    ds = default_dataset(num_signals_max=4, num_signals_min=0)
+    ds = default_dataset(num_signals_max=2, num_signals_min=0)
     dl = WorkerSeedingDataLoader(ds, seed=seed, batch_size=batch_size)
     dc = DatasetCreator(
         dataloader=dl,

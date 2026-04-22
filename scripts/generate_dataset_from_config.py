@@ -37,6 +37,7 @@ def configure_signal_generators(
     - implemented by adding one ConcatSignalGenerator per family
         and assigning equal top-level likelihood. ConcatSignalGenerator
         is uniform across wrapped generators
+
     Args:
         dataset: The TorchSigIterableDataset instance to configure.
         mode: The signal sampling mode, which can be either "per_signal" or "per_family".

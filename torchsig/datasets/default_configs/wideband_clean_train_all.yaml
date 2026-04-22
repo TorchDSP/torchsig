@@ -2,7 +2,7 @@
 # wideband, no impairments, all per-signals classes
 schema_version: "2.1.1"
 dataset_id: "wideband_clean_train_all"
-dataset_length: 250_000   # ~4.4k items per signal class (57 classes)
+dataset_length: 57_000   # 1k items per signal class (57 classes)
 seed: 1234567890
 impairment_level: 0  # no impairments
 
@@ -22,7 +22,7 @@ dataset_metadata:
   # wideband
   num_signals_min: 3
   num_signals_max: 5
-  cochannel_overlap_probability: 0.1
+  cochannel_overlap_probability: 0.1 # mild overlaps
 
   # wide SNR range
   snr_db_min: 0.0
@@ -30,11 +30,11 @@ dataset_metadata:
   noise_power_db: 0.0
 
   # typical wideband: short bursts relative to window
-  signal_duration_in_samples_min: 13_107    # ~0.05 * 262144
-  signal_duration_in_samples_max: 26_214    # ~0.1 * 262144
+  signal_duration_in_samples_min: 16_384    # ~0.0625 * 262144
+  signal_duration_in_samples_max: 32_768    # 0.125 * 262144
 
   bandwidth_min: 62_500     # 0.0125 * sample rate 
-  bandwidth_max: 3_500_000  # 0.7 * sample rate
+  bandwidth_max: 1_000_000  # 0.1 * sample rate
 
   signal_center_freq_min: -4_000_000
   signal_center_freq_max: 4_000_000

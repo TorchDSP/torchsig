@@ -139,11 +139,9 @@ def test_IterableDataset_transforms():
     # check they are all different
     datas = [next(d) for d in datasets]
 
-    for i in range(len(datas)):
-        for j in range(i+1, len(datas)):
-            print(i, j)
-            print(np.all(datas[i] == datas[j]))
-            assert not np.all(datas[i] == datas[j])
+    for i, j in itertools.combinations(range(len(datas)), 2):
+        if np.array_equal(datas[i], datas[j]):
+            raise AssertionError(f"Datasets {i} and {j} are identical")
 
 
 
