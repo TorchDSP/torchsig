@@ -1,6 +1,6 @@
 [build-system]
 # Define build dependencies and backend
-requires = ["setuptools>=61"]
+requires = ["setuptools>=61", "build"]
 build-backend = "setuptools.build_meta"
 
 [project]

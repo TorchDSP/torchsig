@@ -1,0 +1,62 @@
+name: Publish to PyPI
+
+on:
+  push:
+    tags:
+      - 'v*' # Trigger on version tags (e.g. v2.1.1)
+
+jobs:
+  build-n-publish:
+    name: Build and publish Python distribution
+    runs-on: ubuntu-latest
+    
+    environment:
+      name: pypi
+      url: https://pypi.org/p/torchsig
+
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install build tools
+        run: python -m pip install --upgrade pip build twine
+
+      - name: Version Guard
+        id: check_version
+        run: |
+          # Extract version from tag
+          TAG=${GITHUB_REF#refs/tags/v}
+          MIN_VERSION="2.1.1"
+          
+          # only publish releases >= 2.1.1
+          if [ "$(printf '%s\n%s' "$MIN_VERSION" "$TAG" | sort -V | head -n1)" != "$MIN_VERSION" ]; then
+            echo "Version $TAG is below $MIN_VERSION. Skipping publication."
+            echo "proceed=false" >> $GITHUB_OUTPUT
+          else
+            echo "Version $TAG is eligible for publication."
+            echo "proceed=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Build binary wheel and source tarball
+        if: steps.check_version.outputs.proceed == 'true'
+        run: python -m build --sdist --wheel
+      
+      - name: Verify package files
+        if: steps.check_version.outputs.proceed == 'true'
+        run: |
+          twine check dist/*
+          ls -lh dist/
+
+      - name: Publish package distributions to PyPI
+        if: steps.check_version.outputs.proceed == 'true'
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          verbose: true
