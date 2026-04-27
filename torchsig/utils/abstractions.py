@@ -3,7 +3,7 @@ This code is used behind the scenes in several places, and sensitive to errors; 
 """
 from __future__ import annotations
 
-from typing import Any, Optional
+from typing import Any
 
 from torchsig.utils.random import Seedable
 
@@ -41,7 +41,7 @@ class HierarchicalMetadataObject(Seedable):
     def __init__(
         self,
         seed: int | None = None,
-        parent: Optional["HierarchicalMetadataObject"] = None,
+        parent: HierarchicalMetadataObject | None = None,
         metadata: dict[str, Any] | None = None,
         **kwargs: Any
     ) -> None:
@@ -99,7 +99,7 @@ class HierarchicalMetadataObject(Seedable):
         """
         return self._metadata.keys()
 
-    def copy(self) -> "HierarchicalMetadataObject":
+    def copy(self) -> HierarchicalMetadataObject:
         """Create a copy of the object.
 
         Returns:
@@ -205,6 +205,10 @@ class HierarchicalMetadataObject(Seedable):
         except MetadataAttributeError as e:
             e.add_note("key missing: '" + str(key) + "'; ")
             raise e
+
+    def __setstate__(self, data):
+        """Workaround pickling with multiple workers."""
+        self.__dict__.update(data)
 
     def __getattribute__(self, key: str) -> Any:
         """Get an attribute, falling back to metadata lookup if not found.

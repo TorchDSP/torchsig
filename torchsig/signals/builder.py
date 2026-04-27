@@ -80,7 +80,7 @@ class BaseSignalGenerator(HierarchicalMetadataObject):
             The generated signal after applying all transforms.
         """
         new_signal = self.generate()  # generate the signal
-        new_signal.add_parent(self)
+        new_signal.add_parent(self, register=False)  # transient parent link
         if hasattr(self, "class_name"):
             new_signal["class_name"] = (
                 self.class_name

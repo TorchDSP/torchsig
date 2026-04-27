@@ -8,7 +8,7 @@ import warnings
 
 import numpy as np
 import torch
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, get_worker_info
 
 from torchsig.utils.random import Seedable
 
@@ -113,7 +113,7 @@ class WorkerSeedingDataLoader(DataLoader, Seedable):
         if seed is None:
             seed = np.random.randint(
                 1000
-            )  # just pick a seed if none is given; should still seed with somehting
+            )  # just pick a random seed if none is given
         DataLoader.__init__(self, dataset, **kwargs)
         Seedable.__init__(self, seed=seed)
         dataset.seed(seed)
@@ -143,8 +143,5 @@ class WorkerSeedingDataLoader(DataLoader, Seedable):
         Args:
             worker_id: The integer ID of the worker process.
         """
-        from torch.utils.data import get_worker_info
-
         seed = int(self.random_generator.random() * 100 + 1) * (worker_id + 1)
-        print(worker_id, "seed: ", seed)
         get_worker_info().dataset.seed(seed)

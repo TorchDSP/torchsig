@@ -22,13 +22,8 @@ dist/
 *.out
 # Jupyter Notebooks
 *.ipynb_checkpoints/
-
-# Rust
-rust_functions/target/
-rust_functions/Cargo.lock
-**/*.rs.bk
-*.so
-*.bak
+# Ruff
+.ruff_cache
 
 # TorchSig
 torchsig.egg-info/
@@ -48,7 +43,7 @@ docs/_autosummary/
 
 # Tests
 tests/datasets/*
-!tests/datasets/*.pyprep_release.sh
+!tests/datasets/*.py
 !tests/datasets/*.yaml
 
 # Examples
@@ -59,14 +54,6 @@ examples/datasets/
 !examples/transforms/*.ipynb
 !examples/*.py
 !examples/*.yaml
-
-# Tools
-tools/examples/datasets/*
-tools/examples/datasets/yolo_annotation_data/annotated_yolo_sample_images
-!tools/examples/datasets
-!tools/examples/datasets/yolo_annotation_data
-!tools/examples/datasets/yolo_annotation_data/sample_images
-!tools/examples/datasets/yolo_annotation_data/sample_images/*
 
 # Pytest Files
 *.coverage
@@ -102,3 +89,4 @@ wheels/
 *.egg-info/
 .installed.cfg
 *.egg
+*.so

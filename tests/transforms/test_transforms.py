@@ -37,7 +37,7 @@ from torchsig.transforms.transforms import (
 )
 from torchsig.signals.signal_types import Signal
 from torchsig.utils.dsp import compute_spectrogram, low_pass, TorchSigComplexDataType, TorchSigRealDataType
-from test_transforms_utils import generate_test_signal
+from test_transforms_utils import generate_test_signal, generate_composite_signal
 
 # Third Party
 import numpy as np
@@ -453,6 +453,22 @@ def test_ChannelSwap(signal: Signal, is_error: bool) -> None:
         assert signal.data.dtype == TorchSigComplexDataType
 
 
+def test_ChannelSwap_recurses_component_metadata() -> None:
+    """ChannelSwap must swap real/imag on every component."""
+    signal = generate_composite_signal(num_iq_samples=128, num_components=3)
+    N = len(signal.data)
+    pre = [(c.start_in_samples, c.stop_in_samples, c.center_freq) for c in signal.component_signals]
+
+    T = ChannelSwap(seed=42)
+    signal = T(signal)
+
+    assert len(signal.component_signals) == 3
+    for (pre_start, pre_stop, pre_cf), comp in zip(pre, signal.component_signals):
+        assert comp.start_in_samples == pre_start
+        assert comp.stop_in_samples == pre_stop
+        assert comp.center_freq == pytest.approx(-pre_cf, rel=RTOL)
+
+
 @pytest.mark.parametrize(
     "signal, params, is_error",
     [
@@ -797,6 +813,30 @@ def test_Doppler(signal: Signal, params: dict, is_error: bool) -> None:
 
         assert type(signal.data) == type(signal_test.data)
         assert signal.data.dtype == TorchSigComplexDataType
+
+
+def test_Doppler_recurses_component_metadata() -> None:
+    """Doppler must scale center_freq and bandwidth by alpha on every component"""
+    signal = generate_composite_signal(num_iq_samples=128, num_components=3)
+    pre = [(c.center_freq, c.bandwidth) for c in signal.component_signals]
+
+    # fixed-velocity range collapses random draw to a deterministic alpha
+    velocity = 5.0
+    propagation_speed = 2.9979e8
+    alpha = propagation_speed / (propagation_speed - velocity)
+
+    T = Doppler(velocity_range=(velocity, velocity), propagation_speed=propagation_speed, seed=42)
+    signal = T(signal)
+
+    for (pre_cf, pre_bw), comp in zip(pre, signal.component_signals):
+        assert comp.center_freq == pytest.approx(pre_cf * alpha, rel=1e-6)
+        assert comp.bandwidth == pytest.approx(pre_bw * alpha, rel=1e-6)
+
+
+
+
+
+
 
 
 @pytest.mark.parametrize(
@@ -1216,6 +1256,24 @@ def test_SpectralInversion(signal: Signal, is_error: bool) -> None:
         assert signal.data.dtype == TorchSigComplexDataType
 
 
+def test_SpectralInversion_recurses_component_metadata() -> None:
+    """SpectralInversion must negate center_freq on every component and leave time extent alone."""
+    signal = generate_composite_signal(num_iq_samples=64, num_components=3)
+    pre_cfs = [c.center_freq for c in signal.component_signals]
+    pre_starts = [c.start_in_samples for c in signal.component_signals]
+    pre_stops = [c.stop_in_samples for c in signal.component_signals]
+
+    T = SpectralInversion()
+    signal = T(signal)
+
+    for pre_cf, pre_start, pre_stop, comp in zip(
+        pre_cfs, pre_starts, pre_stops, signal.component_signals
+    ):
+        assert comp.center_freq == pytest.approx(-pre_cf, rel=RTOL)
+        assert comp.start_in_samples == pre_start
+        assert comp.stop_in_samples == pre_stop
+
+
 @pytest.mark.parametrize(
     "signal, params, is_error",
     [
@@ -1408,6 +1466,38 @@ def test_TimeReversal(signal: Signal, params: dict, is_error: bool) -> None:
         assert type(signal) == type(signal_test)
         assert signal.data.dtype == signal_test.data.dtype
         assert np.not_equal(signal.data, signal_test.data).any()
+
+
+def test_TimeReversal_recurses_component_metadata() -> None:
+    """TimeReversal must flip each component's (start, stop) and not flip center_freq when do_si=False."""
+    signal = generate_composite_signal(num_iq_samples=128, num_components=3)
+    N = len(signal.data)
+    pre = [(c.start_in_samples, c.stop_in_samples, c.center_freq) for c in signal.component_signals]
+
+    T = TimeReversal(allow_spectral_inversion=False, seed=42)
+    signal = T(signal)
+
+    assert len(signal.component_signals) == 3
+    for (pre_start, pre_stop, pre_cf), comp in zip(pre, signal.component_signals):
+        assert comp.start_in_samples == N - pre_stop
+        assert comp.stop_in_samples == N - pre_start
+        # allow_spectral_inversion=False => no sign flip on center_freq
+        assert comp.center_freq == pytest.approx(pre_cf, rel=RTOL)
+
+
+def test_TimeReversal_spectral_inversion_flips() -> None:
+    """With allow_spectral_inversion=0.0, the draw > 0.0 is always True => do_si True => center_freq flips."""
+    signal = generate_composite_signal(num_iq_samples=64, num_components=2)
+    pre_cfs = [c.center_freq for c in signal.component_signals]
+
+    # threshold 0.0: `rand > 0.0` is essentially always True, forcing do_si=True path.
+    T = TimeReversal(allow_spectral_inversion=0.0, seed=42)
+    signal = T(signal)
+
+    for pre_cf, comp in zip(pre_cfs, signal.component_signals):
+        # data was spectrally inverted, so metadata center_freq should remain unchanged
+        # (the inversion is "consumed" by the data flip, not re-applied to metadata).
+        assert comp.center_freq == pytest.approx(pre_cf, rel=RTOL)
 
 
 @pytest.mark.parametrize(

@@ -1,7 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-from typing import List, Tuple, Any
+from typing import List
 
 # Signal Metadata type checking
 
