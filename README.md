@@ -13,7 +13,7 @@
 
 ## Prerequisites
 - Ubuntu &ge; 22.04
-- Hard drive storage with 1 TB
+- Hard drive storage with &ge; 1 TB
 - CPU with &ge; 4 cores
 - GPU with &ge; 16 GB storage (recommended)
 - Python &ge; 3.10
@@ -34,7 +34,7 @@ TorchSig has a series of Jupyter notebooks in the `examples/` directory. View th
 
 # Usage
 
-## Generating Datasets with Python API
+## Generating Datasets with Python
 TorchSig uses a unified dataset architecture. Create datasets using the Python API:
 ```python
 # define dataset metadata, can override defaults
@@ -75,122 +75,31 @@ print(static_dataset[0])
 # Docker
 One option for running TorchSig is within Docker. Start by building the Docker container:
 
+```bash
+docker build -t torchsig -f docker/Dockerfile .
 ```
-docker build -t torchsig -f Dockerfile .
+
+And then you can launch a Docker instance:
+```bash
+docker run -it torchsig
 ```
+See `docker/README.md` to learn more.
 
-## Generating Datasets with Docker
-To create datasets with the Docker container, create a Python script and run it:
-```python
-# create_dataset.py
-from torchsig.datasets.datasets import TorchSigIterableDataset
-from torchsig.utils.writer import DatasetCreator
-from torchsig.utils.defaults import TorchSigDefaults
-from torchsig.transforms.impairments import Impairments
-from torchsig.transforms.transforms import Spectrogram
-
-# Classification dataset (single signal)
-dataset_metadata = TorchSigDefaults().default_dataset_metadata
-dataset_metadata["num_iq_samples_dataset"] = 100
-dataset_metadata["num_signals_min"] = 1
-dataset_metadata["num_signals_max"] = 1
-
-impairments = Impairments(level=0)
-burst_impairments = impairments.signal_transforms
-whole_signal_impairments = impairments.dataset_transforms
-
-dataset = TorchSigIterableDataset(
-    metadata=dataset_metadata,
-    transforms=[
-        whole_signal_impairments,
-        Spectrogram(fft_size=dataset_metadata["fft_size"]),
-    ],
-    component_transforms=[burst_impairments],
-)
-
-dataloader = WorkerSeedingDataLoader(dataset, batch_size=4)
-
-dataset_creator = DatasetCreator(
-    dataset_length=10,
-    dataloader=dataloader,
-    root="/path/to/classification_dataset",
-    overwrite=True,
-    multithreading=False,
-)
-dataset_creator.create()
-
-# Detection dataset (multiple signals)
-dataset_metadata = DatasetMetadata(
-    num_iq_samples_dataset=100,
-    num_samples=10,
-    impairment_level=2,  # wireless
-    num_signals_max=3,
-)
-dataset = TorchSigIterableDataset(
-    metadata=dataset_metadata,
-    transforms=[Spectrogram(fft_size=dataset_metadata["fft_size"])],
-)
-creator = DatasetCreator(dataset, root="/path/to/detection_dataset")
-creator.create()
-
-dataset_metadata = TorchSigDefaults().default_dataset_metadata
-dataset_metadata["num_iq_samples_dataset"] = 100
-dataset_metadata["num_signals_min"] = 1
-dataset_metadata["num_signals_max"] = 3
-
-impairments = Impairments(level=2)
-burst_impairments = impairments.signal_transforms
-whole_signal_impairments = impairments.dataset_transforms
-
-dataset = TorchSigIterableDataset(
-    metadata=dataset_metadata,
-    transforms=[
-        whole_signal_impairments,
-        Spectrogram(fft_size=dataset_metadata["fft_size"]),
-    ],
-    component_transforms=[burst_impairments],
-)
-
-dataloader = WorkerSeedingDataLoader(dataset, batch_size=4)
-
-dataset_creator = DatasetCreator(
-    dataset_length=10,
-    dataloader=dataloader,
-    root="/path/to/detection_dataset",
-    overwrite=True,
-    multithreading=False,
-)
-dataset_creator.create()
-
-```
+# Development
+To contribute to our library, please make sure to run the following:
 
 ```bash
-docker run -u $(id -u ${USER}):$(id -g ${USER}) -v `pwd`:/workspace/code/torchsig torchsig python3 create_dataset.py
-```
+# pytests all pass
+pytest
 
-## Running Jupyter Notebooks with Docker
-To run with GPU support use `--gpus all`:
-```
-docker run -d --rm --network=host --shm-size=32g --gpus all --name torchsig_workspace torchsig tail -f /dev/null
-```
+# pylint score > 9/10
+pylint --rcfile=.pylintrc torchsig
 
-To run without GPU support:
+# not required
+# but helpful for maintaining PEP 8 Style Guide
+ruff check torchsig
 ```
-docker run -d --rm --network=host --shm-size=32g --name torchsig_workspace torchsig tail -f /dev/null
-```
-
-Run Jupyter Lab:
-```
-docker exec torchsig_workspace jupyter lab --allow-root --ip=0.0.0.0 --no-browser
-```
-
-To start an interactive shell:
-```
-docker exec -it torchsig_workspace bash
-```
-
-Then use the URL in the output in your browser to run the examples and notebooks.
-
+Both need to pass in order to contribute to our Github.
 
 # Key Features
 TorchSig provides many useful tools to facilitate and accelerate research on signals processing machine learning technologies:
@@ -211,7 +120,7 @@ TorchSig provides many useful tools to facilitate and accelerate research on sig
 
 
 # Documentation
-Documentation can be found [online](https://torchsig.readthedocs.io/en/latest/) or built locally by following the instructions below.
+Documentation can be found [online](https://torchsig.readthedocs.io/latest/) or built locally by following the instructions below.
 ```
 cd docs
 pip install -r docs-requirements.txt

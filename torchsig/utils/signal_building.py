@@ -1,3 +1,5 @@
+from typing import Any
+
 from torchsig.signals.builder import ConcatSignalGenerator
 from torchsig.signals.builders.am import AMSignalGenerator
 from torchsig.signals.builders.chirpss import ChirpSSSignalGenerator
@@ -8,8 +10,6 @@ from torchsig.signals.builders.fsk import FSKSignalGenerator
 from torchsig.signals.builders.lfm import LFMSignalGenerator
 from torchsig.signals.builders.ofdm import OFDMSignalGenerator
 from torchsig.signals.builders.tone import ToneSignalGenerator
-
-from typing import Any, Dict, List, Tuple, Union
 
 # Stores generator class and metadata for generators to make per label
 signal_generator_lookup_table: dict[str,

@@ -61,6 +61,11 @@ File Handlers
     :undoc-members:
     :show-inheritance:
 
+.. automodule:: torchsig.utils.file_handlers.npy
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
 Variable and Data Verification Utils
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 

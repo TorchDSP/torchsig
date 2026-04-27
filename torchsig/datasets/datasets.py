@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import warnings
+from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Literal
 
 import numpy as np
 from torch.utils.data import Dataset, IterableDataset
@@ -22,6 +23,30 @@ from torchsig.utils.signal_building import lookup_signal_generator_by_string
 # Type checking imports
 if TYPE_CHECKING:
     from torchsig.transforms.base_transforms import Transform
+
+
+@dataclass(frozen=True)
+class TorchSigDatasetConfig:
+    """Configuration dataclass for TorchSig datasets.
+
+    Attributes:
+        dataset_id: A unique identifier for the dataset.
+        dataset_length: The total number of samples in the dataset.
+        seed: A random seed for reproducibility.
+        impairment_level: The level of impairment to apply to the signals.
+        output_representation: The representation of the output data (e.g., "iq" or "spectrogram").
+        output_spectrogram_fft: The FFT size to use when generating spectrograms (if output_representation is "spectrogram").
+        signal_sampling_mode: The mode for sampling signals, either "per_signal" or "per_family".
+        dataset_metadata: A dictionary containing additional metadata about the dataset.
+    """
+    dataset_id: str
+    dataset_length: int
+    seed: int
+    impairment_level: int
+    output_representation: Literal["iq", "spectrogram"]
+    output_spectrogram_fft: int | None
+    signal_sampling_mode: Literal["per_signal", "per_family"]
+    dataset_metadata: dict[str, Any]
 
 
 def apply_label_to_signal(sample: Signal, target_label: str) -> list:
@@ -392,10 +417,11 @@ class TorchSigIterableDataset(HierarchicalMetadataObject, IterableDataset):
                 num_signals_created += 1
                 # store the rectangle for future overlap checking
                 signal_rectangle_list.append(new_rectangle)
+                stop_sample = min(start_sample + len(new_signal.data), len(iq_samples))
                 # place signal on iq sample cut
                 iq_samples[
-                    start_sample : start_sample + len(new_signal.data)
-                ] += new_signal.data
+                    start_sample : stop_sample
+                ] += new_signal.data[:stop_sample]
                 # append the signal on the list
                 new_signal["start_in_samples"] = start_sample
                 signals.append(new_signal)
@@ -411,7 +437,12 @@ class TorchSigIterableDataset(HierarchicalMetadataObject, IterableDataset):
             sample.class_name = self.class_name
 
         if sample.parent is None:
-            sample.add_parent(self)
+            # register=False: the assembled sample Signal is transient. It
+            # needs the parent link so transforms and label extraction can
+            # inherit dataset-level metadata, but it must NOT be appended to
+            # self.children, which would retain every sample in memory for the
+            # lifetime of the dataset
+            sample.add_parent(self, register=False) # transient parent link
         return sample
 
     def _map_to_coordinates(self, new_signal: Signal, start_sample: int) -> Rectangle:

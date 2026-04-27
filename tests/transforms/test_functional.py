@@ -1082,9 +1082,12 @@ def test_phase_offset(data: Any, params: dict, expected: bool | TypeError, is_er
     [
         (2.0 * np.sqrt(2) * (np.ones((16,)) + 1j * np.ones((16,))), {"num_bits": 8}, 2.0 * (np.ones((16,)) + 1j * np.ones((16,))), False),
         (np.sqrt(2) * (np.ones((16,)) + 1j * np.ones((16,))), {"num_bits": 8}, 2.0 * (np.ones((16,)) + 1j * np.ones((16,))), False),
+        ((np.zeros((16,)) + 1j * np.zeros((16,))), {"num_bits": 16}, ((np.zeros((16,)) + 1j * np.zeros((16,)))), False), # zero values should be quantized to zero
+        (np.array([np.nan + 1j]), {"num_bits": 10}, ValueError, True), # NaN or Inf values should raise an error
+        
     ],
 )
-def test_quantize(data: Any, params: dict, expected: np.ndarray | TypeError | ValueError, is_error: bool) -> None:
+def test_quantize(data: Any, params: dict, expected: np.ndarray | ValueError, is_error: bool) -> None:
     """Test the quantize functional with pytest.
 
     Args:
