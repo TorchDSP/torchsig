@@ -1,0 +1,44 @@
+# default_configs/wideband_clean_val_all.yaml
+# wideband, no impairments, all per-signals classes
+schema_version: "2.1.1"
+dataset_id: "wideband_clean_val_all"
+dataset_length: 11_400   # 200 items per signal class (57 classes)
+seed: 1234567891
+impairment_level: 0  # no impairments
+
+output:
+  representation: "spectrogram"  # spectrum format
+
+signal_sampling:
+  mode: "per_signal" # equal probability per signal class
+
+# wideband: spectrograms with 3-5 short bursts 
+dataset_metadata:
+  sample_rate: 10_000_000
+  num_iq_samples_dataset: 262_144 # 512^2
+  fft_size: 512
+  fft_stride: 512
+
+  # wideband
+  num_signals_min: 3
+  num_signals_max: 5
+  cochannel_overlap_probability: 0.1 # mild overlaps
+
+  # wide SNR range
+  snr_db_min: 0.0
+  snr_db_max: 50.0
+  noise_power_db: 0.0
+
+  # typical wideband: short bursts relative to window
+  signal_duration_in_samples_min: 16_384    # ~0.0625 * 262144
+  signal_duration_in_samples_max: 32_768    # 0.125 * 262144
+
+  bandwidth_min: 62_500     # 0.0125 * sample rate 
+  bandwidth_max: 1_000_000  # 0.1 * sample rate
+
+  signal_center_freq_min: -4_000_000
+  signal_center_freq_max: 4_000_000
+  frequency_min: -5_000_000
+  frequency_max: 4_999_999
+  
+  

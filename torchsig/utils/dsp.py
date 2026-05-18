@@ -2,6 +2,7 @@
 
 from copy import copy
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import numpy as np
 import torch
@@ -9,7 +10,6 @@ import torchaudio
 from scipy import signal as sp
 
 from torchsig import __version__ as torchsig_version
-from typing import TYPE_CHECKING
 
 # data types to be used internally within torchsig
 TorchSigComplexDataType = np.complex64
@@ -750,6 +750,120 @@ def polyphase_decimator(input_signal: np.ndarray, decimation_rate: int) -> np.nd
         raise ValueError("polyphase_decimator() does not have proper number of samples")
 
     return decimate_out
+
+def partition_polyphase(h: np.ndarray, up_rate: int, taps_per_phase: int) -> np.ndarray:
+    """Partitions filter coefficients into a polyphase filter bank.
+
+    Args:
+        h: Filter coefficients (1D array of floats)
+        up_rate: Upsampling factor (integer)
+        taps_per_phase: Number of taps per phase (integer)
+
+    Returns:
+        2D array representing the polyphase filter bank
+    """
+    h_pfb = np.zeros((up_rate, taps_per_phase), dtype=TorchSigRealDataType)
+
+    for phase in range(up_rate):
+        tap_idx = phase
+        for idx in range(taps_per_phase):
+            if tap_idx < len(h):
+                h_pfb[phase, idx] = h[tap_idx] * up_rate
+            else:
+                h_pfb[phase, idx] = 0.0
+            tap_idx += up_rate
+
+    return h_pfb
+
+def sampling_clock_impairments(
+    h: np.ndarray,
+    x: np.ndarray,
+    uprate: int,
+    drate: float,
+    jitter_ppm: float,
+    drift_ppm: float,
+    rng: np.random.Generator | None = None,
+) -> np.ndarray:
+    """Implements sampling clock impairments (jitter and drift) using polyphase filtering.
+
+    This function applies clock jitter and drift to a signal by introducing random variations
+    in the sampling rate during resampling. It uses a polyphase filter bank approach for
+    efficient implementation.
+
+    Args:
+        h: Filter coefficients (1D array of floats)
+        x: Input signal (1D array of complex numbers)
+        uprate: Upsampling factor (integer)
+        drate: Downsampling factor (float)
+        jitter_ppm: Jitter in parts per million (float)
+        drift_ppm: Drift in parts per million (float)
+        seed: Random seed (optional)
+
+    Returns:
+        Output signal with clock impairments (1D array of complex numbers)
+    """
+    # Compute taps per phase for polyphase filter bank
+    taps_per_phase = int(np.ceil(len(h) / uprate))
+
+    # Design and partition the polyphase filter bank
+    h_pfb = partition_polyphase(h, uprate, taps_per_phase)
+
+    # Zero-pad the input samples
+    padded_len = len(x) + 2 * taps_per_phase - 1
+    input_padded = np.zeros(padded_len, dtype=TorchSigComplexDataType)
+    start = taps_per_phase - 1
+    end = start + len(x)
+    input_padded[start:end] = x
+
+    # Initialize variables
+    q_step = uprate / drate
+    num_output_samples = int(np.ceil(len(input_padded) * uprate / drate)) + 1
+    output_samples = np.zeros(num_output_samples, dtype=TorchSigComplexDataType)
+    input_idx = 0
+    output_idx = 0
+    clock_drift = 0.0
+    idx_stop = len(input_padded) - taps_per_phase
+
+    # Generate random jitter and drift
+    jitter_std = jitter_ppm * 1e-6
+    drift_std = drift_ppm * 1e-6
+
+    # Run the resampler
+    while input_idx < idx_stop:
+        # Update commutator position
+        while q_step >= uprate:
+            q_step -= uprate
+            input_idx += 1
+
+        delay_slice = input_padded[input_idx:input_idx + taps_per_phase]
+
+        if q_step >= uprate:
+            break
+
+        # Get filter weights from PFB
+        phase = int(q_step)
+        h_phase = h_pfb[phase][:taps_per_phase]
+
+        # Multiply and accumulate
+        acc_re = np.sum(h_phase * delay_slice[::-1].real)
+        acc_im = np.sum(h_phase * delay_slice[::-1].imag)
+        pfb_out = acc_re + 1j * acc_im
+
+        # Store output sample
+        output_samples[output_idx] = pfb_out
+        output_idx += 1
+
+        # Update commutator with jitter and drift
+        if jitter_ppm != 0.0 or drift_ppm != 0.0:
+            clock_jitter = rng.normal(0.0, jitter_std)
+            clock_drift += rng.normal(0.0, drift_std)
+            q_step += drate + clock_jitter + clock_drift
+        else:
+            q_step += drate
+
+    # Return properly sized output
+    return output_samples[:output_idx-1] if output_idx > 0 else np.array([], dtype=TorchSigComplexDataType)
+
 
 
 def upsample(signal: np.ndarray, rate: int) -> np.ndarray:
