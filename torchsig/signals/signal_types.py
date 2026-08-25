@@ -188,6 +188,20 @@ class SignalMetadataObject(HierarchicalMetadataObject):
                 self.upper_freq, new_lower_freq
             )
 
+    def sync_frequency_bounds(self) -> None:
+        """Refreshes cached derived frequency-bound fields.
+
+        `_lower_frequency`/`_upper_frequency` are cached as a side effect of
+        reading the `lower_freq`/`upper_freq` properties, but nothing
+        invalidates that cache when `center_freq` or `bandwidth` are mutated
+        directly (e.g. `signal["center_freq"] *= -1`). Call this immediately
+        after any such direct mutation to keep the cached fields consistent
+        with the current center_freq/bandwidth.
+        """
+        if hasattr(self, "center_freq") and hasattr(self, "bandwidth"):
+            self.upper_freq
+            self.lower_freq
+
     @property
     def oversampling_rate(self) -> float:
         """Calculates the oversampling rate for a signal.
