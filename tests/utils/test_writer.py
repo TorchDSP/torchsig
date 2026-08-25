@@ -183,6 +183,57 @@ def test_writer_reproducibility(tmp_path, dataset_length, multithreading):
         assert np.allclose(x0, x1, rtol=1e-6)
 
 @pytest.mark.full
+def test_writer_no_parent_metadata_id_reuse_corruption(tmp_path):
+    """Regression test for an HDF5Writer bug where a signal's metadata
+    ``.parent`` chain (e.g. per-generator/class-level metadata) fell back to
+    ``str(id(obj))`` for its HDF5 key instead of a stamped, collision-free one.
+    Parent objects aren't guaranteed to stay alive for the whole write
+    session - a new one can be built per batch/worker and then garbage
+    collected - so CPython could recycle a freed parent's address for a
+    later, unrelated parent. Both then resolved to the same HDF5 key, and the
+    writer's "already written" dedup guard silently kept the first parent's
+    metadata while skipping the second, so every signal pointing at the
+    second parent read back the first parent's fields instead of its own
+    (most visibly, ``class_index`` coming back as a list mixing two labels
+    instead of a scalar).
+
+    Requires multiple DataLoader workers and enough samples to make the
+    address-recycling race likely; empirically this reproduced on ~1.4% of
+    3,000 samples with 4 workers before the fix, and 0% single-process.
+    """
+    seed = 987654321
+    num_iq_samples = 4096
+    small_meta = {
+        **TorchSigDefaults().default_dataset_metadata,
+        "num_iq_samples_dataset": num_iq_samples,
+        "signal_duration_in_samples_min": num_iq_samples * 0.8,
+        "signal_duration_in_samples_max": num_iq_samples * 1.0,
+        "num_signals_min": 1,
+        "num_signals_max": 1,
+    }
+    dataset_length = 3000
+
+    ds = TorchSigIterableDataset(
+        metadata=small_meta, target_labels=["class_index"],
+    )
+    dl = WorkerSeedingDataLoader(ds, seed=seed, batch_size=16, num_workers=4)
+    DatasetCreator(
+        dataloader=dl, dataset_length=dataset_length, root=tmp_path,
+        overwrite=True, multithreading=True,
+    ).create()
+
+    sds = StaticTorchSigDataset(root=str(tmp_path), target_labels=["class_index"])
+    assert len(sds) == dataset_length
+
+    bad = [i for i in range(len(sds)) if isinstance(sds[i][1], list)]
+    assert not bad, (
+        f"{len(bad)}/{dataset_length} samples had a list-valued class_index "
+        f"(first offending indices: {bad[:10]}) - parent metadata objects are "
+        "colliding on a recycled id()-based HDF5 key."
+    )
+
+
+@pytest.mark.full
 def test_writer_memory_growth(tmp_path):
     """Measure how RAM usage grows while writing datasets of increasing size.
 
