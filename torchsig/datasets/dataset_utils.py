@@ -70,6 +70,11 @@ def frequency_shift_signal(
         )
     # do nothing
 
+    # center_freq/bandwidth may have just been overwritten (anti-aliasing
+    # branch above); keep the cached _lower_frequency/_upper_frequency in
+    # sync with them.
+    signal.sync_frequency_bounds()
+
     # center frequency is now set, and therefore can be verified
     signal["center_freq_set"] = True
 

@@ -542,11 +542,13 @@ class ChannelSwap(SignalTransform):
         # update metadata: signal
         if hasattr(signal, "center_freq"):
             signal["center_freq"] *= -1
+            signal.sync_frequency_bounds()
 
         # update metadata: signal_components
         for component in signal.component_signals:
             if hasattr(component, "center_freq"):
                 component["center_freq"] *= -1
+                component.sync_frequency_bounds()
 
         return signal
 
@@ -1062,6 +1064,7 @@ class Doppler(SignalTransform):
             signal["center_freq"] *= alpha
         if hasattr(signal, "bandwidth"):
             signal["bandwidth"] *= alpha
+        signal.sync_frequency_bounds()
 
         # update metadata: component_signals
         for component in signal.component_signals:
@@ -1070,6 +1073,7 @@ class Doppler(SignalTransform):
                 component["center_freq"] *= alpha
             if hasattr(component, "bandwidth"):
                 component["bandwidth"] *= alpha
+            component.sync_frequency_bounds()
 
         return signal
 
@@ -1730,11 +1734,13 @@ class SpectralInversion(SignalTransform):
         # update metadata: signal
         if hasattr(signal, "center_freq"):
             signal["center_freq"] *= -1
+            signal.sync_frequency_bounds()
 
         # update metadata: signal_components
         for component in signal.component_signals:
             if hasattr(component, "center_freq"):
                 component["center_freq"] *= -1
+                component.sync_frequency_bounds()
 
         return signal
 
@@ -1976,6 +1982,7 @@ class TimeReversal(SignalTransform):
             signal["start_in_samples"] = num_data_samples - original_stop
         if hasattr(signal, "center_freq") and not do_si:
             signal["center_freq"] *= -1
+            signal.sync_frequency_bounds()
 
         # update metadata: component_signals
         for component in signal.component_signals:
@@ -1984,6 +1991,7 @@ class TimeReversal(SignalTransform):
                 component["start_in_samples"] = num_data_samples - original_stop
             if hasattr(component, "center_freq") and not do_si:
                 component["center_freq"] *= -1
+                component.sync_frequency_bounds()
 
         return signal
 

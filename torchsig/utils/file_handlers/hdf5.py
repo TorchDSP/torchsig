@@ -54,6 +54,14 @@ def populate_hdf5_group_with_metadata(group, metadata_obj) -> bool:
     if key in group:
         return False
     metadata_group = group.create_group(key)
+    # Force-refresh derived frequency-bound fields before serializing.
+    # center_freq/bandwidth can be mutated directly after these were last
+    # cached (e.g. anti-aliasing clipping, ChannelSwap/SpectralInversion/
+    # TimeReversal/Doppler), which would otherwise leave a stale, possibly
+    # frequency-mirrored _lower_frequency/_upper_frequency on disk.
+    if "center_freq" in metadata_obj.keys() and "bandwidth" in metadata_obj.keys():
+        metadata_obj.upper_freq
+        metadata_obj.lower_freq
     for k in metadata_obj.keys():
         if not metadata_obj[k] == None:
             metadata_group.create_dataset(k, data=metadata_obj[k])
