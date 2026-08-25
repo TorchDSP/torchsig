@@ -25,16 +25,21 @@ from torchsig.utils.file_handlers import BaseFileHandler, FileReader, FileWriter
 def _hdf5_key(obj) -> str:
     """Return the HDF5 group key to use for *obj*.
 
-    Ephemeral objects (generated Signal instances) receive a short sequential
-    integer key that is stamped onto them by ``HDF5Writer._assign_hdf5_keys``
-    immediately before writing. Persistent objects (generators, datasets)
-    that are never garbage-collected within a write session fall back to
-    ``str(id(obj))``, which is stable for the lifetime of the writer.
+    Signal instances and their metadata ``.parent`` chain all receive a short
+    sequential integer key, stamped on by ``HDF5Writer._assign_hdf5_keys``
+    (and ``_assign_hdf5_keys_to_parent_chain``) immediately before writing.
+    Any object reaching this function without one - which should no longer
+    happen for objects written via ``HDF5Writer`` - falls back to
+    ``str(id(obj))``.
 
-    Using a counter for signals avoids the id()-reuse hazard that arises when
-    CPython recycles the memory address of a freed signal and a later signal
-    lands at the same address, causing the "already exists" guard to skip the
-    write silently.
+    Using a counter avoids the id()-reuse hazard that arises when CPython
+    recycles the memory address of a freed object (a signal, or a parent
+    metadata object rebuilt per batch/worker) and a later, unrelated object
+    lands at the same address: without stamped keys, both would resolve to
+    the same HDF5 key, and the "already exists" guard in
+    ``populate_hdf5_group_with_metadata``/``populate_hdf5_group_with_signal_data``
+    would silently skip the second write, leaving the second object reading
+    back the first's data.
     """
     try:
         return obj._hdf5_key
@@ -264,11 +269,40 @@ class HDF5Writer(FileWriter):
         is used by the module-level populate helpers instead of ``str(id(signal))``,
         making the HDF5 layout independent of CPython memory addresses and
         allowing signals to be garbage-collected as soon as they leave scope.
+
+        Also stamps the signal's metadata ``.parent`` chain (e.g. per-class or
+        per-generator metadata objects walked by ``populate_hdf5_group_with_metadata``).
+        Those objects are not necessarily long-lived - a new one can be built for
+        each batch/worker and then garbage-collected - so leaving them to
+        ``_hdf5_key``'s ``str(id(obj))`` fallback lets CPython recycle a freed
+        parent's address for an unrelated later parent. Both then resolve to the
+        same HDF5 key, so ``populate_hdf5_group_with_metadata``'s
+        ``if key in group: return False`` guard silently keeps the first parent's
+        metadata and skips writing the second, and every signal pointing at the
+        second parent ends up reading back the first's fields (e.g. the wrong
+        ``class_index``). Stamping a counter-based key here - reusing it via
+        ``hasattr`` when the same parent object is genuinely shared across many
+        signals - makes parent identity independent of memory address too.
         """
         signal._hdf5_key = str(self._key_counter)
         self._key_counter += 1
+        self._assign_hdf5_keys_to_parent_chain(signal)
         for cs in signal.component_signals:
             self._assign_hdf5_keys(cs)
+
+    def _assign_hdf5_keys_to_parent_chain(self, metadata_obj) -> None:
+        """Stamp a stable ``_hdf5_key`` on *metadata_obj*'s ``.parent`` chain.
+
+        Skips objects that already carry a ``_hdf5_key`` (a genuinely shared
+        parent instance keeps its key, so it still dedupes to one HDF5 group).
+        See ``_assign_hdf5_keys`` for why this must not fall back to ``id()``.
+        """
+        parent = getattr(metadata_obj, "parent", None)
+        while parent is not None:
+            if not hasattr(parent, "_hdf5_key"):
+                parent._hdf5_key = str(self._key_counter)
+                self._key_counter += 1
+            parent = getattr(parent, "parent", None)
 
     def _write_batch_to_hdf5(self, data) -> None:
         """Writes a batch of signals (as List[Signal]) to the file.
