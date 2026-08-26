@@ -1013,6 +1013,30 @@ def test_passband_ripple(params: dict, expected: bool, is_error: bool) -> None:
         assert (data.dtype == TorchSigComplexDataType) == expected
 
 
+def test_passband_ripple_worst_case_corner_does_not_crash() -> None:
+    """Regression test: passband_ripple()'s internal rejection-sampling loop must not
+    exhaust its retry budget and raise at num_taps=3/max_ripple_db=1.0/
+    coefficient_decay_rate=1.0 - the tightest corner of PassbandRipple's own default
+    distributions ((1, 2) and (1, 5) respectively combined with num_taps in [2, 3]).
+
+    At that corner the per-draw acceptance probability is only ~0.25% (empirically
+    measured), so with the previous 1000-try budget there was roughly an 8% chance of
+    exhausting it and raising ValueError on any single call - which, applied across a
+    real dataset generation run (many thousands of PassbandRipple invocations), reliably
+    crashed the whole run. Running this corner repeatedly across many independent seeds
+    gives strong statistical coverage that the retry budget is now large enough.
+    """
+    num_taps = 3
+    max_ripple_db = 1.0
+    coefficient_decay_rate = 1.0
+
+    for seed in range(200):
+        rng = np.random.default_rng(seed)
+        data = dsp.noise_generator(num_samples=128, power=1.0, color="white", continuous=False, rng=rng)
+        # must not raise
+        passband_ripple(data=data, num_taps=num_taps, max_ripple_db=max_ripple_db, coefficient_decay_rate=coefficient_decay_rate, rng=rng)
+
+
 @pytest.mark.parametrize(
     "data, params, expected, is_error", [(0, {"patch_size": 3, "patches_to_shuffle": [2, 7]}, TypeError, True), (TEST_DATA.copy(), {"patch_size": 3, "patches_to_shuffle": [2, 7]}, True, False)]
 )
