@@ -1063,11 +1063,21 @@ def passband_ripple(
     rng = rng or np.random.default_rng()
     # counter avoids infinite loop
     counter = 0
-    max_counter = 1000
+    # Rejection-sampling budget. For max_ripple_db/coefficient_decay_rate values
+    # near the tight corner of PassbandRipple's default distributions ((1, 2) and
+    # (1, 5) respectively) combined with num_taps=3, the per-draw acceptance
+    # probability can be as low as ~0.25% (measured empirically) - giving roughly
+    # an 8% chance of exhausting a 1000-iteration budget on any single call. Over
+    # a large dataset generation run (many thousands of PassbandRipple
+    # invocations), that reliably crashes the whole run. 100,000 iterations
+    # reduces the failure probability to effectively zero (< 1e-100 in the worst
+    # empirically-measured corner) while adding negligible runtime - each
+    # iteration is just a cheap 1024-point FFT.
+    max_counter = 100_000
     # initialize estimate such that it always enters loop
     estimate_ripple_db = max_ripple_db + 1
 
-    while estimate_ripple_db > max_ripple_db and counter < 1000:
+    while estimate_ripple_db > max_ripple_db and counter < max_counter:
         # designs the weights: complex gaussian with exponential decay
         gaussian = rng.normal(0, 1, num_taps) + 1j * rng.normal(0, 1, num_taps)
         decay = np.exp(-coefficient_decay_rate * np.arange(0, num_taps))
