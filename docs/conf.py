@@ -59,7 +59,7 @@ autodoc_typehints_format = "short"
 autodoc_preserve_defaults = True
 
 # Sphinx Constraint
-needs_sphinx = "9.1"
+# needs_sphinx = "9.1"
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ["_templates"]
