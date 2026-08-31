@@ -8,7 +8,6 @@ from torchsig.datasets.datasets import StaticTorchSigDataset, TorchSigIterableDa
 from torchsig.utils.data_loading import WorkerSeedingDataLoader
 from torchsig.utils.defaults import TorchSigDefaults, default_dataset
 from torchsig.utils.writer import DatasetCreator
-from torchsig.datasets.datasets import TorchSigIterableDataset, StaticTorchSigDataset
 from torchsig.utils.file_handlers import PackedHDF5Writer
 
 

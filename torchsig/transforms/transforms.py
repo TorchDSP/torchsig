@@ -52,8 +52,6 @@ __all__ = [
     "TimeVaryingNoise",
 ]
 
-from copy import copy
-
 def transform_crash_logger(transform_func, data, **kwargs):
     """Wraps a transformation function to ensure deterministic random number generation
     and save complete state upon failure for debugging and reproduction of errors.
