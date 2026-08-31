@@ -1,7 +1,7 @@
 <a align="center" href="https://torchsig.com">
     <picture>
         <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/TorchDSP/torchsig/main/docs/torchsig_logo_white_dodgerblue.png">
-        <img src="https://raw.githubusercontent.com/TorchDSP/torchsig/main/docs/logo.png" width="500">
+        <img src="https://raw.githubusercontent.com/TorchDSP/torchsig/main/docs/torchsig_logo_white_dodgerblue.png" width="500">
     </picture>
 </a>
 
@@ -21,11 +21,7 @@
 We highly reccomend Ubuntu or using a Docker container.
 
 ## Installation
-Install with PyPI:
-```
-pip install torchsig
-```
-Or clone the `torchsig` repository and install using the following commands:
+Clone the `torchsig` repository and install using the following commands:
 ```
 git clone https://github.com/TorchDSP/torchsig.git
 cd torchsig
