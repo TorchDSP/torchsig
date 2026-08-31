@@ -1,17 +1,18 @@
 """Unit Tests for dataset_summarizer"""
 
-from torchsig.datasets.datasets import TorchSigIterableDataset, StaticTorchSigDataset
-from torchsig.utils.writer import DatasetCreator, default_collate_fn
-from torchsig.utils.data_loading import WorkerSeedingDataLoader
-from torchsig.utils.defaults import TorchSigDefaults
-from torchsig.utils.dataset_summarizer import DatasetSummary, summarize_dataset
-
 import os
 import shutil
 from pathlib import Path
+
 import matplotlib
 import matplotlib.pyplot as plt
 import pytest
+
+from torchsig.datasets.datasets import StaticTorchSigDataset, TorchSigIterableDataset
+from torchsig.utils.data_loading import WorkerSeedingDataLoader
+from torchsig.utils.dataset_summarizer import DatasetSummary, summarize_dataset
+from torchsig.utils.defaults import TorchSigDefaults
+from torchsig.utils.writer import DatasetCreator, default_collate_fn
 
 # Use non-interactive backend so plots don't block CI
 matplotlib.use("Agg")

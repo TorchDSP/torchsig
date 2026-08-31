@@ -18,6 +18,8 @@ from torchsig.utils.dsp import (
     srrc_taps,
 )
 
+__all__ = ["ConstellationSignalGenerator", "constellation_modulator", "constellation_modulator_baseband"]
+
 
 def constellation_modulator_baseband(
     constellation_name: str,
@@ -72,23 +74,15 @@ def constellation_modulator_baseband(
             raise ValueError("alpha_rolloff must be between 0 and 1")
 
         attenuation_db = 120
-        pulse_shape_filter_length = estimate_filter_length(
-            alpha_rolloff, attenuation_db, 1
-        )
-        pulse_shape_filter_span = int(
-            np.ceil((pulse_shape_filter_length - 1) / (2 * samples_per_symbol))
-        )
-        pulse_shape = srrc_taps(
-            samples_per_symbol, pulse_shape_filter_span, alpha_rolloff
-        )
+        pulse_shape_filter_length = estimate_filter_length(alpha_rolloff, attenuation_db, 1)
+        pulse_shape_filter_span = int(np.ceil((pulse_shape_filter_length - 1) / (2 * samples_per_symbol)))
+        pulse_shape = srrc_taps(samples_per_symbol, pulse_shape_filter_span, alpha_rolloff)
     else:
         raise ValueError(f"pulse shape {pulse_shape_name} not supported")
 
     # Calculate number of symbols to generate
     subtract_off_symbols = 2 * pulse_shape_filter_span
-    num_symbols = (
-        int(np.floor(max_num_samples / samples_per_symbol)) - subtract_off_symbols
-    )
+    num_symbols = int(np.floor(max_num_samples / samples_per_symbol)) - subtract_off_symbols
     num_symbols = max(num_symbols, 1)
 
     # Generate symbols (handle OOK case where symbols might be zero)
@@ -98,19 +92,13 @@ def constellation_modulator_baseband(
         symbols = symbol_map[map_index]
 
     # Apply pulse shaping
-    constellation_signal_baseband = sp.upfirdn(
-        pulse_shape, symbols, up=samples_per_symbol, down=1
-    )
+    constellation_signal_baseband = sp.upfirdn(pulse_shape, symbols, up=samples_per_symbol, down=1)
 
     # Adjust signal length
     if len(constellation_signal_baseband) < max_num_samples:
-        constellation_signal_baseband = pad_head_tail_to_length(
-            constellation_signal_baseband, max_num_samples
-        )
+        constellation_signal_baseband = pad_head_tail_to_length(constellation_signal_baseband, max_num_samples)
     elif len(constellation_signal_baseband) > max_num_samples:
-        constellation_signal_baseband = slice_tail_to_length(
-            constellation_signal_baseband, max_num_samples
-        )
+        constellation_signal_baseband = slice_tail_to_length(constellation_signal_baseband, max_num_samples)
 
     return constellation_signal_baseband.astype(TorchSigComplexDataType)
 
@@ -165,11 +153,7 @@ def constellation_modulator(
 
     # Determine baseband samples
     num_samples_baseband_init = int(np.floor(num_samples / resample_rate_ideal))
-    num_samples_baseband = (
-        oversampling_rate_baseband
-        if num_samples_baseband_init <= 0
-        else num_samples_baseband_init
-    )
+    num_samples_baseband = oversampling_rate_baseband if num_samples_baseband_init <= 0 else num_samples_baseband_init
 
     # Generate baseband signal
     constellation_signal_baseband = constellation_modulator_baseband(
@@ -182,23 +166,16 @@ def constellation_modulator(
     )
 
     # Apply resampling
-    constellation_mod_correct_bw = multistage_polyphase_resampler(
-        constellation_signal_baseband, resample_rate_ideal
-    )
+    constellation_mod_correct_bw = multistage_polyphase_resampler(constellation_signal_baseband, resample_rate_ideal)
 
     # Adjust signal length
     constellation_mod_signal = (
-        slice_head_tail_to_length(constellation_mod_correct_bw, num_samples)
-        if len(constellation_mod_correct_bw) > num_samples
-        else pad_head_tail_to_length(constellation_mod_correct_bw, num_samples)
+        slice_head_tail_to_length(constellation_mod_correct_bw, num_samples) if len(constellation_mod_correct_bw) > num_samples else pad_head_tail_to_length(constellation_mod_correct_bw, num_samples)
     )
 
     # Validate output length
     if len(constellation_mod_signal) != num_samples:
-        raise ValueError(
-            f"constellation mod producing incorrect number of samples: "
-            f"{len(constellation_mod_signal)} but requested: {num_samples}"
-        )
+        raise ValueError(f"constellation mod producing incorrect number of samples: {len(constellation_mod_signal)} but requested: {num_samples}")
 
     return constellation_mod_signal.astype(TorchSigComplexDataType)
 
@@ -250,9 +227,7 @@ class ConstellationSignalGenerator(BaseSignalGenerator):
             low=self["signal_duration_in_samples_min"],
             high=self["signal_duration_in_samples_max"] + 1,
         )
-        bandwidth = self.random_generator.integers(
-            low=self["bandwidth_min"], high=self["bandwidth_max"] + 1
-        )
+        bandwidth = self.random_generator.integers(low=self["bandwidth_min"], high=self["bandwidth_max"] + 1)
         constellation_name = self["constellation_name"]
 
         # Randomize pulse shape selection
@@ -274,4 +249,12 @@ class ConstellationSignalGenerator(BaseSignalGenerator):
             self.random_generator,
         )
 
-        return Signal(data=signal_data, center_freq=0, bandwidth=bandwidth)
+        return Signal(
+            data=signal_data,
+            center_freq=0,
+            bandwidth=bandwidth,
+            pulse_shape_name=pulse_shape_name,
+            alpha_rolloff=alpha_rolloff,
+            pulse_shape_index=int(pulse_shape_name == "srrc"),
+            alpha_rolloff_target=(float(alpha_rolloff) if alpha_rolloff is not None else 0.0),
+        )

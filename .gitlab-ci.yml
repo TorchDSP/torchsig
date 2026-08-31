@@ -1,0 +1,462 @@
+# .gitlab-ci.yml
+stages:
+  - sync
+  - pipeline
+
+variables:
+  DOCKER_HOST: tcp://docker:2375/
+  DOCKER_TLS_CERTDIR: ""
+  UV_CACHE_DIR: "${CI_PROJECT_DIR}/.cache/uv"
+
+# use cache
+.get-cache: &use-cache
+  cache:
+    key:
+      prefix: $CI_COMMIT_REF_SLUG
+      files:
+        - pyproject.toml
+    paths:
+      - .cache-uv.tar.zst
+    policy: pull
+  before_script:
+    - python -V
+    - apt-get update -qq && apt-get install -y -qq zstd
+    - pip install uv
+    - |
+      if [ -f ".cache-uv.tar.zst" ]; then
+        echo "Restoring wheel cache ..."
+        zstd -d -c .cache-uv.tar.zst | tar -xf -
+      fi
+    - uv venv .venv
+    - source .venv/bin/activate
+    - uv pip install -e .[dev]
+    - uv pip uninstall opencv-python opencv-python-headless || true
+    - uv pip install opencv-python-headless==4.12.0.88
+    - uv pip install pylint pytest pytest-cov pylint-gitlab pylint-junit coverage nb-clean
+
+
+# Test jobs to always run after pip install
+.test:
+  <<: *use-cache
+  stage: pipeline
+  needs: ["build-pip", "resolve-test-image"]
+  image: $TEST_IMAGE
+  
+
+# Job only run on main, -dev, and -dev-internal
+.official:
+  extends: .test
+  stage: pipeline
+  needs: ["pytest", "pylint"]
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH =~ /-dev$/ || $CI_COMMIT_BRANCH =~ /-dev-internal$/'
+
+# Jobs only run nightly
+.nightly:
+  stage: pipeline
+  needs: []
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "schedule"'
+
+# Jobs that always run -----------------------------------------------------------------------------------
+
+resolve-test-image:
+  stage: pipeline
+  needs: []
+  image: docker:24.0.5
+  services:
+    - name: docker:24.0.5-dind
+  variables:
+    DOCKER_HOST: tcp://docker:2375/
+    DOCKER_TLS_CERTDIR: ""
+  before_script:
+    - echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin "$CI_REGISTRY"
+  script:
+    - |
+      # Check if the branch-specific image exists in the registry
+      if docker manifest inspect "$CI_REGISTRY_IMAGE:$CI_COMMIT_REF_NAME" > /dev/null 2>&1; then
+        echo "TEST_IMAGE=$CI_REGISTRY_IMAGE:$CI_COMMIT_REF_NAME" >> build.env
+        echo "Branch image found."
+      else
+        echo "TEST_IMAGE=$CI_REGISTRY_IMAGE:latest-dev-internal" >> build.env
+        echo "Branch image missing — falling back to latest-dev-internal."
+      fi
+  artifacts:
+    reports:
+      dotenv: build.env
+
+# Check for git LFS objects
+check-lfs:
+  stage: pipeline
+  needs: []
+  image: $CI_REGISTRY_IMAGE:latest-dev-internal
+  script:
+    - make check-lfs
+  allow_failure: false
+
+
+# Installs torchsig
+build-pip:
+  stage: pipeline
+  needs: ["resolve-test-image"]
+  image: $TEST_IMAGE
+  cache:
+    key:
+      prefix: $CI_COMMIT_REF_SLUG
+      files:
+        - pyproject.toml
+    paths:
+      - .cache-uv.tar.zst
+    policy: pull-push
+  before_script:
+    # temp
+    - apt-get update -qq && apt-get install -y -qq zstd
+    - pip install uv
+    - |
+      if [ -f ".cache-uv.tar.zst" ]; then
+        echo "Restoring wheel cache ..."
+        zstd -d -c .cache-uv.tar.zst | tar -xf -
+      fi
+    - uv venv .venv
+    - source .venv/bin/activate
+  script:
+    - source .venv/bin/activate
+    - uv pip install -e .[dev]
+    - uv pip uninstall opencv-python opencv-python-headless || true
+    - uv pip install opencv-python-headless==4.12.0.88
+    - uv pip install pylint pytest pytest-cov pylint-gitlab pylint-junit
+
+    - |
+      if [ -d ".cache" ]; then
+        tar -cf - .cache | zstd -1 -T0 > .cache-uv.tar.zst
+      fi
+
+
+pylint:
+  extends: .test
+  script:
+    - pylint --rcfile=.pylintrc --output-format=pylint_gitlab.GitlabCodeClimateReporter:${CI_PROJECT_DIR}/code-climate.json torchsig/
+  allow_failure: false
+  artifacts:
+    when: always
+    reports:
+      codequality: code-climate.json
+
+# Pytests
+# Split up for efficiency
+
+.pytest-split:
+  extends: .test
+  allow_failure: true
+  variables:
+    PYTEST_NPROCS: "4"
+    COVERAGE_FILE: ".coverage.${CI_JOB_NAME_SLUG}"
+  script:
+    - >
+      pytest
+      -n ${PYTEST_NPROCS}
+      --dist loadfile
+      --ignore=benchmarks
+      --cov=torchsig
+      --cov-report=xml:coverage-${CI_JOB_NAME_SLUG}.xml
+      --cov-report=term-missing
+      --junitxml=report-${CI_JOB_NAME_SLUG}.xml
+      -o junit_family=xunit2
+      ${TEST_PATH}
+  artifacts:
+    when: always
+    paths:
+      - report-${CI_JOB_NAME_SLUG}.xml
+      - .coverage.${CI_JOB_NAME_SLUG}
+    reports:
+      junit: report-${CI_JOB_NAME_SLUG}.xml
+
+pytest-signals:
+  extends: .pytest-split
+  variables:
+    TEST_PATH: tests/signals
+
+pytest-utils:
+  extends: .pytest-split
+  variables:
+    TEST_PATH: tests/utils
+
+pytest-transforms:
+  extends: .pytest-split
+  variables:
+    TEST_PATH: tests/transforms
+
+pytest-datasets:
+  extends: .pytest-split
+  variables:
+    TEST_PATH: tests/datasets
+
+pytest-geo:
+  extends: .pytest-split
+  variables:
+    TEST_PATH: tests/geo
+
+pytest-coverage:
+  extends: .test
+  needs: ["resolve-test-image", "pytest-signals", "pytest-utils", "pytest-transforms", "pytest-datasets", "pytest-geo"]
+  image: $TEST_IMAGE
+  allow_failure: false
+  script:
+    - echo $TEST_IMAGE
+    - shopt -s nullglob
+    # Combine all the individual coverage XML files
+    - coverage combine .coverage.pytest-*
+    - coverage xml -o coverage.xml
+    - coverage report -m 
+  artifacts:
+    when: always
+    paths:
+      - coverage.xml
+    reports:
+      coverage_report:
+        coverage_format: cobertura
+        path: coverage.xml
+  coverage: '/TOTAL.*? (100(?:\.0+)?\%|[1-9]?\d(?:\.\d+)?\%)$/'
+
+pytest:
+  extends: .test
+  needs: ["resolve-test-image", "pytest-signals", "pytest-utils", "pytest-transforms", "pytest-datasets", "pytest-geo"]
+  image: $TEST_IMAGE
+  allow_failure: false
+  script:
+    - echo $TEST_IMAGE
+    - |
+      python3 -c "
+      import glob, sys, xml.etree.ElementTree as ET
+      fails = errors = 0
+      for f in glob.glob('report.pytest-*.xml'):
+          root = ET.parse(f).getroot()
+          for suite in (root if root.tag == 'testsuites' else [root]):
+              fails += int(suite.get('failures', 0))
+              errors += int(suite.get('errors', 0))
+      print(f'Total failures: {fails}, errors: {errors}')
+      sys.exit(1 if (fails or errors) else 0)
+      "
+
+pytest-full:
+  extends: .nightly
+  allow_failure: false
+  variables:
+    PYTEST_NPROCS: "4"
+    COVERAGE_FILE: ".coverage.${CI_JOB_NAME_SLUG}"
+    JUNIT_REPORT: "report-${CI_JOB_NAME_SLUG}.xml"
+    COVERAGE_XML: "coverage-${CI_JOB_NAME_SLUG}.xml"
+  before_script:
+    - make install
+  script:
+    - make test-cov TEST_MODE=full PYTEST_NPROCS="${PYTEST_NPROCS}" JUNIT_REPORT="${JUNIT_REPORT}" COVERAGE_XML="${COVERAGE_XML}"
+  artifacts:
+    when: always
+    paths:
+      - report-${CI_JOB_NAME_SLUG}.xml
+      - coverage-${CI_JOB_NAME_SLUG}.xml
+      - .coverage.${CI_JOB_NAME_SLUG}
+    reports:
+      junit: report-${CI_JOB_NAME_SLUG}.xml
+      coverage_report:
+        coverage_format: cobertura
+        path: coverage-${CI_JOB_NAME_SLUG}.xml
+
+benchmarks:
+  extends: .nightly
+  allow_failure: false
+  variables:
+    BENCHMARK_JSON: ".benchmarks/benchmark.${CI_JOB_NAME_SLUG}.json"
+    BENCHMARK_OUTPUT: ".benchmarks/benchmark.${CI_JOB_NAME_SLUG}.txt"
+  script:
+    - mkdir -p .benchmarks
+    - make benchmarks BENCHMARK_JSON="${BENCHMARK_JSON}" BENCHMARK_OUTPUT="${BENCHMARK_OUTPUT}"
+  artifacts:
+    when: always
+    paths:
+      - .benchmarks/
+
+
+# Jobs to run on main, -dev, and -dev-internal ------------------------------------------------------
+
+make-docs:
+  extends: .official
+  image: python:3.10
+  script:
+    - uv pip install -r docs/docs-requirements.txt
+    - make docs
+
+publish-docs:
+  extends: .official
+  image: python:3.10
+  script:
+    - uv pip install -r docs/docs-requirements.txt
+    - python -m sphinx -T -b html -d docs/_build/doctrees -D language=en docs/ docs/_build/html
+  artifacts:
+    paths:
+      - docs/_build/html/
+    expire_in: 1 week
+
+publish-pypi:
+  extends: .official
+  image: python:3.10
+  before_script: []
+  script:
+    - python -m pip install --upgrade pip build twine
+    - |
+      TAG="${CI_COMMIT_TAG#v}"
+      MIN_VERSION="2.1.1"
+
+      echo "Tag: $CI_COMMIT_TAG | Version: $TAG | Minimum: $MIN_VERSION"
+
+      if [ "$(printf '%s\n%s' "$MIN_VERSION" "$TAG" | sort -V | head -n1)" != "$MIN_VERSION" ]; then
+        echo "Version $TAG is below $MIN_VERSION. Skipping build check."
+        exit 0
+      fi
+      echo "Version $TAG passed version guard."
+    - python -m build --sdist --wheel
+    - twine check dist/*
+    - pip install dist/*.whl
+    # replace with opencv headless to prevent CI errors
+    - pip uninstall -y opencv-python || true
+    - pip install opencv-python-headless
+    - python -c "import torchsig; print(f'{torchsig.__version__}')"
+    - ls -lh dist/
+    - echo "PyPI build simulation successful. Package is ready for publish."
+  artifacts:
+    paths:
+      - dist/
+    expire_in: 1 week
+
+
+# Jobs to run nightly -----------------------------------------------------------------------------------
+
+# Update main and public -dev branches from Github
+sync-github:
+  extends: .nightly
+  stage: sync
+  image: alpine:latest
+  before_script:
+    - apk add --no-cache git
+  script:
+    - GITHUB_URL="https://github.com/TorchDSP/torchsig.git"
+    
+    # 1. Get all branches from GitHub
+    - PUBLIC_BRANCHES=$(git ls-remote --heads "$GITHUB_URL" | awk '{print $2}' | sed 's/refs\/heads\///')
+    
+    # 2. Get all tags from GitHub
+    - PUBLIC_TAGS=$(git ls-remote --tags "$GITHUB_URL" | awk '{print $2}' | sed 's/refs\/tags\///' | grep -v '^{}$')
+
+    # 3. Sync Branches
+    - |
+      for branch in $PUBLIC_BRANCHES; do
+        echo "--------------------------------------------"
+        echo "Syncing branch: $branch"
+        
+        git fetch "$GITHUB_URL" "$branch"
+        
+        # NOTICE THE CHANGE HERE: 
+        # We use oauth2:<YOUR_TOKEN>@ instead of gitlab-ci-token
+        git push https://oauth2:${GITLAB_SYNC_TOKEN}@${CI_SERVER_HOST}/${CI_PROJECT_PATH}.git FETCH_HEAD:"$branch" --force
+      done
+
+    # 4. Sync Tags
+    - |
+      for tag in $PUBLIC_TAGS; do
+        echo "--------------------------------------------"
+        echo "Syncing tag: $tag"
+
+        # Skip if tag ends with ^{} (peeled reference)
+        if [[ "$tag" == *^{} ]]; then
+          echo "Skipping peeled reference: $tag"
+          continue
+        fi
+        
+        git fetch "$GITHUB_URL" "tags/$tag:tags/$tag" || true
+        
+        git push https://oauth2:${GITLAB_SYNC_TOKEN}@${CI_SERVER_HOST}/${CI_PROJECT_PATH}.git "refs/tags/$tag" --force
+      done
+
+build-dockerfile:
+  extends: .nightly
+  image: docker:24.0.5
+  services:
+    - name: docker:24.0.5-dind
+  variables:
+    DOCKER_BUILDKIT: 1
+    IMAGE_TAG: "$CI_REGISTRY_IMAGE:$CI_COMMIT_REF_NAME-cpu"
+  before_script:
+    - apk add --no-cache git
+    - echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin "$CI_REGISTRY"
+  script:
+    - docker build
+      --cache-from "$CI_REGISTRY_IMAGE:latest"
+      --build-arg BUILDKIT_INLINE_CACHE=1
+      -t "$IMAGE_TAG"
+      -f docker/Dockerfile
+      .
+
+
+build-publish-dockerfile-gpu:
+  extends: .nightly
+  image: docker:24.0.5
+  services:
+    - name: docker:24.0.5-dind
+  variables:
+    DOCKER_BUILDKIT: 1
+    IMAGE_TAG: "$CI_REGISTRY_IMAGE:$CI_COMMIT_REF_NAME"
+  before_script:
+    - apk add --no-cache git
+    - echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin "$CI_REGISTRY"
+  script:
+    - docker build
+      --cache-from "$CI_REGISTRY_IMAGE:latest"
+      --cache-from "$CI_REGISTRY_IMAGE:latest-dev-internal"
+      --build-arg BUILDKIT_INLINE_CACHE=1
+      -t "$IMAGE_TAG"
+      -f docker/Dockerfile.gpu
+      .
+    - docker push "$IMAGE_TAG"
+
+    # push to latest if on main branch
+    - |
+      if [ "$CI_COMMIT_REF_NAME" = "main" ]; then
+        docker tag "$IMAGE_TAG" "$CI_REGISTRY_IMAGE:latest"
+        docker push "$CI_REGISTRY_IMAGE:latest"
+      fi
+    # Push to 'latest-dev-internal' for any branch ending in -dev-internal
+    - |
+      case "$CI_COMMIT_REF_NAME" in
+        *-dev-internal)
+          docker tag "$IMAGE_TAG" "$CI_REGISTRY_IMAGE:latest-dev-internal"
+          docker push "$CI_REGISTRY_IMAGE:latest-dev-internal"
+          ;;
+      esac
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "schedule"'
+    # allow manual trigger
+    - if: '$CI_PIPELINE_SOURCE == "web" || $CI_PIPELINE_SOURCE == "trigger"'
+
+test-notebooks:
+  <<: *use-cache
+  extends: .nightly
+  tags:
+    - "gpu"
+  needs: ["build-pip"]
+  image: $CI_REGISTRY_IMAGE:$CI_COMMIT_REF_NAME
+  before_script:
+    - pip install "numpy<2" notebook nbconvert nbclient soundfile ipywidgets tqdm
+    - apt-get update
+    - apt-get install -y software-properties-common
+    - add-apt-repository -y ppa:gnuradio/gnuradio-releases
+    - apt-get update
+    - apt-get install -y --no-install-recommends gnuradio
+  script:
+    - make test-notebooks -j16
+  artifacts:
+    paths:
+      - examples/**/*.executed
+      - .cleaned
+    expire_in: 7 days
+    when: always
+  allow_failure: true

@@ -16,6 +16,8 @@ from torchsig.utils.dsp import (
     slice_head_tail_to_length,
 )
 
+__all__ = ["ChirpSSSignalGenerator", "chirpss_modulator", "chirpss_modulator_baseband", "get_symbol_map"]
+
 
 def get_symbol_map() -> np.ndarray:
     """Generates the symbol mapping for ChirpSS.
@@ -65,9 +67,7 @@ def chirpss_modulator_baseband(
     samples_per_symbol = rng.integers(low=128, high=4096)
 
     # Generate symbols
-    symbol_nums = rng.integers(
-        0, len(const), int(np.ceil(max_num_samples / samples_per_symbol))
-    )
+    symbol_nums = rng.integers(0, len(const), int(np.ceil(max_num_samples / samples_per_symbol)))
     symbols = const[symbol_nums]
 
     # Create chirp template
@@ -150,24 +150,16 @@ def chirpss_modulator(
     num_samples_baseband = int(np.floor(num_samples / resample_rate_ideal))
 
     # Generate baseband signal
-    chirpss_signal_baseband = chirpss_modulator_baseband(
-        num_samples_baseband, oversampling_rate_baseband, rng
-    )
+    chirpss_signal_baseband = chirpss_modulator_baseband(num_samples_baseband, oversampling_rate_baseband, rng)
 
     # Apply resampling
-    chirpss_mod_correct_bw = multistage_polyphase_resampler(
-        chirpss_signal_baseband, resample_rate_ideal
-    )
+    chirpss_mod_correct_bw = multistage_polyphase_resampler(chirpss_signal_baseband, resample_rate_ideal)
 
     # Adjust signal length
     if len(chirpss_mod_correct_bw) > num_samples:
-        chirpss_mod_correct_bw = slice_head_tail_to_length(
-            chirpss_mod_correct_bw, num_samples
-        )
+        chirpss_mod_correct_bw = slice_head_tail_to_length(chirpss_mod_correct_bw, num_samples)
     else:
-        chirpss_mod_correct_bw = pad_head_tail_to_length(
-            chirpss_mod_correct_bw, num_samples
-        )
+        chirpss_mod_correct_bw = pad_head_tail_to_length(chirpss_mod_correct_bw, num_samples)
 
     return chirpss_mod_correct_bw.astype(TorchSigComplexDataType)
 
@@ -217,15 +209,9 @@ class ChirpSSSignalGenerator(BaseSignalGenerator):
             low=self["signal_duration_in_samples_min"],
             high=self["signal_duration_in_samples_max"] + 1,
         )
-        bandwidth = self.random_generator.integers(
-            low=self["bandwidth_min"], high=self["bandwidth_max"] + 1
-        )
+        bandwidth = self.random_generator.integers(low=self["bandwidth_min"], high=self["bandwidth_max"] + 1)
 
         # Generate signal
-        signal_data = chirpss_modulator(
-            bandwidth, sample_rate, num_iq_samples_signal, self.random_generator
-        )
+        signal_data = chirpss_modulator(bandwidth, sample_rate, num_iq_samples_signal, self.random_generator)
 
-        return Signal(
-            data=signal_data, class_name="chirpss", center_freq=0, bandwidth=bandwidth
-        )
+        return Signal(data=signal_data, class_name="chirpss", center_freq=0, bandwidth=bandwidth)

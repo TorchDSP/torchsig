@@ -4,10 +4,10 @@ from __future__ import annotations
 
 import numpy as np
 
+__all__ = ["chirp"]
 
-def chirp(
-    f0: float, f1: float, samples_per_symbol: int, phi: float = 0.0
-) -> np.ndarray:
+
+def chirp(f0: float, f1: float, samples_per_symbol: int, phi: float = 0.0) -> np.ndarray:
     """Generates a linear frequency modulated (LFM) chirp signal.
 
     Creates a chirp waveform that linearly sweeps from frequency f0 to f1.

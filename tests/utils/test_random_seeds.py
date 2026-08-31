@@ -1,7 +1,5 @@
 """Testing the random seeding functionality of the Seedable class"""
 
-import pytest
-
 from torchsig.utils.random import Seedable
 
 

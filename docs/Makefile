@@ -41,8 +41,10 @@ help:
 clean:
 	-rm -rf $(BUILDDIR)/*
 
+# Force a locale that is actually installed on this host (en_US.UTF-8 is not),
+# otherwise sphinx-build aborts with "unsupported locale setting".
 html:
-	$(SPHINXBUILD) -b html $(ALLSPHINXOPTS) $(BUILDDIR)/html
+	LC_ALL=C.UTF-8 LANG=C.UTF-8 $(SPHINXBUILD) -b html $(ALLSPHINXOPTS) $(BUILDDIR)/html
 	@echo
 	@echo "Build finished. The HTML pages are in $(BUILDDIR)/html."
 

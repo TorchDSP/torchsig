@@ -1,7 +1,9 @@
-import pytest
-from typing import Any, Sequence, Optional, List, Tuple, Dict
 import numpy as np
-import h5py
+import pytest
+
+from torchsig.signals.signal_types import Signal
+from torchsig.transforms.metadata_transforms import GroupingLabel
+from torchsig.utils.file_handlers.hdf5 import HDF5Reader, HDF5Writer
 
 # --- Test Data Setup ---
 # Define complex tuple-based targets for reusability
@@ -78,3 +80,64 @@ TEST_CASES_test_get_target_properties = [
     ("error_unsupported_type", {"a": 1}, None, None, pytest.raises(TypeError)),
     # ("error_non_uniform_struct", [("a",), ("b", "c")], None, None, pytest.raises(TypeError)),
 ]
+
+
+def test_hdf5_round_trip_preserves_grouping_labels(tmp_path):
+    """Grouping metadata should remain unchanged after HDF5 persistence."""
+    config_path = tmp_path / "grouping.yaml"
+    config_path.write_text(
+        """
+source: class_name
+labels:
+  name: modulation_group
+  index: modulation_group_index
+groups:
+  - name: linear
+    values: [bpsk, qpsk]
+  - name: frequency_shift
+    regex: '^[248]g?fsk$'
+  - name: all
+    default: true
+"""
+    )
+    grouping = GroupingLabel(config_path)
+    components = [
+        Signal(data=np.ones(8, dtype=np.complex64), class_name="bpsk"),
+        Signal(data=np.ones(8, dtype=np.complex64), class_name="4gfsk"),
+        Signal(data=np.ones(8, dtype=np.complex64), class_name="tone"),
+    ]
+    signal = grouping(
+        Signal(
+            data=np.ones(8, dtype=np.complex64),
+            component_signals=components,
+        )
+    )
+    expected = [
+        ("bpsk", "linear", 0),
+        ("4gfsk", "frequency_shift", 1),
+        ("tone", "all", 2),
+    ]
+
+    dataset_root = tmp_path / "dataset"
+    writer = HDF5Writer(dataset_root)
+    writer.setup()
+    try:
+        writer.write(batch_idx=0, data=[signal])
+    finally:
+        writer.teardown()
+
+    reader = HDF5Reader(dataset_root)
+    try:
+        loaded_signal = reader.read(0)
+    finally:
+        reader.teardown()
+
+    actual = [
+        (
+            component.class_name,
+            component.modulation_group,
+            int(component.modulation_group_index),
+        )
+        for component in loaded_signal.component_signals
+    ]
+    assert actual == expected

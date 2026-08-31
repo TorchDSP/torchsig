@@ -15,6 +15,22 @@ from torchsig.utils.dsp import (
     slice_tail_to_length,
 )
 
+__all__ = [
+    "FSKSignalGenerator",
+    "fsk_bandwidth_symbol_product",
+    "fsk_modulator",
+    "fsk_modulator_baseband",
+    "fsk_random_params",
+    "fsk_symbol_timing",
+    "gaussian_taps",
+    "get_fsk_freq_map",
+    "get_fsk_mod_index",
+]
+
+# Floor on baseband samples per symbol, so the frequency pulse stays sampled
+# well enough to integrate. Only binds for very small mod_idx * bt.
+MIN_SAMPLES_PER_SYMBOL = 4
+
 
 def get_fsk_freq_map(n: int) -> np.ndarray:
     """Generates frequency symbol maps for FSK and MSK variants.
@@ -29,10 +45,13 @@ def get_fsk_freq_map(n: int) -> np.ndarray:
 
 
 def get_fsk_mod_index(fsk_type: str, rng: np.random.Generator | None = None) -> float:
-    """Determines the modulation index for different FSK variants.
+    """Determines the modulation index for different FSK variants using a rng-driven
+    selection approach based on fsk_type.
 
-    The modulation index is derived from the symbol spacing in the frequency domain.
-    Orthogonal FSK has a modulation index of 1.0, and MSK/GMSK have 0.5.
+    The modulation index is selected from the symbol spacing in the frequency domain:
+        FSK modulation index randomly selected between orthogonal (1.0) and rng.uniform(0.7, 1.01).
+        Gaussian FSK modulation index selected from rng.uniform(0.1, 0.5).
+        MSK/GMSK have a deterministic fixed 0.5 modulation index.
 
     Args:
         fsk_type: Type of FSK modulation ('fsk', 'gfsk', 'msk', 'gmsk').
@@ -48,7 +67,7 @@ def get_fsk_mod_index(fsk_type: str, rng: np.random.Generator | None = None) -> 
         rng = np.random.default_rng()
 
     if fsk_type == "gfsk":
-        # Bluetooth GFSK
+        # random draw for similar range Bluetooth GFSK (Base, BLE, ...)
         return rng.uniform(0.1, 0.5)
     if fsk_type in ("msk", "gmsk"):
         # MSK and GMSK
@@ -56,23 +75,23 @@ def get_fsk_mod_index(fsk_type: str, rng: np.random.Generator | None = None) -> 
     if fsk_type == "fsk":
         # FSK - 50% chance for orthogonal (mod_idx=1) or non-orthogonal
         orthogonal_probability = 0.50
-        return (
-            1.0
-            if rng.uniform(0, 1) < orthogonal_probability
-            else rng.uniform(0.7, 1.01)
-        )
+        return 1.0 if rng.uniform(0, 1) < orthogonal_probability else rng.uniform(0.7, 1.01)
     raise ValueError(f"Unexpected fsk_type: {fsk_type}")
 
 
 def gaussian_taps(
-    samples_per_symbol: int, bt: float, rng: np.random.Generator | None = None
+    samples_per_symbol: int,
+    bt: float,
+    rng: np.random.Generator | None = None,
+    span: int | None = None,
 ) -> np.ndarray:
     """Designs a Gaussian pulse shape for GMSK and GFSK.
 
     Args:
         samples_per_symbol: Number of samples per symbol.
         bt: Time-bandwidth product (0.0 to 1.0).
-        rng: Random number generator for reproducibility. If None, creates a new default generator.
+        rng: Random number generator, used only when `span` is None.
+        span: Half-span of the filter in symbols. Drawn from rng when None.
 
     Returns:
         np.ndarray: Filter weights for the Gaussian pulse shape.
@@ -80,16 +99,114 @@ def gaussian_taps(
     Raises:
         ValueError: If bt is not in the valid range (0.0 to 1.0).
     """
-    if rng is None:
-        rng = np.random.default_rng()
-
     if not 0.0 <= bt <= 1.0:
         raise ValueError("bt must be between 0.0 and 1.0")
 
-    m = rng.integers(1, 5)  # Randomize filter span
-    n = np.arange(-m * samples_per_symbol, m * samples_per_symbol + 1)
+    if span is None:
+        if rng is None:
+            rng = np.random.default_rng()
+        span = rng.integers(1, 5)  # Randomize filter span
+
+    n = np.arange(-span * samples_per_symbol, span * samples_per_symbol + 1)
     p = np.exp(-2 * np.pi**2 * bt**2 / np.log(2) * (n / float(samples_per_symbol)) ** 2)
     return p / np.sum(p)
+
+
+def fsk_bandwidth_symbol_product(
+    constellation_size: int,
+    mod_idx: float,
+    bt: float | None = None,
+    gaussian_span: int | None = None,
+) -> float:
+    """Estimate occupied bandwidth of the waveform divided by its symbol rate.
+
+    Dimensionless, and a property of the modulation alone. The leading term is
+    the tone span `constellation_size * mod_idx`; the second is what the
+    frequency pulse adds. A Gaussian pulse both damps the deviation swing and
+    narrows the pulse spectrum, so it scales the first term as well as the
+    second.
+
+    Coefficients are an *empirical fit* to the 99%-power occupied bandwidth of
+    the waveform this module produces, over constellation_size in {2, 4, 8, 16},
+    mod_idx in [0.1, 1.01], bt in [0.1, 0.5], and gaussian_span in {1, 2, 3, 4}.
+    Model / measured stays within 0.84 to 1.19 (median 0.99).
+
+    Args:
+        constellation_size: Number of points in the constellation.
+        mod_idx: Modulation index, i.e. tone spacing divided by symbol rate.
+        bt: Gaussian time-bandwidth product, or None for a rectangular pulse.
+        gaussian_span: Half-span of the Gaussian filter in symbols.
+
+    Returns:
+        float: Estimate of occupied bandwidth divided by symbol rate.
+    """
+    if bt is None:
+        # rectangular frequency pulse ('fsk', 'msk')
+        deviation_gain, pulse_gain = 0.95, 0.70
+    else:
+        # Gaussian frequency pulse ('gfsk', 'gmsk'). A Gaussian truncated to
+        # +/- gaussian_span symbols cannot smooth over more than that window, so
+        # the effective time-bandwidth product has a floor
+        bt_effective = max(bt, 1.0 / (3.0 * max(1, gaussian_span or 1)))
+        deviation_gain = 0.55 + 0.65 * bt_effective
+        pulse_gain = 1.10 * bt_effective
+
+    return deviation_gain * constellation_size * mod_idx + pulse_gain * (1.0 - 1.0 / constellation_size)
+
+
+def fsk_random_params(fsk_type: str, rng: np.random.Generator | None = None) -> tuple[float, float | None, int | None]:
+    """Draws the random shaping parameters.
+
+    Same draws, in the same order, as the original implementation made inside
+    `fsk_modulator_baseband` and `gaussian_taps`. Pulled out so the bandwidth
+    bookkeeping can be done before any samples are generated.
+
+    Args:
+        fsk_type: Type of FSK modulation ('fsk', 'gfsk', 'msk', 'gmsk').
+        rng: Random number generator for reproducibility.
+
+    Returns:
+        tuple: (mod_idx, bt, gaussian_span); bt and gaussian_span are None for
+        the rectangular-pulse types.
+    """
+    if rng is None:
+        rng = np.random.default_rng()
+
+    mod_idx = get_fsk_mod_index(fsk_type, rng)
+    bt = gaussian_span = None
+    if "g" in fsk_type:  # GMSK, GFSK
+        bt = float(rng.uniform(0.1, 0.5))  # Randomize time-bandwidth product
+        gaussian_span = int(rng.integers(1, 5))  # Randomize filter span
+    return mod_idx, bt, gaussian_span
+
+
+def fsk_symbol_timing(
+    constellation_size: int,
+    oversampling_rate_nominal: int,
+    mod_idx: float,
+    bt: float | None = None,
+    gaussian_span: int | None = None,
+) -> tuple[float, int]:
+    """Bandwidth-symbol product and the baseband samples per symbol to use.
+
+    `samples_per_symbol` is picked so the baseband waveform occupies about
+    `1 / oversampling_rate_nominal` of its own sample rate, which keeps the
+    resampling ratio near unity and the sample budget where it was. It reduces
+    to `constellation_size * oversampling_rate_nominal` for orthogonal FSK.
+
+    Args:
+        constellation_size: Number of points in the constellation.
+        oversampling_rate_nominal: Baseband oversampling design point.
+        mod_idx: Modulation index.
+        bt: Gaussian time-bandwidth product, or None for a rectangular pulse.
+        gaussian_span: Half-span of the Gaussian filter in symbols.
+
+    Returns:
+        tuple: (bandwidth_symbol_product, samples_per_symbol).
+    """
+    gamma = fsk_bandwidth_symbol_product(constellation_size, mod_idx, bt, gaussian_span)
+    samples_per_symbol = max(MIN_SAMPLES_PER_SYMBOL, int(round(oversampling_rate_nominal * gamma)))
+    return gamma, samples_per_symbol
 
 
 def fsk_modulator_baseband(
@@ -98,8 +215,10 @@ def fsk_modulator_baseband(
     max_num_samples: int,
     oversampling_rate_nominal: int,
     rng: np.random.Generator | None = None,
+    params: tuple[float, float | None, int | None] | None = None,
 ) -> np.ndarray:
-    """FSK modulator at baseband.
+    """FSK modulator at baseband. For Gaussian type (GFSK, GMSK) variants
+    the time-bandwidth product is selected from rng.uniform(0.1, 0.5).
 
     Args:
         constellation_size: Number of points in the constellation.
@@ -107,6 +226,7 @@ def fsk_modulator_baseband(
         max_num_samples: Maximum number of samples to produce.
         oversampling_rate_nominal: Oversampling rate (sampling_rate/bandwidth).
         rng: Random number generator for reproducibility. If None, creates a new default generator.
+        params: (mod_idx, bt, gaussian_span) from `fsk_random_params`. Drawn here when None.
 
     Returns:
         np.ndarray: FSK modulated signal at baseband.
@@ -123,30 +243,27 @@ def fsk_modulator_baseband(
     if rng is None:
         rng = np.random.default_rng()
 
-    # Determine modulation index
-    mod_idx = get_fsk_mod_index(fsk_type, rng)
+    # Determine modulation index and pulse parameters
+    mod_idx, bt, gaussian_span = fsk_random_params(fsk_type, rng) if params is None else params
+
+    # Symbol timing consistent with those parameters
+    _, samples_per_symbol = fsk_symbol_timing(constellation_size, oversampling_rate_nominal, mod_idx, bt, gaussian_span)
 
     # Get FSK frequency symbol map
     const = get_fsk_freq_map(constellation_size)
-    const_oversampled = const / oversampling_rate_nominal
-
-    # Calculate modulation order and samples per symbol
-    mod_order = len(const)
-    samples_per_symbol = int(mod_order * oversampling_rate_nominal)
+    const_oversampled = const * constellation_size / samples_per_symbol
 
     # Create pulse shape
     pulse_shape = np.ones(samples_per_symbol)
 
     if "g" in fsk_type:  # GMSK, GFSK
-        bt = rng.uniform(0.1, 0.5)  # Randomize time-bandwidth product
-        taps = gaussian_taps(samples_per_symbol, bt, rng)
+        taps = gaussian_taps(samples_per_symbol, bt, span=gaussian_span)
         pulse_shape = sp.convolve(taps, pulse_shape)
 
-    # Calculate number of symbols
+    # Calculate number of symbols. Round up so the record is never short and
+    # never has to be zero padded, which would shorten the signal's duration
     max_num_samples_minus_pulse_shape = max_num_samples - len(pulse_shape) + 1
-    num_symbols = max(
-        1, int(np.floor(max_num_samples_minus_pulse_shape / samples_per_symbol))
-    )
+    num_symbols = max(1, int(np.ceil(max_num_samples_minus_pulse_shape / samples_per_symbol)))
 
     # Generate symbols
     symbol_nums = rng.integers(0, len(const_oversampled), num_symbols)
@@ -208,29 +325,38 @@ def fsk_modulator(
     # Baseband modulation parameters
     oversampling_rate_nominal = 4
     oversampling_rate = sample_rate / bandwidth
-    resample_rate_ideal = oversampling_rate / oversampling_rate_nominal
 
-    # Calculate baseband samples
+    # Draw random parameters, then size everything else from them
+    params = fsk_random_params(fsk_type, rng)
+    gamma, samples_per_symbol = fsk_symbol_timing(constellation_size, oversampling_rate_nominal, *params)
+
+    # The baseband waveform occupies gamma / samples_per_symbol of its own
+    # sample rate and must occupy bandwidth / sample_rate of the output sample
+    # rate. Resampling by r maps normalized frequency f -> f/r:
+    resample_rate_ideal = oversampling_rate * gamma / samples_per_symbol
+
+    # Calculate baseband samples, with one symbol of margin so the resampled
+    # record is never shorter than num_samples.
     max_num_samples = max(
-        oversampling_rate_nominal, int(np.floor(num_samples / resample_rate_ideal))
+        samples_per_symbol,
+        int(np.ceil(num_samples / resample_rate_ideal)) + samples_per_symbol,
     )
 
     # Generate and resample signal
     baseband_signal = fsk_modulator_baseband(
-        constellation_size, fsk_type, max_num_samples, oversampling_rate_nominal, rng
+        constellation_size,
+        fsk_type,
+        max_num_samples,
+        oversampling_rate_nominal,
+        rng,
+        params=params,
     )
 
-    fsk_correct_bw = multistage_polyphase_resampler(
-        baseband_signal, resample_rate_ideal
-    )
+    fsk_correct_bw = multistage_polyphase_resampler(baseband_signal, resample_rate_ideal)
     fsk_correct_bw *= 1 / resample_rate_ideal
 
     # Adjust signal length
-    fsk_correct_bw = (
-        slice_head_tail_to_length(fsk_correct_bw, num_samples)
-        if len(fsk_correct_bw) > num_samples
-        else pad_head_tail_to_length(fsk_correct_bw, num_samples)
-    )
+    fsk_correct_bw = slice_head_tail_to_length(fsk_correct_bw, num_samples) if len(fsk_correct_bw) > num_samples else pad_head_tail_to_length(fsk_correct_bw, num_samples)
 
     return fsk_correct_bw.astype(TorchSigComplexDataType)
 
@@ -284,9 +410,7 @@ class FSKSignalGenerator(BaseSignalGenerator):
             low=self["signal_duration_in_samples_min"],
             high=self["signal_duration_in_samples_max"] + 1,
         )
-        bandwidth = self.random_generator.integers(
-            low=self["bandwidth_min"], high=self["bandwidth_max"] + 1
-        )
+        bandwidth = self.random_generator.integers(low=self["bandwidth_min"], high=self["bandwidth_max"] + 1)
         fsk_type = self["fsk_type"]
         constellation_size = self["constellation_size"]
 

@@ -14,6 +14,8 @@ from torchsig.utils.dsp import (
     polyphase_decimator,
 )
 
+__all__ = ["AMSignalGenerator", "am_modulator"]
+
 
 def am_modulator(
     am_mode: str,
@@ -42,8 +44,8 @@ def am_modulator(
 
     Examples:
         >>> rng = np.random.default_rng(42)
-        >>> dsb_signal = am_modulator('dsb', 1000, 10000, 1000, rng)
-        >>> dsb_sc_signal = am_modulator('dsb-sc', 1000, 10000, 1000, rng)
+        >>> dsb_signal = am_modulator("dsb", 1000, 10000, 1000, rng)
+        >>> dsb_sc_signal = am_modulator("dsb-sc", 1000, 10000, 1000, rng)
     """
     # Input validation
     if bandwidth <= 0:
@@ -60,9 +62,7 @@ def am_modulator(
         rng = np.random.default_rng()
 
     # Determine number of samples for modulation
-    num_samples_mod = (
-        2 * num_samples if "lsb" in am_mode or "usb" in am_mode else num_samples
-    )
+    num_samples_mod = 2 * num_samples if "lsb" in am_mode or "usb" in am_mode else num_samples
 
     # Generate random message signal
     message = rng.normal(0, 1, num_samples_mod).astype(TorchSigComplexDataType)
@@ -92,16 +92,12 @@ def am_modulator(
     elif am_mode == "lsb":
         dsb_upconverted = frequency_shift(shaped_message, bandwidth / 2, sample_rate)
         lsb_signal_at_if = convolve(dsb_upconverted, lpf)
-        baseband_signal_oversampled = frequency_shift(
-            lsb_signal_at_if, -bandwidth / 4, sample_rate
-        )
+        baseband_signal_oversampled = frequency_shift(lsb_signal_at_if, -bandwidth / 4, sample_rate)
         baseband_signal = polyphase_decimator(baseband_signal_oversampled, 2) * 2
     elif am_mode == "usb":
         dsb_downconverted = frequency_shift(shaped_message, -bandwidth / 2, sample_rate)
         usb_signal_atif = convolve(dsb_downconverted, lpf)
-        baseband_signal_oversampled = frequency_shift(
-            usb_signal_atif, bandwidth / 4, sample_rate
-        )
+        baseband_signal_oversampled = frequency_shift(usb_signal_atif, bandwidth / 4, sample_rate)
         baseband_signal = polyphase_decimator(baseband_signal_oversampled, 2) * 2
 
     return baseband_signal.astype(TorchSigComplexDataType)
@@ -154,9 +150,7 @@ class AMSignalGenerator(BaseSignalGenerator):
             low=self["signal_duration_in_samples_min"],
             high=self["signal_duration_in_samples_max"] + 1,
         )
-        bandwidth = self.random_generator.integers(
-            low=self["bandwidth_min"], high=self["bandwidth_max"] + 1
-        )
+        bandwidth = self.random_generator.integers(low=self["bandwidth_min"], high=self["bandwidth_max"] + 1)
         am_mode = self["am_mode"]
 
         # Generate signal

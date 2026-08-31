@@ -20,6 +20,9 @@ TorchSig
     signals
     transforms
     metadata_transforms
+    metadata_debugging
+    hdf5_readers
+    contributing_transforms_and_signal_builders
     utils
     api
 

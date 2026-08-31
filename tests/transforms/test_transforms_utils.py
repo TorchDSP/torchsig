@@ -1,4 +1,5 @@
 """Utility functions for transforms testing."""
+
 import numpy as np
 
 from torchsig.signals.signal_types import Signal
@@ -48,10 +49,7 @@ def generate_composite_signal(num_iq_samples: int = 128, num_components: int = 2
         bandwidth=1.0,
     )
     # Put nonzero IQ on the container so data-level transforms are observable.
-    container.data = (
-        np.arange(num_iq_samples, dtype=np.float32)
-        + 1j * np.arange(num_iq_samples, dtype=np.float32)[::-1]
-    ).astype(TorchSigComplexDataType)
+    container.data = (np.arange(num_iq_samples, dtype=np.float32) + 1j * np.arange(num_iq_samples, dtype=np.float32)[::-1]).astype(TorchSigComplexDataType)
     return container
 
 

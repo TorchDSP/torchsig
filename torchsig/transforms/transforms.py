@@ -1,5 +1,20 @@
 """Transforms on Signal objects."""
 
+import os
+import secrets
+import time
+import warnings
+from copy import copy
+from typing import Literal
+
+import numpy as np
+import numpy.typing as npt
+
+import torchsig.transforms.functional as F
+from torchsig.signals.signal_types import Signal
+from torchsig.transforms.base_transforms import Transform
+from torchsig.utils.dsp import TorchSigComplexDataType, TorchSigRealDataType, low_pass
+
 __all__ = [
     "AWGN",
     "AddSlope",
@@ -39,13 +54,111 @@ __all__ = [
 
 from copy import copy
 
-import numpy as np
-import numpy.typing as npt
+def transform_crash_logger(transform_func, data, **kwargs):
+    """Wraps a transformation function to ensure deterministic random number generation
+    and save complete state upon failure for debugging and reproduction of errors.
 
-import torchsig.transforms.functional as F
-from torchsig.signals.signal_types import Signal
-from torchsig.transforms.base_transforms import Transform
-from torchsig.utils.dsp import TorchSigComplexDataType, TorchSigRealDataType, low_pass
+    This function performs the following:
+
+    1. Creates a dedicated random number generator (RNG) with a known seed for each call,
+       ensuring reproducible stochastic behavior.
+    2. Adds the RNG to the provided kwargs (overwriting any existing 'rng' parameter).
+    3. Executes the transformation function.
+    4. If the transformation fails, saves the complete state (input data, random seed, and
+       all kwargs) to a timestamped .npz file.
+    5. Re-raises the original exception to halt the pipeline.
+
+    The saved state file can be used to exactly reproduce the failure conditions for
+    debugging purposes.
+
+    Parameters
+    ----------
+    transform_func : callable
+        The transformation function to execute (e.g., ``F.clock_drift``). Must accept
+        `data` as the first argument and ``**kwargs`` where an 'rng' parameter will be
+        provided.
+    data : array-like
+        The input data to transform (typically a numpy array or torch tensor).
+    **kwargs : dict
+        Additional keyword arguments for the transformation function.
+        Note: Any 'rng' value in kwargs will be overwritten with a dedicated RNG.
+
+    Returns
+    -------
+    array-like
+        The transformed data as returned by `transform_func`.
+
+    Raises
+    ------
+    Exception
+        Any exception raised by `transform_func` is re-raised after saving state.
+
+    Examples
+    --------
+    >>> # Example usage in a SignalTransform class (like ClockDrift):
+    >>> class ClockDrift(SignalTransform):
+    ...     def __init__(self, drift_ppm=(1, 10), **kwargs):
+    ...         super().__init__(required_metadata=[], **kwargs)
+    ...         self.drift_ppm = drift_ppm
+    ...         self.drift_dist = self.get_distribution(drift_ppm, "log10")
+    ...
+    ...     def apply(self, signal):
+    ...         drift_ppm = self.drift_dist()
+    ...         # transform_crash_logger will override rng with its own deterministic RNG
+    ...         signal.data = transform_crash_logger(
+    ...             F.clock_drift,
+    ...             data=signal.data,
+    ...             drift_ppm=drift_ppm,
+    ...             rng=self.random_generator,  # This gets replaced internally
+    ...         )
+    ...         return signal
+
+    When a failure occurs:
+
+    - A file like "crash_clock_drift_1678901234567.npz" is created containing:
+
+      * data: The original input tensor
+      * seed: The exact random seed used
+      * kwargs: Including drift_ppm and all other parameters
+
+    - The original exception is re-raised to stop the pipeline
+
+    Notes
+    -----
+    To reproduce a saved failure:
+
+    >>> with np.load("crash_clock_drift_1678901234567.npz") as f:
+    ...     data = f["data"]
+    ...     seed = f["seed"]
+    ...     kwargs = f["kwargs"]
+    >>> rng = np.random.default_rng(seed)
+    >>> result = F.clock_drift(data, **kwargs, rng=rng)  # Reproduces exact failure
+    """
+    # 1. Create a dedicated RNG for this call
+    seed = secrets.randbelow(2**32)
+    rng = np.random.default_rng(seed)
+    kwargs["rng"] = rng
+
+    try:
+        return transform_func(data, **kwargs)
+    except Exception as e:
+        # 2. Clean kwargs: remove non-serializable objects (CRITICAL FIX)
+        kwargs_to_save = {k: v for k, v in kwargs.items() if k != "rng"}
+
+        # 3. Generate UNIQUE filename (CRITICAL FIX FOR COLLISIONS)
+        timestamp = int(time.time() * 1000)
+        filename = f"crash_{transform_func.__name__}_{timestamp}.npz"
+        counter = 0
+        while os.path.exists(filename):
+            counter += 1
+            filename = f"crash_{transform_func.__name__}_{timestamp}_{counter}.npz"
+
+        # 4. Save state (now safe because we removed rng)
+        np.savez(filename, data=data, seed=seed, kwargs=kwargs_to_save)
+
+        print(f"!!! Transform failed. State saved to {filename}")
+        print(f"Error: {e}")
+        raise e  # Re-raise original exception
 
 
 class SignalTransform(Transform):
@@ -102,9 +215,7 @@ class SignalTransform(Transform):
         """
         if not isinstance(signal, Signal):
             # not a Signal object
-            raise TypeError(
-                f"Must be Signal class for transform {self.__class__.__name__}, signal is {type(signal)}."
-            )
+            raise TypeError(f"Must be Signal class for transform {self.__class__.__name__}, signal is {type(signal)}.")
 
         # check signal and all components have required metadata
         for rm in self.required_metadata:
@@ -198,9 +309,7 @@ class AWGN(SignalTransform):
             new_snr = sig_power / (noise_power + self.noise_power_linear)
             signal.snr_db = 10 * np.log10(new_snr)
 
-        signal.data = F.awgn(
-            signal.data, noise_power_db=self.noise_power_db, rng=self.random_generator
-        )
+        signal.data = F.awgn(signal.data, noise_power_db=self.noise_power_db, rng=self.random_generator)
 
         return signal
 
@@ -217,9 +326,7 @@ class AddSlope(SignalTransform):
         Args:
             **kwargs: Additional keyword arguments passed to the parent class.
         """
-        super().__init__(
-            required_metadata=[], data_dtype=TorchSigComplexDataType, **kwargs
-        )
+        super().__init__(required_metadata=[], data_dtype=TorchSigComplexDataType, **kwargs)
 
     def __apply__(self, signal: Signal) -> Signal:
         """Apply slope addition to the signal.
@@ -342,16 +449,12 @@ class AdjacentChannelInterference(SignalTransform):
             filter_weights: Predefined baseband lowpass filter, fixed for all calls. Defaults to low_pass(0.125, 0.125, 1.0).
             **kwargs: Additional keyword arguments passed to the parent class.
         """
-        super().__init__(
-            required_metadata=[], data_dtype=TorchSigComplexDataType, **kwargs
-        )
+        super().__init__(required_metadata=[], data_dtype=TorchSigComplexDataType, **kwargs)
         self.sample_rate = sample_rate
         self.power_range = power_range
         self.power_distribution = self.get_distribution(self.power_range)
         self.center_frequency_range = center_frequency_range
-        self.center_frequency_distribution = self.get_distribution(
-            self.center_frequency_range
-        )
+        self.center_frequency_distribution = self.get_distribution(self.center_frequency_range)
         self.phase_sigma_range = phase_sigma_range
         self.phase_sigma_distribution = self.get_distribution(self.phase_sigma_range)
         self.time_sigma_range = time_sigma_range
@@ -398,9 +501,7 @@ class CarrierFrequencyDrift(SignalTransform):
             drift_ppm: Drift in parts per million (ppm). Default (0.1,10).
             **kwargs: Additional keyword arguments passed to the parent class.
         """
-        super().__init__(
-            required_metadata=[], data_dtype=TorchSigComplexDataType, **kwargs
-        )
+        super().__init__(required_metadata=[], data_dtype=TorchSigComplexDataType, **kwargs)
         self.drift_ppm = drift_ppm
         self.drift_ppm_distribution = self.get_distribution(self.drift_ppm, "log10")
 
@@ -415,9 +516,7 @@ class CarrierFrequencyDrift(SignalTransform):
         """
         drift_ppm = self.drift_ppm_distribution()
 
-        signal.data = F.carrier_frequency_drift(
-            data=signal.data, drift_ppm=drift_ppm, rng=self.random_generator
-        )
+        signal.data = F.carrier_frequency_drift(data=signal.data, drift_ppm=drift_ppm, rng=self.random_generator)
 
         return signal
 
@@ -439,13 +538,9 @@ class CarrierPhaseNoise(SignalTransform):
             phase_noise_degrees: Range for phase noise (in degrees). Defaults to (0.25, 1).
             **kwargs: Additional keyword arguments passed to the parent class.
         """
-        super().__init__(
-            required_metadata=[], data_dtype=TorchSigComplexDataType, **kwargs
-        )
+        super().__init__(required_metadata=[], data_dtype=TorchSigComplexDataType, **kwargs)
         self.phase_noise_degrees = phase_noise_degrees
-        self.phase_noise_degrees_distribution = self.get_distribution(
-            self.phase_noise_degrees
-        )
+        self.phase_noise_degrees_distribution = self.get_distribution(self.phase_noise_degrees)
 
     def __apply__(self, signal: Signal) -> Signal:
         """Apply carrier phase noise to the signal.
@@ -482,18 +577,14 @@ class CarrierPhaseOffset(SignalTransform):
         phase_offset_distribution: Random draw from phase offset distribution.
     """
 
-    def __init__(
-        self, phase_offset_range: tuple[float, float] = (0, 2 * np.pi), **kwargs
-    ):
+    def __init__(self, phase_offset_range: tuple[float, float] = (0, 2 * np.pi), **kwargs):
         """Initialize the CarrierPhaseOffset transform.
 
         Args:
             phase_offset_range: Range bounds for phase offset (radians). Defaults to (0, 2 * np.pi).
             **kwargs: Additional keyword arguments passed to the parent class.
         """
-        super().__init__(
-            required_metadata=[], data_dtype=TorchSigComplexDataType, **kwargs
-        )
+        super().__init__(required_metadata=[], data_dtype=TorchSigComplexDataType, **kwargs)
         self.phase_offset_range = phase_offset_range
         self.phase_offset_distribution = self.get_distribution(self.phase_offset_range)
 
@@ -522,9 +613,7 @@ class ChannelSwap(SignalTransform):
         Args:
             **kwargs: Additional keyword arguments passed to the parent class.
         """
-        super().__init__(
-            required_metadata=[], data_dtype=TorchSigComplexDataType, **kwargs
-        )
+        super().__init__(required_metadata=[], data_dtype=TorchSigComplexDataType, **kwargs)
 
     def __apply__(self, signal: Signal) -> Signal:
         """Apply channel swap to the signal.
@@ -561,9 +650,7 @@ class ClockDrift(SignalTransform):
             drift_ppm: Drift in parts per million (ppm). Default (1,10).
             **kwargs: Additional keyword arguments passed to the parent class.
         """
-        super().__init__(
-            required_metadata=[], data_dtype=TorchSigComplexDataType, **kwargs
-        )
+        super().__init__(required_metadata=[], data_dtype=TorchSigComplexDataType, **kwargs)
         self.drift_ppm = drift_ppm
         self.drift_ppm_distribution = self.get_distribution(self.drift_ppm, "log10")
 
@@ -578,9 +665,7 @@ class ClockDrift(SignalTransform):
         """
         drift_ppm = self.drift_ppm_distribution()
 
-        signal.data = F.clock_drift(
-            data=signal.data, drift_ppm=drift_ppm, rng=self.random_generator
-        )
+        signal.data = F.clock_drift(data=signal.data, drift_ppm=drift_ppm, rng=self.random_generator)
 
         return signal
 
@@ -595,9 +680,7 @@ class ClockJitter(SignalTransform):
             jitter_ppm: Jitter in parts per million (ppm). Default (1,10).
             **kwargs: Additional keyword arguments passed to the parent class.
         """
-        super().__init__(
-            required_metadata=[], data_dtype=TorchSigComplexDataType, **kwargs
-        )
+        super().__init__(required_metadata=[], data_dtype=TorchSigComplexDataType, **kwargs)
         self.jitter_ppm = jitter_ppm
         self.jitter_ppm_distribution = self.get_distribution(self.jitter_ppm, "log10")
 
@@ -612,9 +695,7 @@ class ClockJitter(SignalTransform):
         """
         jitter_ppm = self.jitter_ppm_distribution()
 
-        signal.data = F.clock_jitter(
-            data=signal.data, jitter_ppm=jitter_ppm, rng=self.random_generator
-        )
+        signal.data = F.clock_jitter(data=signal.data, jitter_ppm=jitter_ppm, rng=self.random_generator)
 
         return signal
 
@@ -634,9 +715,7 @@ class CoarseGainChange(SignalTransform):
             gain_change_db: Sets the (min, max) gain change in dB. Defaults to (-20, 20).
             **kwargs: Additional keyword arguments passed to the parent class.
         """
-        super().__init__(
-            required_metadata=[], data_dtype=TorchSigComplexDataType, **kwargs
-        )
+        super().__init__(required_metadata=[], data_dtype=TorchSigComplexDataType, **kwargs)
         self.gain_change_db_distribution = self.get_distribution(gain_change_db)
 
     def __apply__(self, signal: Signal) -> Signal:
@@ -739,9 +818,7 @@ class ComplexTo2D(SignalTransform):
         Args:
             **kwargs: Additional keyword arguments passed to the parent class.
         """
-        super().__init__(
-            required_metadata=[], data_dtype=TorchSigRealDataType, **kwargs
-        )
+        super().__init__(required_metadata=[], data_dtype=TorchSigRealDataType, **kwargs)
 
     def __apply__(self, signal: Signal) -> Signal:
         """Convert complex data to 2D real data.
@@ -788,9 +865,7 @@ class CutOut(SignalTransform):
     def __init__(
         self,
         duration=(0.01, 0.2),
-        cut_type: list[str] = (
-            ["zeros", "ones", "low_noise", "avg_noise", "high_noise"]
-        ),
+        cut_type: list[str] = (["zeros", "ones", "low_noise", "avg_noise", "high_noise"]),
         **kwargs,
     ):
         """Initialize the CutOut transform.
@@ -807,9 +882,7 @@ class CutOut(SignalTransform):
         self.duration_distribution = self.get_distribution(self.duration)
         self.cut_type_distribution = self.get_distribution(self.cut_type)
 
-    def _determine_overlap(
-        self, metadata, cut_start: float, cut_duration: float
-    ) -> str:
+    def _determine_overlap(self, metadata, cut_start: float, cut_duration: float) -> str:
         """Determine the overlap between cut region and signal.
 
         Args:
@@ -908,9 +981,7 @@ class DigitalAGC(SignalTransform):
             track_range_db: dB range for operating in tracking state. Defaults to (0.5, 2).
             **kwargs: Additional keyword arguments passed to the parent class.
         """
-        super().__init__(
-            required_metadata=[], data_dtype=TorchSigComplexDataType, **kwargs
-        )
+        super().__init__(required_metadata=[], data_dtype=TorchSigComplexDataType, **kwargs)
         self.initial_gain_db = initial_gain_db
         self.alpha_smooth = alpha_smooth
         self.alpha_track = alpha_track
@@ -919,16 +990,10 @@ class DigitalAGC(SignalTransform):
         self.track_range_db = track_range_db
 
         self.initial_gain_db_distribution = self.get_distribution(self.initial_gain_db)
-        self.alpha_smooth_distribution = self.get_distribution(
-            self.alpha_smooth, "log10"
-        )
+        self.alpha_smooth_distribution = self.get_distribution(self.alpha_smooth, "log10")
         self.alpha_track_distribution = self.get_distribution(self.alpha_track, "log10")
-        self.alpha_overflow_distribution = self.get_distribution(
-            self.alpha_track, "log10"
-        )
-        self.alpha_acquire_distribution = self.get_distribution(
-            self.alpha_acquire, "log10"
-        )
+        self.alpha_overflow_distribution = self.get_distribution(self.alpha_track, "log10")
+        self.alpha_acquire_distribution = self.get_distribution(self.alpha_acquire, "log10")
         self.track_range_db_distribution = self.get_distribution(self.track_range_db)
 
     def __apply__(self, signal: Signal) -> Signal:
@@ -960,9 +1025,7 @@ class DigitalAGC(SignalTransform):
         zero_sample_index = np.where(np.equal(receive_signal_mag, 0))[0]
 
         # calculate all other values
-        non_zero_sample_index = np.setdiff1d(
-            np.arange(0, len(receive_signal)), zero_sample_index
-        )
+        non_zero_sample_index = np.setdiff1d(np.arange(0, len(receive_signal)), zero_sample_index)
 
         # calculate the non-zero minimum
         smallest_non_zero_value = np.min(receive_signal_mag[non_zero_sample_index])
@@ -1030,9 +1093,7 @@ class Doppler(SignalTransform):
             propagation_speed: Wave speed in medium. Defaults to 2.9979e8 m/s.
             **kwargs: Additional keyword arguments passed to the parent class.
         """
-        super().__init__(
-            required_metadata=[], data_dtype=TorchSigComplexDataType, **kwargs
-        )
+        super().__init__(required_metadata=[], data_dtype=TorchSigComplexDataType, **kwargs)
         self.velocity_range = velocity_range
         self.velocity_distribution = self.get_distribution(self.velocity_range)
         self.propagation_speed = propagation_speed
@@ -1047,9 +1108,7 @@ class Doppler(SignalTransform):
             Signal with Doppler effect applied.
         """
         velocity = self.velocity_distribution()
-        alpha = self.propagation_speed / (
-            self.propagation_speed - velocity
-        )  # scaling factor
+        alpha = self.propagation_speed / (self.propagation_speed - velocity)  # scaling factor
 
         signal.data = F.doppler(
             data=signal.data,
@@ -1057,7 +1116,7 @@ class Doppler(SignalTransform):
             propagation_speed=self.propagation_speed,
         )
 
-         # update metadata: signal
+        # update metadata: signal
         if hasattr(signal, "center_freq"):
             signal["center_freq"] *= alpha
         if hasattr(signal, "bandwidth"):
@@ -1065,7 +1124,6 @@ class Doppler(SignalTransform):
 
         # update metadata: component_signals
         for component in signal.component_signals:
-
             if hasattr(component, "center_freq"):
                 component["center_freq"] *= alpha
             if hasattr(component, "bandwidth"):
@@ -1103,14 +1161,10 @@ class Fading(SignalTransform):  # slow, fast, block fading
             power_delay_profile: A list of positive values assigning power to taps of the channel model. Defaults to (1, 1).
             **kwargs: Additional keyword arguments passed to the parent class.
         """
-        super().__init__(
-            required_metadata=[], data_dtype=TorchSigComplexDataType, **kwargs
-        )
+        super().__init__(required_metadata=[], data_dtype=TorchSigComplexDataType, **kwargs)
         self.coherence_bandwidth = coherence_bandwidth
         self.power_delay_profile = np.asarray(power_delay_profile)
-        self.coherence_bandwidth_distribution = self.get_distribution(
-            self.coherence_bandwidth
-        )
+        self.coherence_bandwidth_distribution = self.get_distribution(self.coherence_bandwidth)
 
     def __apply__(self, signal: Signal) -> Signal:
         """Apply fading to the signal.
@@ -1154,9 +1208,7 @@ class IntermodulationProducts(SignalTransform):
             coeffs_range: Range bounds for each intermodulation coefficient. Defaults to (1e-4, 1e-1).
             **kwargs: Additional keyword arguments passed to the parent class.
         """
-        super().__init__(
-            required_metadata=[], data_dtype=TorchSigComplexDataType, **kwargs
-        )
+        super().__init__(required_metadata=[], data_dtype=TorchSigComplexDataType, **kwargs)
         self.model_order = model_order
         self.model_order_distribution = self.get_distribution(self.model_order)
         self.coeffs_range = coeffs_range
@@ -1233,22 +1285,16 @@ class IQImbalance(SignalTransform):
             dc_offset_rads: Range bounds for phase of DC offset. Defaults to (0, 2 * np.pi).
             **kwargs: Additional keyword arguments passed to the parent class.
         """
-        super().__init__(
-            required_metadata=[], data_dtype=TorchSigComplexDataType, **kwargs
-        )
+        super().__init__(required_metadata=[], data_dtype=TorchSigComplexDataType, **kwargs)
         self.amplitude_imbalance = amplitude_imbalance
         self.phase_imbalance = phase_imbalance
         self.dc_offset_db = dc_offset_db
         self.dc_offset_rads = dc_offset_rads
 
-        self.amplitude_imbalance_distribution = self.get_distribution(
-            self.amplitude_imbalance
-        )
+        self.amplitude_imbalance_distribution = self.get_distribution(self.amplitude_imbalance)
         self.phase_imbalance_distribution = self.get_distribution(self.phase_imbalance)
         self.dc_offset_db_distribution = self.get_distribution(self.dc_offset_db)
-        self.dc_offset_phase_rads_distribution = self.get_distribution(
-            self.dc_offset_rads
-        )
+        self.dc_offset_phase_rads_distribution = self.get_distribution(self.dc_offset_rads)
 
     def __apply__(self, signal: Signal) -> Signal:
         """Apply IQ imbalance to the signal.
@@ -1284,9 +1330,7 @@ class InterleaveComplex(SignalTransform):
         Args:
             **kwargs: Additional keyword arguments passed to the parent class.
         """
-        super().__init__(
-            required_metadata=[], data_dtype=TorchSigRealDataType, **kwargs
-        )
+        super().__init__(required_metadata=[], data_dtype=TorchSigRealDataType, **kwargs)
 
     def __apply__(self, signal: Signal) -> Signal:
         """Interleave complex data into real data.
@@ -1340,9 +1384,7 @@ class NonlinearAmplifier(SignalTransform):
             auto_scale: Automatically rescale output power to match full-scale peak input power prior to transform, based on peak estimates. Defaults to True.
             **kwargs: Additional keyword arguments passed to the parent class.
         """
-        super().__init__(
-            required_metadata=[], data_dtype=TorchSigComplexDataType, **kwargs
-        )
+        super().__init__(required_metadata=[], data_dtype=TorchSigComplexDataType, **kwargs)
         self.gain_range = gain_range
         self.gain_distribution = self.get_distribution(self.gain_range)
         self.psat_backoff_range = psat_backoff_range
@@ -1383,38 +1425,45 @@ class PassbandRipple(SignalTransform):
     """Models analog filter passband ripple response for a signal.
 
     Attributes:
-        max_ripple_db: Range for maximum allowable ripple to simulate. Defaults to (1,2).
-        num_taps: List of number of taps in simulated filter. Defaults to [2,3].
-        coefficient_decay_rate: Range for the rate at which the simulated
-            impulse response goes to zero. Defaults to (1, 5).
+        max_ripple_db: Range (min, max) for maximum allowable ripple in dB. Defaults to (1, 2).
+        ripple_freq: Range (min, max) for the randomized ripple frequency. Defaults to (2, 10).
+        num_taps: List of possible number of taps in simulated filter. Defaults to [1025].
     """
 
     def __init__(
         self,
         max_ripple_db: tuple[float] = (1, 2),
-        num_taps: list[int] = [2, 3],
-        coefficient_decay_rate: tuple[float] = (1, 5),
+        ripple_freq: tuple[float] = (2, 10),
+        num_taps: list[int] = [65],
+        passband_fuzz: Literal["smooth", "random"] = "smooth",
+        stopband_fuzz: Literal["smooth", "random"] = "smooth",
         **kwargs,
     ):
         """Initialize the PassbandRipple transform.
 
         Args:
-            max_ripple_db: Range for maximum allowable ripple to simulate. Defaults to (1, 2).
-            num_taps: List of number of taps in simulated filter. Defaults to [2, 3].
-            coefficient_decay_rate: Range for the rate at which the simulated impulse response goes to zero. Defaults to (1, 5).
+            max_ripple_db: Range (min, max) for maximum allowable ripple in dB. Defaults to (1, 2).
+            ripple_freq: Range (min, max) for the randomized ripple frequency. Defaults to (2, 10).
+            num_taps: List of possible values for the number of taps. Defaults to [65].
+            passband_fuzz (Literal["smooth", "random"]): If "smooth", the passband
+                has zero phase. If "random", each bin is assigned a random phase.
+            stopband_fuzz (Literal["smooth", "random"]): If "smooth", the stopband
+                has zero phase. If "random", each bin is assigned a random phase.
             **kwargs: Additional keyword arguments passed to the parent class.
         """
-        super().__init__(
-            required_metadata=[], data_dtype=TorchSigComplexDataType, **kwargs
-        )
+        # Check for the deprecated argument
+        if "coefficient_decay_rate" in kwargs:
+            warnings.warn("The 'coefficient_decay_rate' argument is deprecated and will be removed in a future version.", DeprecationWarning, stacklevel=2)
+
+        super().__init__(required_metadata=[], data_dtype=TorchSigComplexDataType, **kwargs)
         self.max_ripple_db = max_ripple_db
         self.max_ripple_db_distribution = self.get_distribution(self.max_ripple_db)
         self.num_taps = num_taps
         self.num_taps_distribution = self.get_distribution(self.num_taps)
-        self.coefficient_decay_rate = coefficient_decay_rate
-        self.coefficient_decay_rate_distribution = self.get_distribution(
-            coefficient_decay_rate
-        )
+        self.ripple_freq = ripple_freq
+        self.ripple_freq_distribution = self.get_distribution(self.ripple_freq)
+        self.passband_fuzz = passband_fuzz
+        self.stopband_fuzz = stopband_fuzz
 
     def __apply__(self, signal: Signal) -> Signal:
         """Apply passband ripple to the signal.
@@ -1426,14 +1475,16 @@ class PassbandRipple(SignalTransform):
             Signal with passband ripple applied.
         """
         max_ripple_db = self.max_ripple_db_distribution()
+        ripple_freq = self.ripple_freq_distribution()
         num_taps = int(np.round(self.num_taps_distribution()))
-        coefficient_decay_rate = self.coefficient_decay_rate_distribution()
 
         signal.data = F.passband_ripple(
             data=signal.data,
             num_taps=num_taps,
             max_ripple_db=max_ripple_db,
-            coefficient_decay_rate=coefficient_decay_rate,
+            ripple_freq=ripple_freq,
+            passband_fuzz=self.passband_fuzz,
+            stopband_fuzz=self.stopband_fuzz,
             rng=self.random_generator,
         )
 
@@ -1448,20 +1499,22 @@ class PatchShuffle(SignalTransform):
 
     Attributes:
          patch_size: patch_size sets the size of each patch to shuffle
+
             * If int or float, patch_size is fixed at the value provided.
             * If list, patch_size is any element in the list.
             * If tuple, patch_size is in range of (tuple[0], tuple[1]).
+
         patch_size_distribution: Random draw from patch_size distribution.
         shuffle_ratio: shuffle_ratio sets the ratio of the patches to shuffle
+
             * If int or float, shuffle_ratio is fixed at the value provided.
             * If list, shuffle_ratio is any element in the list.
             * If tuple, shuffle_ratio is in range of (tuple[0], tuple[1]).
+
         shuffle_ratio_distribution: Random draw from shuffle_ratio distribution.
     """
 
-    def __init__(
-        self, patch_size=(3, 10), shuffle_ratio=(0.01, 0.05), **kwargs
-    ) -> None:
+    def __init__(self, patch_size=(3, 10), shuffle_ratio=(0.01, 0.05), **kwargs) -> None:
         """Initialize the PatchShuffle transform.
 
         Args:
@@ -1469,9 +1522,7 @@ class PatchShuffle(SignalTransform):
             shuffle_ratio: shuffle_ratio sets the ratio of the patches to shuffle. Defaults to (0.01, 0.05).
             **kwargs: Additional keyword arguments passed to the parent class.
         """
-        super().__init__(
-            required_metadata=[], data_dtype=TorchSigComplexDataType, **kwargs
-        )
+        super().__init__(required_metadata=[], data_dtype=TorchSigComplexDataType, **kwargs)
         self.patch_size = patch_size
         self.shuffle_ratio = shuffle_ratio
         self.patch_size_distribution = self.get_distribution(self.patch_size)
@@ -1497,9 +1548,7 @@ class PatchShuffle(SignalTransform):
             size=num_to_shuffle,
         )
 
-        signal.data = F.patch_shuffle(
-            signal.data, patch_size, patches_to_shuffle, self.random_generator
-        )
+        signal.data = F.patch_shuffle(signal.data, patch_size, patches_to_shuffle, self.random_generator)
 
         # PatchShuffle can have complicated signal feature effects in practice.
         # Any desired metadata updates should be made manually.
@@ -1532,15 +1581,11 @@ class Quantize(SignalTransform):
             rounding_mode: Quantization rounding method. Must be 'floor' or 'ceiling'. Defaults to ["floor", "ceiling"].
             **kwargs: Additional keyword arguments passed to the parent class.
         """
-        super().__init__(
-            required_metadata=[], data_dtype=TorchSigComplexDataType, **kwargs
-        )
+        super().__init__(required_metadata=[], data_dtype=TorchSigComplexDataType, **kwargs)
         self.num_bits = num_bits
         self.num_bits_distribution = self.get_distribution(self.num_bits)
         self.ref_level_adjustment_db = ref_level_adjustment_db
-        self.ref_level_adjustment_db_distribution = self.get_distribution(
-            self.ref_level_adjustment_db
-        )
+        self.ref_level_adjustment_db_distribution = self.get_distribution(self.ref_level_adjustment_db)
         self.rounding_mode = rounding_mode
         self.rounding_mode_distribution = self.get_distribution(self.rounding_mode)
 
@@ -1571,27 +1616,34 @@ class Quantize(SignalTransform):
 class RandomDropSamples(SignalTransform):
     """Randomly drop IQ samples from the input data of specified durations and
     with specified fill techniques:
-        * `ffill` (front fill): replace drop samples with the last previous value.
-        * `bfill` (back fill): replace drop samples with the next value.
-        * `mean`: replace drop samples with the mean value of the full data.
-        * `zero`: replace drop samples with zeros.
-    Transform is based off of the
-    `TSAug Dropout Transform <https://github.com/arundo/tsaug/blob/master/src/tsaug/_augmenter/dropout.py>`_.
+
+    * `ffill` (front fill): replace drop samples with the last previous value.
+    * `bfill` (back fill): replace drop samples with the next value.
+    * `mean`: replace drop samples with the mean value of the full data.
+    * `zero`: replace drop samples with zeros.
+
+    Transform is based off of the `TSAug Dropout Transform <https://github.com/arundo/tsaug/blob/master/src/tsaug/_augmenter/dropout.py>`_.
 
     Attributes:
-        drop_rate: drop_rate sets the rate at which to drop samples
+        drop_rate: drop_rate sets the rate at which to drop samples.
+
             * If int or float, drop_rate is fixed at the value provided.
             * If list, drop_rate is any element in the list.
             * If tuple, drop_rate is in range of (tuple[0], tuple[1]).
+
         drop_rate_distribution: Random draw from drop_rate distribution.
-        size: size sets the size of each instance of dropped samples
+        size: size sets the size of each instance of dropped samples.
+
             * If int or float, size is fixed at the value provided.
             * If list, size is any element in the list.
             * If tuple, size is in range of (tuple[0], tuple[1]).
+
         size_distribution: Random draw from size distribution.
-        fill: fill sets the method of how the dropped samples should be filled
+        fill: fill sets the method of how the dropped samples should be filled.
+
             * If list, fill is any element in the list.
             * If str, fill is fixed at the method provided.
+
         fill_distribution: Random draw from fill distribution.
     """
 
@@ -1610,9 +1662,7 @@ class RandomDropSamples(SignalTransform):
             fill: fill sets the method of how the dropped samples should be filled. Defaults to ["ffill", "bfill", "mean", "zero"].
             **kwargs: Additional keyword arguments passed to the parent class.
         """
-        super().__init__(
-            required_metadata=[], data_dtype=TorchSigComplexDataType, **kwargs
-        )
+        super().__init__(required_metadata=[], data_dtype=TorchSigComplexDataType, **kwargs)
         self.drop_rate = drop_rate
         self.size = size
         self.fill = fill
@@ -1637,9 +1687,7 @@ class RandomDropSamples(SignalTransform):
         if drop_instances < 1:
             return signal  # drop no samples and return the input signal if we have randomly selected to drop zero samples
         drop_sizes = self.size_distribution(size=drop_instances).astype(int)
-        drop_starts = self.random_generator.uniform(
-            1, signal.data.shape[0] - max(drop_sizes) - 1, drop_instances
-        ).astype(int)
+        drop_starts = self.random_generator.uniform(1, signal.data.shape[0] - max(drop_sizes) - 1, drop_instances).astype(int)
         signal.data = F.drop_samples(signal.data, drop_starts, drop_sizes, fill)
 
         return signal
@@ -1670,9 +1718,7 @@ class Shadowing(SignalTransform):
             sigma_db_range: Sigma value range in dB. Defaults to (2.0, 6.0).
             **kwargs: Additional keyword arguments passed to the parent class.
         """
-        super().__init__(
-            required_metadata=[], data_dtype=TorchSigComplexDataType, **kwargs
-        )
+        super().__init__(required_metadata=[], data_dtype=TorchSigComplexDataType, **kwargs)
         self.mean_db_range = mean_db_range
         self.mean_db_distribution = self.get_distribution(self.mean_db_range)
         self.sigma_db_range = sigma_db_range
@@ -1712,9 +1758,7 @@ class SpectralInversion(SignalTransform):
         Args:
             **kwargs: Additional keyword arguments passed to the parent class.
         """
-        super().__init__(
-            required_metadata=[], data_dtype=TorchSigComplexDataType, **kwargs
-        )
+        super().__init__(required_metadata=[], data_dtype=TorchSigComplexDataType, **kwargs)
 
     def __apply__(self, signal: Signal) -> Signal:
         """Apply spectral inversion to the signal.
@@ -1749,19 +1793,17 @@ class Spectrogram(SignalTransform):
         fft_size: The FFT size (number of bins) in the spectrogram.
     """
 
-    def __init__(self, fft_size: int, **kwargs):
+    def __init__(self, fft_size: int, fft_stride: int = None, **kwargs):
         """Initialize the Spectrogram transform.
 
         Args:
             fft_size: The FFT size (number of bins) in the spectrogram.
             **kwargs: Additional keyword arguments passed to the parent class.
         """
-        super().__init__(
-            required_metadata=[], data_dtype=TorchSigRealDataType, **kwargs
-        )
+        super().__init__(required_metadata=[], data_dtype=TorchSigRealDataType, **kwargs)
         self.fft_size = fft_size
         # fft_stride is the number of data points to move or "hop" over when computing the next FF
-        self.fft_stride = copy(fft_size)
+        self.fft_stride = copy(fft_size) if fft_stride is None else fft_stride
 
     def __apply__(self, signal: Signal) -> Signal:
         """Apply spectrogram computation to the signal.
@@ -1800,18 +1842,24 @@ class SpectrogramDropSamples(SignalTransform):
 
     Attributes:
         drop_rate: drop_rate sets the rate at which to drop samples
+
             * If int or float, drop_rate is fixed at the value provided.
             * If list, drop_rate is any element in the list.
             * If tuple, drop_rate is in range of (tuple[0], tuple[1]).
+
         drop_rate_distribution: Random draw from drop_rate distribution.
         size: size sets the size of each instance of dropped samples
+
             * If int or float, size is fixed at the value provided.
             * If list, size is any element in the list.
             * If tuple, size is in range of (tuple[0], tuple[1]).
+
         size_distribution: Random draw from size distribution.
         fill: fill sets the method of how the dropped samples should be filled
+
             * If list, fill is any element in the list.
             * If str, fill is fixed at the method provided.
+
         fill_distribution: Random draw from fill distribution.
     """
 
@@ -1819,9 +1867,7 @@ class SpectrogramDropSamples(SignalTransform):
         self,
         drop_rate=(0.001, 0.005),
         size=(1, 10),
-        fill: list[str] = (
-            ["ffill", "bfill", "mean", "zero", "low", "min", "max", "ones"]
-        ),
+        fill: list[str] = (["ffill", "bfill", "mean", "zero", "low", "min", "max", "ones"]),
         **kwargs,
     ) -> None:
         """Initialize the SpectrogramDropSamples transform.
@@ -1832,9 +1878,7 @@ class SpectrogramDropSamples(SignalTransform):
             fill: fill sets the method of how the dropped samples should be filled. Defaults to ["ffill", "bfill", "mean", "zero", "low", "min", "max", "ones"].
             **kwargs: Additional keyword arguments passed to the parent class.
         """
-        super().__init__(
-            required_metadata=[], data_dtype=TorchSigRealDataType, **kwargs
-        )
+        super().__init__(required_metadata=[], data_dtype=TorchSigRealDataType, **kwargs)
         self.drop_rate = drop_rate
         self.size = size
         self.fill = fill
@@ -1859,9 +1903,7 @@ class SpectrogramDropSamples(SignalTransform):
         if drop_instances < 1:
             return signal  # if drop sizes is empty, just return signal
         if len(drop_sizes) > 0:
-            drop_starts = self.random_generator.uniform(
-                0, signal.data.shape[0] - max(drop_sizes), drop_instances
-            ).astype(int)
+            drop_starts = self.random_generator.uniform(0, signal.data.shape[0] - max(drop_sizes), drop_instances).astype(int)
 
             signal.data = F.spectrogram_drop_samples(
                 signal.data,
@@ -1890,9 +1932,7 @@ class SpectrogramImage(SignalTransform):
             black_hot: Toggles black hot spectrogram. Defaults to True (black hot).
             **kwargs: Additional keyword arguments passed to the parent class.
         """
-        super().__init__(
-            required_metadata=[], data_dtype=TorchSigRealDataType, **kwargs
-        )
+        super().__init__(required_metadata=[], data_dtype=TorchSigRealDataType, **kwargs)
         self.fft_size = fft_size
         self.fft_stride = fft_size  # note: size = stride
         self.black_hot = black_hot
@@ -1945,13 +1985,9 @@ class TimeReversal(SignalTransform):
         elif isinstance(allow_spectral_inversion, float):
             self.allow_spectral_inversion = allow_spectral_inversion
         else:
-            raise TypeError(
-                f"Invalid type for allow_spectral_inversion {type(allow_spectral_inversion)}. Must be bool or float."
-            )
+            raise TypeError(f"Invalid type for allow_spectral_inversion {type(allow_spectral_inversion)}. Must be bool or float.")
 
-        super().__init__(
-            required_metadata=[], data_dtype=TorchSigComplexDataType, **kwargs
-        )
+        super().__init__(required_metadata=[], data_dtype=TorchSigComplexDataType, **kwargs)
 
     def __apply__(self, signal: Signal) -> Signal:
         """Apply time reversal to the signal.
@@ -2022,18 +2058,14 @@ class TimeVaryingNoise(SignalTransform):
             random_regions: Inflections points spread randomly (True) or evenly (False). Defaults to True.
             **kwargs: Additional keyword arguments passed to the parent class.
         """
-        super().__init__(
-            required_metadata=[], data_dtype=TorchSigComplexDataType, **kwargs
-        )
+        super().__init__(required_metadata=[], data_dtype=TorchSigComplexDataType, **kwargs)
         self.noise_power_low = noise_power_low
         self.noise_power_high = noise_power_high
         self.inflections = inflections
         self.random_regions = random_regions
 
         self.noise_power_low_distribution = self.get_distribution(self.noise_power_low)
-        self.noise_power_high_distribution = self.get_distribution(
-            self.noise_power_high
-        )
+        self.noise_power_high_distribution = self.get_distribution(self.noise_power_high)
         self.inflections_distribution = self.get_distribution(self.inflections)
         self.random_regions_distribution = self.get_distribution(self.random_regions)
 
@@ -2066,7 +2098,8 @@ class TimeVaryingNoise(SignalTransform):
 class Spurs(SignalTransform):
     """Simulates spurs by adding tones into the receive signal.
 
-    This transform adds spurious signals (tones) at specified frequencies with specified power levels.
+    This transform adds spurious signals (tones) at specified frequencies with specified power levels. Be aware that Spurs applied
+    to component signals can impact estimates of SNR, Bandwidth, and metadata like bounding boxes.
 
     Attributes:
         num_spurs: The range of numbers of spurs to add. Defaults to (1,4).
@@ -2086,16 +2119,12 @@ class Spurs(SignalTransform):
             relative_power_db: The range of relative power for the spurs. Defaults to (0, 30).
             **kwargs: Additional keyword arguments passed to the parent class.
         """
-        super().__init__(
-            required_metadata=[], data_dtype=TorchSigComplexDataType, **kwargs
-        )
+        super().__init__(required_metadata=[], data_dtype=TorchSigComplexDataType, **kwargs)
         self.num_spurs = num_spurs
         self.num_spurs_distribution = self.get_distribution(self.num_spurs)
 
         self.relative_power_db = relative_power_db
-        self.relative_power_db_distribution = self.get_distribution(
-            self.relative_power_db
-        )
+        self.relative_power_db_distribution = self.get_distribution(self.relative_power_db)
 
     def __apply__(self, signal: Signal) -> Signal:
         """Apply spurs to the signal.
@@ -2137,3 +2166,41 @@ class Spurs(SignalTransform):
         )
 
         return signal
+
+
+__all__ = [
+    "AWGN",
+    "AddSlope",
+    "AdditiveNoise",
+    "AdjacentChannelInterference",
+    "CarrierFrequencyDrift",
+    "CarrierPhaseNoise",
+    "CarrierPhaseOffset",
+    "ChannelSwap",
+    "ClockDrift",
+    "ClockJitter",
+    "CoarseGainChange",
+    "CochannelInterference",
+    "ComplexTo2D",
+    "CutOut",
+    "DigitalAGC",
+    "Doppler",
+    "Fading",
+    "IQImbalance",
+    "InterleaveComplex",
+    "IntermodulationProducts",
+    "NonlinearAmplifier",
+    "PassbandRipple",
+    "PatchShuffle",
+    "Quantize",
+    "RandomDropSamples",
+    "Shadowing",
+    "SignalTransform",
+    "SpectralInversion",
+    "Spectrogram",
+    "SpectrogramDropSamples",
+    "SpectrogramImage",
+    "Spurs",
+    "TimeReversal",
+    "TimeVaryingNoise",
+]

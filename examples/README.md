@@ -13,4 +13,6 @@ This folder contains sample Jupyter Notebooks and Markdown files that demonstrat
 | filehandler_example.ipynb | How to create and use a custom file handler for writing data to disk in a custom format. |
 | reproducibility_example.ipynb | How to create a reproducible dataset and dataloader using random number generator seeding. |
 | yaml_dataset_example.ipynb | Saving and loading datasets using YAML configuration files. |
+| scripts/ | Provides some useful auxiliary Python scripts. |
+| structured_signals/ | Brief overview of structured signals in TorchSig, and illustrative script. |
 | transforms/ | Showcases some advanced transforms and how they work. |

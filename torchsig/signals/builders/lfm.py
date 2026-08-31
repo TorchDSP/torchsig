@@ -18,6 +18,8 @@ from torchsig.utils.dsp import (
     slice_head_tail_to_length,
 )
 
+__all__ = ["LFMSignalGenerator", "get_symbol_map", "lfm_modulator", "lfm_modulator_baseband"]
+
 
 def get_symbol_map() -> OrderedDict[str, np.ndarray]:
     """Generates symbol maps for LFM signals.
@@ -74,9 +76,7 @@ def lfm_modulator_baseband(
     # Get symbol map
     symbol_map = get_symbol_map()
     if lfm_type not in symbol_map:
-        raise ValueError(
-            f"Unsupported LFM type: {lfm_type}. Must be one of: {list(symbol_map.keys())}"
-        )
+        raise ValueError(f"Unsupported LFM type: {lfm_type}. Must be one of: {list(symbol_map.keys())}")
 
     const = symbol_map[lfm_type]
 
@@ -84,9 +84,7 @@ def lfm_modulator_baseband(
     samples_per_symbol = rng.integers(low=128, high=4096)
 
     # Generate symbols
-    symbol_nums = rng.integers(
-        0, len(const), int(np.ceil(max_num_samples / samples_per_symbol))
-    )
+    symbol_nums = rng.integers(0, len(const), int(np.ceil(max_num_samples / samples_per_symbol)))
     symbols = const[symbol_nums]
 
     # Create chirp templates
@@ -170,20 +168,12 @@ def lfm_modulator(
     num_samples_baseband = max(1, int(np.ceil(num_samples / resample_rate_ideal)))
 
     # Generate and resample signal
-    lfm_signal_baseband = lfm_modulator_baseband(
-        lfm_type, num_samples_baseband, oversampling_rate_nominal, rng
-    )
+    lfm_signal_baseband = lfm_modulator_baseband(lfm_type, num_samples_baseband, oversampling_rate_nominal, rng)
 
-    lfm_mod_correct_bw = multistage_polyphase_resampler(
-        lfm_signal_baseband, resample_rate_ideal
-    )
+    lfm_mod_correct_bw = multistage_polyphase_resampler(lfm_signal_baseband, resample_rate_ideal)
 
     # Adjust signal length
-    lfm_mod_correct_bw = (
-        slice_head_tail_to_length(lfm_mod_correct_bw, num_samples)
-        if len(lfm_mod_correct_bw) > num_samples
-        else pad_head_tail_to_length(lfm_mod_correct_bw, num_samples)
-    )
+    lfm_mod_correct_bw = slice_head_tail_to_length(lfm_mod_correct_bw, num_samples) if len(lfm_mod_correct_bw) > num_samples else pad_head_tail_to_length(lfm_mod_correct_bw, num_samples)
 
     return lfm_mod_correct_bw.astype(TorchSigComplexDataType)
 
@@ -235,9 +225,7 @@ class LFMSignalGenerator(BaseSignalGenerator):
             low=self["signal_duration_in_samples_min"],
             high=self["signal_duration_in_samples_max"] + 1,
         )
-        bandwidth = self.random_generator.integers(
-            low=self["bandwidth_min"], high=self["bandwidth_max"] + 1
-        )
+        bandwidth = self.random_generator.integers(low=self["bandwidth_min"], high=self["bandwidth_max"] + 1)
         lfm_type = self["lfm_type"]
 
         # Generate signal

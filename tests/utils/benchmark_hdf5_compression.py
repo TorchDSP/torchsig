@@ -8,11 +8,12 @@ import csv
 import shutil
 import statistics
 import time
-from tqdm import tqdm
 from pathlib import Path
 
 import h5py
 import numpy as np
+from tqdm import tqdm
+
 from torchsig.signals.signal_types import Signal
 from torchsig.utils.file_handlers.hdf5 import HDF5Writer
 
@@ -326,7 +327,7 @@ def main() -> None:
     for row in summary_rows:
         print(
             f"{row['dataset_name']:>16} | "
-            f"{row['requested_compression']:>4} {str(row['requested_level']):>4} | "
+            f"{row['requested_compression']:>4} {row['requested_level']!s:>4} | "
             f"walltime {row['walltime_mean_s']:.6f} ± {row['walltime_std_s']:.6f} s | "
             f"size {row['file_size_mean_bytes']:.0f} ± {row['file_size_std_bytes']:.0f} B | "
             f"propagated={row['propagated_all_runs']} | "

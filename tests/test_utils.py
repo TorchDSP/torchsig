@@ -1,7 +1,5 @@
-import numpy as np
 import matplotlib.pyplot as plt
-
-from typing import List
+import numpy as np
 
 # Signal Metadata type checking
 
@@ -10,7 +8,7 @@ signal_metadata_ints = ["start_in_samples", "duration_in_samples", "class_index"
 signal_metadata_strs = ["class_name"]
 
 
-def save_sample(savepath: str, data: np.ndarray, targets: List[dict], sample_rate: float):
+def save_sample(savepath: str, data: np.ndarray, targets: list[dict], sample_rate: float):
     # plot sample
     fig = plt.figure(figsize=(18, 12))
     ax = fig.add_subplot(1, 1, 1)
@@ -24,7 +22,6 @@ def save_sample(savepath: str, data: np.ndarray, targets: List[dict], sample_rat
     title = "labels: "
 
     for t in targets:
-
         ax.plot([t["start"], t["start"]], [t["lower_freq"], t["upper_freq"]], "b", alpha=0.5)
         ax.plot([t["stop"], t["stop"]], [t["lower_freq"], t["upper_freq"]], "b", alpha=0.5)
         ax.plot([t["start"], t["stop"]], [t["lower_freq"], t["lower_freq"]], "b", alpha=0.5)

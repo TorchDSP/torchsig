@@ -8,6 +8,8 @@ from torchsig.signals.builder import BaseSignalGenerator
 from torchsig.signals.signal_types import Signal
 from torchsig.utils.dsp import TorchSigComplexDataType
 
+__all__ = ["ToneSignalGenerator", "tone_modulator"]
+
 
 def tone_modulator(num_samples: int) -> np.ndarray:
     """Implements a tone modulator.
@@ -74,5 +76,7 @@ class ToneSignalGenerator(BaseSignalGenerator):
         signal_data = tone_modulator(num_iq_samples_signal)
 
         return Signal(
-            data=signal_data, center_freq=0, bandwidth=1  # Tone has 1Hz bandwidth
+            data=signal_data,
+            center_freq=0,
+            bandwidth=1,  # Tone has 1Hz bandwidth
         )

@@ -6,6 +6,8 @@ import numpy as np
 
 from torchsig.utils.dsp import low_pass_iterative_design
 
+__all__ = ["check_signal_class", "random_limiting_filter_design"]
+
 
 def check_signal_class(name: str, possible_names: list[str]) -> bool:
     """Check if the provided signal name matches any of the possible signal names.
@@ -29,17 +31,13 @@ def check_signal_class(name: str, possible_names: list[str]) -> bool:
     """
     if not isinstance(name, str):
         raise TypeError("name must be a string")
-    if not isinstance(possible_names, list) or not all(
-        isinstance(n, str) for n in possible_names
-    ):
+    if not isinstance(possible_names, list) or not all(isinstance(n, str) for n in possible_names):
         raise TypeError("possible_names must be a list of strings")
 
     return any(n in name for n in possible_names)
 
 
-def random_limiting_filter_design(
-    bandwidth: float, sample_rate: float, rng: np.random.Generator | None = None
-) -> np.ndarray:
+def random_limiting_filter_design(bandwidth: float, sample_rate: float, rng: np.random.Generator | None = None) -> np.ndarray:
     """Design a coarse bandwidth limiting filter with randomized parameters.
 
     Uses TorchSig's iterative designer function to create a low-pass filter

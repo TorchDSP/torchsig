@@ -15,7 +15,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from tqdm import tqdm
 
-from torchsig.datasets.datasets import StaticTorchSigDataset
+__all__ = ["DEF_N_BINS", "DatasetSummary", "summarize_dataset"]
 
 DEF_N_BINS = 50
 
@@ -56,6 +56,8 @@ class DatasetSummary:
                 metrics, or a dict mapping metric names to bin counts.
                 Defaults to 50.
         """
+        from torchsig.datasets.datasets import StaticTorchSigDataset
+
         dataset = StaticTorchSigDataset(root=root, target_labels=None)
         self._build(dataset, n_bins)
 

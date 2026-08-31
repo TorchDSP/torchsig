@@ -1,7 +1,7 @@
 <a align="center" href="https://torchsig.com">
     <picture>
-        <source media="(prefers-color-scheme: dark)" srcset="docs/torchsig_logo_white_dodgerblue.png">
-        <img src="docs/logo.png" width="500">
+        <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/TorchDSP/torchsig/main/docs/torchsig_logo_white_dodgerblue.png">
+        <img src="https://raw.githubusercontent.com/TorchDSP/torchsig/main/docs/torchsig_logo_white_dodgerblue.png" width="500">
     </picture>
 </a>
 
@@ -25,9 +25,40 @@ Clone the `torchsig` repository and install using the following commands:
 ```
 git clone https://github.com/TorchDSP/torchsig.git
 cd torchsig
+
+# Runtime only (for normal usage)
 pip install -e .
+
+# Full development environment (for contributors)
+pip install -e .[dev]
+
+# Documentation build environment
+pip install -e ".[docs]"
+
+# To run the notebooks
+pip install -e .[notebooks]
+
+# To run the notebooks, including examples
+pip install -e .[examples]
 ```
+
+**When to use which command?**
+
+* `pip install -e .` — pulls in only the runtime dependencies (PyTorch, OpenCV, etc.).  
+  Use this if you just want to run the library in your own projects.
+
+* `pip install -e .[dev]` — adds the extra **dev** group, installing testing, linting, and coverage tools.  
+  It also includes the documentation dependencies. Choose this when you plan to develop, run the test suite, build the documentation, or contribute code back to the project.
+
+* `pip install -e .[docs]` — installs the Sphinx documentation toolchain without the testing and linting tools.
+  Choose this when you only need to build the documentation.
  
+* `pip install -e .[notebooks]` — adds the extra **notebook** group, jupyter notebook tools.
+  Choose this when you plan to develop or run notebooks for the project.
+
+* `pip install -e .[examples]` — adds the extra **examples** group, including optional dependencies to run all examples in the notebooks and scripts.
+  Choose this when you plan to run the examples from the project.
+
 # Examples and Tutorials
 
 TorchSig has a series of Jupyter notebooks in the `examples/` directory. View the README inside `examples/` to learn more.
@@ -122,12 +153,61 @@ TorchSig provides many useful tools to facilitate and accelerate research on sig
 # Documentation
 Documentation can be found [online](https://torchsig.readthedocs.io/latest/) or built locally by following the instructions below.
 ```
-cd docs
-pip install -r docs-requirements.txt
-make html
-firefox build/html/index.html
+pip install -e ".[docs]"
+make docs
+firefox docs/build/html/index.html
 ```
 
+## 🛠️ Development Workflow
+
+To simplify environment setup and maintain code quality, this project uses a `Makefile`. This provides a standardized set of shortcuts for common development tasks, ensuring consistency across different environments.
+
+### Common Commands
+
+| Command | Description | Tool Used |
+| :--- | :--- | :--- |
+| `make install` | Installs dependencies and the package in editable mode. | `pip` |
+| `make test` | Runs the fast test suite by default, skipping tests marked `slow` and CPU-only tests marked `slow_no_gpu`. | `pytest` |
+| `make test TEST_MODE=full` | Runs the full test suite, including `slow` and `slow_no_gpu` tests. | `pytest` |
+| `make test TEST_MODE=fast` | Runs the default fast test suite explicitly. | `pytest` |
+| `make test-cov` | Runs tests and generates a detailed coverage report. | `pytest-cov` |
+| `make test-notebooks` | Executes all Jupyter notebooks to verify they run without errors. | `jupyter` |
+| `make test-notebooks-clean` | Removes stamp files created by notebook execution. | `shell` |
+| `make clean-notebooks` | Removes all output from executed notebooks. | `jupyter` |
+| `make lint` | Performs static analysis to find bugs and style issues. | `ruff` |
+| `make format` | Automatically formats the codebase to project standards. | `ruff` |
+| `make fix` | Automatically fixes linting errors and formats the code. | `ruff` |
+| `make clean` | Wipes `__pycache__`, test caches, and `/tmp` artifacts. | `shell` |
+| `make build` | Builds source distribution (sdist) and wheel for PyPI. | `build` |
+| `make verify` | Validates distribution files and lists them (pre-publish check). | `twine`, `shell` |
+| `make publish` | Uploads distribution files to PyPI. | `twine` |
+| `make docs` | Builds the HTML documentation. | `sphinx` |
+| `make open-docs` | Opens the built documentation in the default browser. | `shell` |
+| `make benchmarks` | Runs the bencharks. | `pytest-benchmarks` |
+| `make benchmarks-clean` | Removes previous benchmark results. | `shell` |
+
+For a full list of available targets and descriptions, run:
+```bash
+make help
+```
+
+Note for Windows Users: make is a Unix utility. To use these commands on Windows, please use WSL (Windows Subsystem for Linux), Git Bash, or install make via Chocolatey.
+
+### Pre-commit Hooks
+
+TorchSig uses `pre-commit` to run automated checks before commits. After installing the development dependencies, install the Git hooks with:
+
+```bash
+pre-commit install
+```
+
+To run all pre-commit checks manually:
+
+```bash
+pre-commit run --all-files
+```
+
+The hooks will automatically run on staged files when committing. If a hook modifies a file, review and stage the changes before committing again.
 
 # License
 TorchSig is released under the MIT License. The MIT license is a popular open-source software license enabling free use, redistribution, and modifications, even for commercial purposes, provided the license is included in all copies or substantial portions of the software. TorchSig has no connection to MIT, other than through the use of this license.

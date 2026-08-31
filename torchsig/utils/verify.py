@@ -2,18 +2,6 @@
 
 from __future__ import annotations
 
-__all__ = [
-    "verify_dict",
-    "verify_distribution_list",
-    "verify_float",
-    "verify_int",
-    "verify_list",
-    "verify_metadata_transforms",
-    "verify_numpy_array",
-    "verify_str",
-    "verify_transforms",
-]
-
 # Third Party
 from collections import Counter
 
@@ -25,6 +13,18 @@ import numpy as np
 if TYPE_CHECKING:
     from torchsig.transforms.base_transforms import Transform
     from torchsig.transforms.target_transforms import MetadataTransform
+
+__all__ = [
+    "verify_dict",
+    "verify_distribution_list",
+    "verify_float",
+    "verify_int",
+    "verify_list",
+    "verify_metadata_transforms",
+    "verify_numpy_array",
+    "verify_str",
+    "verify_transforms",
+]
 
 
 def verify_bounds(
@@ -164,9 +164,7 @@ def verify_float(
 
 
 # lower, upper, title
-def verify_str(
-    s: str, name: str, valid: list[str] = [], str_format: str = "lower"
-) -> str:
+def verify_str(s: str, name: str, valid: list[str] = [], str_format: str = "lower") -> str:
     """Verifies that the value `s` is a string and optionally formats it according to the specified format.
 
     Args:
@@ -201,9 +199,7 @@ def verify_str(
     return s
 
 
-def verify_distribution_list(
-    distro: list[float], required_length: int, distro_name: str, list_name: str
-) -> list[float]:
+def verify_distribution_list(distro: list[float], required_length: int, distro_name: str, list_name: str) -> list[float]:
     """Verifies and normalizes a given distribution list.
 
     If the distribution list is `None`, it assumes a uniform distribution and returns it as is.
@@ -226,9 +222,7 @@ def verify_distribution_list(
         return distro
 
     if len(distro) != required_length:
-        raise ValueError(
-            f"{distro_name} = {len(distro)} must be same length as {list_name} = {required_length}"
-        )
+        raise ValueError(f"{distro_name} = {len(distro)} must be same length as {list_name} = {required_length}")
 
     if np.sum(distro) != 1.0:
         # automatically normalize distribution, warn users of this behavior
@@ -274,9 +268,7 @@ def verify_list(
     if data_type is not None:
         for i, item in enumerate(list_check):
             if not isinstance(item, data_type):
-                raise TypeError(
-                    f"{name}[{i}] = {item} is not correct data type {data_type}: {type(item)}"
-                )
+                raise TypeError(f"{name}[{i}] = {item} is not correct data type {data_type}: {type(item)}")
 
     return list_check
 
@@ -307,14 +299,12 @@ def verify_numpy_array(
         np.ndarray: The verified NumPy array `n`.
     """
     if isinstance(n, (list, tuple)):
-        n = np.narray(n)
+        n = np.array(n)
     elif not isinstance(n, np.ndarray):
         raise TypeError(f"{name} is not a numpy array: {type(n)}")
 
     if min_length is not None and len(n) < min_length:
-        raise ValueError(
-            f"{name} is not at least minimum length {min_length}: {len(n)}"
-        )
+        raise ValueError(f"{name} is not at least minimum length {min_length}: {len(n)}")
 
     if max_length is not None and len(n) > max_length:
         raise ValueError(f"{name} exceeds maximum length {max_length}: {len(n)}")
@@ -325,9 +315,7 @@ def verify_numpy_array(
     if data_type is not None:
         item = n[0]
         if not isinstance(item, data_type):
-            raise ValueError(
-                f"{name}[0] is not correct dtype {data_type}: {type(item)}"
-            )
+            raise ValueError(f"{name}[0] is not correct dtype {data_type}: {type(item)}")
 
     # check for np.nan's
     if np.isnan(n).any():
@@ -367,9 +355,7 @@ def verify_dict(
         if k not in d:
             raise ValueError(f"{name} is missing required key {k}: {d.keys()}")
         if len(required_keys) > 0 and not isinstance(d[k], required_types[i]):
-            raise ValueError(
-                f"{name}[{k}] is not required type {required_types[i]}: {type(k)}"
-            )
+            raise ValueError(f"{name}[{k}] is not required type {required_types[i]}: {type(k)}")
 
     return d
 
@@ -401,9 +387,7 @@ def verify_transforms(t: Transform) -> list[Transform | callable]:
 
     for transform in t:
         if not callable(transform):
-            raise TypeError(
-                f"non-callable or non-Transform object found in transforms; all transforms must be a callable: {transform}"
-            )
+            raise TypeError(f"non-callable or non-Transform object found in transforms; all transforms must be a callable: {transform}")
 
     return t
 
@@ -434,8 +418,20 @@ def verify_metadata_transforms(
 
     for target_transform in tt:
         if not callable(target_transform):
-            raise TypeError(
-                f"non-callable or non-Transform object found in transforms; all transforms must be a callable: {target_transform}"
-            )
+            raise TypeError(f"non-callable or non-Transform object found in transforms; all transforms must be a callable: {target_transform}")
 
     return tt
+
+
+__all__ = [
+    "verify_bounds",
+    "verify_dict",
+    "verify_distribution_list",
+    "verify_float",
+    "verify_int",
+    "verify_list",
+    "verify_metadata_transforms",
+    "verify_numpy_array",
+    "verify_str",
+    "verify_transforms",
+]

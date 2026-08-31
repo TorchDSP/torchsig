@@ -1,17 +1,17 @@
 """Unit Tests: transforms/base_transforms"""
 
-from torchsig.transforms.base_transforms import Transform, Compose, Lambda, Normalize, RandomApply, RandAugment
-from torchsig.signals.signal_types import Signal
-from torchsig.utils.dsp import TorchSigComplexDataType
+# Third Party
+from collections.abc import Callable
+
+import numpy as np
+import pytest
 from test_transforms_utils import (
     generate_test_signal,
 )
 
-# Third Party
-from typing import Callable
-import numpy as np
-import pytest
-
+from torchsig.signals.signal_types import Signal
+from torchsig.transforms.base_transforms import Compose, Lambda, Normalize, RandAugment, RandomApply, Transform
+from torchsig.utils.dsp import TorchSigComplexDataType
 
 AnySignal = Signal
 RTOL = 1e-6

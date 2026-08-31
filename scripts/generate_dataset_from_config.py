@@ -9,7 +9,7 @@ from typing import Literal
 
 from torchsig.utils.defaults import TorchSigDefaults
 from torchsig.signals.signal_lists import FAMILY_SHARED_LIST
-from torchsig.datasets.datasets import TorchSigIterableDataset
+from torchsig.datasets.datasets import SafeTorchSigIterableDataset
 from torchsig.transforms.impairments import Impairments
 from torchsig.transforms.transforms import ComplexTo2D, Spectrogram
 from torchsig.transforms.metadata_transforms import YOLOLabel
@@ -20,7 +20,7 @@ from torchsig.utils.yaml import load_config_from_yaml
 
 
 def configure_signal_generators(
-    dataset: TorchSigIterableDataset,
+    dataset: SafeTorchSigIterableDataset,
     mode: Literal["per_signal", "per_family"],
 ) -> None:
     """Configure dataset signal placement probabilities. This function adjusts the signal generator
@@ -111,7 +111,7 @@ def generate_dataset() -> None:
     # - per_signal: initialize with signal_generators="all"
     # - per_family: initialize empty, then add family generators
     signal_generators = "all" if mode == "per_signal" else []
-    dataset = TorchSigIterableDataset(
+    dataset = SafeTorchSigIterableDataset(
         signal_generators=signal_generators,
         metadata=dataset_metadata,
         transforms=transforms,

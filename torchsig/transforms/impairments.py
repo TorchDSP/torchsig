@@ -27,9 +27,10 @@ from torchsig.transforms.transforms import (
     Quantize,
     RandomDropSamples,
     SpectralInversion,
-    Spurs,
     TimeReversal,
 )
+
+__all__ = ["Impairments"]
 
 
 class Impairments(Transform):
@@ -79,7 +80,6 @@ class Impairments(Transform):
             RandomApply(CarrierPhaseOffset(), 1.0),
             RandomApply(IntermodulationProducts(), 0.5),
             RandomApply(NonlinearAmplifier(), 0.75),
-            RandomApply(Spurs(), 0.75),
             RandomApply(SpectralInversion(), 0.25),
         ]
 
@@ -87,7 +87,6 @@ class Impairments(Transform):
             RandomApply(IntermodulationProducts(), 0.5),
             RandomApply(NonlinearAmplifier(), 0.75),
             RandomApply(CoarseGainChange(), 0.25),
-            RandomApply(Spurs(), 0.75),
             RandomApply(IQImbalance(), 0.5),
             RandomApply(CarrierPhaseNoise(), 0.75),
             RandomApply(CarrierFrequencyDrift(), 0.75),
@@ -125,9 +124,7 @@ class Impairments(Transform):
         # Signal (TX) Transforms
         st_level_0 = []  # None
         st_level_1 = copy(tx_hw_impairments)  # TX impairments
-        st_level_2 = (
-            copy(st_level_1) + channel_models
-        )  # TX impairments + channel models
+        st_level_2 = copy(st_level_1) + channel_models  # TX impairments + channel models
 
         st_all_levels = [st_level_0, st_level_1, st_level_2]
 

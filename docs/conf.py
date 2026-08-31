@@ -14,7 +14,9 @@
 import os
 import sys
 
-import sphinx_rtd_theme
+from torchsig import __version__
+
+from torchsig import __version__
 
 from torchsig import __version__
 
@@ -42,9 +44,26 @@ extensions = [
     "sphinx.ext.autosummary",
 ]
 
+# Autosummary Settings
 autosummary_generate = True
+autosummary_imported_members = True  # Required for re-imports in __init__.py / __all__
+
+# Autodoc Settings
 autodoc_member_order = "bysource"
-autodoc_default_flags = ["members", "inherited-members"]
+autodoc_default_options = {
+    "members": True,
+    "imported-members": True,  # Documents members brought in via re-imports
+    "undoc-members": False,    # Hides undocumented internal methods
+    "show-inheritance": True,  # Displays base class names without duplicating their methods
+}
+
+# Typehint & Formatting Settings
+autodoc_typehints = "description"
+autodoc_typehints_format = "short"
+autodoc_preserve_defaults = True
+
+# Sphinx Constraint
+needs_sphinx = "9.1"
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ["_templates"]
@@ -60,7 +79,7 @@ master_doc = "index"
 
 # General information about the project.
 project = "torchsig"
-copyright = "2022, torchsig contributors"
+copyright = "2026, torchsig contributors"
 
 # The version info for the project you're documenting, acts as replacement for
 # |version| and |release|, also used in various other places throughout the
@@ -117,15 +136,13 @@ html_theme = "sphinx_rtd_theme"
 # documentation.
 # html_theme_options = {}
 
-# Add any paths that contain custom themes here, relative to this directory.
-html_theme_path = [sphinx_rtd_theme.get_html_theme_path()]
 
 # The name for this set of Sphinx documents.  If None, it defaults to
 # "<project> v<release> documentation".
-# html_title = None
+html_title = "torchsig"
 
 # A shorter title for the navigation bar.  Default is the same as html_title.
-# html_short_title = None
+html_short_title = "torchsig"
 
 # Theme options are theme-specific and customize the look and feel of a theme
 # further.  For a list of options available for each theme, see the
@@ -139,7 +156,7 @@ html_theme_path = [sphinx_rtd_theme.get_html_theme_path()]
 
 # The name of an image file (relative to this directory) to place at the top
 # of the sidebar.
-# html_logo = '_static/img/pytorch-logo-dark.svg'
+html_logo = "logo.png"
 
 # The name of an image file (within the static path) to use as favicon of the
 # docs.  This file should be a Windows icon file (.ico) being 16x16 or 32x32
@@ -149,7 +166,7 @@ html_theme_path = [sphinx_rtd_theme.get_html_theme_path()]
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
-html_static_path = ["_static"]
+# html_static_path = ["_static"]  # disabled: no custom static files are used
 
 # html_context = {
 #     'css_files': [
@@ -270,4 +287,4 @@ texinfo_documents = [
 
 
 # Example configuration for intersphinx: refer to the Python standard library.
-intersphinx_mapping = {"python": ("https://docs.python.org/3.6", None), "numpy": ("https://docs.scipy.org/doc/numpy/", None), "scipy": ("http://docs.scipy.org/doc/scipy/reference/", None)}
+intersphinx_mapping = {"python": ("https://docs.python.org/3/", None), "numpy": ("https://docs.scipy.org/doc/numpy/", None), "scipy": ("https://docs.scipy.org/doc/scipy/", None)}

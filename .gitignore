@@ -1,92 +1,132 @@
-# Common Python Files
+# ============================================================
+# Python
+# ============================================================
 __pycache__/
-_build/
-dist/
-*.pytest_cache
-*.env
-*.pyc
-*.mdb
-*.pkl
-*.np
-*.npz
-*.swp
-*.p
-*.png
-*.txt
-*.npy
-*.jpg
-*.pt*
-*.ckpt*
-*.pth*
-*.yaml
-*.out
-# Jupyter Notebooks
-*.ipynb_checkpoints/
-# Ruff
-.ruff_cache
-
-# TorchSig
-torchsig.egg-info/
-!torchsig/datasets/default_configs/
-!torchsig/datasets/default_configs/*
-!torchsig/datasets/default_configs/*.yaml
-torchsig/utils/pfb_weights/
-
-# Keep license docs
-!**/LICENSE*
-
-# Docs
-docs/_static/
-docs/src/
-docs/build/
-docs/_autosummary/
-
-# Tests
-tests/datasets/*
-!tests/datasets/*.py
-!tests/datasets/*.yaml
-
-# Examples
-examples/*
-examples/datasets/
-!examples/*.ipynb
-!examples/transforms/
-!examples/transforms/*.ipynb
-!examples/*.py
-!examples/*.yaml
-
-# Pytest Files
-*.coverage
-coverage.xml
-report.xml
-
-# Python virtual environments
-venv/
-.venv/
-env/
-.env/
-
-# For conda environments
-.conda/
-
-# Specific ignores
-.vscode/
-*.h5
-*.conflict
-*.pyo
-*.pyd
-.Python
+*.py[cod]
+*$py.class
+*.egg
+*.egg-info/
 develop-eggs/
-downloaded/
-eggs/
 .eggs/
+eggs/
 lib/
 lib64/
 parts/
 sdist/
 var/
 wheels/
-*.egg-info/
-.installed.cfg
-*.egg
 *.so
+.installed.cfg
+
+# ============================================================
+# Text files and configs
+# ============================================================
+*.yaml
+*.txt
+
+# ============================================================
+# Virtual environments
+# ============================================================
+venv/
+.venv/
+env/
+.venv*/
+env*/
+.env*
+.envrc
+.conda/
+
+# ============================================================
+# Testing & coverage
+# ============================================================
+.pytest_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+*.coverage
+coverage.xml
+report.xml
+
+# ============================================================
+# Jupyter
+# ============================================================
+.ipynb_checkpoints/
+
+# ============================================================
+# Editor / OS
+# ============================================================
+.vscode/
+*.swp
+*.swo
+*.conflict
+
+# ============================================================
+# Build / packaging
+# ============================================================
+build/
+dist/
+torchsig.egg-info/
+
+# ============================================================
+# Model / signal artifacts
+# ============================================================
+*.pt
+*.pt2
+*.ckpt
+*.pth
+*.ckpt*
+*.sigmf-data
+*.sigmf-meta
+*.wav
+*.ogg
+*.npz
+*.npy
+*.pkl
+*.h5
+
+# ============================================================
+# Generated data & report files
+# ============================================================
+# Example text reports & outputs
+examples/*.txt
+examples/transforms/*.txt
+examples/bring_your_own_data_*.txt
+examples/lightning_logs/
+examples/datasets/
+examples/runs/
+scripts/sample_dataset/
+*.executed
+
+# Test data & outputs
+tests/datasets/*
+!tests/datasets/*.py
+tests/utils/data/
+examples/datasets/
+scripts/sample_dataset/
+tests/**/*.txt
+tests/datasets/profile_datasets.out
+
+# Generated plots
+tests/utils/profile.png
+
+# TorchSig internal weights
+torchsig/utils/pfb_weights/
+
+# ============================================================
+# Docs build output
+# ============================================================
+docs/build/
+docs/_build/
+docs/_autosummary/
+docs/_static/
+
+# ============================================================
+# Keep tracked config, docs & example data
+# (these live outside the generated-data rules above and are
+#  therefore tracked automatically; listed here for clarity)
+# ============================================================
+!torchsig/datasets/default_configs/*.yaml
+!examples/scripts/*.yaml
+!docs/docs-requirements.txt
+!docs/*.png
+!**/LICENSE*

@@ -1,8 +1,6 @@
 Transforms
 ======================
 
-.. currentmodule:: torchsig.transforms.tranforms
-
 Transforms are applied to signals or samples to emulate transmitter and reciever effects, as well as tools for machine learning.
 There are three types of transforms, that differ in purpose and scope.
 
@@ -20,6 +18,7 @@ Base Transforms
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 .. automodule:: torchsig.transforms.base_transforms
     :members:
+    :no-index:
     :undoc-members:
     :show-inheritance:
 
@@ -27,6 +26,7 @@ Signal Transforms
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 .. automodule:: torchsig.transforms.transforms
     :members:
+    :no-index:
     :undoc-members:
     :show-inheritance:
 
@@ -35,6 +35,7 @@ Impairments
 ----------------------
 .. automodule:: torchsig.transforms.impairments
     :members:
+    :no-index:
     :undoc-members:
     :show-inheritance:
 
@@ -43,5 +44,6 @@ Functional Transforms
 ----------------------
 .. automodule:: torchsig.transforms.functional
     :members:
+    :no-index:
     :undoc-members:
     :show-inheritance:

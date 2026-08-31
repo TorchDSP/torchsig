@@ -8,6 +8,8 @@ from torchsig.utils.dsp import (
     upconversion_anti_aliasing_filter,
 )
 
+__all__ = ["dataset_yaml_name", "frequency_shift_signal", "save_type", "writer_yaml_name"]
+
 # name of yaml file where dataset information will be written
 dataset_yaml_name = "create_dataset_info.yaml"
 # name of yaml file where dataset writing information will be written
@@ -58,15 +60,13 @@ def frequency_shift_signal(
         # wrapped around -fs/2 or fs/2. additionally, due to the filtering the
         # bandwidth changed bandwidth, and therefore changed the center frequency,
         # so update the two metadata fields accordingly
-        signal.data, signal["center_freq"], signal["bandwidth"] = (
-            upconversion_anti_aliasing_filter(
-                signal.data,
-                signal["center_freq"],
-                signal["bandwidth"],
-                sample_rate,
-                frequency_max,
-                frequency_min,
-            )
+        signal.data, signal["center_freq"], signal["bandwidth"] = upconversion_anti_aliasing_filter(
+            signal.data,
+            signal["center_freq"],
+            signal["bandwidth"],
+            sample_rate,
+            frequency_max,
+            frequency_min,
         )
     # do nothing
 

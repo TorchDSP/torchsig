@@ -1,25 +1,27 @@
 """Unit Tests for writer utilities."""
 
 import numpy as np
-import yaml
 import pytest
+import yaml
 
-from torchsig.utils.writer import DatasetCreator
+from torchsig.datasets.datasets import StaticTorchSigDataset, TorchSigIterableDataset
 from torchsig.utils.data_loading import WorkerSeedingDataLoader
 from torchsig.utils.defaults import TorchSigDefaults, default_dataset
+from torchsig.utils.writer import DatasetCreator
 from torchsig.datasets.datasets import TorchSigIterableDataset, StaticTorchSigDataset
+from torchsig.utils.file_handlers import PackedHDF5Writer
 
 
 @pytest.mark.parametrize(
     "dataset_length, expect_error, multithreading",
     [
-        (None, True, False),    # iterable dataset length cannot be inferred safely
-        (10, False, False),     # non-multiple-of-batch_size check (batch_size=4)
-        (7, False, True),       # multithreading test 
+        (None, True, False),  # iterable dataset length cannot be inferred safely
+        (10, False, False),  # non-multiple-of-batch_size check (batch_size=4)
+        (7, False, True),  # multithreading test
     ],
 )
 def test_DatasetCreator(tmp_path, dataset_length, expect_error, multithreading):
-    # test that DatasetCreator can write dataset and metadata files, and 
+    # test that DatasetCreator can write dataset and metadata files, and
     # that it restores caller-visible state after writing
 
     seed = 1234567890
@@ -41,15 +43,14 @@ def test_DatasetCreator(tmp_path, dataset_length, expect_error, multithreading):
             )
             dc.create()
         return
-    else:
-        dc = DatasetCreator(
-            dataloader=dl,
-            dataset_length=dataset_length,
-            root=tmp_path,
-            overwrite=True,
-            multithreading=multithreading,
-        )
-        dc.create()
+    dc = DatasetCreator(
+        dataloader=dl,
+        dataset_length=dataset_length,
+        root=tmp_path,
+        overwrite=True,
+        multithreading=multithreading,
+    )
+    dc.create()
 
     dataset_info_path = tmp_path / "dataset_info.yaml"
     writer_info_path = tmp_path / "writer_info.yaml"
@@ -73,7 +74,7 @@ def test_DatasetCreator(tmp_path, dataset_length, expect_error, multithreading):
 
 
 def test_DatasetCreator_overwrite_false_skips_when_matching(tmp_path):
-    # test that DatasetCreator with overwrite=False does not raise an error when dataset already exists and 
+    # test that DatasetCreator with overwrite=False does not raise an error when dataset already exists and
     # matches expected length, and that it does not modify existing files
     seed = 42
     ds = default_dataset(num_signals_max=1, num_signals_min=1)
@@ -90,6 +91,78 @@ def test_DatasetCreator_overwrite_false_skips_when_matching(tmp_path):
     DatasetCreator(dataloader=dl, dataset_length=6, root=tmp_path, overwrite=False, multithreading=False).create()
     assert sentinel.exists()
     assert sentinel.read_text() == "do not delete"
+
+
+def test_DatasetCreator_overwrite_false_reports_changed_writer_options(tmp_path, capsys):
+    ds = default_dataset(num_signals_max=1, num_signals_min=1)
+    dl = WorkerSeedingDataLoader(ds, seed=42, batch_size=2)
+    DatasetCreator(
+        dataloader=dl,
+        dataset_length=6,
+        root=tmp_path,
+        overwrite=True,
+        multithreading=False,
+        compression="lzf",
+    ).create()
+
+    DatasetCreator(
+        dataloader=dl,
+        dataset_length=6,
+        root=tmp_path,
+        overwrite=False,
+        multithreading=False,
+        compression="gzip",
+    ).create()
+
+    assert "file_handler_kwargs" in capsys.readouterr().out
+
+
+def test_DatasetCreator_overwrite_false_rejects_changed_writer(tmp_path):
+    ds = default_dataset(num_signals_max=1, num_signals_min=1)
+    dl = WorkerSeedingDataLoader(ds, seed=42, batch_size=2)
+    DatasetCreator(
+        dataloader=dl,
+        dataset_length=6,
+        root=tmp_path,
+        overwrite=True,
+        multithreading=False,
+    ).create()
+
+    with pytest.raises(RuntimeError, match="different file handler"):
+        DatasetCreator(
+            dataloader=dl,
+            dataset_length=6,
+            root=tmp_path,
+            overwrite=False,
+            multithreading=False,
+            file_handler=PackedHDF5Writer,
+        ).create()
+
+
+def test_DatasetCreator_overwrite_false_accepts_legacy_writer_info(
+    tmp_path,
+):
+    ds = default_dataset(num_signals_max=1, num_signals_min=1)
+    dl = WorkerSeedingDataLoader(ds, seed=42, batch_size=2)
+    DatasetCreator(
+        dataloader=dl,
+        dataset_length=6,
+        root=tmp_path,
+        overwrite=True,
+        multithreading=False,
+    ).create()
+    writer_info_path = tmp_path / "writer_info.yaml"
+    writer_info = yaml.safe_load(writer_info_path.read_text())
+    del writer_info["file_handler_kwargs"]
+    writer_info_path.write_text(yaml.safe_dump(writer_info))
+
+    DatasetCreator(
+        dataloader=dl,
+        dataset_length=6,
+        root=tmp_path,
+        overwrite=False,
+        multithreading=False,
+    ).create()
 
 
 def test_DatasetCreator_overwrite_false_errors_if_incomplete(tmp_path):
@@ -109,8 +182,8 @@ def test_DatasetCreator_overwrite_false_errors_if_incomplete(tmp_path):
 @pytest.mark.parametrize(
     "dataset_length, multithreading",
     [
-        (16, False),     # tiny dataset without multithreading
-        (17, True),      # tiny dataset with multithreading
+        (16, False),  # tiny dataset without multithreading
+        (17, True),  # tiny dataset with multithreading
     ],
 )
 def test_DatasetCreator_tqdm_output(tmp_path, capsys, dataset_length, multithreading):
@@ -136,16 +209,17 @@ def test_DatasetCreator_tqdm_output(tmp_path, capsys, dataset_length, multithrea
     assert "Pytest TQDM Test" in captured.err
     assert "100%" in captured.err
 
+
 @pytest.mark.full
 @pytest.mark.parametrize(
     "dataset_length, multithreading",
     [
-        (17, False),     # tiny dataset without multithreading
-        (23, True),     # tiny dataset with multithreading
+        (17, False),  # tiny dataset without multithreading
+        (23, True),  # tiny dataset with multithreading
     ],
 )
 def test_writer_reproducibility(tmp_path, dataset_length, multithreading):
-    # tests that two independent runs of DatasetCreator with the same seed and dataset length produce identical datasets 
+    # tests that two independent runs of DatasetCreator with the same seed and dataset length produce identical datasets
     # on disk (YAML metadata and actual data files), and that the seed is correctly recorded in the YAML metadata
     seed = 123456
     batch_size = 2
@@ -182,6 +256,7 @@ def test_writer_reproducibility(tmp_path, dataset_length, multithreading):
         assert m0 == m1
         assert np.allclose(x0, x1, rtol=1e-6)
 
+
 @pytest.mark.full
 def test_writer_memory_growth(tmp_path):
     """Measure how RAM usage grows while writing datasets of increasing size.
@@ -207,6 +282,7 @@ def test_writer_memory_growth(tmp_path):
     """
     import gc
     import tracemalloc
+
     from torchsig.signals.signal_types import Signal
 
     SEED = 27182
@@ -231,7 +307,7 @@ def test_writer_memory_growth(tmp_path):
         with open("/proc/self/status") as fh:
             for line in fh:
                 if line.startswith("VmRSS:"):
-                    return int(line.split()[1]) * 1024   # kB → bytes
+                    return int(line.split()[1]) * 1024  # kB → bytes
         raise RuntimeError("VmRSS not found in /proc/self/status")
 
     def count_seedable_children(node, _seen: set | None = None) -> int:
@@ -309,8 +385,11 @@ def test_writer_memory_growth(tmp_path):
 
         print(
             "size=%3d: children %d → %d  |  RSS Δ=%+.0f KiB  |  tracemalloc peak=%.0f KiB",
-            size, children_before, children_after,
-            rss_increase / 1024, tracemalloc_peak / 1024,
+            size,
+            children_before,
+            children_after,
+            rss_increase / 1024,
+            tracemalloc_peak / 1024,
         )
 
     # -------------------------------------------------------------------
@@ -322,16 +401,11 @@ def test_writer_memory_growth(tmp_path):
 
         # Structural: Seedable hierarchy must not grow during writing
         assert m["children_before"] == m["children_after"], (
-            f"size={size}: Seedable tree grew by "
-            f"{m['children_after'] - m['children_before']} nodes during writing. "
-            "Generated Signal objects are leaking into Seedable.children lists."
+            f"size={size}: Seedable tree grew by {m['children_after'] - m['children_before']} nodes during writing. Generated Signal objects are leaking into Seedable.children lists."
         )
 
         # Structural: no Signal instance should appear anywhere in the tree
-        assert not m["signal_leaked"], (
-            f"size={size}: A Signal object was found inside a Seedable.children list "
-            "after writing. The Seedable hierarchy is retaining completed samples."
-        )
+        assert not m["signal_leaked"], f"size={size}: A Signal object was found inside a Seedable.children list after writing. The Seedable hierarchy is retaining completed samples."
 
     # RAM: post-write RSS increase per sample must not grow with dataset size.
     # Compare the 300-sample run against the 50-sample run: if memory leaked

@@ -65,9 +65,7 @@ class Transform(ABC, Seedable):
             ValueError: If signal is None.
         """
         if signal is None:
-            raise ValueError(
-                f"Invalid signal object to update in transform {self.__class__.__name__}. Signal is None: {signal}"
-            )
+            raise ValueError(f"Invalid signal object to update in transform {self.__class__.__name__}. Signal is None: {signal}")
 
     def __apply__(self, signal):
         """Performs transform.
@@ -199,9 +197,9 @@ class Normalize(Transform):
 
     Example:
         >>> import torchsig.transforms as ST
-        >>> transform = ST.Normalize(norm=2) # normalize by l2 norm
-        >>> transform = ST.Normalize(norm=1) # normalize by l1 norm
-        >>> transform = ST.Normalize(norm=2, flatten=True) # normalize by l1 norm of the 1D representation
+        >>> transform = ST.Normalize(norm=2)  # normalize by l2 norm
+        >>> transform = ST.Normalize(norm=1)  # normalize by l1 norm
+        >>> transform = ST.Normalize(norm=2, flatten=True)  # normalize by l1 norm of the 1D representation
     """
 
     def __init__(
@@ -233,9 +231,7 @@ class Normalize(Transform):
         if self.flatten:
             signal.data = signal.data.reshape(signal.data.size)
 
-        signal.data = F.normalize(
-            signal.data, norm_order=self.norm, flatten=self.flatten
-        )
+        signal.data = F.normalize(signal.data, norm_order=self.norm, flatten=self.flatten)
         return signal
 
 
@@ -280,7 +276,7 @@ class RandomApply(Transform):
 class RandAugment(Transform):
     """RandAugment transform loosely based on:
     `"RandAugment: Practical automated data augmentation with a reduced search space"
-      <https://arxiv.org/pdf/1909.13719.pdf>`_.
+    <https://arxiv.org/pdf/1909.13719.pdf>`_.
 
     This transform randomly selects and applies a subset of transforms from a list.
 
@@ -322,10 +318,11 @@ class RandAugment(Transform):
         Returns:
             Transformed signal after applying the randomly chosen transforms.
         """
-        chosen_transforms_idx = self.random_generator.choice(
-            len(self.transforms), size=self.choose, replace=self.replace
-        )
+        chosen_transforms_idx = self.random_generator.choice(len(self.transforms), size=self.choose, replace=self.replace)
         for t in [self.transforms[idx] for idx in chosen_transforms_idx]:
             signal = t(signal)
 
         return signal
+
+
+__all__ = ["Compose", "Lambda", "Normalize", "RandAugment", "RandomApply", "Transform"]

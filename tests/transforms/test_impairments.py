@@ -1,10 +1,10 @@
 """Unit Tests for transforms impairments"""
 
-from torchsig.transforms.impairments import Impairments
-from torchsig.transforms.base_transforms import Transform
-
 import numpy as np
 import pytest
+
+from torchsig.transforms.base_transforms import Transform
+from torchsig.transforms.impairments import Impairments
 
 
 @pytest.mark.parametrize(

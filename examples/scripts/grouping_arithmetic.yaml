@@ -1,0 +1,11 @@
+source: bandwidth
+labels:
+  name: bandwidth_group
+  index: bandwidth_group_index
+groups:
+  - name: narrow
+    formula: 'value / 1000 < 2'
+  - name: medium
+    formula: '(value + 500) / 1000 >= 2 and value // 1000 < 6'
+  - name: all
+    default: true

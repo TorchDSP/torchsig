@@ -16,12 +16,15 @@ from torchsig.utils.dsp import (
     slice_tail_to_length,
 )
 
+__all__ = ["OFDMSignalGenerator", "ofdm_modulator", "ofdm_modulator_baseband"]
+
 
 def ofdm_modulator_baseband(
     num_subcarriers: int,
     max_num_samples: int,
     oversampling_rate_nominal: int,
     rng: np.random.Generator | None = None,
+    cyclic_prefix_len: int | None = None,
 ) -> np.ndarray:
     """Modulates OFDM signal at baseband.
 
@@ -30,6 +33,8 @@ def ofdm_modulator_baseband(
         max_num_samples: Maximum number of samples to produce.
         oversampling_rate_nominal: Oversampling rate (sampling_rate/bandwidth).
         rng: Random number generator for reproducibility. If None, creates a new default generator.
+        cyclic_prefix_len: Cyclic prefix length, before oversampling. If None,
+            randomly selects whether to add a cyclic prefix and its length.
 
     Returns:
         np.ndarray: OFDM modulated signal at baseband.
@@ -44,6 +49,8 @@ def ofdm_modulator_baseband(
         raise ValueError("max_num_samples must be positive")
     if oversampling_rate_nominal <= 0:
         raise ValueError("oversampling_rate_nominal must be positive")
+    if cyclic_prefix_len is not None and not 0 <= cyclic_prefix_len < num_subcarriers:
+        raise ValueError("cyclic_prefix_len must be between 0 and num_subcarriers")
 
     if rng is None:
         rng = np.random.default_rng()
@@ -54,11 +61,9 @@ def ofdm_modulator_baseband(
 
     # Randomize cyclic prefix
     cyclic_prefix_probability = 0.50
-    cp_len = (
-        0
-        if rng.uniform(0, 1) < cyclic_prefix_probability
-        else rng.integers(2, int(num_subcarriers / 2))
-    )
+    cp_len = cyclic_prefix_len
+    if cp_len is None:
+        cp_len = 0 if rng.uniform(0, 1) < cyclic_prefix_probability else rng.integers(2, int(num_subcarriers / 2))
     cp_len_oversampled = cp_len * oversampling_rate_nominal
 
     # Calculate OFDM symbol lengths
@@ -78,22 +83,14 @@ def ofdm_modulator_baseband(
     symbol_map = symbol_map / np.sqrt(np.mean(np.abs(symbol_map) ** 2))
 
     # Generate symbols for active subcarriers
-    map_index_grid = rng.integers(
-        0, len(symbol_map), (num_subcarriers, num_ofdm_symbols)
-    )
+    map_index_grid = rng.integers(0, len(symbol_map), (num_subcarriers, num_ofdm_symbols))
     symbol_grid = symbol_map[map_index_grid]
 
     # Create time/frequency grid
-    time_frequency_grid = np.zeros(
-        (ifft_size, num_ofdm_symbols), dtype=TorchSigComplexDataType
-    )
+    time_frequency_grid = np.zeros((ifft_size, num_ofdm_symbols), dtype=TorchSigComplexDataType)
     half_num_subcarriers = int(num_subcarriers / 2)
-    time_frequency_grid[1 : half_num_subcarriers + 1, :] = symbol_grid[
-        0:half_num_subcarriers, :
-    ]
-    time_frequency_grid[ifft_size - half_num_subcarriers :, :] = symbol_grid[
-        half_num_subcarriers:, :
-    ]
+    time_frequency_grid[1 : half_num_subcarriers + 1, :] = symbol_grid[0:half_num_subcarriers, :]
+    time_frequency_grid[ifft_size - half_num_subcarriers :, :] = symbol_grid[half_num_subcarriers:, :]
 
     # Perform IFFT
     modulated_grid = np.fft.ifft(time_frequency_grid, axis=0)
@@ -115,6 +112,7 @@ def ofdm_modulator(
     sample_rate: float,
     num_samples: int,
     rng: np.random.Generator | None = None,
+    cyclic_prefix_len: int | None = None,
 ) -> np.ndarray:
     """Modulator for OFDM signals.
 
@@ -124,6 +122,8 @@ def ofdm_modulator(
         sample_rate: Sampling rate for the IQ signal (Hz).
         num_samples: Number of IQ samples to produce.
         rng: Random number generator for reproducibility. If None, creates a new default generator.
+        cyclic_prefix_len: Cyclic prefix length, before oversampling. If None,
+            randomly selects whether to add a cyclic prefix and its length.
 
     Returns:
         np.ndarray: OFDM modulated signal at the appropriate bandwidth.
@@ -155,19 +155,27 @@ def ofdm_modulator(
     num_samples_baseband = int(np.ceil(num_samples / resample_rate_ideal))
 
     # Generate and resample signal
-    ofdm_signal_baseband = ofdm_modulator_baseband(
-        num_subcarriers, num_samples_baseband, oversampling_rate_baseband, rng
-    )
+    if cyclic_prefix_len is None:
+        ofdm_signal_baseband = ofdm_modulator_baseband(
+            num_subcarriers,
+            num_samples_baseband,
+            oversampling_rate_baseband,
+            rng,
+        )
+    else:
+        ofdm_signal_baseband = ofdm_modulator_baseband(
+            num_subcarriers,
+            num_samples_baseband,
+            oversampling_rate_baseband,
+            rng,
+            cyclic_prefix_len,
+        )
 
-    ofdm_signal_correct_bw = multistage_polyphase_resampler(
-        ofdm_signal_baseband, resample_rate_ideal
-    )
+    ofdm_signal_correct_bw = multistage_polyphase_resampler(ofdm_signal_baseband, resample_rate_ideal)
 
     # Adjust signal length
     ofdm_signal_correct_bw = (
-        slice_head_tail_to_length(ofdm_signal_correct_bw, num_samples)
-        if len(ofdm_signal_correct_bw) > num_samples
-        else pad_head_tail_to_length(ofdm_signal_correct_bw, num_samples)
+        slice_head_tail_to_length(ofdm_signal_correct_bw, num_samples) if len(ofdm_signal_correct_bw) > num_samples else pad_head_tail_to_length(ofdm_signal_correct_bw, num_samples)
     )
 
     return ofdm_signal_correct_bw.astype(TorchSigComplexDataType)
@@ -220,10 +228,11 @@ class OFDMSignalGenerator(BaseSignalGenerator):
             low=self["signal_duration_in_samples_min"],
             high=self["signal_duration_in_samples_max"] + 1,
         )
-        bandwidth = self.random_generator.integers(
-            low=self["bandwidth_min"], high=self["bandwidth_max"] + 1
-        )
+        bandwidth = self.random_generator.integers(low=self["bandwidth_min"], high=self["bandwidth_max"] + 1)
         num_subcarriers = self["num_subcarriers"]
+
+        has_cyclic_prefix = bool(self.random_generator.uniform(0, 1) >= 0.50)
+        cyclic_prefix_len = int(self.random_generator.integers(2, int(num_subcarriers / 2))) if has_cyclic_prefix else 0
 
         # Generate signal
         signal_data = ofdm_modulator(
@@ -232,6 +241,13 @@ class OFDMSignalGenerator(BaseSignalGenerator):
             sample_rate,
             num_iq_samples_signal,
             self.random_generator,
+            cyclic_prefix_len,
         )
 
-        return Signal(data=signal_data, center_freq=0, bandwidth=bandwidth)
+        return Signal(
+            data=signal_data,
+            center_freq=0,
+            bandwidth=bandwidth,
+            has_cyclic_prefix=has_cyclic_prefix,
+            cyclic_prefix_len=cyclic_prefix_len,
+        )

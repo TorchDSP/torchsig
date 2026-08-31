@@ -5,6 +5,8 @@ rectangles, and to detect overlaps between rectangles using line-segment interse
 and containment tests.
 """
 
+__all__ = ["Coordinate", "Rectangle", "counter_clock_wise", "is_corner_in_rectangle", "is_rectangle_inside_rectangle", "is_rectangle_overlap", "is_within_range", "line_intersection"]
+
 
 # class object to contain (x, y) coordinates
 class Coordinate:
@@ -58,12 +60,8 @@ class Rectangle:
         self.coord_lower_left = lower_coord
         self.coord_upper_right = upper_coord
 
-        self.coord_upper_left = Coordinate(
-            self.coord_lower_left.x, self.coord_upper_right.y
-        )
-        self.coord_lower_right = Coordinate(
-            self.coord_upper_right.x, self.coord_lower_left.y
-        )
+        self.coord_upper_left = Coordinate(self.coord_lower_left.x, self.coord_upper_right.y)
+        self.coord_lower_right = Coordinate(self.coord_upper_right.x, self.coord_lower_left.y)
 
 
 # function used in determining if lines intersect
@@ -83,9 +81,7 @@ def counter_clock_wise(a: Coordinate, b: Coordinate, c: Coordinate) -> bool:
 
 
 # determine if two line segments (AB and CD) intersect
-def line_intersection(
-    a: Coordinate, b: Coordinate, c: Coordinate, d: Coordinate
-) -> bool:
+def line_intersection(a: Coordinate, b: Coordinate, c: Coordinate, d: Coordinate) -> bool:
     """Check if the line segments AB and CD intersect.
 
     Uses the counter-clockwise orientation test.
@@ -99,15 +95,11 @@ def line_intersection(
     Returns:
         bool: True if segments AB and CD intersect.
     """
-    return counter_clock_wise(a, c, d) != counter_clock_wise(
-        b, c, d
-    ) and counter_clock_wise(a, b, c) != counter_clock_wise(a, b, d)
+    return counter_clock_wise(a, c, d) != counter_clock_wise(b, c, d) and counter_clock_wise(a, b, c) != counter_clock_wise(a, b, d)
 
 
 # determine if a point lies within the 1D interval [left, right]
-def is_within_range(
-    test_coord_x: float, rectangle_left_x: float, rectangle_right_x: float
-) -> bool:
+def is_within_range(test_coord_x: float, rectangle_left_x: float, rectangle_right_x: float) -> bool:
     """Check if a coordinate lies within a closed interval on the x-axis.
 
     Args:
@@ -146,9 +138,7 @@ def is_corner_in_rectangle(corner_coord: Coordinate, reference_box: Rectangle) -
 
 
 # determine if one rectangle is entirely within another
-def is_rectangle_inside_rectangle(
-    rectangle_1: Rectangle, rectangle_2: Rectangle
-) -> bool:
+def is_rectangle_inside_rectangle(rectangle_1: Rectangle, rectangle_2: Rectangle) -> bool:
     """Check if rectangle_1 is completely inside rectangle_2.
 
     Tests whether all four corners of rectangle_1 lie within rectangle_2.

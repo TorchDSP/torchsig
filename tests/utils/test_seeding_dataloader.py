@@ -9,20 +9,20 @@ from torchsig.utils.writer import identity_collate_fn
 
 
 def test_dataset_seeds_correctly():
-    # tests that TorchSigIterableDataset correctly seeds its RNG and that the seed is 
+    # tests that TorchSigIterableDataset correctly seeds its RNG and that the seed is
     # consistent across multiple dataset instances with the same seed
     dataset_metadata = TorchSigDefaults().default_dataset_metadata
-    
+
     ts_ds = TorchSigIterableDataset(metadata=dataset_metadata)
     ts_ds.seed(42)
     test_value11 = next(ts_ds).data
     test_value12 = next(ts_ds).data
-    
+
     ts_ds = TorchSigIterableDataset(metadata=dataset_metadata)
     ts_ds.seed(42)
     test_value21 = next(ts_ds).data
     test_value22 = next(ts_ds).data
-    
+
     ts_ds = TorchSigIterableDataset(metadata=dataset_metadata)
     ts_ds.seed(7)
     test_value31 = next(ts_ds).data
@@ -34,7 +34,7 @@ def test_dataset_seeds_correctly():
 
 @pytest.mark.filterwarnings(r"ignore:.*fork\(\) may lead to deadlocks in the child:DeprecationWarning")
 def test_dataloader_seeds_correctly_single_worker():
-    # tests that WorkerSeedingDataLoader correctly seeds the underlying dataset and that the seed is 
+    # tests that WorkerSeedingDataLoader correctly seeds the underlying dataset and that the seed is
     # consistent across multiple dataloader instances with the same seed
     dataset_metadata = TorchSigDefaults().default_dataset_metadata
 
@@ -59,9 +59,9 @@ def test_dataloader_seeds_correctly_single_worker():
 
 @pytest.mark.filterwarnings(r"ignore:.*fork\(\) may lead to deadlocks in the child:DeprecationWarning")
 def test_dataloader_smoke_test_mp_workers():
-    # tests dataloader with multiple workers. This is a SMOKE TEST ONLY to check that no 
-    # errors are raised and that the seed is set without error when using multiple workers, since 
-    # true reproducibility with multiple workers is not guaranteed and will depend on the platform 
+    # tests dataloader with multiple workers. This is a SMOKE TEST ONLY to check that no
+    # errors are raised and that the seed is set without error when using multiple workers, since
+    # true reproducibility with multiple workers is not guaranteed and will depend on the platform
     # and PyTorch version
     dataset_metadata = TorchSigDefaults().default_dataset_metadata
     ds = TorchSigIterableDataset(metadata=dataset_metadata, target_labels=[])

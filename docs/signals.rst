@@ -12,6 +12,7 @@ Signal Class Types
 --------------------------
 .. automodule:: torchsig.signals.signal_types
     :members:
+    :no-index:
     :undoc-members:
     :show-inheritance:
 
@@ -24,6 +25,7 @@ Builder
 **************************
 .. automodule:: torchsig.signals.builder
     :members:
+    :no-index:
     :undoc-members:
     :show-inheritance:
 
@@ -31,15 +33,17 @@ Specific Signal Builders
 **************************
 .. automodule:: torchsig.signals.builders
     :members:
+    :no-index:
     :undoc-members:
     :show-inheritance:
 
 
 
-Signal Modulation Classes
+Signal Lists
 --------------------------
 .. automodule:: torchsig.signals.signal_lists
     :members:
+    :no-index:
     :undoc-members:
     :show-inheritance:
 
@@ -47,5 +51,6 @@ Signal Utilities
 --------------------------
 .. automodule:: torchsig.signals.signal_utils
     :members:
+    :no-index:
     :undoc-members:
     :show-inheritance:

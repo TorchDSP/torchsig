@@ -11,5 +11,6 @@ They only read and add the signal metadata, and do not change the signal data.
 
 .. automodule:: torchsig.transforms.metadata_transforms
     :members:
+    :no-index:
     :undoc-members:
     :show-inheritance:

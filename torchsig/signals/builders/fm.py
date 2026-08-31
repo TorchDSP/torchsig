@@ -12,6 +12,8 @@ from torchsig.utils.dsp import (
     low_pass_iterative_design,
 )
 
+__all__ = ["FMSignalGenerator", "fm_modulator"]
+
 
 def fm_modulator(
     bandwidth: float,
@@ -24,7 +26,9 @@ def fm_modulator(
     Generates FM signals using Carson's Rule for bandwidth calculation.
 
     Args:
-        bandwidth: Desired 3 dB bandwidth of the signal (Hz).
+        bandwidth: Desired full, two-sided 3 dB bandwidth of the complex
+            baseband signal (Hz), spanning approximately
+            ``[-bandwidth / 2, bandwidth / 2]``.
         sample_rate: Sampling rate for the IQ signal (Hz).
         num_samples: Number of IQ samples to produce.
         rng: Random number generator for reproducibility. If None, creates a new default generator.
@@ -34,7 +38,7 @@ def fm_modulator(
 
     Raises:
         ValueError: If bandwidth or sample_rate are not positive.
-        ValueError: If bandwidth exceeds sample_rate/2.
+        ValueError: If bandwidth exceeds sample_rate.
         ValueError: If num_samples is not positive.
 
     Examples:
@@ -48,8 +52,8 @@ def fm_modulator(
         raise ValueError("bandwidth must be positive")
     if sample_rate <= 0:
         raise ValueError("sample_rate must be positive")
-    if bandwidth > sample_rate / 2:
-        raise ValueError("bandwidth must be less than sample_rate/2")
+    if bandwidth > sample_rate:
+        raise ValueError("bandwidth must be less than or equal to sample_rate")
     if num_samples <= 0:
         raise ValueError("num_samples must be positive")
 
@@ -71,9 +75,7 @@ def fm_modulator(
     message = message / np.sqrt(np.mean(np.abs(message) ** 2))  # Scale to unit power
 
     # Design LPF to limit frequencies
-    lpf = low_pass_iterative_design(
-        cutoff=fmax, transition_bandwidth=fmax, sample_rate=sample_rate
-    )
+    lpf = low_pass_iterative_design(cutoff=fmax, transition_bandwidth=fmax, sample_rate=sample_rate)
 
     # Apply LPF to limit bandwidth
     source = convolve(message, lpf)
@@ -96,8 +98,8 @@ class FMSignalGenerator(BaseSignalGenerator):
         Args:
             **kwargs: Metadata parameters including:
                 - sample_rate: Sampling rate (Hz)
-                - bandwidth_min: Minimum bandwidth (Hz)
-                - bandwidth_max: Maximum bandwidth (Hz)
+                - bandwidth_min: Minimum full, two-sided bandwidth (Hz)
+                - bandwidth_max: Maximum full, two-sided bandwidth (Hz)
                 - signal_duration_in_samples_min: Minimum signal duration (samples)
                 - signal_duration_in_samples_max: Maximum signal duration (samples)
 
@@ -129,13 +131,9 @@ class FMSignalGenerator(BaseSignalGenerator):
             low=self["signal_duration_in_samples_min"],
             high=self["signal_duration_in_samples_max"] + 1,
         )
-        bandwidth = self.random_generator.integers(
-            low=self["bandwidth_min"], high=self["bandwidth_max"] + 1
-        )
+        bandwidth = self.random_generator.integers(low=self["bandwidth_min"], high=self["bandwidth_max"] + 1)
 
         # Generate signal
-        signal_data = fm_modulator(
-            bandwidth, sample_rate, num_iq_samples_signal, self.random_generator
-        )
+        signal_data = fm_modulator(bandwidth, sample_rate, num_iq_samples_signal, self.random_generator)
 
         return Signal(data=signal_data, center_freq=0, bandwidth=bandwidth)

@@ -1,41 +1,40 @@
 FROM python:3.10-slim
 
 # Prevents Python from writing .pyc files
-ENV PYTHONDONTWRITEBYTECODE=1
 # Ensures Python output is not buffered
-ENV PYTHONUNBUFFERED=1
-
-WORKDIR /workspace
-
-# Create and activate virtual environment
-# RUN python -m venv /opt/venv
-# ENV PATH="/opt/venv/bin:$PATH"
-
-# Copy torchsig
-COPY ../. .
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    UV_COMPILE_BYTECODE=0 \
+    UV_LINK_MODE=copy \
+    UV_SYSTEM_PYTHON=1
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
+    python-is-python3 \
     build-essential \
     cmake \
     curl \
     git \
-    libffi-dev libssl-dev \
+    libffi-dev \
+    libssl-dev \
     libgl1 \
     libsm6 \
     libxrender1 \
     libxext6 \
     libglib2.0-0 \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* \
+    && rm -f /usr/lib/python*/EXTERNALLY-MANAGED
+
+WORKDIR /workspace
+
+COPY . .
+
 
 # Replace opencv-python with opencv-python-headless
 RUN sed -i 's/opencv-python/opencv-python-headless/g' pyproject.toml
 
 # Install Python dependencies
-RUN pip install --no-cache-dir --upgrade pip && \
-    pip install build setuptools
-
-# Install torchsig
-RUN pip install --no-cache-dir .
+RUN pip install --no-cache-dir uv && \
+    uv pip install --system --no-cache -e .
 
 CMD ["bash"]
