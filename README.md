@@ -21,7 +21,11 @@
 We highly reccomend Ubuntu or using a Docker container.
 
 ## Installation
-Clone the `torchsig` repository and install using the following commands:
+Install with PyPI:
+```
+pip install torchsig
+```
+Or clone the `torchsig` repository and install using the following commands:
 ```
 git clone https://github.com/TorchDSP/torchsig.git
 cd torchsig
