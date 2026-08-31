@@ -12,7 +12,7 @@ Describe how you tested and verified your changes here (changes captured in exis
         - `examples/`
         - Ensure all notebooks run successfully.
     - [ ] Write or update unit tests in `tests/`
-    - [ ] Run Pytest: `pytest`
+    - [ ] Run Pytest: `make test`
         - Ensure all tests pass successfully
 - [ ] Run Pylint: `pylint --rcfile=.pylintrc torchsig`
     - [ ] Score > 9/10
