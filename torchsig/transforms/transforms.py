@@ -1792,34 +1792,38 @@ class Spectrogram(SignalTransform):
     """
 
     def __init__(self, fft_size: int, fft_stride: int = None, **kwargs):
-        """Initialize the Spectrogram transform.
-
-        Args:
-            fft_size: The FFT size (number of bins) in the spectrogram.
-            **kwargs: Additional keyword arguments passed to the parent class.
-        """
-        super().__init__(required_metadata=[], data_dtype=TorchSigRealDataType, **kwargs)
+        super().__init__(
+            required_metadata=["sample_rate"],
+            data_dtype=TorchSigRealDataType,
+            **kwargs,
+        )
         self.fft_size = fft_size
-        # fft_stride is the number of data points to move or "hop" over when computing the next FF
         self.fft_stride = copy(fft_size) if fft_stride is None else fft_stride
 
     def __apply__(self, signal: Signal) -> Signal:
-        """Apply spectrogram computation to the signal.
+        """Apply spectrogram computation and attach its time/frequency axes."""
+        sample_rate = float(signal.sample_rate)
 
-        Args:
-            signal: Signal to be transformed.
-
-        Returns:
-            Signal with spectrogram computed.
-        """
         signal.data = F.spectrogram(
             signal.data,
             self.fft_size,
             self.fft_stride,
         )
 
-        return signal
+        num_frames = signal.data.shape[1]
 
+        signal["spectrogram_time_s"] = (
+            (np.arange(num_frames) * self.fft_stride + self.fft_size / 2)
+            / sample_rate
+        ).tolist()
+
+        signal["spectrogram_frequency_hz"] = (
+        ((self.fft_size - 1) // 2 - np.arange(self.fft_size))
+        * sample_rate
+        / self.fft_size
+    ).tolist()
+
+        return signal
 
 class SpectrogramDropSamples(SignalTransform):
     """Randomly drop samples from the input data of specified durations and

@@ -1252,35 +1252,50 @@ def test_SpectralInversion_recurses_component_metadata() -> None:
     "signal, params, is_error",
     [
         (new_test_signal(), {"fft_size": 16, "fft_stride": 4}, False),
+        (new_test_signal(), {"fft_size": 15, "fft_stride": 4}, False),
     ],
 )
 def test_Spectrogram(signal: Signal, params: dict, is_error: bool) -> None:
-    """Test the Spectrogram transform with pytest.
-
-    Args:
-        signal (Signal): input dataset.
-        params (dict): Spectrogram parameters (see functional description).
-        is_error (bool): Is a test error expected.
-
-    Raises:
-        AssertionError: If unexpected test output.
-
-    """
     fft_size = params["fft_size"]
+    fft_stride = params["fft_stride"]
 
     if is_error:
-        with pytest.raises(Exception, match=r".*"):
+        with pytest.raises(Exception):
             signal.data = np.tile(signal.data, (16, 1, 1))
-            T = Spectrogram(fft_size=fft_size)
-            signal = T(signal)
-    else:
-        signal_test = signal.copy()
+            Spectrogram(
+                fft_size=fft_size,
+                fft_stride=fft_stride,
+            )(signal)
+        return
 
-        T = Spectrogram(fft_size=fft_size)
-        signal = T(signal)
+    transform = Spectrogram(
+        fft_size=fft_size,
+        fft_stride=fft_stride,
+    )
+    signal = transform(signal)
 
-        assert isinstance(T, Spectrogram)
-        assert isinstance(T.fft_size, int)
+    time_axis = signal["spectrogram_time_s"]
+    frequency_axis = signal["spectrogram_frequency_hz"]
+    sample_rate = signal.sample_rate
+
+    assert len(time_axis) == signal.data.shape[1]
+    assert len(frequency_axis) == signal.data.shape[0]
+
+    np.testing.assert_allclose(
+        frequency_axis,
+        ((fft_size - 1) // 2 - np.arange(fft_size))
+        * sample_rate
+        / fft_size,
+    )
+
+    np.testing.assert_allclose(
+        time_axis,
+        (
+            np.arange(signal.data.shape[1]) * fft_stride
+            + fft_size / 2
+        )
+        / sample_rate,
+    )
 
 
 @pytest.mark.parametrize(

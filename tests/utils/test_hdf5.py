@@ -1,10 +1,42 @@
+from torchsig.signals.signal_types import Signal
+from torchsig.transforms.metadata_transforms import GroupingLabel
+from torchsig.transforms.transforms import Spectrogram
+from torchsig.utils.file_handlers.hdf5 import HDF5Reader, HDF5Writer
 import numpy as np
 import pytest
 
-from torchsig.signals.signal_types import Signal
-from torchsig.transforms.metadata_transforms import GroupingLabel
-from torchsig.utils.file_handlers.hdf5 import HDF5Reader, HDF5Writer
 
+def test_hdf5_round_trip_preserves_spectrogram_axes(tmp_path):
+    signal = Signal(
+        data=np.ones(64, dtype=np.complex64),
+        sample_rate=10_000_000,
+    )
+    signal = Spectrogram(fft_size=16, fft_stride=4)(signal)
+
+    expected_time = signal["spectrogram_time_s"]
+    expected_frequency = signal["spectrogram_frequency_hz"]
+
+    writer = HDF5Writer(tmp_path)
+    writer.setup()
+    try:
+        writer.write(batch_idx=0, data=[signal])
+    finally:
+        writer.teardown()
+
+    reader = HDF5Reader(tmp_path)
+    try:
+        loaded_signal = reader.read(0)
+    finally:
+        reader.teardown()
+
+    np.testing.assert_allclose(
+        loaded_signal["spectrogram_time_s"],
+        expected_time,
+    )
+    np.testing.assert_allclose(
+        loaded_signal["spectrogram_frequency_hz"],
+        expected_frequency,
+    )
 # --- Test Data Setup ---
 # Define complex tuple-based targets for reusability
 YOLO_1 = (41, 0.2279052734375, 0.25370860860317335, 0.199951171875, 0.078125)
