@@ -7,6 +7,43 @@ import numpy as np
 __all__ = ["chirp"]
 
 
+def draw_samples_per_symbol(
+    max_num_samples: int,
+    rng: np.random.Generator,
+    samples_per_symbol_min: int | None,
+    samples_per_symbol_max: int | None,
+) -> int:
+    """Choose an inclusive sweep length, preserving the legacy draw when unbounded.
+
+    Args:
+        max_num_samples: Maximum permitted baseband sweep length when bounds are set.
+        rng: Random number generator used to draw the sweep length.
+        samples_per_symbol_min: Inclusive lower bound, or None for the legacy draw.
+        samples_per_symbol_max: Inclusive upper bound, or None for the legacy draw.
+
+    Returns:
+        The sweep length in baseband samples. With both bounds omitted, draws
+        from [128, 4095] as before. Equal bounds consume no random draw.
+
+    Raises:
+        ValueError: If only one bound is set, either bound is not an integer,
+            or the bounds do not satisfy 1 <= min <= max <= max_num_samples.
+    """
+    if samples_per_symbol_min is None and samples_per_symbol_max is None:
+        return rng.integers(low=128, high=4096)
+    if (
+        not isinstance(samples_per_symbol_min, (int, np.integer))
+        or isinstance(samples_per_symbol_min, (bool, np.bool_))
+        or not isinstance(samples_per_symbol_max, (int, np.integer))
+        or isinstance(samples_per_symbol_max, (bool, np.bool_))
+        or not 1 <= samples_per_symbol_min <= samples_per_symbol_max <= max_num_samples
+    ):
+        raise ValueError("samples_per_symbol_min and samples_per_symbol_max must be integers in [1, max_num_samples], with min <= max")
+    if samples_per_symbol_min == samples_per_symbol_max:
+        return int(samples_per_symbol_min)
+    return rng.integers(low=samples_per_symbol_min, high=samples_per_symbol_max + 1)
+
+
 def chirp(f0: float, f1: float, samples_per_symbol: int, phi: float = 0.0) -> np.ndarray:
     """Generates a linear frequency modulated (LFM) chirp signal.
 
