@@ -7,7 +7,7 @@ from collections import OrderedDict
 import numpy as np
 
 from torchsig.signals.builder import BaseSignalGenerator
-from torchsig.signals.builders.chirp import chirp
+from torchsig.signals.builders.chirp import chirp, draw_samples_per_symbol
 from torchsig.signals.signal_types import Signal
 from torchsig.signals.signal_utils import random_limiting_filter_design
 from torchsig.utils.dsp import (
@@ -40,6 +40,9 @@ def lfm_modulator_baseband(
     max_num_samples: int,
     oversampling_rate_nominal: int,
     rng: np.random.Generator | None = None,
+    *,
+    samples_per_symbol_min: int | None = None,
+    samples_per_symbol_max: int | None = None,
 ) -> np.ndarray:
     """LFM modulator at baseband.
 
@@ -48,6 +51,8 @@ def lfm_modulator_baseband(
         max_num_samples: Maximum number of samples to produce.
         oversampling_rate_nominal: Oversampling rate (sampling_rate/bandwidth).
         rng: Random number generator for reproducibility. If None, creates a new default generator.
+        samples_per_symbol_min: Inclusive minimum sweep length in baseband samples.
+        samples_per_symbol_max: Inclusive maximum sweep length in baseband samples.
 
     Returns:
         np.ndarray: LFM modulated signal at baseband.
@@ -55,6 +60,7 @@ def lfm_modulator_baseband(
     Raises:
         ValueError: If max_num_samples or oversampling_rate_nominal are not positive.
         ValueError: If lfm_type is not one of the supported types.
+        ValueError: If sweep bounds are incomplete, unordered, or outside [1, max_num_samples].
     """
     # Input validation
     if max_num_samples <= 0:
@@ -80,8 +86,8 @@ def lfm_modulator_baseband(
 
     const = symbol_map[lfm_type]
 
-    # Randomize number of samples per symbol
-    samples_per_symbol = rng.integers(low=128, high=4096)
+    # Choose the sweep length (randomized unless the bounds are equal)
+    samples_per_symbol = draw_samples_per_symbol(max_num_samples, rng, samples_per_symbol_min, samples_per_symbol_max)
 
     # Generate symbols
     symbol_nums = rng.integers(0, len(const), int(np.ceil(max_num_samples / samples_per_symbol)))
@@ -127,6 +133,9 @@ def lfm_modulator(
     sample_rate: float,
     num_samples: int,
     rng: np.random.Generator | None = None,
+    *,
+    samples_per_symbol_min: int | None = None,
+    samples_per_symbol_max: int | None = None,
 ) -> np.ndarray:
     """LFM modulator.
 
@@ -136,6 +145,8 @@ def lfm_modulator(
         sample_rate: Sampling rate for the IQ signal (Hz).
         num_samples: Number of IQ samples to produce.
         rng: Random number generator for reproducibility. If None, creates a new default generator.
+        samples_per_symbol_min: Inclusive minimum sweep length in baseband samples.
+        samples_per_symbol_max: Inclusive maximum sweep length in baseband samples.
 
     Returns:
         np.ndarray: LFM modulated signal at the appropriate bandwidth.
@@ -145,6 +156,7 @@ def lfm_modulator(
         ValueError: If bandwidth exceeds sample_rate/2.
         ValueError: If num_samples is not positive.
         ValueError: If lfm_type is not supported.
+        ValueError: If sweep bounds are invalid for the baseband output length.
     """
     # Input validation
     if bandwidth <= 0:
@@ -168,7 +180,17 @@ def lfm_modulator(
     num_samples_baseband = max(1, int(np.ceil(num_samples / resample_rate_ideal)))
 
     # Generate and resample signal
-    lfm_signal_baseband = lfm_modulator_baseband(lfm_type, num_samples_baseband, oversampling_rate_nominal, rng)
+    if samples_per_symbol_min is None and samples_per_symbol_max is None:
+        lfm_signal_baseband = lfm_modulator_baseband(lfm_type, num_samples_baseband, oversampling_rate_nominal, rng)
+    else:
+        lfm_signal_baseband = lfm_modulator_baseband(
+            lfm_type,
+            num_samples_baseband,
+            oversampling_rate_nominal,
+            rng,
+            samples_per_symbol_min=samples_per_symbol_min,
+            samples_per_symbol_max=samples_per_symbol_max,
+        )
 
     lfm_mod_correct_bw = multistage_polyphase_resampler(lfm_signal_baseband, resample_rate_ideal)
 
@@ -195,6 +217,8 @@ class LFMSignalGenerator(BaseSignalGenerator):
                 - lfm_type: Type of LFM ('data' or 'radar')
                 - signal_duration_in_samples_min: Minimum signal duration (samples)
                 - signal_duration_in_samples_max: Maximum signal duration (samples)
+                - samples_per_symbol_min: Optional inclusive minimum sweep length (baseband samples)
+                - samples_per_symbol_max: Optional inclusive maximum sweep length (baseband samples)
 
         Raises:
             ValueError: If required metadata fields are missing or invalid.
@@ -229,12 +253,25 @@ class LFMSignalGenerator(BaseSignalGenerator):
         lfm_type = self["lfm_type"]
 
         # Generate signal
+        try:
+            sweep_min = self["samples_per_symbol_min"]
+        except (AttributeError, KeyError):
+            sweep_min = None
+        try:
+            sweep_max = self["samples_per_symbol_max"]
+        except (AttributeError, KeyError):
+            sweep_max = None
+
+        modulator_kwargs = {}
+        if sweep_min is not None or sweep_max is not None:
+            modulator_kwargs = {"samples_per_symbol_min": sweep_min, "samples_per_symbol_max": sweep_max}
         signal_data = lfm_modulator(
             lfm_type,
             bandwidth,
             sample_rate,
             num_iq_samples_signal,
             self.random_generator,
+            **modulator_kwargs,
         )
 
         return Signal(data=signal_data, center_freq=0, bandwidth=bandwidth)
