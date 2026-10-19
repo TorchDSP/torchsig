@@ -1440,7 +1440,7 @@ def update_signal_snr_bandwidth(dataset: "TorchSigIterableDataset", new_signal: 
     Notes:
         The SNR correction is performed by:
         1. Computing a spectrogram of the signal
-        2. Estimating the current SNR from the spectrogram
+        2. Averaging linear power over time and estimating SNR from the peak bin
         3. Calculating a correction factor to match the target SNR
         4. Applying this correction to the signal data
 
@@ -1461,8 +1461,8 @@ def update_signal_snr_bandwidth(dataset: "TorchSigIterableDataset", new_signal: 
         dataset.fft_size,
         dataset.fft_stride,
     )
-    # average over time, used in PSD estimate for SNR calculation
-    signal_avg_fft_db = np.mean(signal_spectrogram_db, axis=1)
+    # Average power over time before converting the PSD estimate back to dB.
+    signal_avg_fft_db = 10 * np.log10(np.mean(10 ** (signal_spectrogram_db / 10), axis=1))
     # estimate the frequency response maximum value
     max_value_db = np.max(signal_avg_fft_db)
     # estimate SNR

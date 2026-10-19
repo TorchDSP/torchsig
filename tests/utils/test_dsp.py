@@ -1,11 +1,14 @@
 """Tests for the DSP utilities."""
 
-from unittest.mock import Mock
+from types import SimpleNamespace
+from unittest.mock import Mock, patch
 
 import numpy as np
 import pytest
 import torch
 
+from torchsig.signals.builders.chirpss import chirpss_modulator
+from torchsig.signals.signal_types import Signal
 from torchsig.utils import dsp
 from torchsig.utils.dsp import (
     TorchSigComplexDataType,
@@ -14,6 +17,63 @@ from torchsig.utils.dsp import (
 
 FFT_SIZE = 64
 ZEROS = np.zeros(512, dtype=TorchSigComplexDataType)
+
+
+@pytest.mark.parametrize(
+    ("spectrogram", "expected_peak_db"),
+    [
+        (np.array([[10.0, -90.0], [0.0, 0.0]]), 10.0 - 10.0 * np.log10(2.0)),
+        (np.array([[10.0, 10.0], [0.0, 0.0]]), 10.0),
+    ],
+)
+def test_snr_correction_averages_linear_power(spectrogram, expected_peak_db):
+    """A swept peak and a stationary peak use the same mean power definition."""
+    dataset = SimpleNamespace(
+        random_generator=Mock(uniform=Mock(return_value=10.0)),
+        fft_size=2,
+        fft_stride=2,
+        noise_power_db=0.0,
+        sample_rate=2.0,
+        frequency_min=-1.0,
+        frequency_max=1.0,
+    )
+    signal = Signal(data=np.ones(4, dtype=np.complex64), snr_db_min=10.0, snr_db_max=10.0, bandwidth=1.0)
+
+    with patch.object(dsp, "compute_spectrogram", return_value=spectrogram.copy()):
+        dsp.update_signal_snr_bandwidth(dataset, signal)
+
+    expected_amplitude = 10 ** ((10 - expected_peak_db) / 20)
+    np.testing.assert_allclose(signal.data, expected_amplitude, rtol=1e-6)
+    assert signal.snr_db == 10.0
+
+
+@pytest.mark.parametrize("signal_class", ["tone", "chirpss"])
+def test_snr_correction_matches_measured_linear_psd(signal_class):
+    """Measure stationary and swept IQ with an independent NumPy STFT."""
+    num_samples = 4096
+    samples = (
+        _tone(4, num_samples=num_samples)
+        if signal_class == "tone"
+        else chirpss_modulator(1, 8, num_samples, rng=np.random.default_rng(42))
+    )
+    dataset = SimpleNamespace(
+        random_generator=np.random.default_rng(0),
+        fft_size=FFT_SIZE,
+        fft_stride=FFT_SIZE,
+        noise_power_db=3.0,
+        sample_rate=8.0,
+        frequency_min=-4.0,
+        frequency_max=4.0,
+    )
+    signal = Signal(data=samples.astype(np.complex64), snr_db_min=10.0, snr_db_max=10.0, bandwidth=1.0)
+
+    dsp.update_signal_snr_bandwidth(dataset, signal)
+
+    frames = signal.data.reshape(-1, FFT_SIZE)
+    window = np.blackman(FFT_SIZE + 1)[:-1]  # Periodic Blackman, as in the production STFT.
+    mean_power = np.mean(np.abs(np.fft.fft(frames * window, axis=1)) ** 2, axis=0)
+    measured_snr_db = 10 * np.log10(mean_power.max()) - dataset.noise_power_db
+    assert measured_snr_db == pytest.approx(signal.snr_db, abs=1e-4)
 
 
 def _tone(bin_index, num_samples=512, fft_size=FFT_SIZE, amplitude=1.0):
