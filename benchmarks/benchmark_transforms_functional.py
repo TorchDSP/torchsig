@@ -97,7 +97,17 @@ class TestTransformBenchmarks:
 
     def test_benchmark_adjacent_channel_interference(self, benchmark, sample_data, rng):
         filter_weights = sp.firwin(101, 0.25).astype(np.float32)
-        result = benchmark(adjacent_channel_interference, sample_data, 4.0, 1.0, 0.2, filter_weights, 1.0, 0.0, rng)
+        result = benchmark(
+            adjacent_channel_interference,
+            sample_data,
+            sample_rate=4.0,
+            power=1.0,
+            center_frequency=0.2,
+            filter_weights=filter_weights,
+            phase_sigma=1.0,
+            time_sigma=0.0,
+            rng=rng,
+        )
         assert result.dtype == np.complex64
 
     def test_benchmark_awgn(self, benchmark, sample_data, rng):
@@ -130,7 +140,15 @@ class TestTransformBenchmarks:
 
     def test_benchmark_cochannel_interference(self, benchmark, sample_data, rng):
         filter_weights = sp.firwin(101, 0.25).astype(np.float32)
-        result = benchmark(cochannel_interference, sample_data, 1.0, filter_weights, "white", True, rng)
+        result = benchmark(
+            cochannel_interference,
+            sample_data,
+            power=1.0,
+            filter_weights=filter_weights,
+            color="white",
+            continuous=True,
+            rng=rng,
+        )
         assert result.dtype == np.complex64
 
     def test_benchmark_complex_to_2d(self, benchmark, sample_data):
@@ -169,7 +187,7 @@ class TestTransformBenchmarks:
         assert result.dtype == np.complex64
 
     def test_benchmark_iq_imbalance(self, benchmark, sample_data):
-        result = benchmark(iq_imbalance, sample_data, 1.0, 0.1, -40, 0.0, -50)
+        result = benchmark(iq_imbalance, sample_data, 1.0, 0.1, -40, 0.0, noise_power_db=-50)
         assert result.dtype == np.complex64
 
     def test_benchmark_nonlinear_amplifier(self, benchmark, sample_data):
@@ -235,7 +253,7 @@ class TestTransformBenchmarks:
         assert result.dtype == np.complex64
 
     def test_benchmark_time_varying_noise(self, benchmark, long_sample_data, rng):
-        result = benchmark(time_varying_noise, long_sample_data, -20.0, -10.0, 5, True, rng)
+        result = benchmark(time_varying_noise, long_sample_data, -20.0, -10.0, 5, random_regions=True, rng=rng)
         assert result.dtype == np.complex64
 
 

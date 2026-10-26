@@ -18,7 +18,7 @@ class TestPropagationConstants:
     def test_speed_of_light_value(self):
         """Test that SPEED_OF_LIGHT_M_PER_S is the correct value."""
         # Speed of light in vacuum is approximately 299,792,458 m/s
-        assert SPEED_OF_LIGHT_M_PER_S == pytest.approx(299_792_458.0, rel=1e-6)
+        assert pytest.approx(299_792_458.0, rel=1e-6) == SPEED_OF_LIGHT_M_PER_S
 
     def test_speed_of_light_is_positive(self):
         """Test that speed of light is positive."""
@@ -157,7 +157,7 @@ class TestFreeSpacePathLoss:
 
     def test_nan_distance_raises(self):
         """Test FSPL with NaN distance raises ValueError."""
-        import numpy as np
+        import numpy as np  # noqa: PLC0415
 
         distance = np.nan
         frequency = 2.4e9
@@ -166,7 +166,7 @@ class TestFreeSpacePathLoss:
 
     def test_nan_frequency_raises(self):
         """Test FSPL with NaN frequency raises ValueError."""
-        import numpy as np
+        import numpy as np  # noqa: PLC0415
 
         distance = 1000.0
         frequency = np.nan
@@ -175,7 +175,7 @@ class TestFreeSpacePathLoss:
 
     def test_inf_distance_raises(self):
         """Test FSPL with infinite distance raises ValueError."""
-        import numpy as np
+        import numpy as np  # noqa: PLC0415
 
         distance = np.inf
         frequency = 2.4e9

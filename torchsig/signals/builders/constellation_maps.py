@@ -40,7 +40,7 @@ def apsk_rings(
         np.ndarray: Complex symbol map normalized to unit average power.
     """
     points = []
-    for count, radius, offset in zip(ring_counts, ring_radii, ring_offsets):
+    for count, radius, offset in zip(ring_counts, ring_radii, ring_offsets, strict=False):
         angles = offset + 2.0 * np.pi * np.arange(count) / count
         points.append(radius * np.exp(1j * angles))
     const = np.concatenate(points)

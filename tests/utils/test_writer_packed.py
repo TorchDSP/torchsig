@@ -12,9 +12,9 @@ from torchsig.datasets.datasets import StaticTorchSigDataset
 from torchsig.signals.signal_types import Signal
 from torchsig.transforms.transforms import Spectrogram
 from torchsig.utils.file_handlers import (
+    FileWriter,
     PackedHDF5Reader,
     PackedHDF5Writer,
-    FileWriter,
 )
 from torchsig.utils.writer import DatasetCreator
 

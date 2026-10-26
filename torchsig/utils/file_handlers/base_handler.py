@@ -2,6 +2,7 @@
 
 import pathlib
 import shutil
+from contextlib import suppress
 from typing import Any
 
 from torchsig.utils.printing import generate_repr_str
@@ -48,6 +49,7 @@ class FileWriter:
         Args:
             root (str): Location on disk to write dataset.
         """
+        _ = kwargs  # Accepted for a uniform file-handler constructor API.
         self.root: pathlib.Path = pathlib.Path(root).resolve()
 
     def _setup(self) -> None:
@@ -86,25 +88,28 @@ class FileWriter:
 
     def __del__(self):
         """Destructor to ensure clean resource cleanup"""
-        try:
+        with suppress(Exception):  # Destructors must not propagate cleanup failures.
             self.teardown()
-        except Exception:
-            pass  # Ignore errors during cleanup
 
     def __str__(self) -> str:
+        """Return the writer class name."""
         return f"{self.__class__.__name__}"
 
     def __repr__(self) -> str:
+        """Return a detailed representation of the writer."""
         return generate_repr_str(self)
 
     def __len__(self) -> int:
+        """Return the dataset length supplied by a concrete writer."""
         raise NotImplementedError
 
     def __enter__(self):
+        """Set up the writer and enter its context."""
         self.setup()
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):
+        """Tear down the writer when leaving its context."""
         self.teardown()
         return False
 
@@ -123,6 +128,7 @@ class FileReader:
         Args:
             root (str): Dataset location on disk.
         """
+        _ = kwargs  # Accepted for a uniform file-handler constructor API.
         self.root = pathlib.Path(root).resolve()
         self.dataset_info_filepath = self.root.joinpath("dataset_info.yaml")
 
@@ -141,12 +147,15 @@ class FileReader:
         raise NotImplementedError
 
     def __str__(self) -> str:
+        """Return the reader class name."""
         return f"{self.__class__.__name__}"
 
     def __repr__(self) -> str:
+        """Return a detailed representation of the reader."""
         return generate_repr_str(self)
 
     def __len__(self) -> int:
+        """Return the dataset length supplied by a concrete reader."""
         raise NotImplementedError
 
 
@@ -182,7 +191,9 @@ class BaseFileHandler:
         raise ValueError(f"Invalid File Handler mode: {mode}")
 
     def __str__(self) -> str:
+        """Return the handler class name."""
         return f"{self.__class__.__name__}"
 
     def __repr__(self) -> str:
+        """Return a detailed representation of the handler."""
         return generate_repr_str(self)

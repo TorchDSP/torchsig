@@ -1175,9 +1175,9 @@ def test_fsk_modulator_derives_resampling_rate_from_symbol_timing():
     baseband_modulator.assert_called_once_with(
         4,
         "gfsk",
-        48,
-        4,
-        rng,
+        max_num_samples=48,
+        oversampling_rate_nominal=4,
+        rng=rng,
         params=(0.5, 0.25, 2),
     )
 
@@ -1259,7 +1259,7 @@ def test_fsk_modulator_requests_margin_above_the_target_length():
         )
 
     # resample_rate_ideal = 10 * 4 / 16 = 2.5, ceil(100 / 2.5) + 16 = 56
-    assert baseband_modulator.call_args.args[2] == 56
+    assert baseband_modulator.call_args.kwargs["max_num_samples"] == 56
 
 
 def test_fsk_modulator_uses_minimum_baseband_length():
@@ -1298,7 +1298,7 @@ def test_fsk_modulator_uses_minimum_baseband_length():
             rng=rng,
         )
 
-    assert baseband_modulator.call_args.args[2] >= 5
+    assert baseband_modulator.call_args.kwargs["max_num_samples"] >= 5
 
 
 def test_fsk_modulator_applies_resampling_amplitude_correction():
@@ -1674,10 +1674,10 @@ def test_fsk_signal_generator_generate():
     modulator.assert_called_once_with(
         2,
         "gmsk",
-        800,
-        10_000,
-        150,
-        rng,
+        bandwidth=800,
+        sample_rate=10_000,
+        num_samples=150,
+        rng=rng,
     )
 
     signal_class.assert_called_once_with(

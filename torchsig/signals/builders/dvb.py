@@ -93,6 +93,7 @@ def build_plheader(rng: np.random.Generator | None = None) -> np.ndarray:
     Returns:
         np.ndarray: 90 complex PLHEADER symbols.
     """
+    _ = rng  # Retained for a uniform signal-builder API.
     sof_bits = np.unpackbits(np.frombuffer(bytes.fromhex(DVBS2_SOF_HEX), dtype=np.uint8))
     sof_bits = sof_bits[-DVBS2_SOF_SYMBOLS:]  # low 26 bits
     # Fixed PLSC placeholder pattern (alternating), toy stand-in for MODCOD code.
@@ -187,6 +188,7 @@ def dvbs2_modulator_baseband(
     frame_type: str,
     pilots: bool,
     alpha_rolloff: float,
+    *,
     max_num_samples: int,
     oversampling_rate_nominal: int,
     rng: np.random.Generator | None = None,
@@ -250,6 +252,7 @@ def dvbs2_modulator(
     frame_type: str,
     pilots: bool,
     alpha_rolloff: float,
+    *,
     bandwidth: float,
     sample_rate: float,
     num_samples: int,
@@ -298,9 +301,9 @@ def dvbs2_modulator(
         frame_type,
         pilots,
         alpha_rolloff,
-        num_samples_baseband,
-        oversampling_rate_baseband,
-        rng,
+        max_num_samples=num_samples_baseband,
+        oversampling_rate_nominal=oversampling_rate_baseband,
+        rng=rng,
     )
 
     signal_correct_bw = multistage_polyphase_resampler(signal_baseband, resample_rate_ideal)
@@ -387,10 +390,16 @@ class DVBS2SignalGenerator(BaseSignalGenerator):
             frame_type,
             pilots,
             alpha_rolloff,
-            bandwidth,
-            sample_rate,
-            num_iq_samples_signal,
-            self.random_generator,
+            bandwidth=bandwidth,
+            sample_rate=sample_rate,
+            num_samples=num_iq_samples_signal,
+            rng=self.random_generator,
         )
 
-        return Signal(data=signal_data, center_freq=0, bandwidth=bandwidth)
+        return Signal(
+            data=signal_data,
+            center_freq=0,
+            bandwidth=bandwidth,
+            alpha_rolloff=float(alpha_rolloff),
+            alpha_rolloff_target=float(alpha_rolloff),
+        )

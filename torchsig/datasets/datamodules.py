@@ -7,6 +7,7 @@ If dataset does exist, simply loaded it back in
 from __future__ import annotations
 
 import inspect
+import json
 import random
 from collections.abc import Callable, Mapping
 from pathlib import Path
@@ -16,7 +17,7 @@ import numpy as np
 import pytorch_lightning as pl
 import torch
 from torch import Generator
-from torch.utils.data import DataLoader, Subset, get_worker_info, random_split
+from torch.utils.data import DataLoader, Dataset, Subset, get_worker_info, random_split
 from torch.utils.data._utils.collate import default_collate
 
 from torchsig.datasets.datasets import (
@@ -24,20 +25,23 @@ from torchsig.datasets.datasets import (
     TorchSigDatasetConfig,
     TorchSigIterableDataset,
 )
+from torchsig.datasets.structured import StructuredHDF5Dataset, materialize_structured_dataset
 from torchsig.transforms.impairments import Impairments
-from torchsig.transforms.metadata_transforms import YOLOLabel
+from torchsig.transforms.metadata_transforms import GroupingLabel, YOLOLabel
 from torchsig.transforms.transforms import ComplexTo2D, Spectrogram
 from torchsig.utils.data_loading import WorkerSeedingDataLoader
 from torchsig.utils.defaults import TorchSigDefaults
 from torchsig.utils.file_handlers.hdf5 import HDF5Reader, HDF5Writer
-from torchsig.utils.file_handlers.packed_hdf5 import (
-    PackedHDF5Reader,
-    PackedHDF5Writer,
-)
 from torchsig.utils.file_handlers.homogeneous_hdf5 import (
     HomogeneousHDF5Reader,
     HomogeneousHDF5Writer,
 )
+from torchsig.utils.file_handlers.packed_hdf5 import (
+    PackedHDF5Reader,
+    PackedHDF5Writer,
+)
+from torchsig.utils.file_handlers.packed_npy import PackedNPYReader, PackedNPYWriter
+from torchsig.utils.random import Seedable
 from torchsig.utils.writer import DatasetCreator, identity_collate_fn
 from torchsig.utils.yaml import load_config_from_yaml
 
@@ -58,12 +62,12 @@ __all__ = [
 def set_global_seed(seed: int) -> None:
     """Set *all* relevant RNGs to the same seed."""
     random.seed(seed)
-    np.random.seed(seed)
+    np.random.seed(seed)  # noqa: NPY002 - seed the global RNG used by downstream code
     torch.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
 
     # Force deterministic algorithms (fails loudly if an op is nondet.)
-    torch.use_deterministic_algorithms(True)
+    torch.use_deterministic_algorithms(mode=True)
 
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
@@ -84,6 +88,7 @@ def _resolve_file_reader(file_writer, file_reader):
         HDF5Writer: HDF5Reader,
         PackedHDF5Writer: PackedHDF5Reader,
         HomogeneousHDF5Writer: HomogeneousHDF5Reader,
+        PackedNPYWriter: PackedNPYReader,
     }
     expected_reader = known_pairs.get(file_writer)
     if file_reader is None:
@@ -101,7 +106,7 @@ def _validate_file_writer_kwargs(file_writer, options):
         raise TypeError("file_writer_kwargs must be a dictionary")
     result = dict(options)
     try:
-        inspect.signature(file_writer).bind_partial(root=Path("."), **result)
+        inspect.signature(file_writer).bind_partial(root=Path(), **result)
     except ValueError:
         return result
     except TypeError as error:
@@ -183,6 +188,190 @@ def _enable_dataset_metadata_debug(
         dataset.enable_metadata_debug(**options)
 
 
+def _qualified_name(value: type) -> str:
+    """Return a stable import-style name for a configured class."""
+    return f"{value.__module__}.{value.__qualname__}"
+
+
+def _source_fingerprint(root: Path) -> dict[str, int]:
+    """Fingerprint the source HDF5 file used for materialization reuse."""
+    stat = (root / "data.h5").stat()
+    return {"size": stat.st_size, "mtime_ns": stat.st_mtime_ns}
+
+
+def _manifest_path(root: Path) -> Path:
+    """Keep compatibility metadata outside the atomically published dataset."""
+    return root.with_name(f"{root.name}.manifest.json")
+
+
+def _json_safe(value: Any) -> Any:
+    """Normalize configuration values into deterministic JSON data."""
+    if value is None or isinstance(value, (bool, int, float, str)):
+        return value
+    if isinstance(value, Path):
+        return str(value.resolve())
+    if isinstance(value, Mapping):
+        return {str(key): _json_safe(item) for key, item in sorted(value.items(), key=lambda pair: str(pair[0]))}
+    if isinstance(value, (list, tuple)):
+        return [_json_safe(item) for item in value]
+    return repr(value)
+
+
+def _write_manifest(path: Path, manifest: Mapping[str, Any]) -> None:
+    """Atomically publish a structured-materialization manifest."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_name(f".{path.name}.tmp")
+    temporary.write_text(json.dumps(_json_safe(manifest), indent=2, sort_keys=True))
+    temporary.replace(path)
+
+
+class _OnlineTransformDataset(Dataset, Seedable):
+    """Apply requested epoch-varying transforms after materialized reads."""
+
+    def __init__(self, dataset: Dataset, transforms: list[Callable], seed: int) -> None:
+        Dataset.__init__(self)
+        Seedable.__init__(self, seed=seed)
+        self.dataset = dataset
+        self.transforms = list(transforms)
+        for transform in self.transforms:
+            if isinstance(transform, Seedable):
+                transform.add_parent(self)
+
+    def __len__(self) -> int:
+        return len(self.dataset)
+
+    def _transform(self, sample: Any) -> Any:
+        for transform in self.transforms:
+            sample = transform(sample)
+        return sample
+
+    def __getitem__(self, index: int) -> Any:
+        return self._transform(self.dataset[index])
+
+    def __getitems__(self, indices: list[int]) -> list[Any]:
+        getitems = getattr(self.dataset, "__getitems__", None)
+        samples = getitems(indices) if getitems is not None else [self.dataset[index] for index in indices]
+        return [self._transform(sample) for sample in samples]
+
+
+class _StructuredMaterializationMixin:
+    """Shared explicit structured-materialization configuration and lifecycle."""
+
+    structured_materialization: bool
+    structured_root: Path
+    structured_overwrite: bool
+    structured_batch_size: int
+    structured_num_workers: int
+    structured_validation: str | None
+    structured_validation_samples: int
+    structured_writer_kwargs: dict[str, Any]
+
+    def _configure_structured_materialization(
+        self,
+        *,
+        source_root: Path,
+        enabled: bool,
+        root: str | Path | None,
+        overwrite: bool,
+        batch_size: int | None,
+        num_workers: int,
+        validation: str | None,
+        validation_samples: int,
+        writer_kwargs: Mapping[str, Any] | None,
+        train_transforms: list[Callable] | None,
+        default_batch_size: int,
+    ) -> None:
+        if not isinstance(enabled, bool) or not isinstance(overwrite, bool):
+            raise TypeError("structured_materialization and structured_overwrite must be booleans")
+        if validation not in (None, "full", "sampled"):
+            raise ValueError("structured_validation must be None, 'full', or 'sampled'")
+        resolved_batch_size = default_batch_size if batch_size is None else batch_size
+        if not isinstance(resolved_batch_size, int) or isinstance(resolved_batch_size, bool) or resolved_batch_size < 1:
+            raise ValueError("structured_batch_size must be a positive integer")
+        if not isinstance(num_workers, int) or isinstance(num_workers, bool) or num_workers < 0:
+            raise ValueError("structured_num_workers must be a non-negative integer")
+        if not isinstance(validation_samples, int) or isinstance(validation_samples, bool) or validation_samples < 1:
+            raise ValueError("structured_validation_samples must be a positive integer")
+        if writer_kwargs is not None and not isinstance(writer_kwargs, Mapping):
+            raise TypeError("structured_writer_kwargs must be a mapping")
+        self.structured_materialization = enabled
+        self.structured_root = Path(root) if root is not None else source_root.with_name(f"{source_root.name}-structured")
+        if self.structured_root.resolve() == source_root.resolve():
+            raise ValueError("structured_root must be separate from the source dataset root")
+        self.structured_overwrite = overwrite
+        self.structured_batch_size = resolved_batch_size
+        self.structured_num_workers = num_workers
+        self.structured_validation = validation
+        self.structured_validation_samples = validation_samples
+        self.structured_writer_kwargs = dict(writer_kwargs or {})
+        self.structured_train_transforms = list(train_transforms or [])
+
+    def _structured_manifest(self, source_root: Path, output_root: Path, *, split: str, expected_length: int, target_labels: list[str] | None) -> dict[str, Any]:
+        return {
+            "version": 1,
+            "layout": split,
+            "source_root": str(source_root.resolve()),
+            "output_root": str(output_root.resolve()),
+            "source_fingerprint": _source_fingerprint(source_root),
+            "source_reader": _qualified_name(self.file_reader),
+            "expected_length": expected_length,
+            "target_labels": list(target_labels) if target_labels is not None else None,
+            "batch_size": self.structured_batch_size,
+            "num_workers": self.structured_num_workers,
+            "validation": self.structured_validation,
+            "validation_samples": self.structured_validation_samples,
+            "writer_kwargs": _json_safe(self.structured_writer_kwargs),
+        }
+
+    def _ensure_structured_dataset(self, source: Dataset, output_root: Path, manifest: dict[str, Any]) -> None:
+        manifest_path = _manifest_path(output_root)
+        compatible = False
+        if output_root.exists() or manifest_path.exists():
+            try:
+                compatible = json.loads(manifest_path.read_text()) == _json_safe(manifest)
+                if compatible:
+                    stored = StructuredHDF5Dataset(output_root)
+                    try:
+                        compatible = len(stored) == manifest["expected_length"]
+                    finally:
+                        stored.close()
+            except (FileNotFoundError, OSError, TypeError, ValueError, json.JSONDecodeError):
+                compatible = False
+            if compatible:
+                return
+            if not self.structured_overwrite:
+                raise ValueError(f"Incompatible structured materialization at {output_root}; enable structured_overwrite to replace it")
+
+        materialized = materialize_structured_dataset(
+            source,
+            output_root,
+            batch_size=self.structured_batch_size,
+            num_workers=self.structured_num_workers,
+            overwrite=self.structured_overwrite or output_root.exists(),
+            validation=self.structured_validation,
+            validation_samples=self.structured_validation_samples,
+            writer_kwargs=self.structured_writer_kwargs,
+        )
+        materialized.close()
+        _write_manifest(manifest_path, manifest)
+
+    def _open_structured_dataset(self, source_root: Path, output_root: Path, *, split: str, expected_length: int, target_labels: list[str] | None) -> StructuredHDF5Dataset:
+        expected = self._structured_manifest(source_root, output_root, split=split, expected_length=expected_length, target_labels=target_labels)
+        manifest_path = _manifest_path(output_root)
+        try:
+            actual = json.loads(manifest_path.read_text())
+        except (OSError, json.JSONDecodeError) as error:
+            raise ValueError(f"Structured materialization manifest is missing or invalid: {manifest_path}") from error
+        if actual != _json_safe(expected):
+            raise ValueError(f"Incompatible structured materialization at {output_root}; rerun prepare_data with structured_overwrite enabled")
+        dataset = StructuredHDF5Dataset(output_root)
+        actual_length = len(dataset)
+        if actual_length != expected_length:
+            dataset.close()
+            raise ValueError(f"Structured materialization at {output_root} has {actual_length} samples; expected {expected_length}")
+        return dataset
+
+
 def _seed_worker(worker_id: int) -> None:
     """Initialise deterministic NumPy / Python RNGs **inside a DataLoader worker**.
 
@@ -200,12 +389,15 @@ def _seed_worker(worker_id: int) -> None:
     # -----------------------------------------------------------------
     #    ``Subset`` is just a thin wrapper -- fetch the real dataset.
     # -----------------------------------------------------------------
-    dataset = parent.dataset if isinstance(parent, Subset) else parent
+    dataset = parent
+    while isinstance(dataset, Subset):
+        dataset = dataset.dataset
 
     # -----------------------------------------------------------------
     #    Pull a deterministic integer from the *parent* generator.
     # -----------------------------------------------------------------
-    master_seed = int(dataset.random_generator.integers(0, 2**31))
+    random_generator = getattr(dataset, "random_generator", None)
+    master_seed = int(random_generator.integers(0, 2**31)) if random_generator is not None else torch.initial_seed() % (2**31)
 
     # -----------------------------------------------------------------
     #    Derive a unique seed for THIS worker.
@@ -225,7 +417,7 @@ def _seed_worker(worker_id: int) -> None:
     random.seed(worker_seed)
 
 
-class TorchSigDataModule(pl.LightningDataModule):
+class TorchSigDataModule(_StructuredMaterializationMixin, pl.LightningDataModule):
     """PyTorch Lightning DataModule for creating and loading TorchSig datasets.
 
     This DataModule handles:
@@ -263,25 +455,35 @@ class TorchSigDataModule(pl.LightningDataModule):
         root: str,
         metadata,
         dataset_size: int,
+        *,
         dataset_splits: list[float] | list[int] = [0.70, 0.20, 0.10],
-        # dataloader params
         batch_size: int = 1,
-        num_workers: int | None = None,  # ← can be None → default to 0
+        num_workers: int | None = None,
         collate_fn: Callable | None = None,
         shuffle: bool = True,
-        # dataset creator params
         create_batch_size: int = 8,
         create_num_workers: int = 4,
         file_writer: BaseFileHandler = HDF5Writer,
         file_reader: BaseFileHandler | None = None,
         file_writer_kwargs: dict[str, Any] | None = None,
         overwrite: bool = False,
-        # transforms
         impairment_level: int = 0,
         transforms: list | None = None,
         target_labels: list[str] | None = None,
+        signal_generators: str | list = "all",
+        sampling_grouping: GroupingLabel | str | Path | Mapping[str, Any] | None = None,
         seed: int | None = None,
         metadata_debug: bool | Mapping[str, Any] = False,
+        experiment_config: Any = None,
+        structured_materialization: bool = False,
+        structured_root: str | Path | None = None,
+        structured_overwrite: bool = False,
+        structured_batch_size: int | None = None,
+        structured_num_workers: int = 0,
+        structured_validation: str | None = None,
+        structured_validation_samples: int = 100,
+        structured_writer_kwargs: Mapping[str, Any] | None = None,
+        structured_train_transforms: list[Callable] | None = None,
     ):
         """Initialize the TorchSigDataModule.
 
@@ -302,10 +504,25 @@ class TorchSigDataModule(pl.LightningDataModule):
             impairment_level: Level of synthetic impairment to apply. Defaults to 0 (no impairment).
             transforms: List of transforms applied to each sample's input. Defaults to [].
             target_labels: Names of metadata fields to include. Defaults to None.
+            signal_generators: Signal generators available during dataset creation.
+            sampling_grouping: Optional grouping used to balance generator sampling.
             seed: Seed for randomness and reproducibility. Defaults to None.
             metadata_debug: Enable metadata debugging with default settings,
                 or provide keyword arguments for ``enable_metadata_debug``.
                 Defaults to ``False``.
+            experiment_config: Optional signal-generation configuration, YAML
+                path, or mapping. Defaults to no overrides.
+            structured_materialization: Opt in to model-ready structured HDF5.
+            structured_root: Separate output root; defaults to ``<root>-structured``.
+            structured_overwrite: Replace an incompatible structured output.
+            structured_batch_size: Batch size for materialization; defaults to
+                ``create_batch_size``.
+            structured_num_workers: Workers used during materialization.
+            structured_validation: Optional ``"full"`` or ``"sampled"`` validation.
+            structured_validation_samples: Maximum sampled validation count.
+            structured_writer_kwargs: Structured writer compression/chunk options.
+            structured_train_transforms: Epoch-varying transforms applied only
+                after reading materialized training samples.
 
         Raises:
             ValueError: If dataset_splits don't sum to 1.0 (when using fractions).
@@ -327,7 +544,10 @@ class TorchSigDataModule(pl.LightningDataModule):
         self.transforms = [self.whole_signal_impairments, *(transforms or [])]
 
         self.target_labels = target_labels
+        self.signal_generators = signal_generators
+        self.sampling_grouping = sampling_grouping
         self.metadata_debug_options = _metadata_debug_options(metadata_debug)
+        self.experiment_config = experiment_config
 
         # ---- dataloader configuration ------------------------------------
         self.batch_size = batch_size
@@ -342,11 +562,24 @@ class TorchSigDataModule(pl.LightningDataModule):
         self.file_reader = _resolve_file_reader(file_writer, file_reader)
         self.file_writer_kwargs = _validate_file_writer_kwargs(file_writer, file_writer_kwargs)
         self.overwrite = overwrite
+        self._configure_structured_materialization(
+            source_root=self.root,
+            enabled=structured_materialization,
+            root=structured_root,
+            overwrite=structured_overwrite,
+            batch_size=structured_batch_size,
+            num_workers=structured_num_workers,
+            validation=structured_validation,
+            validation_samples=structured_validation_samples,
+            writer_kwargs=structured_writer_kwargs,
+            train_transforms=structured_train_transforms,
+            default_batch_size=create_batch_size,
+        )
 
         # ---- placeholders ------------------------------------------------
-        self.train: StaticTorchSigDataset | None = None
-        self.val: StaticTorchSigDataset | None = None
-        self.test: StaticTorchSigDataset | None = None
+        self.train: Dataset | None = None
+        self.val: Dataset | None = None
+        self.test: Dataset | None = None
 
         # ---- reproducibility ---------------------------------------------
         self.seed = seed if seed is not None else 42
@@ -370,6 +603,8 @@ class TorchSigDataModule(pl.LightningDataModule):
         shuffle: bool = True,
         collate_fn: Callable | None = None,
         target_labels: list[str] | None = None,
+        signal_generators: str | list = "all",
+        sampling_grouping: GroupingLabel | str | Path | Mapping[str, Any] | None = None,
         **kwargs,
     ) -> TorchSigDataModule:
         """Create a TorchSigDataModule from a TorchSigDatasetConfig or YAML path.
@@ -390,6 +625,8 @@ class TorchSigDataModule(pl.LightningDataModule):
             shuffle: Whether to shuffle training data (default: True)
             collate_fn: Custom collate function for batching (default: None → identity function)
             target_labels: List of target label names (default: None → auto-select based on output_representation)
+            signal_generators: Signal generators available during dataset creation.
+            sampling_grouping: Optional grouping used to balance generator sampling.
             **kwargs: Additional arguments passed to TorchSigDataModule constructor
 
         Returns:
@@ -447,7 +684,10 @@ class TorchSigDataModule(pl.LightningDataModule):
             impairment_level=cfg.impairment_level,
             transforms=additional_transforms,
             target_labels=target_labels or None,
+            signal_generators=signal_generators,
+            sampling_grouping=sampling_grouping,
             seed=cfg.seed,
+            experiment_config=cfg.experiment_config,
             **kwargs,
         )
 
@@ -463,10 +703,13 @@ class TorchSigDataModule(pl.LightningDataModule):
         """
         dataset = TorchSigIterableDataset(
             metadata=self.metadata,
+            signal_generators=self.signal_generators,
+            sampling_grouping=self.sampling_grouping,
             transforms=self.transforms,
             component_transforms=[self.burst_impairments],
             target_labels=self.target_labels,
             seed=self.seed,
+            experiment_config=self.experiment_config,
         )
         _enable_dataset_metadata_debug(dataset, self.metadata_debug_options)
         loader = WorkerSeedingDataLoader(
@@ -486,6 +729,19 @@ class TorchSigDataModule(pl.LightningDataModule):
         )
         print(f"Full Dataset: Impairment Level {self.impairment_level}, {self.dataset_size} samples")
         creator.create()
+        if self.structured_materialization:
+            source = StaticTorchSigDataset(root=self.root, file_handler_class=self.file_reader, target_labels=self.target_labels)
+            try:
+                manifest = self._structured_manifest(
+                    self.root,
+                    self.structured_root,
+                    split="full",
+                    expected_length=self.dataset_size,
+                    target_labels=self.target_labels,
+                )
+                self._ensure_structured_dataset(source, self.structured_root, manifest)
+            finally:
+                source.reader.teardown()
 
     def setup(self, stage: str = "fit") -> None:
         """Sets up the train and validation datasets for the given stage.
@@ -497,16 +753,28 @@ class TorchSigDataModule(pl.LightningDataModule):
             FileNotFoundError: If the dataset files are not found at the specified root.
             ValueError: If dataset splits are invalid.
         """
-        full_dataset = StaticTorchSigDataset(
-            root=self.root,
-            file_handler_class=self.file_reader,
-            target_labels=self.target_labels,
-        )
+        _ = stage  # Required by the LightningDataModule hook signature.
+        if self.structured_materialization:
+            full_dataset: Dataset = self._open_structured_dataset(
+                self.root,
+                self.structured_root,
+                split="full",
+                expected_length=self.dataset_size,
+                target_labels=self.target_labels,
+            )
+        else:
+            full_dataset = StaticTorchSigDataset(
+                root=self.root,
+                file_handler_class=self.file_reader,
+                target_labels=self.target_labels,
+            )
         self.train, self.val, self.test = random_split(
             full_dataset,
             self.dataset_splits,
             generator=Generator().manual_seed(self.seed),
         )
+        if self.structured_materialization and self.structured_train_transforms:
+            self.train = _OnlineTransformDataset(self.train, self.structured_train_transforms, self.seed)
 
     # -----------------------------------------------------------------
     # Helper that builds a *deterministic* DataLoader
@@ -567,7 +835,7 @@ class TorchSigDataModule(pl.LightningDataModule):
         return self._build_dataloader(self.test, shuffle=False)
 
 
-class SplitTorchSigDataModule(pl.LightningDataModule):
+class SplitTorchSigDataModule(_StructuredMaterializationMixin, pl.LightningDataModule):
     """Lightning DataModule for independently generated TorchSig data splits.
 
     This DataModule creates separate static training, validation, and test
@@ -601,6 +869,17 @@ class SplitTorchSigDataModule(pl.LightningDataModule):
         target_labels: Metadata fields returned as targets.
         metadata_debug: Enable metadata debugging with default settings, or
             provide keyword arguments for ``enable_metadata_debug``.
+        structured_materialization: Opt in to model-ready structured HDF5.
+        structured_root: Separate output root; defaults to a ``-structured``
+            sibling of the dataset root.
+        structured_overwrite: Replace incompatible structured split outputs.
+        structured_batch_size: Batch size used during materialization.
+        structured_num_workers: Worker count used during materialization.
+        structured_validation: Optional ``"full"`` or ``"sampled"`` validation.
+        structured_validation_samples: Maximum sampled validation count.
+        structured_writer_kwargs: Structured writer compression/chunk options.
+        structured_train_transforms: Epoch-varying transforms applied only to
+            materialized training samples.
     """
 
     def __init__(
@@ -623,6 +902,15 @@ class SplitTorchSigDataModule(pl.LightningDataModule):
         collate_fn: Callable | None = None,
         target_labels: list[str] | None = None,
         metadata_debug: bool | Mapping[str, Any] = False,
+        structured_materialization: bool = False,
+        structured_root: str | Path | None = None,
+        structured_overwrite: bool = False,
+        structured_batch_size: int | None = None,
+        structured_num_workers: int = 0,
+        structured_validation: str | None = None,
+        structured_validation_samples: int = 100,
+        structured_writer_kwargs: Mapping[str, Any] | None = None,
+        structured_train_transforms: list[Callable] | None = None,
     ) -> None:
         """Initialize the split-based TorchSig DataModule."""
         super().__init__()
@@ -648,10 +936,23 @@ class SplitTorchSigDataModule(pl.LightningDataModule):
         self.collate_fn = collate_fn or default_collate
         self.target_labels = target_labels or ["class_index"]
         self.metadata_debug_options = _metadata_debug_options(metadata_debug)
+        self._configure_structured_materialization(
+            source_root=self.root,
+            enabled=structured_materialization,
+            root=structured_root,
+            overwrite=structured_overwrite,
+            batch_size=structured_batch_size,
+            num_workers=structured_num_workers,
+            validation=structured_validation,
+            validation_samples=structured_validation_samples,
+            writer_kwargs=structured_writer_kwargs,
+            train_transforms=structured_train_transforms,
+            default_batch_size=create_batch_size,
+        )
 
-        self.train: StaticTorchSigDataset | None = None
-        self.val: StaticTorchSigDataset | None = None
-        self.test: StaticTorchSigDataset | None = None
+        self.train: Dataset | None = None
+        self.val: Dataset | None = None
+        self.test: Dataset | None = None
 
         self._validate_configs()
 
@@ -681,6 +982,7 @@ class SplitTorchSigDataModule(pl.LightningDataModule):
             transforms=_config_transforms(cfg),
             signal_generators=self.signal_generators,
             seed=cfg.seed,
+            experiment_config=cfg.experiment_config,
         )
         _enable_dataset_metadata_debug(dataset, self.metadata_debug_options)
 
@@ -702,6 +1004,20 @@ class SplitTorchSigDataModule(pl.LightningDataModule):
             **self.file_writer_kwargs,
         )
         creator.create()
+        if self.structured_materialization:
+            source = StaticTorchSigDataset(root=split_root, file_handler_class=self.file_reader, target_labels=self.target_labels)
+            output_root = self.structured_root / split
+            try:
+                manifest = self._structured_manifest(
+                    split_root,
+                    output_root,
+                    split=split,
+                    expected_length=int(cfg.dataset_length),
+                    target_labels=self.target_labels,
+                )
+                self._ensure_structured_dataset(source, output_root, manifest)
+            finally:
+                source.reader.teardown()
 
     def prepare_data(self) -> None:
         """Create independent training, validation, and test datasets."""
@@ -711,8 +1027,17 @@ class SplitTorchSigDataModule(pl.LightningDataModule):
         self._create_split(self.val_cfg, "val")
         self._create_split(self.test_cfg, "test")
 
-    def _load_split(self, split: str) -> StaticTorchSigDataset:
+    def _load_split(self, split: str) -> Dataset:
         """Load one static dataset split."""
+        if self.structured_materialization:
+            config = {"train": self.train_cfg, "val": self.val_cfg, "test": self.test_cfg}[split]
+            return self._open_structured_dataset(
+                self.root / split,
+                self.structured_root / split,
+                split=split,
+                expected_length=int(config.dataset_length),
+                target_labels=self.target_labels,
+            )
         return StaticTorchSigDataset(
             root=self.root / split,
             file_handler_class=self.file_reader,
@@ -724,6 +1049,8 @@ class SplitTorchSigDataModule(pl.LightningDataModule):
         if stage in (None, "fit"):
             if self.train is None:
                 self.train = self._load_split("train")
+                if self.structured_materialization and self.structured_train_transforms:
+                    self.train = _OnlineTransformDataset(self.train, self.structured_train_transforms, self.train_cfg.seed)
 
             if self.val is None:
                 self.val = self._load_split("val")
@@ -736,7 +1063,7 @@ class SplitTorchSigDataModule(pl.LightningDataModule):
 
     def _build_dataloader(
         self,
-        dataset: StaticTorchSigDataset | None,
+        dataset: Dataset | None,
         *,
         shuffle: bool,
         seed: int,

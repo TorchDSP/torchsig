@@ -13,13 +13,14 @@ from scipy import signal as sp
 from scipy.constants import c as speed_of_light
 from scipy.interpolate import interp1d as sp_interp1d
 
-from torchsig.utils import dsp
 from torchsig.utils.dsp import (
     TorchSigComplexDataType,
     TorchSigRealDataType,
-    is_even,
+    compute_spectrogram,
+    low_pass,
     multistage_polyphase_resampler,
     multistage_polyphase_resampler_actual_rate,
+    noise_generator,
     prototype_polyphase_filter,
     sampling_clock_impairments,
 )
@@ -33,7 +34,7 @@ try:
     from torchsig.utils.dsp_numba import (
         sampling_clock_impairments_numba_wrapper as _sampling_clock_impairments,
     )
-except Exception:  # pragma: no cover - exercised only when numba is unavailable
+except ImportError:  # pragma: no cover - exercised only when numba is unavailable
     _sampling_clock_impairments = sampling_clock_impairments
     _digital_agc_numba = None
 
@@ -74,6 +75,87 @@ __all__ = [
     "time_reversal",
     "time_varying_noise",
 ]
+
+
+def _preserve_sampling_clock_output(
+    data: np.ndarray,
+    length: int,
+    start_position: float | None = None,
+) -> np.ndarray:
+    """Align sampling-clock output and return complex64 ``length`` samples."""
+    output = np.asarray(data, dtype=TorchSigComplexDataType)
+    if start_position is not None:
+        if len(output) == 0:
+            return np.zeros(length, dtype=TorchSigComplexDataType)
+        positions = start_position + np.arange(length, dtype=np.float64)
+        lower = np.floor(positions).astype(np.int64)
+        fraction = positions - lower
+        aligned = np.zeros(length, dtype=TorchSigComplexDataType)
+        aligned[positions < 0.0] = output[0]
+        aligned[positions > len(output) - 1] = output[-1]
+        exact = (fraction == 0.0) & (lower >= 0) & (lower < len(output))
+        aligned[exact] = output[lower[exact]]
+        interpolated = (fraction != 0.0) & (lower >= 0) & (lower + 1 < len(output))
+        first = output[lower[interpolated]]
+        aligned[interpolated] = first + fraction[interpolated] * (output[lower[interpolated] + 1] - first)
+        return aligned
+
+    length_delta = len(output) - length
+
+    if length_delta > 0:
+        crop_front = (length_delta + 1) // 2
+        output = output[crop_front : crop_front + length]
+    elif length_delta < 0:
+        pad_count = -length_delta
+        pad_front = (pad_count + 1) // 2
+        pad_back = pad_count // 2
+        output = np.pad(output, (pad_front, pad_back), mode="edge") if len(output) else np.zeros(length, dtype=TorchSigComplexDataType)
+
+    return output.astype(TorchSigComplexDataType, copy=False)
+
+
+def _apply_sampling_clock_impairment(
+    data: np.ndarray,
+    *,
+    jitter_ppm: float,
+    drift_ppm: float,
+    rng: np.random.Generator | None,
+    initial_phase: float,
+    jitter_model: str = "independent",
+    jitter_alpha: float = 0.9,
+    drift_model: str = "constant",
+    drift_rate_ppm_per_sec: float = 0.0,
+    drift_noise_ppm_per_sqrt_sec: float = 0.0,
+    sample_rate_hz: float = 1.0,
+) -> np.ndarray:
+    """Apply a sampling-clock model using float32 filter coefficients.
+
+    The float32 production filter retains the documented 0.05 dB passband and
+    80 dB rejection contract while using half the coefficient storage of the
+    float64 design representation. Inputs and outputs remain complex64.
+    """
+    generator = rng or np.random.default_rng()
+    complex_data = data.astype(TorchSigComplexDataType)
+    uprate = 5000
+    prototype_filter = prototype_polyphase_filter(num_branches=uprate).astype(TorchSigRealDataType)
+    impaired_data = _sampling_clock_impairments(
+        h=prototype_filter,
+        x=complex_data,
+        uprate=uprate,
+        drate=uprate,
+        jitter_ppm=jitter_ppm,
+        drift_ppm=drift_ppm,
+        rng=generator,
+        initial_phase=initial_phase,
+        jitter_model=jitter_model,
+        jitter_alpha=jitter_alpha,
+        drift_model=drift_model,
+        drift_rate_ppm_per_sec=drift_rate_ppm_per_sec,
+        drift_noise_ppm_per_sqrt_sec=drift_noise_ppm_per_sqrt_sec,
+        sample_rate_hz=sample_rate_hz,
+    )
+    filter_delay = (len(prototype_filter) - 1) / (2 * uprate)
+    return _preserve_sampling_clock_output(impaired_data, len(complex_data), start_position=filter_delay)
 
 
 log = logging.getLogger(__name__)
@@ -124,12 +206,13 @@ def additive_noise(
     """
     rng = rng or np.random.default_rng()
     n = len(data)
-    noise_samples = dsp.noise_generator(n, power, color, continuous, rng)
+    noise_samples = noise_generator(n, power, color, continuous, rng)
     return (data + noise_samples).astype(TorchSigComplexDataType)
 
 
 def adjacent_channel_interference(
     data: np.ndarray,
+    *,
     sample_rate: float = 4.0,
     power: float = 1.0,
     center_frequency: float = 0.2,
@@ -159,7 +242,7 @@ def adjacent_channel_interference(
         Data with added adjacent interference.
     """
     rng = rng or np.random.default_rng()
-    filter_weights = dsp.low_pass(0.25, 0.25, 4.0) if filter_weights is None else filter_weights
+    filter_weights = low_pass(0.25, 0.25, 4.0) if filter_weights is None else filter_weights
 
     n = len(data)
     t = np.arange(n) / sample_rate
@@ -222,140 +305,109 @@ def clock_drift(
     data: np.ndarray,
     drift_ppm: float = 10,
     rng: np.random.Generator | None = None,
+    initial_phase: float = 0.0,
+    drift_model: str = "constant",
+    drift_rate_ppm_per_sec: float = 0.0,
+    drift_noise_ppm_per_sqrt_sec: float = 0.0,
+    sample_rate_hz: float = 1.0,
 ) -> np.ndarray:
-    """Clock drift from a Local Oscillator (LO), modeled as accumulated gaussian random noise impacting the
-    sampling rate.
+    """Apply a configurable sampling-clock period-error model.
 
-    The drift applies a randomness to the sampling rate, and by accumulating the gaussian RV
-    over time it will slightly increase or decrease the sampling rate of the data, and thereby changing the
-    number of samples by a very small number.
+    The production float32 interpolation filter supports signals with full
+    two-sided occupied bandwidth up to 0.7 times the sample rate (edges at
+    ±0.35), with less than 0.05 dB passband-edge attenuation and at least 80 dB
+    rejection at normalized frequency 0.70.
+
+    Positive ``drift_ppm`` advances the input sampling position faster and
+    raises the apparent normalized frequency of a tone. This models ADC sample
+    timing independently of carrier local-oscillator error. Signal metadata
+    remains nominal after the transform.
 
     Args:
         data: Complex valued IQ data samples.
-        drift_ppm: Clock drift in parts per million (ppm). Default 10.
+        drift_ppm: Signed initial sampling-period error in ppm. Positive values
+            advance input positions faster. Defaults to 10.
         rng: Random number generator. Defaults to np.random.default_rng(seed=None).
+        initial_phase: Initial sampling phase in input-sample periods. Must be
+            in the half-open interval ``[0, 1)``. Defaults to 0.
+        drift_model: ``"constant"``, ``"linear"``, or ``"random_walk"``.
+        drift_rate_ppm_per_sec: Linear period-error change in ppm/second.
+        drift_noise_ppm_per_sqrt_sec: Random-walk innovation strength in
+            ppm/sqrt(second).
+        sample_rate_hz: Physical sample rate used to scale elapsed time.
 
     Returns:
-        Data with LO drift applied.
+        Data with sampling-clock drift applied.
     """
-    rng = rng or np.random.default_rng()
-
-    # enforce data to be the correct complex type
-    data = data.astype(TorchSigComplexDataType)
-
-    # define up/down rates
-    uprate = 5000
-    downrate = copy(uprate)
-
-    # build the prototype filter
-    pfb_prototype_filter = prototype_polyphase_filter(num_branches=uprate)
-
-    # convert to real data type
-    pfb_prototype_filter = pfb_prototype_filter.astype(TorchSigRealDataType)
-
-    # call the impairment
-    data_with_drift = _sampling_clock_impairments(h=pfb_prototype_filter, x=data, uprate=uprate, drate=downrate, jitter_ppm=0, drift_ppm=drift_ppm, rng=rng)
-
-    # discard extra samples from resampling process, or zero-pad if too short
-    num_samples_to_discard = len(data_with_drift) - len(data)
-
-    if num_samples_to_discard > 0:
-        if is_even(num_samples_to_discard):
-            slice_front = num_samples_to_discard // 2
-            slice_back = num_samples_to_discard // 2
-        else:
-            slice_front = (num_samples_to_discard + 1) // 2
-            slice_back = num_samples_to_discard // 2
-        data_with_drift = data_with_drift[slice_front:-slice_back]
-    else:
-        # calculate number of zeros to pad
-        num_samples_to_pad = len(data) - len(data_with_drift)
-        if is_even(num_samples_to_pad):
-            pad_front = num_samples_to_pad // 2
-            pad_back = num_samples_to_pad // 2
-        else:
-            pad_front = (num_samples_to_pad + 1) // 2
-            pad_back = num_samples_to_pad // 2
-        data_with_drift = np.concatenate((np.zeros(pad_front), data_with_drift, np.zeros(pad_back)))
-
-    # ensure data type
-    return data_with_drift.astype(TorchSigComplexDataType)
+    return _apply_sampling_clock_impairment(
+        data,
+        jitter_ppm=0,
+        drift_ppm=drift_ppm,
+        rng=rng,
+        initial_phase=initial_phase,
+        drift_model=drift_model,
+        drift_rate_ppm_per_sec=drift_rate_ppm_per_sec,
+        drift_noise_ppm_per_sqrt_sec=drift_noise_ppm_per_sqrt_sec,
+        sample_rate_hz=sample_rate_hz,
+    )
 
 
 def clock_jitter(
     data: np.ndarray,
     jitter_ppm: float = 10,
     rng: np.random.Generator | None = None,
+    initial_phase: float = 0.0,
+    jitter_model: Literal["independent", "period", "ar1"] = "independent",
+    jitter_alpha: float = 0.9,
 ) -> np.ndarray:
-    """Clock jitter from a Local Oscillator (LO), modeled as gaussian random noise impacting the
-    sampling phase.
+    """Apply a configurable Gaussian sampling-clock timing-jitter model.
 
-    The jitter applies a randomness to the sampling phase, applying a slight
-    increment or decrement to the sampling phase and therefore potentially changing the number of
-    samples by a very small number.
+    Independent and AR(1) jitter are absolute sampling-time errors. Period
+    jitter represents independent sampling-period errors and therefore
+    accumulates over the record. AR(1) jitter uses ``jitter_alpha`` as its
+    lag-one correlation coefficient.
+
+    The production float32 interpolation filter supports signals with full
+    two-sided occupied bandwidth up to 0.7 times the sample rate (edges at
+    ±0.35), with less than 0.05 dB passband-edge attenuation and at least 80 dB
+    rejection at normalized frequency 0.70.
+
+    This models ADC sample timing independently of carrier local-oscillator
+    error. Signal metadata remains nominal after the transform.
 
     Args:
         data: Complex valued IQ data samples.
         jitter_ppm: Jitter in parts per million (ppm). Default 10.
         rng: Random number generator. Defaults to np.random.default_rng(seed=None).
+        initial_phase: Initial sampling phase in input-sample periods. Must be
+            in the half-open interval ``[0, 1)``. Defaults to 0.
+        jitter_model: ``"independent"``, ``"period"``, or ``"ar1"``.
+            Defaults to independent absolute timing jitter.
+        jitter_alpha: AR(1) correlation coefficient in the open interval
+            ``(-1, 1)``. Used only by the AR(1) model. Defaults to 0.9.
 
     Returns:
-        Data with LO drift applied.
+        Data with sampling-clock jitter applied.
     """
-    rng = rng or np.random.default_rng()
+    if jitter_model not in {"independent", "period", "ar1"}:
+        raise ValueError("jitter_model must be 'independent', 'period', or 'ar1'")
+    if not np.isfinite(jitter_alpha) or abs(jitter_alpha) >= 1.0:
+        raise ValueError("jitter_alpha must be finite and have absolute value less than 1")
 
-    # enforce data to be the correct complex type
-    data = data.astype(TorchSigComplexDataType)
-
-    # define up/down rates
-    uprate = 5000
-    downrate = copy(uprate)
-
-    # build the prototype filter
-    pfb_prototype_filter = prototype_polyphase_filter(num_branches=uprate)
-
-    # convert to real data type
-    pfb_prototype_filter = pfb_prototype_filter.astype(TorchSigRealDataType)
-
-    # call the impairment
-    data_with_jitter = _sampling_clock_impairments(
-        h=pfb_prototype_filter,
-        x=data,
-        uprate=uprate,
-        drate=downrate,
+    return _apply_sampling_clock_impairment(
+        data,
         jitter_ppm=jitter_ppm,
         drift_ppm=0,
         rng=rng,
+        initial_phase=initial_phase,
+        jitter_model=jitter_model,
+        jitter_alpha=jitter_alpha,
     )
-
-    # discard extra samples from resampling process, or zero-pad if too short
-    num_samples_to_discard = len(data_with_jitter) - len(data)
-
-    if num_samples_to_discard > 0:
-        if is_even(num_samples_to_discard):
-            slice_front = num_samples_to_discard // 2
-            slice_back = num_samples_to_discard // 2
-        else:
-            slice_front = (num_samples_to_discard + 1) // 2
-            slice_back = num_samples_to_discard // 2
-        data_with_jitter = data_with_jitter[slice_front:-slice_back]
-    else:
-        # calculate number of zeros to pad
-        num_samples_to_pad = len(data) - len(data_with_jitter)
-        if is_even(num_samples_to_pad):
-            pad_front = num_samples_to_pad // 2
-            pad_back = num_samples_to_pad // 2
-        else:
-            pad_front = (num_samples_to_pad + 1) // 2
-            pad_back = num_samples_to_pad // 2
-        data_with_jitter = np.concatenate((np.zeros(pad_front), data_with_jitter, np.zeros(pad_back)))
-
-    # ensure data type
-    return data_with_jitter.astype(TorchSigComplexDataType)
 
 
 def cochannel_interference(
     data: np.ndarray,
+    *,
     power: float = 1.0,
     filter_weights: np.ndarray | None = None,
     color: str = "white",
@@ -376,10 +428,10 @@ def cochannel_interference(
         Data with added uncorrelated co-channel interference.
     """
     rng = rng or np.random.default_rng()
-    filter_weights = dsp.low_pass(0.25, 0.25, 4.0) if filter_weights is None else filter_weights
+    filter_weights = low_pass(0.25, 0.25, 4.0) if filter_weights is None else filter_weights
 
     n = len(data)
-    noise_samples = dsp.noise_generator(n, power, color, continuous, rng)
+    noise_samples = noise_generator(n, power, color, continuous, rng)
     shaped_noise = np.convolve(noise_samples, filter_weights)[-n:]
 
     # correct shaped noise power (do not assume filter is prescaled)
@@ -482,6 +534,7 @@ def cut_out(
 
 def digital_agc(
     data: np.ndarray,
+    *,
     initial_gain_db: float = 0.0,
     alpha_smooth: float = 1e-4,
     alpha_track: float = 1e-3,
@@ -520,14 +573,11 @@ def digital_agc(
         low_level_db,
         high_level_db,
     )
-    if _digital_agc_numba is not None:
-        output = _digital_agc_numba(data, *args)
-    else:  # pragma: no cover - exercised only when numba is unavailable
-        output = _digital_agc_python(data, *args)
+    output = _digital_agc_numba(data, *args) if _digital_agc_numba is not None else _digital_agc_python(data, *args)
     return output.astype(TorchSigComplexDataType)
 
 
-def _digital_agc_python(
+def _digital_agc_python(  # noqa: PLR0917
     data: np.ndarray,
     initial_gain_db: float,
     alpha_smooth: float,
@@ -762,13 +812,16 @@ def iq_imbalance(
     phase_imbalance: float,
     dc_offset_db: float,
     dc_offset_phase_rads: float,
+    *,
     noise_power_db: float | None = None,
 ) -> np.ndarray:
     """Applies IQ imbalance to IQ data.
 
     Args:
         data: IQ data.
-        amplitude_imbalance: IQ amplitude imbalance in dB.
+        amplitude_imbalance: Relative voltage imbalance between the I and Q
+            channels in dB. Positive values amplify I relative to Q; negative
+            values amplify Q relative to I.
         phase_imbalance: IQ phase imbalance in radians [-pi, pi].
         dc_offset_db: Relative power of additive DC offset in dB.
         dc_offset_phase_rads: Phase of additive DC offset in radians.
@@ -777,8 +830,12 @@ def iq_imbalance(
     Returns:
         IQ data with IQ Imbalance applied.
     """
-    # amplitude imbalance
-    data = 10 ** (amplitude_imbalance / 10.0) * np.real(data) + 1j * 10 ** (amplitude_imbalance / 10.0) * np.imag(data)
+    # Split the requested voltage imbalance symmetrically between I and Q so
+    # their relative gain is exactly ``amplitude_imbalance`` dB without adding
+    # an unnecessary common gain to both channels.
+    i_gain = 10 ** (amplitude_imbalance / 40.0)
+    q_gain = 10 ** (-amplitude_imbalance / 40.0)
+    data = i_gain * np.real(data) + 1j * q_gain * np.imag(data)
 
     # phase imbalance
     data = np.exp(-1j * phase_imbalance / 2.0) * np.real(data) + np.exp(1j * (np.pi / 2.0 + phase_imbalance / 2.0)) * np.imag(data)
@@ -901,6 +958,7 @@ def carrier_phase_noise(
 
 def nonlinear_amplifier(
     data: np.ndarray,
+    *,
     gain: float = 1.0,
     psat_backoff: float = 10.0,
     phi_max: float = 0.1,
@@ -1131,6 +1189,7 @@ def _fft_filter(freq_profile: np.ndarray, trim_tol: float = 1e-6, fit_metric: st
 
 def _build_full_profile(
     num_taps: int = 1025,
+    *,
     ripple_amp: float = 0.1,
     ripple_freq: float = 5.0,
     passband_fuzz: Literal["smooth", "random"] = "smooth",
@@ -1213,6 +1272,7 @@ def _build_profile_freq_grid(num_taps):
 
 def passband_ripple(
     data: np.ndarray,
+    *,
     num_taps: int = 65,
     max_ripple_db: float = 2.0,
     ripple_freq: float = 5.0,
@@ -1554,7 +1614,7 @@ def spectrogram(data: np.ndarray, fft_size: int, fft_stride: int) -> np.ndarray:
     Returns:
         Spectrogram computed from IQ data.
     """
-    return dsp.compute_spectrogram(data, fft_size=fft_size, fft_stride=fft_stride)
+    return compute_spectrogram(data, fft_size=fft_size, fft_stride=fft_stride)
 
 
 def spectrogram_drop_samples(data: np.ndarray, drop_starts: np.ndarray, drop_sizes: np.ndarray, fill: Literal["ffill", "bfill", "mean", "zero", "max", "low", "ones"]) -> np.ndarray:
@@ -1716,10 +1776,7 @@ def spurs(
         # instead of taking an FFT of the spur (which only existed to find this peak).
         bin_offset = (center_freq / sample_rate) * num_samples
         frac = bin_offset - np.round(bin_offset)  # distance to nearest DFT bin
-        if np.isclose(frac, 0.0):
-            spur_max = float(num_samples)  # on-bin: all samples add coherently
-        else:
-            spur_max = np.abs(np.sin(np.pi * frac) / np.sin(np.pi * frac / num_samples))
+        spur_max = float(num_samples) if np.isclose(frac, 0.0) else np.abs(np.sin(np.pi * frac) / np.sin(np.pi * frac / num_samples))
         spur_max_db = 20 * np.log10(spur_max)
         # calculate change to set spur power properly
         gain_change_db = (noise_floor_db - spur_max_db) + relative_power_db_array[spur_index]
@@ -1752,6 +1809,7 @@ def time_varying_noise(
     noise_power_high: float,
     inflections: int,
     random_regions: bool,
+    *,
     rng: np.random.Generator | None = None,
 ) -> np.ndarray:
     """Adds time-varying complex additive white Gaussian noise.

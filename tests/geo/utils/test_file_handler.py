@@ -19,7 +19,6 @@ import pytest
 import yaml
 
 from torchsig.datasets.datasets import TorchSigIterableDataset
-
 from torchsig.geo.datasets import Receiver, TorchSigGeoDataset, Transmitter
 from torchsig.geo.types import GeoPoint
 from torchsig.geo.utils.file_handler import (
@@ -28,9 +27,7 @@ from torchsig.geo.utils.file_handler import (
     GeoDatasetWriter,
 )
 from torchsig.signals.signal_types import Signal
-from torchsig.utils.abstractions import MetadataAttributeError
 from torchsig.utils.defaults import TorchSigDefaults
-
 
 # Helper functions moved from file_handler.py since they're only used in tests
 DATA_TYPE_TO_NP_DTYPE = {
@@ -618,14 +615,14 @@ class TestGeoDatasetReader:
         """Create sample .yaml and .dat files for testing."""
         return create_sample_files(temp_dir)
 
-    def test_read_single_signal(self, temp_dir, sample_files):  # noqa: ARG002
+    def test_read_single_signal(self, temp_dir, sample_files):
         """Test reading a single signal."""
         reader = GeoDatasetReader(root=temp_dir)
         signal = reader.read(0)
         assert isinstance(signal, Signal)
         assert len(signal.data) == 4
 
-    def test_read_metadata(self, temp_dir, sample_files):  # noqa: ARG002
+    def test_read_metadata(self, temp_dir, sample_files):
         """Test reading metadata from YAML."""
         reader = GeoDatasetReader(root=temp_dir)
         signal = reader.read(0)
@@ -634,7 +631,7 @@ class TestGeoDatasetReader:
         assert signal["rx_alt"] == pytest.approx(10.0)
         assert signal["sample_rate"] == pytest.approx(1000000.0)
 
-    def test_read_iq_data(self, temp_dir, sample_files):  # noqa: ARG002
+    def test_read_iq_data(self, temp_dir, sample_files):
         """Test reading IQ data from DAT file."""
         reader = GeoDatasetReader(root=temp_dir)
         signal = reader.read(0)
@@ -654,7 +651,7 @@ class TestGeoDatasetReader:
             assert isinstance(signal, Signal)
             assert len(signal.data) == 4
 
-    def test_len(self, temp_dir, sample_files):  # noqa: ARG002
+    def test_len(self, temp_dir, sample_files):
         """Test __len__ method."""
         reader = GeoDatasetReader(root=temp_dir)
         assert len(reader) == 1
@@ -1030,9 +1027,8 @@ class TestGeoDatasetWriterValidation:
             data_type="int16",
         )
 
-        with writer:
-            with pytest.raises(ValueError, match=r"outside \[-1, 1\]"):
-                writer.write(0, signal)
+        with writer, pytest.raises(ValueError, match=r"outside \[-1, 1\]"):
+            writer.write(0, signal)
 
         assert list(tmp_path.glob("*.yaml")) == []
         assert list(tmp_path.glob("*.dat")) == []
@@ -1060,9 +1056,8 @@ class TestGeoDatasetWriterValidation:
             data_type="int16",
         )
 
-        with writer:
-            with pytest.raises(ValueError, match="finite"):
-                writer.write(0, signal)
+        with writer, pytest.raises(ValueError, match="finite"):
+            writer.write(0, signal)
 
         assert list(tmp_path.glob("*.yaml")) == []
         assert list(tmp_path.glob("*.dat")) == []
@@ -1082,12 +1077,14 @@ class TestGeoDatasetWriterValidation:
 
         replacement = GeoDatasetWriter(root=str(tmp_path))
 
-        with pytest.raises(
-            FileExistsError,
-            match="output directory.*not empty",
+        with (
+            pytest.raises(
+                FileExistsError,
+                match="output directory.*not empty",
+            ),
+            replacement,
         ):
-            with replacement:
-                pass
+            pass
 
         # The first dataset must remain intact.
         assert (tmp_path / "0.yaml").exists()

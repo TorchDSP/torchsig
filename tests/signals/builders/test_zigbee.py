@@ -216,7 +216,7 @@ def test_zigbee_occupied_bandwidth_matches_annotation(bandwidth, sample_rate):
     its power within roughly 1.25x the chip rate, so a correct build lands near
     1.25 and the regression pushes it past 2.5.
     """
-    from scipy.signal import welch
+    from scipy.signal import welch  # noqa: PLC0415
 
     rng = np.random.default_rng(11)
     iq = zigbee_modulator(bandwidth, sample_rate, 8192, rng)

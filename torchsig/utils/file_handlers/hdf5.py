@@ -10,6 +10,8 @@ when they are uniform.
 
 from __future__ import annotations
 
+import contextlib
+
 # Built-In
 import threading
 from typing import Any
@@ -46,20 +48,18 @@ __all__ = [
 def _hdf5_key(obj) -> str:
     """Return the HDF5 group key to use for *obj*.
 
-    Ephemeral objects (generated Signal instances) receive a short sequential
-    integer key that is stamped onto them by ``HDF5Writer._assign_hdf5_keys``
-    immediately before writing. Persistent objects (generators, datasets)
-    that are never garbage-collected within a write session fall back to
-    ``str(id(obj))``, which is stable for the lifetime of the writer.
+    Objects written by :class:`HDF5Writer` receive a short sequential integer
+    key immediately before writing. The ``id()`` fallback supports direct use
+    of the module-level population helpers outside the writer.
 
-    Using a counter for signals avoids the id()-reuse hazard that arises when
-    CPython recycles the memory address of a freed signal and a later signal
-    lands at the same address, causing the "already exists" guard to skip the
-    write silently.
+    Using a counter for signals and their metadata parents avoids the id()-reuse
+    hazard that arises when CPython recycles the memory address of a freed
+    object and a later object lands at the same address, causing the "already
+    exists" guard to skip the write silently.
     """
     try:
-        return obj._hdf5_key
-    except AttributeError:
+        return vars(obj)["_hdf5_key"]
+    except (KeyError, TypeError):
         return str(id(obj))
 
 
@@ -77,10 +77,18 @@ def populate_hdf5_group_with_metadata(group, metadata_obj) -> bool:
     if key in group:
         return False
     metadata_group = group.create_group(key)
-    for k in metadata_obj.keys():
-        if not metadata_obj[k] == None:
-            metadata_group.create_dataset(k, data=metadata_obj[k])
-    if not metadata_obj.parent == None:
+    for k in metadata_obj.keys():  # noqa: SIM118 - metadata objects are not iterable
+        value = metadata_obj[k]
+        if value is None:
+            continue
+        try:
+            metadata_group.create_dataset(k, data=value)
+        except (TypeError, ValueError) as error:
+            if isinstance(value, np.ndarray):
+                message = f"HDF5 metadata field {k!r} does not support NumPy array dtype {value.dtype} and shape {value.shape}"
+                raise TypeError(message) from error
+            raise
+    if metadata_obj.parent is not None:
         try:
             metadata_group.create_dataset("parent_metadata_id", data=_hdf5_key(metadata_obj.parent))
             populate_hdf5_group_with_metadata(group, metadata_obj.parent)
@@ -182,6 +190,7 @@ class HDF5Writer(FileWriter):
     def __init__(
         self,
         root,
+        *,
         compression: str = "lzf",
         compression_opts: int | None = None,
         shuffle: bool = True,
@@ -216,6 +225,9 @@ class HDF5Writer(FileWriter):
         # Monotonically-increasing counter used to stamp each Signal with a
         # unique short string key (_hdf5_key attribute) before it is written.
         self._key_counter: int = 0
+        # Distinguishes keys assigned by this writer from attributes left on a
+        # persistent metadata object by an earlier writer session.
+        self._hdf5_writer_token = object()
 
         self._current_sample_index = 0
         super().__init__(root=root)
@@ -273,21 +285,41 @@ class HDF5Writer(FileWriter):
             try:
                 self._file.flush()
                 self._file.close()
-            except Exception:
+            except (OSError, RuntimeError, ValueError):
                 pass  # File might already be closed
             del self._file
 
+    def _assign_hdf5_keys_to_parent_chain(self, metadata_obj) -> None:
+        """Assign stable keys to every metadata parent used by this writer.
+
+        Shared parents retain one key within a writer session. A per-writer
+        token ensures that a persistent parent reused by a later writer gets a
+        key from that writer's namespace instead of retaining a stale key.
+        """
+        parent = getattr(metadata_obj, "parent", None)
+        visited: set[int] = set()
+        while parent is not None and id(parent) not in visited:
+            visited.add(id(parent))
+            parent_attributes = vars(parent)
+            if parent_attributes.get("_hdf5_writer_token") is not self._hdf5_writer_token:
+                parent_attributes["_hdf5_key"] = str(self._key_counter)
+                parent_attributes["_hdf5_writer_token"] = self._hdf5_writer_token
+                self._key_counter += 1
+            parent = getattr(parent, "parent", None)
+
     def _assign_hdf5_keys(self, signal) -> None:
-        """Stamp *signal* and all its component signals with a unique ``_hdf5_key``.
+        """Stamp a signal, its metadata parents, and components with stable keys.
 
         Called immediately before each batch is written so that every Signal
-        object receives a short, monotonically-increasing string key.  The key
-        is used by the module-level populate helpers instead of ``str(id(signal))``,
-        making the HDF5 layout independent of CPython memory addresses and
-        allowing signals to be garbage-collected as soon as they leave scope.
+        and metadata-parent object receives a short, monotonically-increasing
+        string key. The module-level populate helpers therefore do not depend
+        on recyclable CPython memory addresses for writer-managed objects.
         """
-        signal._hdf5_key = str(self._key_counter)
+        signal_attributes = vars(signal)
+        signal_attributes["_hdf5_key"] = str(self._key_counter)
+        signal_attributes["_hdf5_writer_token"] = self._hdf5_writer_token
         self._key_counter += 1
+        self._assign_hdf5_keys_to_parent_chain(signal)
         for cs in signal.component_signals:
             self._assign_hdf5_keys(cs)
 
@@ -298,7 +330,8 @@ class HDF5Writer(FileWriter):
             data: Signals to write to the HDF5 file.
         """
         # Assign stable write keys before touching HDF5 so the populate
-        # helpers never fall back to id()-based keys for signal objects.
+        # helpers never fall back to id()-based keys for signals or metadata
+        # objects in their parent chains.
         for signal in data:
             self._assign_hdf5_keys(signal)
 
@@ -325,7 +358,7 @@ class HDF5Writer(FileWriter):
             self._batch_buffer.sort(key=lambda x: x[0])
 
             # Process all batches in buffer
-            for batch_idx, data in self._batch_buffer:
+            for _batch_idx, data in self._batch_buffer:
                 self._write_batch_to_hdf5(data)
 
             # Clear buffer
@@ -396,15 +429,13 @@ def fill_object_metadata_from_group_and_id(obj, group, id_str):
     Returns:
         The object with filled metadata.
     """
-    for key in group["metadata"][id_str].keys():
-        if not key == "parent_metadata_id":
+    for key in group["metadata"][id_str]:
+        if key != "parent_metadata_id":
             obj[key] = load_value_from_group(group["metadata"][id_str], key)
-    try:
+    with contextlib.suppress(KeyError):
         parent_id = load_value_from_group(group["metadata"][id_str], "parent_metadata_id")
         metadata_obj = fill_object_metadata_from_group_and_id(HierarchicalMetadataObject(), group, parent_id)
         obj.add_parent(metadata_obj)
-    except:
-        pass  # we have no parent set; do nothing
     return obj
 
 
@@ -419,16 +450,13 @@ def load_signal_from_group_by_id(group, id_str):
         Signal: The loaded signal.
     """
     component_signals = []
-    try:
+    with contextlib.suppress(KeyError):
         component_signals = [load_signal_from_group_by_id(group, temp_id) for temp_id in load_value_from_group(group["component_signals"], id_str)]
-    except:
-        pass
     signal = Signal(
         data=load_value_from_group(group["data"], id_str),
         component_signals=component_signals,
     )
-    signal = fill_object_metadata_from_group_and_id(signal, group, id_str)
-    return signal
+    return fill_object_metadata_from_group_and_id(signal, group, id_str)
 
 
 def load_signal_from_group_by_index(group, ind):

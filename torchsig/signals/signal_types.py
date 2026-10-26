@@ -4,7 +4,7 @@ which is used to represent and manipulate signal data and metadata.
 
 Examples:
     Signal:
-        >>> from torchsig.signals import Signal
+        >>> from torchsig.signals.signal_types import Signal
         >>> import numpy as np
         >>> data = np.array([1.0, 2.0])
         >>> new_sig = Signal(data=data)
@@ -254,6 +254,48 @@ class SignalMetadataObject(HierarchicalMetadataObject):
         """
         return self.sample_rate / self.bandwidth
 
+    def validate_frequency_interval(
+        self,
+        frequency_min: float | None = None,
+        frequency_max: float | None = None,
+    ) -> None:
+        """Validate canonical frequency metadata and optional dataset bounds.
+
+        Args:
+            frequency_min: Optional inclusive lower dataset frequency bound.
+            frequency_max: Optional inclusive upper dataset frequency bound.
+
+        Raises:
+            ValueError: If the center frequency or bandwidth is non-finite, the
+                bandwidth is not positive, the bounds are invalid, or a derived
+                edge falls outside the supplied bounds.
+        """
+        center_freq = float(self.center_freq)
+        bandwidth = float(self.bandwidth)
+        if not np.isfinite(center_freq):
+            raise ValueError(f"center_freq must be finite, got {center_freq}")
+        if not np.isfinite(bandwidth) or bandwidth <= 0:
+            raise ValueError(f"bandwidth must be finite and positive, got {bandwidth}")
+
+        lower_freq = float(self.lower_freq)
+        upper_freq = float(self.upper_freq)
+        if not np.isfinite(lower_freq) or not np.isfinite(upper_freq) or lower_freq > upper_freq:
+            raise ValueError(f"invalid frequency interval [{lower_freq}, {upper_freq}]")
+
+        validated_frequency_min = None if frequency_min is None else float(frequency_min)
+        validated_frequency_max = None if frequency_max is None else float(frequency_max)
+        if validated_frequency_min is not None and not np.isfinite(validated_frequency_min):
+            raise ValueError(f"frequency_min must be finite, got {validated_frequency_min}")
+        if validated_frequency_max is not None and not np.isfinite(validated_frequency_max):
+            raise ValueError(f"frequency_max must be finite, got {validated_frequency_max}")
+        if validated_frequency_min is not None and validated_frequency_max is not None and validated_frequency_min > validated_frequency_max:
+            raise ValueError(f"frequency_min {validated_frequency_min} exceeds frequency_max {validated_frequency_max}")
+
+        if validated_frequency_min is not None and lower_freq < validated_frequency_min:
+            raise ValueError(f"lower_freq {lower_freq} is below frequency_min {validated_frequency_min}")
+        if validated_frequency_max is not None and upper_freq > validated_frequency_max:
+            raise ValueError(f"upper_freq {upper_freq} is above frequency_max {validated_frequency_max}")
+
     def to_dict(self) -> dict[str, Any]:
         """Return signal metadata as a dictionary.
 
@@ -266,6 +308,8 @@ class SignalMetadataObject(HierarchicalMetadataObject):
             "dataset_metadata",
             "_dataset_metadata",
             "_center_freq_set",
+            "_lower_frequency",
+            "_upper_frequency",
         }
 
         metadata = dict(self.metadata)

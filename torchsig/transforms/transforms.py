@@ -1,16 +1,16 @@
 """Transforms on Signal objects."""
 
-import os
 import secrets
 import time
 import warnings
 from copy import copy
+from pathlib import Path
 from typing import Literal
 
 import numpy as np
 import numpy.typing as npt
 
-import torchsig.transforms.functional as F
+import torchsig.transforms.functional as F  # noqa: N812 - conventional functional API alias
 from torchsig.signals.signal_types import Signal
 from torchsig.transforms.base_transforms import Transform
 from torchsig.utils.dsp import TorchSigComplexDataType, TorchSigRealDataType, low_pass
@@ -50,7 +50,35 @@ __all__ = [
     "Spurs",
     "TimeReversal",
     "TimeVaryingNoise",
+    "reconstruct_spectrogram_support_vectors",
 ]
+
+
+def reconstruct_spectrogram_support_vectors(
+    signal: Signal,
+) -> tuple[npt.NDArray[np.floating], npt.NDArray[np.floating]]:
+    """Reconstruct the frequency and time coordinates for a spectrogram.
+
+    Args:
+        signal: A two-dimensional spectrogram signal containing the compact
+            support-vector metadata written by :class:`Spectrogram`.
+
+    Returns:
+        A tuple containing the frequency and time coordinate arrays,
+        respectively.
+
+    Raises:
+        ValueError: If ``signal.data`` is not a two-dimensional spectrogram.
+    """
+    expected_num_dimensions = 2
+    if signal.data.ndim != expected_num_dimensions:
+        raise ValueError(f"spectrogram data must be two dimensional, got shape {signal.data.shape}.")
+
+    num_frequency_bins, num_time_bins = signal.data.shape
+    frequency = signal.spectrogram_frequency_start + np.arange(num_frequency_bins) * signal.spectrogram_frequency_step
+    time = signal.spectrogram_time_start + np.arange(num_time_bins) * signal.spectrogram_time_step
+    return frequency.astype(TorchSigRealDataType), time.astype(TorchSigRealDataType)
+
 
 def transform_crash_logger(transform_func, data, **kwargs):
     """Wraps a transformation function to ensure deterministic random number generation
@@ -147,7 +175,7 @@ def transform_crash_logger(transform_func, data, **kwargs):
         timestamp = int(time.time() * 1000)
         filename = f"crash_{transform_func.__name__}_{timestamp}.npz"
         counter = 0
-        while os.path.exists(filename):
+        while Path(filename).exists():
             counter += 1
             filename = f"crash_{transform_func.__name__}_{timestamp}_{counter}.npz"
 
@@ -156,7 +184,7 @@ def transform_crash_logger(transform_func, data, **kwargs):
 
         print(f"!!! Transform failed. State saved to {filename}")
         print(f"Error: {e}")
-        raise e  # Re-raise original exception
+        raise  # Re-raise original exception
 
 
 class SignalTransform(Transform):
@@ -175,7 +203,7 @@ class SignalTransform(Transform):
 
     def __init__(
         self,
-        required_metadata: list[str] = [],
+        required_metadata: list[str] | None = None,
         data_dtype: npt.DTypeLike = None,
         precise: bool = False,
         **kwargs,
@@ -216,12 +244,12 @@ class SignalTransform(Transform):
             raise TypeError(f"Must be Signal class for transform {self.__class__.__name__}, signal is {type(signal)}.")
 
         # check signal and all components have required metadata
-        for rm in self.required_metadata:
-            # for each required metdata
-            # check signal metadata has required fields
-            if not hasattr(signal, rm):
-                # throw error if not
-                raise ValueError(f"Signal missing {rm} in metadata: {signal}.")
+        for required_metadatum in self.required_metadata:
+            if not hasattr(signal, required_metadatum):
+                try:
+                    signal.require_metadata(required_metadatum)
+                except AttributeError as err:
+                    raise ValueError(f"Signal missing {required_metadatum} in metadata: {signal}. Resolution: {err}") from err
 
         # signal has all required metadata
         return signal
@@ -428,6 +456,7 @@ class AdjacentChannelInterference(SignalTransform):
 
     def __init__(
         self,
+        *,
         sample_rate: float = 1.0,
         power_range: tuple = (0.01, 10.0),
         center_frequency_range: tuple = (0.2, 0.3),
@@ -639,18 +668,68 @@ class ChannelSwap(SignalTransform):
 
 
 class ClockDrift(SignalTransform):
-    """Simulates a clock drift effect, which applies a random error to the sampling rate."""
+    """Apply a selectable ADC sampling-period drift model.
 
-    def __init__(self, drift_ppm: tuple[float, float] = (1, 10), **kwargs):
+    This timing impairment is independent of carrier local-oscillator error;
+    signal frequency and sample-rate metadata remain nominal.
+    """
+
+    def __init__(
+        self,
+        drift_ppm: float | tuple[float, float] = (1, 10),
+        initial_phase: float | tuple[float, float] = 0.0,
+        drift_model: str = "constant",
+        drift_rate_ppm_per_sec: float | tuple[float, float] = 0.0,
+        drift_noise_ppm_per_sqrt_sec: float | tuple[float, float] = 0.0,
+        sample_rate_hz: float = 1.0,
+        **kwargs,
+    ):
         """Initialize the ClockDrift transform.
 
         Args:
             drift_ppm: Drift in parts per million (ppm). Default (1,10).
+            initial_phase: Initial sampling phase in input-sample periods, or
+                a range from which to draw it. Values must be in the half-open
+                interval ``[0, 1)``. Defaults to 0.
+            drift_model: ``"constant"``, ``"linear"``, or ``"random_walk"``.
+            drift_rate_ppm_per_sec: Linear period-error rate in ppm/second.
+            drift_noise_ppm_per_sqrt_sec: Random-walk innovation strength in
+                ppm/sqrt(second).
+            sample_rate_hz: Physical sample rate used for drift time scaling.
             **kwargs: Additional keyword arguments passed to the parent class.
         """
         super().__init__(required_metadata=[], data_dtype=TorchSigComplexDataType, **kwargs)
+        initial_phase_values = np.asarray(initial_phase, dtype=float)
+        if np.any(~np.isfinite(initial_phase_values)) or np.any(initial_phase_values < 0.0) or np.any(initial_phase_values >= 1.0):
+            raise ValueError("initial_phase must be finite and in the interval [0, 1)")
         self.drift_ppm = drift_ppm
-        self.drift_ppm_distribution = self.get_distribution(self.drift_ppm, "log10")
+        self.initial_phase = initial_phase
+        if drift_model not in {"constant", "linear", "random_walk"}:
+            raise ValueError("drift_model must be 'constant', 'linear', or 'random_walk'")
+        if not np.isfinite(sample_rate_hz) or sample_rate_hz <= 0.0:
+            raise ValueError("sample_rate_hz must be finite and positive")
+        self.drift_model = drift_model
+        self.drift_rate_ppm_per_sec = drift_rate_ppm_per_sec
+        self.drift_noise_ppm_per_sqrt_sec = drift_noise_ppm_per_sqrt_sec
+        self.sample_rate_hz = sample_rate_hz
+        drift_values = np.asarray(drift_ppm, dtype=float)
+        rate_values = np.asarray(drift_rate_ppm_per_sec, dtype=float)
+        noise_values = np.asarray(drift_noise_ppm_per_sqrt_sec, dtype=float)
+        if np.any(~np.isfinite(drift_values)) or np.any(drift_values <= -1_000_000.0):
+            raise ValueError("drift_ppm must be finite and greater than -1000000")
+        if np.any(~np.isfinite(rate_values)):
+            raise ValueError("drift_rate_ppm_per_sec must be finite")
+        if np.any(~np.isfinite(noise_values)) or np.any(noise_values < 0.0):
+            raise ValueError("drift_noise_ppm_per_sqrt_sec must be finite and nonnegative")
+        drift_params = drift_ppm if isinstance(drift_ppm, tuple) else [drift_ppm]
+        drift_scaling = "log10" if isinstance(drift_ppm, tuple) and np.all(drift_values > 0.0) else "linear"
+        self.drift_ppm_distribution = self.get_distribution(drift_params, drift_scaling)
+        rate_params = drift_rate_ppm_per_sec if isinstance(drift_rate_ppm_per_sec, tuple) else [drift_rate_ppm_per_sec]
+        noise_params = drift_noise_ppm_per_sqrt_sec if isinstance(drift_noise_ppm_per_sqrt_sec, tuple) else [drift_noise_ppm_per_sqrt_sec]
+        self.drift_rate_distribution = self.get_distribution(rate_params)
+        self.drift_noise_distribution = self.get_distribution(noise_params)
+        initial_phase_distribution_params = initial_phase if isinstance(initial_phase, tuple) else [initial_phase]
+        self.initial_phase_distribution = self.get_distribution(initial_phase_distribution_params)
 
     def __apply__(self, signal: Signal) -> Signal:
         """Apply clock drift to the signal.
@@ -662,25 +741,70 @@ class ClockDrift(SignalTransform):
             Signal with clock drift applied.
         """
         drift_ppm = self.drift_ppm_distribution()
+        initial_phase = self.initial_phase_distribution()
+        drift_rate_ppm_per_sec = self.drift_rate_distribution()
+        drift_noise_ppm_per_sqrt_sec = self.drift_noise_distribution()
 
-        signal.data = F.clock_drift(data=signal.data, drift_ppm=drift_ppm, rng=self.random_generator)
+        signal.data = F.clock_drift(
+            data=signal.data,
+            drift_ppm=drift_ppm,
+            rng=self.random_generator,
+            initial_phase=initial_phase,
+            drift_model=self.drift_model,
+            drift_rate_ppm_per_sec=drift_rate_ppm_per_sec,
+            drift_noise_ppm_per_sqrt_sec=drift_noise_ppm_per_sqrt_sec,
+            sample_rate_hz=self.sample_rate_hz,
+        )
 
         return signal
 
 
 class ClockJitter(SignalTransform):
-    """Simulates a clock jitter effect, which applies a random error to the sampling phase."""
+    """Apply a selectable Gaussian ADC sampling-time-error model.
 
-    def __init__(self, jitter_ppm: tuple[float, float] = (1, 10), **kwargs):
+    Independent and AR(1) jitter are absolute sampling-time errors. Period
+    jitter represents accumulated sampling-period errors.
+
+    This timing impairment is independent of carrier local-oscillator error;
+    signal frequency and sample-rate metadata remain nominal.
+    """
+
+    def __init__(
+        self,
+        jitter_ppm: tuple[float, float] = (1, 10),
+        initial_phase: float | tuple[float, float] = 0.0,
+        jitter_model: Literal["independent", "period", "ar1"] = "independent",
+        jitter_alpha: float = 0.9,
+        **kwargs,
+    ):
         """Initialize the ClockJitter transform.
 
         Args:
             jitter_ppm: Jitter in parts per million (ppm). Default (1,10).
+            initial_phase: Initial sampling phase in input-sample periods, or
+                a range from which to draw it. Values must be in the half-open
+                interval ``[0, 1)``. Defaults to 0.
+            jitter_model: ``"independent"``, ``"period"``, or ``"ar1"``.
+                Defaults to independent absolute timing jitter.
+            jitter_alpha: AR(1) correlation coefficient in the open interval
+                ``(-1, 1)``. Used only by the AR(1) model. Defaults to 0.9.
             **kwargs: Additional keyword arguments passed to the parent class.
         """
         super().__init__(required_metadata=[], data_dtype=TorchSigComplexDataType, **kwargs)
+        initial_phase_values = np.asarray(initial_phase, dtype=float)
+        if np.any(~np.isfinite(initial_phase_values)) or np.any(initial_phase_values < 0.0) or np.any(initial_phase_values >= 1.0):
+            raise ValueError("initial_phase must be finite and in the interval [0, 1)")
         self.jitter_ppm = jitter_ppm
+        self.initial_phase = initial_phase
+        if jitter_model not in {"independent", "period", "ar1"}:
+            raise ValueError("jitter_model must be 'independent', 'period', or 'ar1'")
+        if not np.isfinite(jitter_alpha) or abs(jitter_alpha) >= 1.0:
+            raise ValueError("jitter_alpha must be finite and have absolute value less than 1")
+        self.jitter_model = jitter_model
+        self.jitter_alpha = jitter_alpha
         self.jitter_ppm_distribution = self.get_distribution(self.jitter_ppm, "log10")
+        initial_phase_distribution_params = initial_phase if isinstance(initial_phase, tuple) else [initial_phase]
+        self.initial_phase_distribution = self.get_distribution(initial_phase_distribution_params)
 
     def __apply__(self, signal: Signal) -> Signal:
         """Apply clock jitter to the signal.
@@ -692,8 +816,16 @@ class ClockJitter(SignalTransform):
             Signal with clock jitter applied.
         """
         jitter_ppm = self.jitter_ppm_distribution()
+        initial_phase = self.initial_phase_distribution()
 
-        signal.data = F.clock_jitter(data=signal.data, jitter_ppm=jitter_ppm, rng=self.random_generator)
+        signal.data = F.clock_jitter(
+            data=signal.data,
+            jitter_ppm=jitter_ppm,
+            rng=self.random_generator,
+            initial_phase=initial_phase,
+            jitter_model=self.jitter_model,
+            jitter_alpha=self.jitter_alpha,
+        )
 
         return signal
 
@@ -960,6 +1092,7 @@ class DigitalAGC(SignalTransform):
 
     def __init__(
         self,
+        *,
         initial_gain_db: tuple[float] = (0, 0),
         alpha_smooth: tuple[float] = (1e-7, 1e-6),
         alpha_track: tuple[float] = (1e-6, 1e-5),
@@ -990,7 +1123,7 @@ class DigitalAGC(SignalTransform):
         self.initial_gain_db_distribution = self.get_distribution(self.initial_gain_db)
         self.alpha_smooth_distribution = self.get_distribution(self.alpha_smooth, "log10")
         self.alpha_track_distribution = self.get_distribution(self.alpha_track, "log10")
-        self.alpha_overflow_distribution = self.get_distribution(self.alpha_track, "log10")
+        self.alpha_overflow_distribution = self.get_distribution(self.alpha_overflow, "log10")
         self.alpha_acquire_distribution = self.get_distribution(self.alpha_acquire, "log10")
         self.track_range_db_distribution = self.get_distribution(self.track_range_db)
 
@@ -1053,15 +1186,15 @@ class DigitalAGC(SignalTransform):
 
         signal.data = F.digital_agc(
             np.ascontiguousarray(signal.data, dtype=np.complex64),
-            np.float64(initial_gain_db),
-            np.float64(alpha_smooth),
-            np.float64(alpha_track),
-            np.float64(alpha_overflow),
-            np.float64(alpha_acquire),
-            np.float64(ref_level_db),
-            np.float64(track_range_db),
-            np.float64(low_level_db),
-            np.float64(high_level_db),
+            initial_gain_db=np.float64(initial_gain_db),
+            alpha_smooth=np.float64(alpha_smooth),
+            alpha_track=np.float64(alpha_track),
+            alpha_overflow=np.float64(alpha_overflow),
+            alpha_acquire=np.float64(alpha_acquire),
+            ref_level_db=np.float64(ref_level_db),
+            track_range_db=np.float64(track_range_db),
+            low_level_db=np.float64(low_level_db),
+            high_level_db=np.float64(high_level_db),
         )
 
         return signal
@@ -1782,26 +1915,45 @@ class SpectralInversion(SignalTransform):
 
 
 class Spectrogram(SignalTransform):
-    """Computes the spectogram of I/Q data.
+    """Compute a spectrogram and attach its physical coordinate axes.
 
     This transform computes the spectrogram by applying the Short-Time Fourier Transform (STFT)
-    to the input IQ data.
+    to the input IQ data. The output array has shape ``(frequency, time)``.
+    Compact origin-and-step metadata describes the descending baseband-frequency
+    support and time-bin centers. Use
+    :func:`reconstruct_spectrogram_support_vectors` to materialize their arrays.
+    Coordinates use hertz and seconds when a sample rate is available,
+    otherwise cycles per sample and samples.
 
     Attributes:
         fft_size: The FFT size (number of bins) in the spectrogram.
+        fft_stride: The hop between consecutive FFT windows in samples.
+        sample_rate: Optional sample rate override in hertz.
     """
 
-    def __init__(self, fft_size: int, fft_stride: int = None, **kwargs):
+    def __init__(self, fft_size: int, fft_stride: int | None = None, sample_rate: float | None = None, **kwargs):
         """Initialize the Spectrogram transform.
 
         Args:
             fft_size: The FFT size (number of bins) in the spectrogram.
+            fft_stride: Number of samples between FFT windows. Defaults to
+                ``fft_size``.
+            sample_rate: Sample rate in hertz. When omitted, the transform
+                reads ``sample_rate`` from signal metadata when available and
+                otherwise emits normalized coordinates.
             **kwargs: Additional keyword arguments passed to the parent class.
+
+        Raises:
+            ValueError: If ``sample_rate`` is provided but is not finite and
+                positive.
         """
+        if sample_rate is not None and (not np.isfinite(sample_rate) or sample_rate <= 0):
+            raise ValueError(f"sample_rate must be finite and positive, got {sample_rate}.")
         super().__init__(required_metadata=[], data_dtype=TorchSigRealDataType, **kwargs)
         self.fft_size = fft_size
         # fft_stride is the number of data points to move or "hop" over when computing the next FF
         self.fft_stride = copy(fft_size) if fft_stride is None else fft_stride
+        self.sample_rate = sample_rate
 
     def __apply__(self, signal: Signal) -> Signal:
         """Apply spectrogram computation to the signal.
@@ -1812,11 +1964,36 @@ class Spectrogram(SignalTransform):
         Returns:
             Signal with spectrogram computed.
         """
+        sample_rate = self.sample_rate
+        if sample_rate is None and hasattr(signal, "sample_rate"):
+            sample_rate = float(signal.sample_rate)
+        if sample_rate is not None and (not np.isfinite(sample_rate) or sample_rate <= 0):
+            raise ValueError(f"sample_rate must be finite and positive, got {sample_rate}.")
         signal.data = F.spectrogram(
             signal.data,
             self.fft_size,
             self.fft_stride,
         )
+        if sample_rate is None:
+            time_start = self.fft_size / 2
+            time_step = self.fft_stride
+            frequency_start = 0.5 - 1 / self.fft_size
+            frequency_step = -1 / self.fft_size
+            time_units = "samples"
+            frequency_units = "cycles/sample"
+        else:
+            time_start = self.fft_size / (2 * sample_rate)
+            time_step = self.fft_stride / sample_rate
+            frequency_start = sample_rate / 2 - sample_rate / self.fft_size
+            frequency_step = -sample_rate / self.fft_size
+            time_units = "seconds"
+            frequency_units = "Hz"
+        signal["spectrogram_time_start"] = time_start
+        signal["spectrogram_time_step"] = time_step
+        signal["spectrogram_frequency_start"] = frequency_start
+        signal["spectrogram_frequency_step"] = frequency_step
+        signal["spectrogram_time_units"] = time_units
+        signal["spectrogram_frequency_units"] = frequency_units
 
         return signal
 

@@ -6,6 +6,7 @@
 
 Each element in the dataset has the modulation type specified in its metadata row.
 """
+
 import argparse
 import csv
 import json
@@ -46,16 +47,16 @@ def generate_random_modulated_samples(
         sig = (rng.normal(size=num_samples) + 1j * rng.normal(size=num_samples)) * 0.1
     elif modulation == "BPSK":
         bits = rng.integers(0, 2, size=num_samples)
-        sig  = (2 * bits - 1).astype(np.complex64) + 0j          # ±1 on the real axis
+        sig = (2 * bits - 1).astype(np.complex64) + 0j  # ±1 on the real axis
     elif modulation == "QPSK":
         bits = rng.integers(0, 4, size=num_samples)
-        tbl  = {0: 1 + 1j, 1: 1 - 1j, 2: -1 + 1j, 3: -1 - 1j}
-        sig  = np.vectorize(tbl.get, otypes=[np.complex64])(bits)
-        sig  = sig / np.sqrt(2)                                 # unit-power normalisation
+        tbl = {0: 1 + 1j, 1: 1 - 1j, 2: -1 + 1j, 3: -1 - 1j}
+        sig = np.vectorize(tbl.get, otypes=[np.complex64])(bits)
+        sig = sig / np.sqrt(2)  # unit-power normalisation
     elif modulation == "8PSK":
-        bits   = rng.integers(0, 8, size=num_samples)
-        angles = np.linspace(0, 2*np.pi, 8, endpoint=False)     # 0°,45°, … 315°
-        sig    = np.exp(1j * angles[bits]).astype(np.complex64)
+        bits = rng.integers(0, 8, size=num_samples)
+        angles = np.linspace(0, 2 * np.pi, 8, endpoint=False)  # 0°,45°, … 315°
+        sig = np.exp(1j * angles[bits]).astype(np.complex64)
     elif modulation == "16QAM":
         bits = rng.integers(0, 16, size=num_samples)
         const_i = np.array([-3, -1, 1, 3]) / np.sqrt(10)
@@ -80,9 +81,9 @@ def generate_random_modulated_samples(
     # c) Add AWGN for the requested SNR
     if snr_db is not None and not np.isnan(snr_db):
         signal_power = np.mean(np.abs(sig) ** 2)
-        snr_linear   = 10 ** (snr_db / 10)
-        noise_power  = signal_power / snr_linear
-        noise = (rng.normal(size=num_samples) + 1j * rng.normal(size=num_samples))
+        snr_linear = 10 ** (snr_db / 10)
+        noise_power = signal_power / snr_linear
+        noise = rng.normal(size=num_samples) + 1j * rng.normal(size=num_samples)
         noise = noise * np.sqrt(noise_power / 2)
         sig = sig + noise
 
@@ -112,6 +113,7 @@ def generate_metadata(
         "num_files": num_files,
         "sample_rate": sample_rate,
         "class_list": class_list,
+        "sidecar_schema_version": "1.0",
     }
     (root / "info.json").write_text(json.dumps(info, indent=2))
 
@@ -119,24 +121,24 @@ def generate_metadata(
         "index",
         "label",
         "modcod",
-        "sample_rate_hz",
-        "snr_db",          # empty string → no noise added
+        "sample_rate",
+        "snr_db",  # empty string → no noise added
         "phase_offset_rad",
         "amp_scale",
     ]
 
     with (root / "metadata.csv").open("w", newline="") as f:
         writer = csv.writer(f)
-        writer.writerow(header)                     # write header once
+        writer.writerow(header)  # write header once
 
         for i in range(total_elements):
-            label    = rng.choice(class_list)
-            modcod   = class_list.index(label)
+            label = rng.choice(class_list)
+            modcod = class_list.index(label)
 
             # Random generation parameters (same as later used in the generator)
-            snr_db          = rng.uniform(5, 30) if label != "NOISE" else np.nan
-            phase_offset    = rng.uniform(-np.pi, np.pi)
-            amp_scale       = rng.uniform(0.2, 1.0)
+            snr_db = rng.uniform(5, 30) if label != "NOISE" else np.nan
+            phase_offset = rng.uniform(-np.pi, np.pi)
+            amp_scale = rng.uniform(0.2, 1.0)
 
             writer.writerow(
                 [
@@ -211,9 +213,7 @@ class IQGenerator:
                 label = rng.choice(class_list)
 
                 # Random generation parameters -- stored later in the CSV
-                snr_db = (
-                    rng.uniform(5, 30) if label != "NOISE" else np.nan
-                )
+                snr_db = rng.uniform(5, 30) if label != "NOISE" else np.nan
                 amp_scale = rng.uniform(0.2, 1.0)
 
                 # ----------------------------------------------------------
@@ -259,7 +259,7 @@ class IQGenerator:
 
             wav_sink = blocks.wavfile_sink(
                 str(wav_path),
-                2,                       # stereo (I-Q)
+                2,  # stereo (I-Q)
                 int(sample_rate),
                 blocks.FORMAT_WAV,
                 blocks.FORMAT_FLOAT,

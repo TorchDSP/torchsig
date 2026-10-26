@@ -15,6 +15,12 @@ import numpy as np
 from numba import jit
 from numba.types import complex64, float32
 
+from torchsig.utils.dsp import generate_sampling_positions
+
+_OUTPUT_CAPACITY_ERROR = "sampling clock output capacity exhausted"
+_MAX_OUTPUT_CAPACITY_MULTIPLIER = 16
+_MAX_OUTPUT_SAMPLES = 10_000_000
+
 
 @jit(nopython=True, cache=True)
 def partition_polyphase_numba(h, up_rate, taps_per_phase):
@@ -32,8 +38,48 @@ def partition_polyphase_numba(h, up_rate, taps_per_phase):
 
 
 @jit(nopython=True, cache=True)
-def sampling_clock_impairments_numba(
-    h,
+def polyphase_resample_at_positions_numba(x_real, x_imag, uprate, positions, h_pfb_reversed, taps_per_phase):
+    """Numba interpolation kernel for precomputed sampling positions."""
+    padded_len = len(x_real) + 2 * taps_per_phase - 1
+    input_padded_real = np.zeros(padded_len, dtype=np.float32)
+    input_padded_imag = np.zeros(padded_len, dtype=np.float32)
+    input_start = taps_per_phase - 1
+    input_padded_real[input_start : input_start + len(x_real)] = x_real
+    input_padded_imag[input_start : input_start + len(x_imag)] = x_imag
+    result = np.empty(len(positions), dtype=np.complex64)
+    for output_idx, sample_position in enumerate(positions):
+        input_idx = int(sample_position // uprate)
+        phase_position = sample_position - input_idx * uprate
+        phase = int(phase_position)
+        fraction = phase_position - phase
+        acc_re = 0.0
+        acc_im = 0.0
+        for tap_idx in range(taps_per_phase):
+            coefficient = h_pfb_reversed[phase, tap_idx]
+            input_position = input_idx + tap_idx
+            acc_re += coefficient * input_padded_real[input_position]
+            acc_im += coefficient * input_padded_imag[input_position]
+        if fraction != 0.0:
+            next_phase = phase + 1
+            next_input_idx = input_idx
+            if next_phase == uprate:
+                next_phase = 0
+                next_input_idx += 1
+            next_re = 0.0
+            next_im = 0.0
+            for tap_idx in range(taps_per_phase):
+                coefficient = h_pfb_reversed[next_phase, tap_idx]
+                input_position = next_input_idx + tap_idx
+                next_re += coefficient * input_padded_real[input_position]
+                next_im += coefficient * input_padded_imag[input_position]
+            acc_re += fraction * (next_re - acc_re)
+            acc_im += fraction * (next_im - acc_im)
+        result[output_idx] = acc_re + 1j * acc_im
+    return result
+
+
+@jit(nopython=True, cache=True)
+def sampling_clock_impairments_numba(  # noqa: PLR0917
     x_real,
     x_imag,
     uprate,
@@ -44,118 +90,149 @@ def sampling_clock_impairments_numba(
     h_pfb_reversed,
     taps_per_phase,
     padded_len,
-    max_start,
+    max_input_idx,
+    nominal_position_increment,
     num_output_samples,
+    initial_phase,
 ):
-    """Numba-optimized sampling clock impairments.
-    Uses pre-reversed filter bank and pre-generated interleaved random number pools.
+    """Apply sampling-clock impairments with precomputed filter and RNG data.
+
+    The wrapper prepares contiguous real and imaginary inputs, a reversed
+    polyphase filter bank, and interleaved jitter/drift samples for this kernel.
     """
     input_padded_real = np.zeros(padded_len, dtype=np.float32)
     input_padded_imag = np.zeros(padded_len, dtype=np.float32)
 
-    start = taps_per_phase - 1
-    end = start + len(x_real)
+    input_start = taps_per_phase - 1
+    input_end = input_start + len(x_real)
 
-    input_padded_real[start:end] = x_real
-    input_padded_imag[start:end] = x_imag
+    input_padded_real[input_start:input_end] = x_real
+    input_padded_imag[input_start:input_end] = x_imag
 
-    q_step = uprate / drate
+    # Track the ideal sampling path in absolute polyphase units. Timing
+    # impairments are accumulated separately and applied only to each read.
+    nominal_position = uprate / drate + initial_phase * uprate
+    position_offset = 0.0
+    max_sample_position = max_input_idx * uprate + (uprate - 1)
 
     output_real = np.zeros(num_output_samples, dtype=np.float32)
     output_imag = np.zeros(num_output_samples, dtype=np.float32)
 
     output_idx = 0
-    input_idx = 0
+    iteration_idx = 0
     clock_drift = 0.0
 
-    while input_idx <= max_start:
-        while q_step >= uprate:
-            q_step -= uprate
-            input_idx += 1
+    while nominal_position <= max_sample_position:
+        if jitter_ppm != 0.0 or drift_ppm != 0.0:
+            pool_index = iteration_idx * 2
+            if (pool_index + 1) >= len(jitter_drift_pool):
+                raise RuntimeError(_OUTPUT_CAPACITY_ERROR)
 
-        if input_idx > max_start:
-            break
+        sample_position = nominal_position + position_offset
+        if 0.0 <= sample_position <= max_sample_position:
+            if output_idx >= num_output_samples:
+                raise RuntimeError(_OUTPUT_CAPACITY_ERROR)
 
-        phase = int(q_step)
+            input_idx = int(sample_position // uprate)
+            phase_position = sample_position - input_idx * uprate
+            phase = int(phase_position)
 
-        acc_re = 0.0
-        acc_im = 0.0
+            acc_re = 0.0
+            acc_im = 0.0
 
-        for i in range(taps_per_phase):
-            acc_re += h_pfb_reversed[phase, i] * input_padded_real[input_idx + i]
-            acc_im += h_pfb_reversed[phase, i] * input_padded_imag[input_idx + i]
+            for tap_idx in range(taps_per_phase):
+                coefficient = h_pfb_reversed[phase, tap_idx]
+                input_position = input_idx + tap_idx
+                acc_re += coefficient * input_padded_real[input_position]
+                acc_im += coefficient * input_padded_imag[input_position]
 
-        output_real[output_idx] = acc_re
-        output_imag[output_idx] = acc_im
-        output_idx += 1
+            output_real[output_idx] = acc_re
+            output_imag[output_idx] = acc_im
+            output_idx += 1
 
         if jitter_ppm != 0.0 or drift_ppm != 0.0:
-            pool_index = (output_idx - 1) * 2
             clock_jitter = jitter_drift_pool[pool_index]
             clock_drift += jitter_drift_pool[pool_index + 1]
-            q_step += drate + clock_jitter + clock_drift
-        else:
-            q_step += drate
+            position_offset += clock_jitter + clock_drift
 
-    if output_idx > 0:
-        result = np.zeros(output_idx, dtype=np.complex64)
-        for i in range(output_idx):
-            result[i] = output_real[i] + 1j * output_imag[i]
-        return result
+        iteration_idx += 1
+        nominal_position += nominal_position_increment
 
-    return np.zeros(0, dtype=np.complex64)
+    result = np.zeros(output_idx, dtype=np.complex64)
+    for idx in range(output_idx):
+        result[idx] = output_real[idx] + 1j * output_imag[idx]
+
+    return result
 
 
-def sampling_clock_impairments_numba_wrapper(h, x, uprate, drate, jitter_ppm, drift_ppm, rng):
+def sampling_clock_impairments_numba_wrapper(  # noqa: PLR0917
+    h,
+    x,
+    uprate,
+    drate,
+    jitter_ppm,
+    drift_ppm,
+    rng,
+    initial_phase=0.0,
+    jitter_model="independent",
+    jitter_alpha=0.9,
+    drift_model="constant",
+    drift_rate_ppm_per_sec=0.0,
+    drift_noise_ppm_per_sqrt_sec=0.0,
+    sample_rate_hz=1.0,
+):
     """Wrapper for the numba-optimized sampling clock impairments function.
 
     Matches the signature of the original function and aims for bit-identical results.
-    Generates interleaved jitter/drift pairs to match NumPy RNG consumption order.
+    Generates positions with the shared clock model before Numba interpolation.
     """
+    # Construct the polyphase filter bank.
+    if not isinstance(uprate, (int, np.integer)) or uprate <= 0:
+        raise ValueError("uprate must be a positive integer")
+    if not np.isfinite(initial_phase) or not 0.0 <= initial_phase < 1.0:
+        raise ValueError("initial_phase must be finite and in the interval [0, 1)")
     taps_per_phase = int(np.ceil(len(h) / uprate))
 
+    nominal_increment = drate
+    if np.isfinite(nominal_increment) and nominal_increment > 0.0:
+        padded_len = len(x) + 2 * taps_per_phase - 1
+        max_position = (padded_len - taps_per_phase) * uprate + (uprate - 1)
+        first_position = uprate / drate + initial_phase * uprate
+        nominal_count = 0 if first_position > max_position else int(np.floor((max_position - first_position) / nominal_increment)) + 1
+        if nominal_count > _MAX_OUTPUT_SAMPLES:
+            raise RuntimeError(_OUTPUT_CAPACITY_ERROR)
+
     h_pfb = partition_polyphase_numba(h, uprate, taps_per_phase)
-    h_pfb_reversed = np.ascontiguousarray(np.flip(h_pfb, axis=1))
-
-    padded_len = len(x) + 2 * taps_per_phase - 1
-    max_start = padded_len - taps_per_phase
-
-    num_output_samples = int(np.ceil(padded_len * uprate / drate)) + 1
-
-    if jitter_ppm != 0.0 or drift_ppm != 0.0:
-        jitter_std = jitter_ppm * 1e-6
-        drift_std = drift_ppm * 1e-6
-
-        pairs = rng.normal(0.0, 1.0, (num_output_samples, 2)).astype(np.float32)
-
-        jitter_drift_pool = np.empty(num_output_samples * 2, dtype=np.float32)
-        jitter_drift_pool[0::2] = pairs[:, 0] * jitter_std
-        jitter_drift_pool[1::2] = pairs[:, 1] * drift_std
-    else:
-        jitter_drift_pool = np.zeros(num_output_samples * 2, dtype=np.float32)
-
-    x_real = x.real.astype(np.float32)
-    x_imag = x.imag.astype(np.float32)
-
-    return sampling_clock_impairments_numba(
-        h,
-        x_real,
-        x_imag,
-        uprate,
-        drate,
-        jitter_ppm,
-        drift_ppm,
-        jitter_drift_pool,
-        h_pfb_reversed,
-        taps_per_phase,
-        padded_len,
-        max_start,
-        num_output_samples,
+    h_pfb_reversed = np.ascontiguousarray(
+        np.flip(h_pfb, axis=1),
+        dtype=np.float32,
     )
+
+    positions = generate_sampling_positions(
+        num_input_samples=len(x),
+        taps_per_phase=taps_per_phase,
+        uprate=uprate,
+        drate=drate,
+        jitter_ppm=jitter_ppm,
+        drift_ppm=drift_ppm,
+        rng=rng,
+        initial_phase=initial_phase,
+        jitter_model=jitter_model,
+        jitter_alpha=jitter_alpha,
+        drift_model=drift_model,
+        drift_rate_ppm_per_sec=drift_rate_ppm_per_sec,
+        drift_noise_ppm_per_sqrt_sec=drift_noise_ppm_per_sqrt_sec,
+        sample_rate_hz=sample_rate_hz,
+    )
+
+    x_real = np.ascontiguousarray(x.real, dtype=np.float32)
+    x_imag = np.ascontiguousarray(x.imag, dtype=np.float32)
+
+    return polyphase_resample_at_positions_numba(x_real, x_imag, uprate, positions.actual, h_pfb_reversed, taps_per_phase)
 
 
 @jit(nopython=True, cache=True)
-def digital_agc_numba(
+def digital_agc_numba(  # noqa: PLR0917
     data: complex64[:],  # 1D complex64 array (Numba type)
     initial_gain_db: float32,  # All scalars must be Numba types
     alpha_smooth: float32,

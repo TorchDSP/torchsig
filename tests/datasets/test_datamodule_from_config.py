@@ -8,13 +8,13 @@ import pytest
 
 from torchsig.datasets import TorchSigDataModule
 from torchsig.datasets.datasets import TorchSigDatasetConfig
-from torchsig.transforms.metadata_transforms import YOLOLabel
+from torchsig.transforms.metadata_transforms import GroupingLabel, YOLOLabel
 from torchsig.transforms.transforms import ComplexTo2D, Spectrogram
 from torchsig.utils.file_handlers import (
-    PackedHDF5Reader,
-    PackedHDF5Writer,
     HomogeneousHDF5Reader,
     HomogeneousHDF5Writer,
+    PackedHDF5Reader,
+    PackedHDF5Writer,
 )
 from torchsig.utils.yaml import load_config_from_yaml
 
@@ -142,6 +142,29 @@ class TestDataModuleCreation:
         assert dm.impairment_level == config.impairment_level
         assert isinstance(dm.root, Path)
         assert dm.root == dataset_root
+
+    @pytest.mark.parametrize(
+        "sampling_grouping",
+        [
+            "family",
+            {"groups": [{"name": "phase", "values": ["bpsk", "qpsk"]}]},
+            GroupingLabel("family"),
+        ],
+    )
+    def test_from_config_accepts_generator_and_grouping_configuration(self, tmp_path, sampling_grouping):
+        """Generator selection and grouping survive config construction."""
+        config = load_config_from_yaml(CONFIGS_DIR / "narrowband_toy_dataset.yaml")
+        generators = ["bpsk", "qpsk"]
+
+        dm = TorchSigDataModule.from_config(
+            config,
+            root=tmp_path,
+            signal_generators=generators,
+            sampling_grouping=sampling_grouping,
+        )
+
+        assert dm.signal_generators is generators
+        assert dm.sampling_grouping is sampling_grouping
 
     def test_from_config_forwards_packed_writer_options(self, tmp_path):
         """Packed writer configuration survives the config constructor."""

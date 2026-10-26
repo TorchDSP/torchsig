@@ -29,7 +29,7 @@ def test_btle_access_address():
 
 def test_btle_bit_stream_contains_access_address():
     """The bit stream begins with the 8-bit preamble then the 32-bit access address."""
-    from torchsig.signals.builders.btle import _PREAMBLE_BITS
+    from torchsig.signals.builders.btle import _PREAMBLE_BITS  # noqa: PLC0415
 
     rng = np.random.default_rng(0)
     stream = build_btle_bit_stream(100, rng)

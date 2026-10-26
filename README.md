@@ -63,6 +63,15 @@ pip install -e .[examples]
 * `pip install -e .[examples]` — adds the extra **examples** group, including optional dependencies to run all examples in the notebooks and scripts.
   Choose this when you plan to run the examples from the project.
 
+### Cache location
+
+TorchSig caches generated polyphase filter weights in the current user's cache
+directory. Set `TORCHSIG_CACHE_DIR` to use a different location, for example
+`export TORCHSIG_CACHE_DIR=/path/to/cache` on Linux or macOS, or
+`$env:TORCHSIG_CACHE_DIR = "C:\path\to\cache"` in PowerShell. When it is not
+set, TorchSig uses `%LOCALAPPDATA%\torchsig` on Windows and
+`$XDG_CACHE_HOME/torchsig` (or `~/.cache/torchsig`) elsewhere.
+
 # Examples and Tutorials
 
 TorchSig has a series of Jupyter notebooks in the `examples/` directory. View the README inside `examples/` to learn more.
@@ -181,7 +190,7 @@ To simplify environment setup and maintain code quality, this project uses a `Ma
 | `make lint` | Performs static analysis to find bugs and style issues. | `ruff` |
 | `make format` | Automatically formats the codebase to project standards. | `ruff` |
 | `make fix` | Automatically fixes linting errors and formats the code. | `ruff` |
-| `make clean` | Wipes `__pycache__`, test caches, and `/tmp` artifacts. | `shell` |
+| `make clean` | Wipes `__pycache__`, test caches, `/tmp` artifacts, and generated polyphase-weight cache files. | `shell` |
 | `make build` | Builds source distribution (sdist) and wheel for PyPI. | `build` |
 | `make verify` | Validates distribution files and lists them (pre-publish check). | `twine`, `shell` |
 | `make publish` | Uploads distribution files to PyPI. | `twine` |

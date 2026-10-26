@@ -189,7 +189,11 @@ def test_frequency_shift_signal_filters_lower_edge_aliasing(
     np.testing.assert_array_equal(result.data, filtered_data)
     assert result["center_freq"] == pytest.approx(-44.0)
     assert result["bandwidth"] == pytest.approx(12.0)
+    assert result.lower_freq == pytest.approx(-50.0)
+    assert result.upper_freq == pytest.approx(-38.0)
     assert result["center_freq_set"] is True
+    assert "_lower_frequency" not in result.metadata
+    assert "_upper_frequency" not in result.metadata
 
     anti_aliasing_filter_mock.assert_called_once()
 

@@ -232,6 +232,8 @@ def test_ofdm_modulator_baseband_adds_cyclic_prefix():
             ifft_output[:, 0],
         )
     )
+    expected_windowed = serialized_with_cp.copy()
+    expected_windowed[:8] *= np.blackman(16)[:8]
 
     with (
         patch.object(
@@ -266,12 +268,65 @@ def test_ofdm_modulator_baseband_adds_cyclic_prefix():
 
     np.testing.assert_array_equal(
         slice_tail.call_args.args[0],
-        serialized_with_cp,
+        expected_windowed,
     )
     np.testing.assert_array_equal(
         result,
-        serialized_with_cp,
+        expected_windowed,
     )
+
+
+def test_ofdm_modulator_baseband_windowing_overlap_adds_adjacent_symbols():
+    """Cyclic-prefix window tails should overlap the following symbol starts."""
+    rng = MagicMock(spec=np.random.Generator)
+    rng.integers.side_effect = [
+        0,
+        np.zeros((4, 2), dtype=int),
+    ]
+
+    first_symbol = np.arange(16, dtype=np.float32)
+    second_symbol = np.arange(16, 32, dtype=np.float32)
+    ifft_output = np.column_stack((first_symbol, second_symbol)).astype(np.complex64)
+
+    cp_len_oversampled = 4
+    window = np.blackman(2 * cp_len_oversampled)
+    first_extended = np.concatenate((first_symbol[-4:], first_symbol, first_symbol[:4]))
+    second_extended = np.concatenate((second_symbol[-4:], second_symbol, second_symbol[:4]))
+    first_extended[:4] *= window[:4]
+    first_extended[-4:] *= window[4:]
+    second_extended[:4] *= window[:4]
+    second_extended[-4:] *= window[4:]
+    expected = np.zeros(44, dtype=np.complex64)
+    expected[:24] += first_extended
+    expected[20:] += second_extended
+    expected = expected[:-4]
+
+    with (
+        patch.object(
+            __import__(MODULE_PATH, fromlist=["TorchSigSignalLists"]).TorchSigSignalLists,
+            "ofdm_subcarrier_modulations",
+            ["test"],
+        ),
+        patch.dict(
+            f"{MODULE_PATH}.all_symbol_maps",
+            {"test": np.array([-1 + 0j, 1 + 0j])},
+        ),
+        patch(f"{MODULE_PATH}.np.fft.ifft", return_value=ifft_output),
+        patch(
+            f"{MODULE_PATH}.slice_tail_to_length",
+            side_effect=lambda signal, length: signal[:length],
+        ) as slice_tail,
+    ):
+        result = ofdm_modulator_baseband(
+            num_subcarriers=4,
+            max_num_samples=40,
+            oversampling_rate_nominal=4,
+            rng=rng,
+            cyclic_prefix_len=1,
+        )
+
+    np.testing.assert_allclose(slice_tail.call_args.args[0], expected)
+    np.testing.assert_allclose(result, expected)
 
 
 def test_ofdm_modulator_baseband_selects_subcarrier_modulation():
@@ -750,9 +805,9 @@ def test_ofdm_modulator_calculates_resampling_parameters():
     # ceil(100 / 2.5) = 40
     baseband_modulator.assert_called_once_with(
         64,
-        40,
-        4,
-        rng,
+        max_num_samples=40,
+        oversampling_rate_nominal=4,
+        rng=rng,
     )
     resampler.assert_called_once_with(
         baseband,
@@ -965,11 +1020,11 @@ def test_ofdm_signal_generator_generate():
 
     modulator.assert_called_once_with(
         64,
-        800,
-        10_000,
-        150,
-        rng,
-        16,
+        bandwidth=800,
+        sample_rate=10_000,
+        num_samples=150,
+        rng=rng,
+        cyclic_prefix_len=16,
     )
 
     signal_class.assert_called_once_with(

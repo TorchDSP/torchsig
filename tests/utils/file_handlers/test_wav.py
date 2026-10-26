@@ -1,5 +1,5 @@
 import json
-import os
+import pickle
 from pathlib import Path
 
 import numpy as np
@@ -35,12 +35,12 @@ def create_mock_dataset(root: Path, num_files: int, elements_per_file: int, num_
 
     # 2. Create metadata.csv
     total_elements = num_files * elements_per_file
-    with open(root / "metadata.csv", "w", encoding="utf-8") as f:
+    with (root / "metadata.csv").open("w", encoding="utf-8") as f:
         f.writelines(f"{i},label_{i},0,48000\n" for i in range(total_elements))
 
     # 3. Create info.json
     info = {"num_iq_samples": num_samples, "elements_per_file": elements_per_file, "size": total_elements, "class_list": ["mod_0", "mod_1"], "sample_rate": 48000}
-    with open(root / "info.json", "w") as f:
+    with (root / "info.json").open("w") as f:
         json.dump(info, f)
 
 
@@ -58,10 +58,10 @@ def test_init_inference(tmp_path):
     create_mock_dataset(tmp_path, num_files, elements, samples)
 
     # REMOVE JSON to force inference
-    os.remove(tmp_path / "info.json")
+    (tmp_path / "info.json").unlink()
 
     # VERIFICATION: Ensure CSV actually has the right number of lines before initializing
-    with open(tmp_path / "metadata.csv") as f:
+    with (tmp_path / "metadata.csv").open() as f:
         lines = f.readlines()
         assert len(lines) == (num_files * elements), f"CSV should have {num_files * elements} lines, found {len(lines)}"
 
@@ -95,3 +95,27 @@ def test_recursive_rglob(tmp_path):
     create_mock_dataset(tmp_path, 2, 1, 100)
     reader = WAVReader(tmp_path)
     assert len(reader.wav_files) == 2
+
+
+def test_context_manager_closes_cached_handles(tmp_path):
+    """Leaving a reader context deterministically closes its handles."""
+    create_mock_dataset(tmp_path, 1, 1, 4)
+
+    with WAVReader(tmp_path) as reader:
+        reader.read(0)
+        assert len(reader._audio_handles) == 1
+
+    assert len(reader._audio_handles) == 0
+
+
+def test_pickled_reader_has_no_live_handles(tmp_path):
+    """Reader pickle state retains cache settings but no open handles."""
+    create_mock_dataset(tmp_path, 1, 1, 4)
+    reader = WAVReader(tmp_path, audio_handle_cache_size=3)
+    reader.read(0)
+
+    restored = pickle.loads(pickle.dumps(reader))
+
+    assert restored.audio_handle_cache_size == 3
+    assert len(restored._audio_handles) == 0
+    np.testing.assert_array_equal(restored.read(0).data, reader.read(0).data)

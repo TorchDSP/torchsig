@@ -14,11 +14,11 @@ The main classes are:
 
 from __future__ import annotations
 
+import hashlib
 import warnings
 from collections import Counter
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any, Union
-import hashlib
 
 import numpy as np
 from torch.utils.data import IterableDataset
@@ -130,9 +130,10 @@ class Transmitter(Seedable):
         identifier: Unique identifier for this transmitter
 
     Example:
-        >>> from torchsig.datasets import TorchSigIterableDataset, Transmitter
+        >>> from torchsig.datasets import TorchSigIterableDataset
+        >>> from torchsig.geo.datasets import Transmitter
         >>> from torchsig.geo.types import GeoPoint
-        >>> from torchsig.utils import TorchSigDefaults
+        >>> from torchsig.utils.defaults import TorchSigDefaults
         >>>
         >>> # Create source dataset
         >>> metadata = TorchSigDefaults().default_dataset_metadata
@@ -308,9 +309,9 @@ class Receiver(Seedable):
         identifier: Unique identifier for this receiver
 
     Example:
-        >>> from torchsig.datasets import Receiver
+        >>> from torchsig.geo.datasets import Receiver
         >>> from torchsig.geo.types import GeoPoint
-        >>> from torchsig.transforms import AWGN
+        >>> from torchsig.transforms.transforms import AWGN
         >>>
         >>> position = GeoPoint(lat=37.7759, lon=-122.4194, alt=10)
         >>> receiver_transforms = [AWGN(noise_power_db=-100.0)]
@@ -451,7 +452,7 @@ class TorchSigGeoDataset(HierarchicalMetadataObject, IterableDataset):
         >>> from torchsig.geo.types import GeoPoint
         >>> from torchsig.datasets import TorchSigIterableDataset
         >>> from torchsig.geo.transforms import PathLoss
-        >>> from torchsig.utils import TorchSigDefaults
+        >>> from torchsig.utils.defaults import TorchSigDefaults
         >>>
         >>> # Create positions
         >>> tx_pos = GeoPoint(lat=37.7749, lon=-122.4194)

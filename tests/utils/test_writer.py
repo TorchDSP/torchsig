@@ -1,5 +1,7 @@
 """Unit Tests for writer utilities."""
 
+from pathlib import Path
+
 import numpy as np
 import pytest
 import yaml
@@ -7,16 +9,33 @@ import yaml
 from torchsig.datasets.datasets import StaticTorchSigDataset, TorchSigIterableDataset
 from torchsig.utils.data_loading import WorkerSeedingDataLoader
 from torchsig.utils.defaults import TorchSigDefaults, default_dataset
-from torchsig.utils.writer import DatasetCreator
 from torchsig.utils.file_handlers import PackedHDF5Writer
+from torchsig.utils.writer import DatasetCreator
+
+
+def _small_dataset(seed: int) -> TorchSigIterableDataset:
+    """Return a cheap iterable dataset for tests of writer mechanics."""
+    metadata = TorchSigDefaults().default_dataset_metadata.copy()
+    metadata.update(
+        {
+            "num_iq_samples_dataset": 256,
+            "fft_size": 16,
+            "fft_stride": 16,
+            "num_signals_min": 0,
+            "num_signals_max": 0,
+            "signal_duration_in_samples_min": 16,
+            "signal_duration_in_samples_max": 256,
+        }
+    )
+    return TorchSigIterableDataset(metadata=metadata, target_labels=None, seed=seed)
 
 
 @pytest.mark.parametrize(
     "dataset_length, expect_error, multithreading",
     [
         (None, True, False),  # iterable dataset length cannot be inferred safely
-        (10, False, False),  # non-multiple-of-batch_size check (batch_size=4)
-        (7, False, True),  # multithreading test
+        (5, False, False),  # non-multiple-of-batch_size check (batch_size=4)
+        (5, False, True),  # multithreading test
     ],
 )
 def test_DatasetCreator(tmp_path, dataset_length, expect_error, multithreading):
@@ -26,7 +45,7 @@ def test_DatasetCreator(tmp_path, dataset_length, expect_error, multithreading):
     seed = 1234567890
     batch_size = 4
 
-    ds = default_dataset(num_signals_max=3, num_signals_min=0)
+    ds = _small_dataset(seed)
     dl = WorkerSeedingDataLoader(ds, seed=seed, batch_size=batch_size)
     orig_target_labels = getattr(ds, "target_labels", None)
     orig_collate_fn = dl.collate_fn
@@ -181,8 +200,8 @@ def test_DatasetCreator_overwrite_false_errors_if_incomplete(tmp_path):
 @pytest.mark.parametrize(
     "dataset_length, multithreading",
     [
-        (16, False),  # tiny dataset without multithreading
-        (17, True),  # tiny dataset with multithreading
+        (4, False),  # one batch without multithreading
+        (5, True),  # partial final batch with multithreading
     ],
 )
 def test_DatasetCreator_tqdm_output(tmp_path, capsys, dataset_length, multithreading):
@@ -191,7 +210,7 @@ def test_DatasetCreator_tqdm_output(tmp_path, capsys, dataset_length, multithrea
     seed = 12345
     batch_size = 4
 
-    ds = default_dataset(num_signals_max=2, num_signals_min=0)
+    ds = _small_dataset(seed)
     dl = WorkerSeedingDataLoader(ds, seed=seed, batch_size=batch_size)
     dc = DatasetCreator(
         dataloader=dl,
@@ -279,10 +298,10 @@ def test_writer_memory_growth(tmp_path):
     The per-run numbers are printed so they appear in the pytest log when
     running with ``-s`` and are useful for manual inspection.
     """
-    import gc
-    import tracemalloc
+    import gc  # noqa: PLC0415
+    import tracemalloc  # noqa: PLC0415
 
-    from torchsig.signals.signal_types import Signal
+    from torchsig.signals.signal_types import Signal  # noqa: PLC0415
 
     SEED = 27182
     BATCH_SIZE = 4
@@ -303,7 +322,7 @@ def test_writer_memory_growth(tmp_path):
 
     def current_rss_bytes() -> int:
         """Current RSS in bytes, read from /proc/self/status (Linux)."""
-        with open("/proc/self/status") as fh:
+        with Path("/proc/self/status").open() as fh:
             for line in fh:
                 if line.startswith("VmRSS:"):
                     return int(line.split()[1]) * 1024  # kB → bytes

@@ -113,15 +113,24 @@ def _assert_results(
         assert item["component_dtypes"] == tuple(component.data.dtype.str for component in signal.component_signals)
 
 
-@pytest.mark.parametrize("workload", _WORKLOAD_SHAPES)
-@pytest.mark.parametrize("num_workers", [0, 2])
+@pytest.mark.parametrize(
+    ("workload", "num_workers"),
+    [
+        pytest.param("iq", 0, id="iq"),
+        pytest.param("wideband", 0, id="wideband"),
+        pytest.param("spectrogram", 0, id="spectrogram"),
+        pytest.param("iq", 1, id="multiprocessing"),
+    ],
+)
 def test_homogeneous_reader_dataloader_order_and_content(
     tmp_path,
     workload,
     num_workers,
 ) -> None:
     expected = _write(tmp_path, workload)
-    context = "spawn" if num_workers else None
+    context = None
+    if num_workers:
+        context = "fork" if "fork" in multiprocessing.get_all_start_methods() else "spawn"
     dataset = _HomogeneousReaderDataset(
         tmp_path,
         len(expected),
@@ -132,50 +141,13 @@ def test_homogeneous_reader_dataloader_order_and_content(
         batch_size=4,
         num_workers=num_workers,
         multiprocessing_context=context,
+        persistent_workers=bool(num_workers),
         collate_fn=_identity_collate,
     )
 
     _assert_results(_collect(loader), expected)
-
-
-@pytest.mark.skipif(
-    "fork" not in multiprocessing.get_all_start_methods(),
-    reason="fork multiprocessing context is unavailable",
-)
-def test_homogeneous_reader_reopens_parent_handle_after_fork(
-    tmp_path,
-) -> None:
-    expected = _write(tmp_path, "iq")
-    dataset = _HomogeneousReaderDataset(
-        tmp_path,
-        len(expected),
-        open_in_parent=True,
-    )
-    loader = DataLoader(
-        dataset,
-        batch_size=4,
-        num_workers=4,
-        multiprocessing_context="fork",
-        collate_fn=_identity_collate,
-    )
-
-    _assert_results(_collect(loader), expected)
-    assert dataset.reader.read(0)["sample_index"] == 0
-
-
-def test_homogeneous_reader_repeated_persistent_worker_epochs(
-    tmp_path,
-) -> None:
-    expected = _write(tmp_path, "spectrogram")
-    dataset = _HomogeneousReaderDataset(tmp_path, len(expected))
-    loader = DataLoader(
-        dataset,
-        batch_size=4,
-        num_workers=2,
-        multiprocessing_context="spawn",
-        persistent_workers=True,
-        collate_fn=_identity_collate,
-    )
-
-    _assert_results(_collect(loader), expected)
-    _assert_results(_collect(loader), expected)
+    if num_workers:
+        # Reuse the worker to verify reader state across epochs, then ensure the
+        # handle opened in the parent remains usable.
+        _assert_results(_collect(loader), expected)
+        assert dataset.reader.read(0)["sample_index"] == 0

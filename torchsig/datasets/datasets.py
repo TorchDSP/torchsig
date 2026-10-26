@@ -19,6 +19,7 @@ from torchsig.transforms.metadata_transforms import GroupingLabel
 from torchsig.utils.abstractions import HierarchicalMetadataObject
 from torchsig.utils.coordinate_system import Coordinate, Rectangle, is_rectangle_overlap
 from torchsig.utils.dsp import compute_spectrogram, update_signal_snr_bandwidth
+from torchsig.utils.experiment_config import ExperimentConfig, load_experiment_config
 from torchsig.utils.file_handlers.hdf5 import HDF5Reader
 from torchsig.utils.metadata_logging import (
     get_metadata_logging_context,
@@ -55,6 +56,8 @@ class TorchSigDatasetConfig:
         output_spectrogram_fft: The FFT size to use when generating spectrograms (if output_representation is "spectrogram").
         signal_sampling_mode: The mode for sampling signals, either "per_signal" or "per_family".
         dataset_metadata: A dictionary containing additional metadata about the dataset.
+        file_writer_name: Named dataset storage backend.
+        file_writer_kwargs: Options passed to the selected file writer.
         target_labels: A list of target_labels. Defaults to ["class_index"].
     """
 
@@ -66,10 +69,30 @@ class TorchSigDatasetConfig:
     output_spectrogram_fft: int | None
     signal_sampling_mode: Literal["per_signal", "per_family"]
     dataset_metadata: dict[str, Any]
-    target_labels: list[str] = field(default_factory=lambda: ["class_index"])  # default classification use case
+    file_writer_name: Literal["legacy", "packed", "homogeneous"] = "legacy"
+    file_writer_kwargs: dict[str, Any] = field(default_factory=dict)
+    target_labels: list[str | tuple[str, ...]] = field(default_factory=lambda: ["class_index"])  # default classification use case
+    experiment_config: ExperimentConfig = field(default_factory=ExperimentConfig)
 
 
-def apply_label_to_signal(sample: Signal, target_label: str) -> list:
+def _label_value(signal: Signal, target_label: str) -> tuple[bool, Any]:
+    """Return whether a target label is available and its value."""
+    if target_label == "class_index":
+        if hasattr(signal, "class_index"):
+            return True, int(signal.class_index)
+        if hasattr(signal, "class_name"):
+            class_names = signal.get_full_metadata()["class_names"]
+            return True, int(list(class_names).index(signal.class_name))
+    elif hasattr(signal, target_label):
+        return True, getattr(signal, target_label)
+
+    return False, None
+
+
+def apply_label_to_signal(
+    sample: Signal,
+    target_label: str | tuple[str, ...],
+) -> list:
     """Extract a target label from a signal and its component signals.
 
     Target labels are resolved through the public ``Signal`` interface rather
@@ -88,12 +111,25 @@ def apply_label_to_signal(sample: Signal, target_label: str) -> list:
     Args:
         sample: Signal from which to extract target labels.
         target_label: Name of the target label or ``Signal`` property to
-            extract.
+            extract. A tuple of names requests an atomic grouped target for
+            each signal that provides every named field. This preserves the
+            association between values from the same component signal.
 
     Returns:
         A list containing a sample-level value, one value for each component
         signal, or a single value for a signal without components.
     """
+    if isinstance(target_label, tuple):
+        if not target_label or not all(isinstance(label, str) and label for label in target_label):
+            raise ValueError("grouped target labels must be a non-empty tuple of non-empty strings")
+
+        values = []
+        for signal in sample.component_signals or [sample]:
+            grouped_value = tuple(_label_value(signal, label) for label in target_label)
+            if all(is_available for is_available, _ in grouped_value):
+                values.append(tuple(value for _, value in grouped_value))
+        return values
+
     is_sample_level_label = target_label in sample.metadata and not any(target_label in component.metadata for component in sample.component_signals)
     if is_sample_level_label:
         return [sample[target_label]]
@@ -103,25 +139,27 @@ def apply_label_to_signal(sample: Signal, target_label: str) -> list:
     signals = sample.component_signals or [sample]
 
     for signal in signals:
-        if target_label == "class_index":
-            if hasattr(signal, "class_index"):
-                values.append(int(signal.class_index))
-            elif hasattr(signal, "class_name"):
-                class_names = signal.get_full_metadata()["class_names"]
-                values.append(int(list(class_names).index(signal.class_name)))
-        elif hasattr(signal, target_label):
-            values.append(getattr(signal, target_label))
+        is_available, value = _label_value(signal, target_label)
+        if is_available:
+            values.append(value)
 
     return values
 
 
-def apply_transforms_and_labels_to_signal(sample: Signal, transforms: list[Transform | callable], target_labels: list) -> Signal | np.ndarray | tuple:
+def apply_transforms_and_labels_to_signal(
+    sample: Signal,
+    transforms: list[Transform | callable],
+    target_labels: list[str | tuple[str, ...]] | None,
+) -> Signal | np.ndarray | tuple:
     """Applies a series of transformations to a signal sample and retrieves specified label values.
 
     Args:
         sample: The signal sample to process.
         transforms: A list of function objects, each taking a Signal object and returning a transformed Signal object.
-        target_labels: Labels to be retrieved from the signal sample after transformations. If None, the transformed signal is returned. If an empty list, the signal data is returned.
+        target_labels: Labels to be retrieved from the signal sample after
+            transformations. A tuple entry groups multiple fields atomically
+            per component signal. If None, the transformed signal is returned.
+            If an empty list, the signal data is returned.
 
     Returns:
         - If target_labels is None, a Signal object with all applied transforms.
@@ -145,7 +183,7 @@ def apply_transforms_and_labels_to_signal(sample: Signal, transforms: list[Trans
     targets = {}
     for key in target_labels:
         values = apply_label_to_signal(sample, key)
-        is_sample_level_label = key in sample.metadata and not any(key in component.metadata for component in sample.component_signals)
+        is_sample_level_label = isinstance(key, str) and key in sample.metadata and not any(key in component.metadata for component in sample.component_signals)
         if len(values) == 1 and (is_sample_level_label or sample["num_signals_max"] == 1):
             values = values[0]
         targets[key] = values
@@ -172,13 +210,14 @@ class TorchSigIterableDataset(HierarchicalMetadataObject, IterableDataset):
 
     def __init__(
         self,
+        *,
         signal_generators: str | ConcatSignalGenerator | list = "all",
         transforms: list[Transform | callable] | None = None,
         component_transforms: list[Transform | callable] | None = None,
         target_labels: list | None = None,
-        sampling_grouping: (GroupingLabel | str | Path | Mapping[str, Any] | None) = None,
+        sampling_grouping: GroupingLabel | str | Path | Mapping[str, Any] | None = None,
         per_signal_metadata: dict[str, dict[str, int | float]] | None = None,
-        # will try to validate required metadata in this dataset; can be turned off if a dataset needs to be initialized before it's metadata is known
+        experiment_config: ExperimentConfig | str | Path | Mapping[str, Any] | None = None,
         validate_init: bool = True,
         **kwargs,
     ):
@@ -197,6 +236,8 @@ class TorchSigIterableDataset(HierarchicalMetadataObject, IterableDataset):
             per_signal_metadata: Optional metadata overrides keyed by signal
                 class name. Supported overrides are the minimum and maximum
                 values for SNR, signal duration in samples, and bandwidth.
+            experiment_config: Optional validated configuration, YAML path, or
+                mapping containing per-signal generator parameter overrides.
             validate_init: Whether to validate metadata during initialization.
             **kwargs: Additional keyword arguments passed to the parent class.
 
@@ -220,6 +261,7 @@ class TorchSigIterableDataset(HierarchicalMetadataObject, IterableDataset):
         self._signal_probability_mode = "likelihood"
         self.target_labels = target_labels
         self.per_signal_metadata = self._validate_per_signal_metadata(per_signal_metadata)
+        self.experiment_config = load_experiment_config(experiment_config)
         self.transforms = [] if transforms is None else transforms
         self.component_transforms = [] if component_transforms is None else component_transforms
         self._metadata_logging_sample_index = 0
@@ -298,6 +340,13 @@ class TorchSigIterableDataset(HierarchicalMetadataObject, IterableDataset):
         overrides = self.per_signal_metadata.get(signal_generator.class_name, {})
         for metadata_field, value in overrides.items():
             signal_generator[metadata_field] = value
+
+    def _apply_experiment_config(self, signal_generator: callable) -> None:
+        """Apply validated generator parameter overrides for a signal class."""
+        if not hasattr(signal_generator, "class_name"):
+            return
+        for parameter_name, parameter in self.experiment_config.parameters_for(signal_generator.class_name).items():
+            signal_generator[parameter_name] = parameter.value
 
     @staticmethod
     def _validate_positive_weight(value: float, parameter_name: str) -> float:
@@ -438,28 +487,43 @@ class TorchSigIterableDataset(HierarchicalMetadataObject, IterableDataset):
         self._sampling_generator_groups = generator_groups
         self._validate_signal_sampling_configuration(require_complete=True)
 
-    def init_signal_generator(self, signal_generator: str | callable) -> None:
+    def init_signal_generator(
+        self,
+        signal_generator: str | callable,
+        class_name: str | None = None,
+    ) -> None:
         """Initializes the signal generator.
 
         Args:
             signal_generator: The signal generator to be initialized. If a string, it is first looked up to retrieve the corresponding signal generator function.
+            class_name: Optional class name to assign to the initialized
+                generator. Used internally to preserve the configured name when
+                a named concatenated generator is expanded.
 
         Raises:
             TypeError: If the signal_generator is neither a string nor a callable.
         """
         if isinstance(signal_generator, str):
+            class_name = signal_generator
             signal_generator = lookup_signal_generator_by_string(signal_generator)
 
         if isinstance(signal_generator, ConcatSignalGenerator):
             for child_generator in signal_generator.signal_generators:
-                self.init_signal_generator(child_generator)
+                self.init_signal_generator(
+                    child_generator,
+                    class_name=class_name,
+                )
             return
 
-        self.add_signal_generator(signal_generator)
+        self.add_signal_generator(
+            signal_generator,
+            class_name=class_name,
+        )
 
     def add_signal_generator(
         self,
         signal_generator: callable,
+        *,
         class_name: str | None = None,
         class_index: int | None = None,
         likelihood: float | None = None,
@@ -523,6 +587,7 @@ class TorchSigIterableDataset(HierarchicalMetadataObject, IterableDataset):
             signal_generator["class_name"] = class_name
 
         self._apply_per_signal_metadata(signal_generator)
+        self._apply_experiment_config(signal_generator)
 
         if isinstance(signal_generator, Seedable):
             signal_generator.add_parent(self)
@@ -830,9 +895,10 @@ class TorchSigIterableDataset(HierarchicalMetadataObject, IterableDataset):
         for component_transform in self.component_transforms:
             signal = component_transform(signal)
 
+        self._validate_generated_bandwidth(signal, generator)
         update_signal_snr_bandwidth(self, signal)
 
-        return frequency_shift_signal(
+        signal = frequency_shift_signal(
             signal,
             center_freq_min=self["signal_center_freq_min"],
             center_freq_max=self["signal_center_freq_max"],
@@ -841,6 +907,51 @@ class TorchSigIterableDataset(HierarchicalMetadataObject, IterableDataset):
             frequency_min=self["frequency_min"],
             random_generator=self.random_generator,
         )
+        signal.validate_frequency_interval(
+            frequency_min=self["frequency_min"],
+            frequency_max=self["frequency_max"],
+        )
+        return signal
+
+    @staticmethod
+    def _validate_generated_bandwidth(
+        signal: Signal,
+        generator: BaseSignalGenerator,
+    ) -> None:
+        """Validate a generated component's canonical bandwidth.
+
+        All generators that accept configured bandwidth bounds must return a
+        finite bandwidth within those bounds. A tone is the explicit exception:
+        it represents an ideal single-frequency component with a fixed 1 Hz
+        metadata width and does not consume the dataset bandwidth distribution.
+
+        Args:
+            signal: Generated component after component transforms.
+            generator: Generator that produced the component.
+
+        Raises:
+            ValueError: If the component bandwidth is non-finite, non-positive,
+                or outside the generator's configured range.
+        """
+        bandwidth = float(signal.bandwidth)
+        class_name = str(signal.class_name) if hasattr(signal, "class_name") else type(generator).__name__
+
+        if not np.isfinite(bandwidth) or bandwidth <= 0:
+            raise ValueError(f"Generated {class_name!r} signal has invalid bandwidth {bandwidth}")
+
+        if class_name == "tone":
+            if bandwidth != 1.0:
+                raise ValueError(f"Generated 'tone' signal must have its documented 1 Hz bandwidth, got {bandwidth}")
+            return
+
+        required_fields = set(getattr(generator, "required_metadata_fields", []))
+        if not {"bandwidth_min", "bandwidth_max"}.issubset(required_fields):
+            return
+
+        bandwidth_min = float(generator.bandwidth_min)
+        bandwidth_max = float(generator.bandwidth_max)
+        if not bandwidth_min <= bandwidth <= bandwidth_max:
+            raise ValueError(f"Generated {class_name!r} signal bandwidth {bandwidth} is outside configured range [{bandwidth_min}, {bandwidth_max}]")
 
     def _choose_start_sample(
         self,

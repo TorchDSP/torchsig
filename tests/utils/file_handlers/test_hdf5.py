@@ -1,7 +1,5 @@
-import pytest
-from typing import Any, Sequence, Optional, List, Tuple, Dict
 import numpy as np
-import h5py
+import pytest
 
 # --- Test Data Setup ---
 # Define complex tuple-based targets for reusability

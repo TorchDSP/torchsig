@@ -341,8 +341,8 @@ with different deviation ratios, frame structure, and sync word.
 Physical layer (TIA-102.BAAA):
     * Symbol rate      : 4800 Bd
     * Deviations       : ±1800 Hz (outer, symbol ±3) and ±600 Hz (inner, symbol ±1)
-    * Modulation index : h = 2 × 1800 / 4800 = 0.75
-    * Pulse shaping    : root-raised-cosine, α = 0.2
+    * Modulation index : h = 2 x 1800 / 4800 = 0.75
+    * Pulse shaping    : root-raised-cosine, alpha = 0.2
     * Channel spacing  : 12.5 kHz
 
 Frame structure (one logical channel frame, 1080 symbols):

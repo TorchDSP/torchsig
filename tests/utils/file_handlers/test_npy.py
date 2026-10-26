@@ -203,11 +203,11 @@ def npy_dataset(tmp_path: Path):
         f.writelines(
             [
                 f"0,BPSK,0,{DEFAULT_SR}\n",
-                f"0,BPSK,0,{DEFAULT_SR}\n",
-                f"1,QPSK,1,{DEFAULT_SR}\n",
-                f"1,QPSK,1,{DEFAULT_SR}\n",
-                f"1,QPSK,1,{DEFAULT_SR}\n",
-                f"2,Noise,2,{DEFAULT_SR}\n",
+                f"1,BPSK,0,{DEFAULT_SR}\n",
+                f"2,QPSK,1,{DEFAULT_SR}\n",
+                f"3,QPSK,1,{DEFAULT_SR}\n",
+                f"4,QPSK,1,{DEFAULT_SR}\n",
+                f"5,Noise,2,{DEFAULT_SR}\n",
             ]
         )
 
@@ -255,7 +255,7 @@ def test_npy_reader_no_files(tmp_path: Path):
     ``metadata.csv`` and ``info.json`` exist.
     """
     write_info_json(tmp_path, size=0)
-    (tmp_path / "metadata.csv").write_text(f"0,BPSK,0,{DEFAULT_SR}\n", encoding="utf-8")
+    (tmp_path / "metadata.csv").write_text("", encoding="utf-8")
     with pytest.raises(FileNotFoundError, match=r"No \.npy files"):
         NPYReader(str(tmp_path))
 
@@ -338,12 +338,8 @@ def test_read_index_out_of_range(npy_dataset):
 # ----------------------------------------------------------------------
 # CSV index out of bounds → IndexError
 # ----------------------------------------------------------------------
-def test_read_raises_index_error_when_csv_is_too_short(tmp_path: Path):
-    """Build a dataset where ``info.json`` advertises 5 samples but the CSV
-    contains only three rows.  Accessing a global index that points beyond the
-    CSV should raise ``IndexError`` with the message
-    ``"Metadata idx <n> is out of bounds"``.
-    """
+def test_init_rejects_csv_that_is_too_short(tmp_path: Path):
+    """Reject a CSV whose record count contradicts the declared dataset size."""
     dataset = create_dataset(
         tmp_path,
         npy_shapes=[2, 3],
@@ -354,9 +350,5 @@ def test_read_raises_index_error_when_csv_is_too_short(tmp_path: Path):
         ],
     )
 
-    reader = NPYReader(str(dataset))
-
-    # Global index 4 is valid for the waveform data (total = 5) but the CSV
-    # has no row 4 → we expect an IndexError from the CSV-lookup block.
-    with pytest.raises(IndexError, match=r"Metadata idx 4 is out of bounds"):
-        reader.read(4)
+    with pytest.raises(ValueError, match=r"reports 5 elements.*contains 3 rows"):
+        NPYReader(str(dataset))

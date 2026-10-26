@@ -1,242 +1,306 @@
-"""Metadata loader for TorchSig.
+"""Shared sidecar metadata support for file-based TorchSIG datasets.
 
-The :class:`MetadataReader` is the tiny helper that every TorchSig file-handler
-relies on.  It offers two read-only utilities that never pull the whole CSV
-into memory:
+The :class:`MetadataReader` is the common helper used by file handlers whose
+waveform payload and descriptive metadata are stored separately. It reads two
+sidecars from the dataset root:
 
-* :meth:`MetadataReader.load_row` - fetches **one** row from ``metadata.csv``,
-  parses the fields and returns a fully-typed dictionary.
-* :meth:`MetadataReader.load_json` - reads the optional ``info.json`` that lives
-  next to the CSV and returns its parsed JSON payload.
+* ``metadata.csv`` contains one record per dataset element. New files use a
+  versioned, header-based schema; valid legacy headerless files remain
+  supported.
+* ``info.json`` optionally supplies dataset-wide values such as sample count,
+  sample rate, file layout, and class ordering.
 
-Both helpers accept either a plain ``str`` or a :class:`Path` as the
-dataset root, raise explicit, custom exceptions on error, and use
-``itertools.islice`` so that only the requested line is read from disk.
+CSV rows are parsed and validated once when the reader is constructed. Keeping
+the resulting table in memory makes arbitrary and shuffled row access O(1), at
+the cost of memory proportional to the number and width of metadata records.
 """
 
 from __future__ import annotations
 
 import csv
-import itertools
 import json
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from pathlib import Path
 
 from .base_handler import FileReader
 
-__all__ = ["MetadataIndexError", "MetadataReader"]
+__all__ = ["SIDECAR_SCHEMA_VERSION", "MetadataIndexError", "MetadataReader"]
+
+SIDECAR_SCHEMA_VERSION = "1.0"
+"""Current header-based ``metadata.csv`` sidecar schema version."""
+
+_REQUIRED_COLUMNS = ("index", "label", "modcod", "sample_rate")
+_LEGACY_OPTIONAL_COLUMNS = ("snr_db", "seed")
+_DEFAULT_CLASS_LIST = ["BPSK", "QPSK", "Noise"]
 
 
-# ----------------------------------------------------------------------
-# Exceptions
-# ----------------------------------------------------------------------
 class MetadataIndexError(IndexError):
-    """Raised when a caller asks for a CSV row that does not exist."""
+    """Raised when a caller requests a metadata row that does not exist."""
 
 
-# ----------------------------------------------------------------------
-# Core reader
-# ----------------------------------------------------------------------
 class MetadataReader(FileReader):
-    """Minimal-overhead reader for the dataset-wide metadata files that accompany
-    TorchSig recordings.
+    """Read validated dataset metadata from CSV and optional JSON sidecars.
+
+    Header-based CSV files resolve fields by name, preserve additional columns,
+    and may reorder the required columns. Legacy headerless files with four
+    columns remain supported; the historical six-column generator output is
+    also accepted. Metadata rows are parsed once during construction and kept
+    in memory, making shuffled row lookup O(1) without retaining waveform data.
+
+    ``info.json`` is supplementary. When ``metadata.csv`` exists, its record
+    count determines dataset size and a conflicting JSON ``size`` is rejected.
+    Class names are inferred in first-seen order when JSON does not provide a
+    valid ``class_list``.
 
     Parameters
     ----------
     root : str | Path
-        Directory that contains ``metadata.csv`` and, optionally,
-        ``info.json``.  If a string is supplied it is converted to a
-        :class:`~Path`.
+        Directory containing ``metadata.csv`` and, optionally, ``info.json``.
+        A string is converted to a :class:`~pathlib.Path` by the base reader.
 
     Attributes
     ----------
     root : Path
-        Normalised (absolute) path to the dataset folder.
-    metadata : dict
-        The parsed contents of ``info.json`` - empty when the file is missing
-        or cannot be decoded.
+        Dataset directory normalized by :class:`FileReader`.
+    dataset_metadata : dict[str, object]
+        Parsed ``info.json`` object, or an empty dictionary when the optional
+        file is absent, malformed, or does not contain a JSON object.
+    metadata_path : Path
+        Path to the dataset's ``metadata.csv`` sidecar.
+    metadata_has_header : bool
+        Whether the CSV was recognized as the header-based schema.
+    metadata_fieldnames : tuple[str, ...]
+        Normalized CSV field names, including preserved extension columns.
     dataset_size : int
-        The *declared* number of samples, taken from the ``size`` entry in
-        ``info.json``.  If the entry is missing or invalid the value defaults to
-        ``0``.
+        Number of parsed CSV records when ``metadata.csv`` exists; otherwise
+        the valid nonnegative size declared by ``info.json``, or zero.
     class_list : list[str]
-        Ordered list of class names.  It is taken from the ``class_list`` entry
-        in ``info.json`` when present; otherwise the default list
-        ``["BPSK", "QPSK", "Noise"]`` is used.
+        JSON class ordering when valid, otherwise labels inferred in first-seen
+        CSV order. The historical BPSK/QPSK/Noise default is used only when
+        neither source supplies classes.
+    sample_rate, num_files, elements_per_file, num_iq_samples : int
+        Optional nonnegative dataset-wide values read from ``info.json``;
+        missing or invalid values default to zero so concrete readers may
+        infer them from their waveform files.
+
+    Raises
+    ------
+    ValueError
+        If the CSV schema or a record is invalid, indices are negative or
+        duplicated, the declared schema version is unsupported, or the JSON
+        size contradicts the CSV record count.
     """
 
     def __init__(self, root: str | Path) -> None:
         super().__init__(root)
-
-        # Load the optional JSON metadata.  Any problem (missing file,
-        # malformed JSON, …) results in an empty dict -- the rest of the class
-        # can continue to operate with sensible defaults.
         try:
             self.dataset_metadata = self.load_json()
-        except ValueError:
+        except (TypeError, ValueError):
             self.dataset_metadata = {}
 
-        # Populate the convenience attributes from the JSON payload.
-        self._populate_from_json()
+        self.metadata_path = self.root / "metadata.csv"
+        self.metadata_has_header = False
+        self.metadata_fieldnames: tuple[str, ...] = ()
+        self._metadata_rows = self._load_metadata_rows() if self.metadata_path.exists() else []
+        self._populate_metadata_attributes()
 
     def __repr__(self) -> str:
-        """Return a concise representation of the metadata reader.
+        """Return a concise representation for debugging and logging.
 
-        The string shows the class name, the resolved ``root`` and the
-        advertised ``dataset_size`` (taken from ``info.json`` if present,
-        otherwise ``0``).  This is useful for debugging and logging.
+        The representation includes the concrete reader class, normalized
+        dataset root, and reconciled dataset size.
         """
         return f"{self.__class__.__name__}(root={self.root!s}, size={self.dataset_size})"
 
-    # ------------------------------------------------------------------
-    # Private helper -- turn the JSON payload into public attributes
-    # ------------------------------------------------------------------
-    def _populate_from_json(self) -> None:
-        """Populate attributes from ``self.dataset_metadata``."""
+    @staticmethod
+    def _optional_nonnegative_int(value: Any, name: str) -> int | None:
+        """Convert an optional JSON value to a nonnegative integer."""
+        if value is None or isinstance(value, bool):
+            return None
+        try:
+            converted = int(value)
+        except (TypeError, ValueError):
+            return None
+        if converted < 0:
+            raise ValueError(f"info.json field {name!r} must be nonnegative")
+        return converted
 
-        def _try_get_int(name: str) -> int:
-            try:
-                return int(self.dataset_metadata.get(name, 0))
-            except (TypeError, ValueError):
-                return 0
+    def _populate_metadata_attributes(self) -> None:
+        """Reconcile optional JSON attributes with the CSV record index."""
+        declared_version = self.dataset_metadata.get("sidecar_schema_version")
+        if declared_version is not None and str(declared_version) != SIDECAR_SCHEMA_VERSION:
+            raise ValueError(f"Unsupported sidecar schema version {declared_version!r}; expected {SIDECAR_SCHEMA_VERSION!r}")
 
-        self.dataset_size = _try_get_int("size")
-        self.sample_rate: int = _try_get_int("sample_rate")
-        self.num_files: int = _try_get_int("num_files")
-        self.elements_per_file: int = _try_get_int("elements_per_file")
-        self.num_iq_samples: int = _try_get_int("num_iq_samples")
-
-        _default = ["BPSK", "QPSK", "Noise"]
-        raw = self.dataset_metadata.get("class_list", _default)
-        if isinstance(raw, list) and all(isinstance(i, str) for i in raw):
-            self.class_list = raw
+        declared_size = self._optional_nonnegative_int(self.dataset_metadata.get("size"), "size")
+        if self.metadata_path.exists():
+            csv_size = len(self._metadata_rows)
+            if declared_size is not None and declared_size != csv_size:
+                raise ValueError(f"info.json reports {declared_size} elements, but metadata.csv contains {csv_size} rows")
+            self.dataset_size = csv_size
         else:
-            self.class_list = _default
+            self.dataset_size = declared_size or 0
 
-    def load_row(
-        self,
-        idx: int,
-        class_list: list[str] | None = None,
-    ) -> dict[str, object]:
-        """Return a dictionary with the parsed metadata for row ``idx`` of
-        ``metadata.csv``.
+        for name in ("sample_rate", "num_files", "elements_per_file", "num_iq_samples"):
+            setattr(self, name, self._optional_nonnegative_int(self.dataset_metadata.get(name), name) or 0)
+
+        raw_class_list = self.dataset_metadata.get("class_list")
+        if isinstance(raw_class_list, list) and all(isinstance(item, str) for item in raw_class_list):
+            self.class_list = list(raw_class_list)
+            return
+
+        inferred = list(dict.fromkeys(str(row["label"]) for row in self._metadata_rows))
+        self.class_list = inferred or list(_DEFAULT_CLASS_LIST)
+
+    @staticmethod
+    def _is_header(row: list[str]) -> bool:
+        """Return whether a first CSV row is recognizably a header."""
+        normalized = {value.strip() for value in row}
+        return bool(normalized.intersection(_REQUIRED_COLUMNS))
+
+    @staticmethod
+    def _validate_header(header: list[str], csv_path: Path) -> tuple[str, ...]:
+        """Validate and normalize a header row."""
+        normalized = tuple(value.strip() for value in header)
+        if any(not value for value in normalized):
+            raise ValueError(f"{csv_path} contains an empty column name")
+        duplicates = sorted({value for value in normalized if normalized.count(value) > 1})
+        if duplicates:
+            raise ValueError(f"{csv_path} contains duplicate columns: {duplicates}")
+        missing = sorted(set(_REQUIRED_COLUMNS).difference(normalized))
+        if missing:
+            raise ValueError(f"{csv_path} is missing required columns: {missing}")
+        return normalized
+
+    def _load_metadata_rows(self) -> list[dict[str, Any]]:
+        """Parse and validate all CSV rows into an O(1) lookup table."""
+        with self.metadata_path.open("r", encoding="utf-8", newline="") as csv_file:
+            raw_rows = [row for row in csv.reader(csv_file) if row]
+
+        if not raw_rows:
+            return []
+
+        first_row = raw_rows[0]
+        self.metadata_has_header = self._is_header(first_row)
+        if self.metadata_has_header:
+            fieldnames = self._validate_header(first_row, self.metadata_path)
+            data_rows = raw_rows[1:]
+        else:
+            legacy_column_count = len(_REQUIRED_COLUMNS)
+            if len(first_row) < legacy_column_count:
+                missing = list(_REQUIRED_COLUMNS[len(first_row) :])
+                raise ValueError(f"Row 0 of {self.metadata_path} is missing required columns: {missing}")
+            if len(first_row) not in {legacy_column_count, legacy_column_count + len(_LEGACY_OPTIONAL_COLUMNS)}:
+                raise ValueError(f"Legacy {self.metadata_path} rows must contain 4 or 6 columns; row 0 contains {len(first_row)}")
+            fieldnames = _REQUIRED_COLUMNS + _LEGACY_OPTIONAL_COLUMNS[: len(first_row) - legacy_column_count]
+            data_rows = raw_rows
+
+        self.metadata_fieldnames = tuple(fieldnames)
+        records: list[dict[str, Any]] = []
+        seen_indices: set[int] = set()
+        for row_index, values in enumerate(data_rows):
+            if len(values) != len(fieldnames):
+                raise ValueError(f"Row {row_index} of {self.metadata_path} has {len(values)} values; expected {len(fieldnames)} from its schema")
+            raw_record = dict(zip(fieldnames, values, strict=True))
+            missing = sorted(name for name in _REQUIRED_COLUMNS if raw_record[name] == "")
+            if missing:
+                raise ValueError(f"Row {row_index} of {self.metadata_path} is missing required columns: {missing}")
+            record = self._parse_record(raw_record)
+            index = record["index"]
+            if index < 0:
+                raise ValueError(f"Row {row_index} of {self.metadata_path} has negative index {index}")
+            if index in seen_indices:
+                raise ValueError(f"Row {row_index} of {self.metadata_path} has duplicate index {index}")
+            seen_indices.add(index)
+            records.append(record)
+        return records
+
+    @staticmethod
+    def _parse_record(raw_record: dict[str, str]) -> dict[str, Any]:
+        """Convert required fields while retaining additional CSV columns."""
+        record: dict[str, Any] = dict(raw_record)
+        try:
+            record["index"] = int(raw_record["index"])
+        except ValueError as exc:
+            raise ValueError(f"Cannot convert 'index'='{raw_record['index']}' to int") from exc
+        try:
+            record["modcod"] = int(raw_record["modcod"])
+        except ValueError as exc:
+            raise ValueError(f"Cannot convert 'modcod'='{raw_record['modcod']}' to int") from exc
+        try:
+            record["sample_rate"] = float(raw_record["sample_rate"])
+        except ValueError as exc:
+            raise ValueError(f"Cannot convert 'sample_rate'='{raw_record['sample_rate']}' to float") from exc
+        record["label"] = raw_record["label"]
+        return record
+
+    def load_row(self, idx: int, class_list: list[str] | None = None) -> dict[str, object]:
+        """Return parsed metadata for the zero-based row position ``idx``.
+
+        Additional header-based columns are returned as strings. Required
+        numeric fields are converted to their documented numeric types.
 
         Parameters
         ----------
         idx : int
-            Zero-based row index to read.
+            Zero-based row position in ``metadata.csv``. This is the record's
+            table position and need not equal the value of its ``index`` field.
         class_list : list[str] | None, optional
-            Ordered list of class names.  If omitted the instance's
-            ``self.class_list`` is used.  Labels that are not present in the list
-            receive a ``class_index`` of ``-1``.
+            Ordered class names used to derive ``class_index``. If omitted,
+            the instance's reconciled :attr:`class_list` is used. A label not
+            present in that list receives a class index of ``-1``.
 
         Returns
         -------
-        dict
-            Dictionary containing the raw CSV fields plus a few derived entries:
-            ``index``, ``label``, ``modcod``, ``sample_rate``,
-            ``class_name`` (lower-cased label), ``class_index`` and
-            ``num_signals_max`` (always ``1``).
+        dict[str, object]
+            A fresh dictionary containing the CSV fields. ``index`` and
+            ``modcod`` are integers, ``sample_rate`` is a float, and additional
+            header columns remain strings. Derived fields include lower-case
+            ``class_name``, numeric ``class_index``, and ``num_signals_max=1``.
 
         Raises
         ------
         MetadataIndexError
-            If ``idx`` is larger than the number of rows in the CSV file.
-        ValueError
-            If a required column is missing/empty or cannot be cast to the
-            expected type.
+            If ``idx`` is negative or outside the parsed metadata table.
         """
-        csv_path = self.root / "metadata.csv"
+        if idx < 0 or idx >= len(self._metadata_rows):
+            raise MetadataIndexError(f"Metadata idx {idx} is out of bounds (file has fewer rows) - {self.metadata_path}")
 
-        # Use the supplied class list or fall back to the instance attribute.
-        if class_list is None:
-            class_list = self.class_list
-
-        # --------------------------------------------------------------
-        # 1️⃣  Read only the requested line -- we never load the whole CSV.
-        # --------------------------------------------------------------
-        with csv_path.open("r", newline="") as f:
-            reader = csv.DictReader(
-                f,
-                fieldnames=["index", "label", "modcod", "sample_rate"],
-            )
-            row = next(itertools.islice(reader, idx, idx + 1), None)
-
-        # --------------------------------------------------------------
-        # 2️⃣  Guard against an out-of-range request.
-        # --------------------------------------------------------------
-        if row is None:
-            raise MetadataIndexError(f"Metadata idx {idx} is out of bounds (file has fewer rows) - {csv_path}")
-
-        # --------------------------------------------------------------
-        # 3️⃣  Verify that every required column is present and non-empty.
-        # --------------------------------------------------------------
-        required = {"index", "label", "modcod", "sample_rate"}
-        if any(row[col] in (None, "") for col in required):
-            raise ValueError(f"Row {idx} of {csv_path} is missing required columns: {[col for col in required if row[col] in (None, '')]!r}")
-
-        # --------------------------------------------------------------
-        # 4️⃣  Convert the raw strings to their proper Python types,
-        #     preserving the original traceback on failure.
-        # --------------------------------------------------------------
+        classes = self.class_list if class_list is None else class_list
+        record = dict(self._metadata_rows[idx])
+        label = str(record["label"])
+        record["class_name"] = label.lower()
+        record["num_signals_max"] = 1
         try:
-            index = int(row["index"])
-        except ValueError as exc:
-            raise ValueError(f"Cannot convert 'index'='{row['index']}' to int") from exc
-
-        label = row["label"]
-
-        try:
-            modcod = int(row["modcod"])
-        except ValueError as exc:
-            raise ValueError(f"Cannot convert 'modcod'='{row['modcod']}' to int") from exc
-
-        try:
-            sample_rate = float(row["sample_rate"])
-        except ValueError as exc:
-            raise ValueError(f"Cannot convert 'sample_rate'='{row['sample_rate']}' to float") from exc
-
-        # --------------------------------------------------------------
-        # 5️⃣  Build the result dictionary and add the derived helper fields.
-        # --------------------------------------------------------------
-        record: dict[str, object] = {
-            "index": index,
-            "label": label,
-            "modcod": modcod,
-            "sample_rate": sample_rate,
-            "class_name": label.lower(),
-            "num_signals_max": 1,
-        }
-
-        # --------------------------------------------------------------
-        # 6️⃣  Resolve the numeric class index (-1 if the label is unknown).
-        # --------------------------------------------------------------
-        try:
-            record["class_index"] = class_list.index(label)
+            record["class_index"] = classes.index(label)
         except ValueError:
             record["class_index"] = -1
-
         return record
 
     def load_json(self) -> dict[str, object]:
-        """Load the optional ``info.json`` file that lives next to ``metadata.csv``.
+        """Read and return optional dataset-level JSON metadata.
 
         Returns
         -------
-        dict
-            The parsed JSON payload.
+        dict[str, object]
+            The decoded JSON object without schema-specific coercion.
 
         Raises
         ------
+        TypeError
+            If the decoded JSON's top-level value is not an object.
         ValueError
-            If the file does not exist or cannot be decoded as JSON.
+            If ``info.json`` is missing or cannot be decoded as JSON.
+            Construction treats these cases as absent optional metadata;
+            direct callers can inspect the error.
         """
         meta_path = self.root / "info.json"
         try:
-            # The JSON files shipped with TorchSig are UTF-8 encoded.
-            with meta_path.open(encoding="utf-8") as f:
-                return json.load(f)
+            with meta_path.open(encoding="utf-8") as json_file:
+                payload = json.load(json_file)
         except (FileNotFoundError, json.JSONDecodeError) as exc:
             raise ValueError(f"Cannot read {meta_path}: {exc}") from exc
+        if not isinstance(payload, dict):
+            raise TypeError(f"Cannot read {meta_path}: expected a JSON object")
+        return payload

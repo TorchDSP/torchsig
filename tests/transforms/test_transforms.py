@@ -42,6 +42,7 @@ from torchsig.transforms.transforms import (
     Spurs,
     TimeReversal,
     TimeVaryingNoise,
+    reconstruct_spectrogram_support_vectors,
 )
 from torchsig.utils.dsp import TorchSigComplexDataType, TorchSigRealDataType, compute_spectrogram, low_pass
 
@@ -1281,6 +1282,71 @@ def test_Spectrogram(signal: Signal, params: dict, is_error: bool) -> None:
 
         assert isinstance(T, Spectrogram)
         assert isinstance(T.fft_size, int)
+
+
+def test_spectrogram_adds_physical_support_vectors() -> None:
+    """Spectrogram axes must identify every output row and column center."""
+    signal = Signal(data=np.ones(16, dtype=TorchSigComplexDataType), sample_rate=8.0)
+
+    result = Spectrogram(fft_size=4, fft_stride=2)(signal)
+    frequency, time = reconstruct_spectrogram_support_vectors(result)
+
+    np.testing.assert_array_equal(
+        frequency,
+        np.array([2.0, 0.0, -2.0, -4.0], dtype=TorchSigRealDataType),
+    )
+    np.testing.assert_array_equal(
+        time,
+        np.array([0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75], dtype=TorchSigRealDataType),
+    )
+    assert result.data.shape == (len(frequency), len(time))
+    assert result.spectrogram_frequency_units == "Hz"
+    assert result.spectrogram_time_units == "seconds"
+
+
+def test_spectrogram_accepts_explicit_sample_rate() -> None:
+    """A sample-rate override supports signals without rate metadata."""
+    signal = Signal(data=np.ones(8, dtype=TorchSigComplexDataType))
+
+    result = Spectrogram(fft_size=4, sample_rate=8.0)(signal)
+    _, time = reconstruct_spectrogram_support_vectors(result)
+
+    np.testing.assert_array_equal(
+        time,
+        np.array([0.25, 0.75], dtype=TorchSigRealDataType),
+    )
+
+
+def test_spectrogram_uses_normalized_support_without_sample_rate() -> None:
+    """Standalone signals retain normalized, explicitly labeled axes."""
+    result = Spectrogram(fft_size=4)(Signal(data=np.ones(8, dtype=TorchSigComplexDataType)))
+    frequency, time = reconstruct_spectrogram_support_vectors(result)
+
+    np.testing.assert_array_equal(
+        frequency,
+        np.array([0.25, 0.0, -0.25, -0.5], dtype=TorchSigRealDataType),
+    )
+    np.testing.assert_array_equal(
+        time,
+        np.array([2.0, 6.0], dtype=TorchSigRealDataType),
+    )
+    assert result.spectrogram_frequency_units == "cycles/sample"
+    assert result.spectrogram_time_units == "samples"
+
+
+def test_reconstruct_spectrogram_support_vectors_rejects_non_spectrogram() -> None:
+    """Support vectors require two-dimensional spectrogram data."""
+    signal = Signal(data=np.ones(8, dtype=TorchSigComplexDataType))
+
+    with pytest.raises(ValueError, match="spectrogram data must be two dimensional"):
+        reconstruct_spectrogram_support_vectors(signal)
+
+
+@pytest.mark.parametrize("sample_rate", [0.0, -1.0, np.nan, np.inf])
+def test_spectrogram_rejects_invalid_sample_rate(sample_rate: float) -> None:
+    """Physical coordinate axes require a finite, positive sample rate."""
+    with pytest.raises(ValueError, match="sample_rate must be finite and positive"):
+        Spectrogram(fft_size=4, sample_rate=sample_rate)
 
 
 @pytest.mark.parametrize(

@@ -5,7 +5,6 @@ Run from the repository root:
     python examples/scripts/train_modrec_metadata_targets.py
 """
 
-# ruff: noqa: INP001
 
 from __future__ import annotations
 

@@ -11,9 +11,9 @@ docker run -it torchsig
 ```
 
 ## GPU TorchSig Image (`Dockerfile.gpu`)
-- Ubuntu 22.04
-- NVIDIA CUDA 11.8.0
-- Python 3.10
+- Ubuntu 24.04
+- NVIDIA CUDA 12.6.3
+- Python 3.12
 - Image size: ~7 GB
 ```bash
 docker build -t torchsig-gpu -f docker/Dockerfile.gpu .

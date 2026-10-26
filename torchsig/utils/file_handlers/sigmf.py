@@ -7,6 +7,7 @@ record contains ``num_iq_samples`` complex samples.
 import bisect
 import json
 from pathlib import Path
+from typing import ClassVar
 
 import numpy as np
 
@@ -14,7 +15,7 @@ from torchsig.signals.signal_types import Signal
 
 from .metadata_reader import MetadataReader
 
-__all__ = ["SIGMFReader"]
+__all__ = ["SigMFReader"]
 
 
 class SigMFReader(MetadataReader):
@@ -38,7 +39,7 @@ class SigMFReader(MetadataReader):
 
     DEFAULT_DTYPE = "cf32_le"
 
-    SIGMF_DTYPE_MAP = {
+    SIGMF_DTYPE_MAP: ClassVar[dict[str, np.dtype]] = {
         "cf32_le": np.dtype("<c8"),
         "cf32_be": np.dtype(">c8"),
         "ci16_le": np.dtype([("i", "<i2"), ("q", "<i2")]),
@@ -51,19 +52,11 @@ class SigMFReader(MetadataReader):
         super().__init__(root)
         self.root = Path(self.root).resolve()
 
-        self.data_files = sorted(self.root.rglob("*.sigmf-data"), key=lambda p: str(p))
+        self.data_files = sorted(self.root.rglob("*.sigmf-data"), key=str)
         if not self.data_files:
             raise FileNotFoundError(f"No .sigmf-data files found in {self.root}")
 
         self.meta_files = {path.with_suffix(".sigmf-data"): path for path in self.root.rglob("*.sigmf-meta")}
-
-        csv_path = self.root / "metadata.csv"
-        if csv_path.exists():
-            with open(csv_path) as f:
-                rows = [line for line in f if line.strip()]
-            self.dataset_size = len(rows)
-            if hasattr(self, "metadata_rows"):
-                self.metadata_rows = rows
 
         self.sigmf_metadata = [self._load_sigmf_meta(path) for path in self.data_files]
         self.sample_dtype = self._resolve_dtype()
@@ -99,7 +92,8 @@ class SigMFReader(MetadataReader):
             cum += elements_in_file
 
         self.total_elements = cum
-        self.dataset_size = max(self.dataset_size, self.total_elements)
+        if self.dataset_size != self.total_elements:
+            raise ValueError(f"Metadata contains {self.dataset_size} elements, but SigMF files contain {self.total_elements}.")
 
     def read(self, idx: int) -> Signal:
         """Read one dataset element by global element index."""
@@ -136,7 +130,7 @@ class SigMFReader(MetadataReader):
         if not meta_path.exists():
             raise FileNotFoundError(f"Missing SigMF metadata file for {data_path}")
 
-        with open(meta_path) as f:
+        with meta_path.open() as f:
             return json.load(f)
 
     def _resolve_dtype(self) -> str:

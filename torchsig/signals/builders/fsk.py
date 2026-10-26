@@ -205,13 +205,14 @@ def fsk_symbol_timing(
         tuple: (bandwidth_symbol_product, samples_per_symbol).
     """
     gamma = fsk_bandwidth_symbol_product(constellation_size, mod_idx, bt, gaussian_span)
-    samples_per_symbol = max(MIN_SAMPLES_PER_SYMBOL, int(round(oversampling_rate_nominal * gamma)))
+    samples_per_symbol = max(MIN_SAMPLES_PER_SYMBOL, round(oversampling_rate_nominal * gamma))
     return gamma, samples_per_symbol
 
 
 def fsk_modulator_baseband(
     constellation_size: int,
     fsk_type: str,
+    *,
     max_num_samples: int,
     oversampling_rate_nominal: int,
     rng: np.random.Generator | None = None,
@@ -286,6 +287,7 @@ def fsk_modulator_baseband(
 def fsk_modulator(
     constellation_size: int,
     fsk_type: str,
+    *,
     bandwidth: float,
     sample_rate: float,
     num_samples: int,
@@ -346,9 +348,9 @@ def fsk_modulator(
     baseband_signal = fsk_modulator_baseband(
         constellation_size,
         fsk_type,
-        max_num_samples,
-        oversampling_rate_nominal,
-        rng,
+        max_num_samples=max_num_samples,
+        oversampling_rate_nominal=oversampling_rate_nominal,
+        rng=rng,
         params=params,
     )
 
@@ -418,10 +420,10 @@ class FSKSignalGenerator(BaseSignalGenerator):
         signal_data = fsk_modulator(
             constellation_size,
             fsk_type,
-            bandwidth,
-            sample_rate,
-            num_iq_samples_signal,
-            self.random_generator,
+            bandwidth=bandwidth,
+            sample_rate=sample_rate,
+            num_samples=num_iq_samples_signal,
+            rng=self.random_generator,
         )
 
         return Signal(data=signal_data, center_freq=0, bandwidth=bandwidth)

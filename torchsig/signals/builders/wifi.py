@@ -239,7 +239,7 @@ def _make_payload_symbol(constellation_name: str, ifft_size: int, cp_len: int, r
     values = np.zeros(53, dtype=TorchSigComplexDataType)
     # random (uncoded) data subcarriers
     data_idx = rng.integers(0, len(symbol_map), len(WIFI_DATA_SUBCARRIERS))
-    for k, sym in zip(WIFI_DATA_SUBCARRIERS, symbol_map[data_idx]):
+    for k, sym in zip(WIFI_DATA_SUBCARRIERS, symbol_map[data_idx], strict=False):
         values[_subcarrier_index(k)] = sym
     # fixed pilots (toy: polarity = +1)
     for k in WIFI_PILOT_SUBCARRIERS:
@@ -251,6 +251,7 @@ def _make_payload_symbol(constellation_name: str, ifft_size: int, cp_len: int, r
 def wifi_80211a_modulator_baseband(
     frame_type: str,
     constellation_name: str,
+    *,
     max_num_samples: int,
     oversampling_rate_nominal: int,
     rng: np.random.Generator | None = None,
@@ -314,6 +315,7 @@ def wifi_80211a_modulator_baseband(
 def wifi_80211a_modulator(
     frame_type: str,
     constellation_name: str,
+    *,
     bandwidth: float,
     sample_rate: float,
     num_samples: int,
@@ -358,9 +360,9 @@ def wifi_80211a_modulator(
     frame_baseband = wifi_80211a_modulator_baseband(
         frame_type,
         constellation_name,
-        num_samples_baseband,
-        WIFI_OVERSAMPLING_NOMINAL,
-        rng,
+        max_num_samples=num_samples_baseband,
+        oversampling_rate_nominal=WIFI_OVERSAMPLING_NOMINAL,
+        rng=rng,
     )
 
     frame_correct_bw = multistage_polyphase_resampler(frame_baseband, resample_rate_ideal)
@@ -439,10 +441,10 @@ class Wifi80211aSignalGenerator(BaseSignalGenerator):
         signal_data = wifi_80211a_modulator(
             frame_type,
             constellation_name,
-            bandwidth,
-            sample_rate,
-            num_iq_samples_signal,
-            self.random_generator,
+            bandwidth=bandwidth,
+            sample_rate=sample_rate,
+            num_samples=num_iq_samples_signal,
+            rng=self.random_generator,
         )
 
         return Signal(data=signal_data, center_freq=0, bandwidth=bandwidth)

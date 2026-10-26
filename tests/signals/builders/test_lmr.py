@@ -149,7 +149,7 @@ def test_p25_mod_index():
 
 def test_p25_symbol_stream_starts_with_sync():
     """The symbol stream begins with the 24-symbol frame sync."""
-    from torchsig.signals.builders.lmr import _P25_SYNC_LEVELS, P25_SYNC_SYMBOLS
+    from torchsig.signals.builders.lmr import _P25_SYNC_LEVELS, P25_SYNC_SYMBOLS  # noqa: PLC0415
 
     rng = np.random.default_rng(0)
     stream = build_p25_symbol_stream(200, rng)

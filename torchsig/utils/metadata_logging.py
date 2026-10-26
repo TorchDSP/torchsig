@@ -318,7 +318,7 @@ def _bounded_metadata_value_repr(value: Any, limit: int) -> tuple[str, bool]:
         return "<missing>", False
     try:
         value_repr = repr(value)
-    except Exception as exc:  # noqa: BLE001  # pragma: no cover
+    except Exception as exc:  # noqa: BLE001  # pragma: no cover - arbitrary repr implementations may fail
         value_repr = f"<repr failed: {type(exc).__name__}>"
     if len(value_repr) <= limit:
         return value_repr, False

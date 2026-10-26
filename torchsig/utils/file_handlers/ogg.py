@@ -1,171 +1,107 @@
-"""File-handler that reads a directory of **stereo** OGG recordings.
-Each OGG file stores *elements_per_file* whole IQ records; every record
-contains *num_iq_samples* complex samples (I/Q pairs).
-"""
+"""File handler for stereo OGG-container IQ datasets."""
 
-import bisect
 from pathlib import Path
+from typing import Self
 
-import numpy as np
 import soundfile as sf
 
 from torchsig.signals.signal_types import Signal
 
+from .audio import AudioFidelity, AudioHandleCache, AudioRecordLayout
 from .metadata_reader import MetadataReader
 
 __all__ = ["OGGReader"]
 
 
 class OGGReader(MetadataReader):
-    """Read a directory that contains a TorchSig-compatible OGG dataset.
+    """Read fixed-length or manifest-indexed stereo OGG IQ records.
 
-    Required files
-    ---------------
-    * ``*.ogg`` - **stereo** audio files.  Each file must store *N*
-      whole IQ records, i.e. ``N x num_iq_samples`` frames.  The reader
-      interprets the *left* channel as the **I** (in-phase) component and
-      the *right* channel as the **Q** (quadrature) component, so the audio
-      stream is effectively a *pair of interleaved real-valued tracks*.
-
-    * ``metadata.csv`` - one row **per element** (not per frame).  The row
-      supplies the label, modcod, sample-rate, etc.  No header is expected
-      because :class:`OGGReader` supplies the field names internally.
-
-    * Optional ``info.json`` - must contain the keys ``num_iq_samples`` and
-      ``elements_per_file`` (or they can be inferred from the first OGG file).
-      The JSON also holds the total dataset size, class list, sample-rate,
-      and any other user-defined metadata.
-
-    **Current limitation** - The implementation works **only with loss-less,
-    un-compressed audio streams**.  In practice this means the OGG files must
-    contain either:
-
-    * a **WAV-PCM-FLOAT** stream (32-bit floating-point PCM), or
-    * a **FLAC** stream (lossless compression).
-
-    OGG files encoded with a *lossy* codec such as Vorbis, Opus, or Speex are
-    **not supported**; attempting to read them will raise an exception because
-    the underlying data layout (interleaved I/Q samples) can no longer be
-    recovered reliably.
-
-    Public API
-    ----------
-    The reader operates on **element indices**:
-
-    ``reader.read(i)`` → returns the *i-th* IQ record as a
-    ``torchsig.signals.Signal`` whose ``data`` attribute is a
-    ``complex64`` array of shape ``(num_iq_samples,)``.  The associated
-    metadata row is attached to ``Signal.metadata``.
-
+    Explicit manifests use the same ``file_path``, ``start_frame``, and
+    ``num_frames`` columns as :class:`WAVReader`. OGG/Vorbis and OGG/Opus are
+    rejected because their lossy samples are unsuitable for faithful IQ data.
     """
 
-    def __init__(self, root: str | Path) -> None:
-        # Initialise the base class (sets ``self.root`` and the CSV/JSON helpers)
-        super().__init__(root)
+    def __init__(
+        self,
+        root: str | Path,
+        audio_handle_cache_size: int = 8,
+        normalization: str = "none",
+        record_normalization_scale: bool = False,
+    ) -> None:
+        """Initialize the reader and its fidelity and handle-cache policies.
 
-        # --------------------------------------------------------------
-        # Locate and sort all OGG files.
-        # --------------------------------------------------------------
-        self.ogg_files: list[Path] = sorted(self.root.glob("*.ogg"))
+        Lossy OGG/Vorbis and OGG/Opus streams are rejected. ``normalization``
+        accepts ``"none"`` (the default), ``"rms"``, or ``"peak"``.
+        """
+        super().__init__(root)
+        self._audio_fidelity = AudioFidelity(normalization)
+        self.normalization = self._audio_fidelity.normalization
+        self.record_normalization_scale = bool(record_normalization_scale)
+        self.audio_handle_cache_size = audio_handle_cache_size
+        self._audio_handles = AudioHandleCache(audio_handle_cache_size)
+        self.ogg_files = sorted(self.root.rglob("*.ogg"), key=str)
         if not self.ogg_files:
             raise FileNotFoundError(f"No .ogg files in {self.root}")
 
-        # If the JSON did not provide the numbers, discover them from the
-        # first OGG file (all files are assumed to have the same layout).
-        if self.num_iq_samples == 0 or self.elements_per_file == 0:
-            first_info = sf.info(self.ogg_files[0])
-            total_frames = int(first_info.frames)  # total stereo frames in file
-            # Guess a sensible split: we know the overall ``dataset_size``
-            # (number of elements) from the JSON; we also know the number of files.
-            # ``elements_per_file`` = ceil(dataset_size / num_files)
+        if not self._has_explicit_manifest() and (self.num_iq_samples == 0 or self.elements_per_file == 0):
+            first_frames = int(sf.info(self.ogg_files[0]).frames)
             if self.elements_per_file == 0:
-                self.elements_per_file = int(np.ceil(self.dataset_size / len(self.ogg_files)))
-            # Now deduce ``num_iq_samples``:
-            self.num_iq_samples = total_frames // self.elements_per_file
+                if self.dataset_size > 0 and self.dataset_size % len(self.ogg_files) == 0:
+                    self.elements_per_file = self.dataset_size // len(self.ogg_files)
+                else:
+                    self.elements_per_file = 1
+            self.num_iq_samples = first_frames // self.elements_per_file
 
-        # --------------------------------------------------------------
-        # Build the cumulative-start-index table that maps a **global element**
-        # index → (file index, element-offset-inside-file).
-        # --------------------------------------------------------------
-        self.file_start_indices: list[int] = []  # cumulative count of elements
-        cum = 0
-        for _ogg_path in self.ogg_files:
-            self.file_start_indices.append(cum)
-            cum += self.elements_per_file
-        # ``self.dataset_size`` (inherited from MetadataReader) should already
-        # equal the total number of elements, but we recompute a sanity-check:
-        self.total_elements = cum  # total number of **elements** in the dataset
+        if not self._has_explicit_manifest():
+            legacy_total = len(self.ogg_files) * self.elements_per_file
+            if self.dataset_size != legacy_total:
+                raise ValueError(f"Metadata reports {self.dataset_size} elements, but OGG files contain {legacy_total}.")
 
-        # Sanity-check: make sure the CSV size matches what we think we have.
-        if self.dataset_size != self.total_elements:
-            raise ValueError(f"Metadata reports {self.dataset_size} elements, but OGG files contain {self.total_elements}.")
+        self.record_layout = AudioRecordLayout(
+            self.root,
+            self._metadata_rows,
+            self.ogg_files,
+            num_iq_samples=self.num_iq_samples,
+            elements_per_file=self.elements_per_file,
+        )
+        AudioFidelity.validate_layout(self.record_layout, self._metadata_rows, self.sample_rate, reject_lossy_ogg=True)
+        self.total_elements = len(self.record_layout)
+        self.file_start_indices = [] if self.record_layout.is_manifest else list(range(0, self.total_elements, self.elements_per_file))
+
+    def _has_explicit_manifest(self) -> bool:
+        """Return whether metadata selects explicit record descriptors."""
+        return any("file_path" in row for row in self._metadata_rows)
 
     def read(self, idx: int) -> Signal:
-        """Return the full IQ record for the *idx*-th element.
-
-        Parameters
-        ----------
-        idx : int
-            Zero-based **element** index (0 ≤ idx < self.dataset_size).
-
-        Returns
-        -------
-        Signal
-            ``Signal.data`` is a ``complex64`` array of shape
-            ``(num_iq_samples,)``.  ``metadata`` comes from the CSV row
-            that corresponds to the element.
-        """
-        # --------------------------------------------------------------
-        # Bounds check.
-        # --------------------------------------------------------------
+        """Return the IQ record at global index ``idx``."""
         if idx < 0 or idx >= self.dataset_size:
             raise IndexError(f"index {idx} out of range (size={self.dataset_size})")
-
-        # --------------------------------------------------------------
-        # Locate the file that holds this element.
-        # --------------------------------------------------------------
-        file_idx = bisect.bisect_right(self.file_start_indices, idx) - 1
-        element_offset_in_file = idx - self.file_start_indices[file_idx]
-
-        # --------------------------------------------------------------
-        # Read the **entire** file (all elements it stores).
-        # --------------------------------------------------------------
-        ogg_path = self.ogg_files[file_idx]
-        total_frames_in_file = self.elements_per_file * self.num_iq_samples
-        pcm, _ = sf.read(
-            ogg_path,
-            start=0,  # read from the beginning of the file
-            frames=total_frames_in_file,
-            dtype="float32",
-            always_2d=False,
-        )
-        # Reshape to (elements_per_file, num_iq_samples, 2)
-        pcm = pcm.reshape(self.elements_per_file, self.num_iq_samples, 2)
-
-        # --------------------------------------------------------------
-        # Extract the element we actually asked for.
-        # --------------------------------------------------------------
-        stereo = pcm[element_offset_in_file]  # shape (num_iq_samples, 2)
-
-        # --------------------------------------------------------------
-        # Convert to a complex64 vector.
-        # --------------------------------------------------------------
-        complex_vec = (stereo[:, 0] + 1j * stereo[:, 1]).astype(np.complex64)
-
-        # --------------------------------------------------------------
-        # Pull the CSV row that belongs to this element.
-        # --------------------------------------------------------------
+        record = self.record_layout[idx]
+        stereo = self._audio_handles.read(record.path, record.start_frame, record.num_frames)
+        complex_vec, scale = self._audio_fidelity.convert(stereo, record)
         metadata = self.load_row(idx, self.class_list)
+        if self.record_normalization_scale:
+            metadata["normalization_scale"] = scale
+        return Signal(data=complex_vec, component_signals=[], metadata=metadata)
 
-        # --------------------------------------------------------------
-        # Assemble and return the Signal.
-        # --------------------------------------------------------------
-        return Signal(
-            data=complex_vec,
-            component_signals=[],
-            metadata=metadata,
-        )
+    def setup(self) -> None:
+        """Prepare the reader for use after an earlier teardown."""
+        self._audio_handles.setup()
+
+    def teardown(self) -> None:
+        """Close all process-local audio handles."""
+        self._audio_handles.close()
+
+    def __enter__(self) -> Self:
+        """Prepare and return this reader as a context manager."""
+        self.setup()
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback) -> bool:
+        """Close cached handles when leaving a context."""
+        self.teardown()
+        return False
 
     def __len__(self) -> int:
-        """Number of elements (rows in metadata.csv)."""
+        """Return the number of indexed records."""
         return self.dataset_size

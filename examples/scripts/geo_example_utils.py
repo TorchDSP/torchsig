@@ -14,7 +14,7 @@ Typical usage:
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
@@ -23,13 +23,13 @@ if TYPE_CHECKING:
 
 
 def plot_geo_network_at_frame(
-    transmitters: List["Transmitter"],
-    receivers: List["Receiver"],
+    transmitters: list[Transmitter],
+    receivers: list[Receiver],
     frame_index: int = 0,
     connections: bool = True,
-    ax: Optional[Any] = None,
-    title: Optional[str] = None,
-    topology: Optional[dict] = None,
+    ax: Any | None = None,
+    title: str | None = None,
+    topology: dict | None = None,
 ) -> Any:
     """Plot transmitters and receivers on a 2D map at a specific frame.
 
@@ -131,8 +131,8 @@ def plot_geo_network_at_frame(
 def collect_multi_frame_data(
     geo_dataset: Any,
     num_frames: int,
-    num_receivers: Optional[int] = None,
-) -> List[List[Any]]:
+    num_receivers: int | None = None,
+) -> list[list[Any]]:
     """Collect samples from multiple frames of a geo dataset.
 
     Each frame contains one sample per receiver.
@@ -164,10 +164,10 @@ def collect_multi_frame_data(
 def lla_to_local_cartesian(
     reference_lat: float,
     reference_lon: float,
-    lats: List[float],
-    lons: List[float],
-    alts: Optional[List[float]] = None,
-) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    lats: list[float],
+    lons: list[float],
+    alts: list[float] | None = None,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """Convert lat/lon coordinates to local Cartesian (East, North) coordinates.
 
     Args:
@@ -208,10 +208,10 @@ def lla_to_local_cartesian(
 
 
 def estimate_position_from_ranges(
-    receiver_positions: List[Tuple[float, float, float]],
-    delays: List[float],
+    receiver_positions: list[tuple[float, float, float]],
+    delays: list[float],
     speed_of_light: float = 2.9979e8,
-) -> Tuple[float, float, float]:
+) -> tuple[float, float, float]:
     """Estimate transmitter position from absolute propagation delays using least squares (2D).
 
     This function performs **range-based multilateration**, NOT true TDOA.
@@ -296,11 +296,11 @@ def estimate_position_from_ranges(
 
 
 def calculate_tdoa_fix(
-    all_frames: List[List[Any]],
+    all_frames: list[list[Any]],
     transmitter_idx: int,
-    transmitters: List["Transmitter"],
+    transmitters: list[Transmitter],
     speed_of_light: float = 2.9979e8,
-) -> Tuple[Optional[float], Optional[float], Optional[float], List[Tuple[float, float, float]]]:
+) -> tuple[float | None, float | None, float | None, list[tuple[float, float, float]]]:
     """Calculate range-based position fix averaged over multiple frames for a specific transmitter.
 
     **IMPORTANT: Despite the name, this function performs RANGE-BASED MULTILATERATION,
@@ -328,12 +328,12 @@ def calculate_tdoa_fix(
         Tuple of (avg_lat, avg_lon, avg_alt, frame_estimates).
         Returns (None, None, None, []) if estimation fails for all frames.
     """
-    frame_estimates: List[Tuple[float, float, float]] = []
+    frame_estimates: list[tuple[float, float, float]] = []
     tx_id = transmitters[transmitter_idx].identifier
 
     for frame_samples in all_frames:
-        receiver_positions: List[Tuple[float, float, float]] = []
-        delays: List[float] = []
+        receiver_positions: list[tuple[float, float, float]] = []
+        delays: list[float] = []
 
         for sample in frame_samples:
             rx_lat = sample["rx_lat"]

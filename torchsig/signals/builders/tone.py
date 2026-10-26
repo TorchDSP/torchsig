@@ -34,9 +34,10 @@ def tone_modulator(num_samples: int) -> np.ndarray:
 
 
 class ToneSignalGenerator(BaseSignalGenerator):
-    """Tone Signal Generator.
+    """Tone signal generator with a fixed 1 Hz metadata bandwidth.
 
-    Implements tone waveforms with configurable parameters.
+    A tone represents an ideal single-frequency component and therefore does
+    not sample the dataset's configured component bandwidth distribution.
     """
 
     def __init__(self, **kwargs: dict[str, str | float | int]) -> None:

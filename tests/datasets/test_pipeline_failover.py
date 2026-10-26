@@ -233,7 +233,7 @@ def test_run_with_fallback_reraises_when_no_fallback_signal(base_signal, caplog)
     dataset.pipeline_max_retries = 2
 
     with pytest.raises(RuntimeError, match="generation failed"):
-        dataset._run_with_fallback(
+        dataset._run_with_fallback(  # noqa: SLF001
             generation_fails,
             fallback_raw_signal=None,
         )
@@ -241,3 +241,47 @@ def test_run_with_fallback_reraises_when_no_fallback_signal(base_signal, caplog)
     retry_warnings = [rec for rec in caplog.records if "Pipeline retry" in rec.message and "generation failed" in rec.message]
     assert len(retry_warnings) == 2
     assert any("Retries exhausted" in rec.message for rec in caplog.records)
+
+
+def test_run_with_fallback_forwards_args_and_kwargs(base_signal):
+    """The wrapper forwards positional and keyword arguments unchanged."""
+    dataset = SafeTorchSigIterableDataset(base_signal, apply_func=dummy_apply_func)
+
+    def combine(signal, *, scale, offset):
+        return signal.data * scale + offset
+
+    result = dataset._run_with_fallback(  # noqa: SLF001
+        combine,
+        base_signal,
+        scale=2,
+        offset=1,
+    )
+
+    np.testing.assert_array_equal(result, base_signal.data * 2 + 1)
+
+
+def test_fallback_action_rejects_unknown_option(base_signal):
+    """An unsupported fallback policy is a programming error."""
+    dataset = SafeTorchSigIterableDataset(base_signal, apply_func=dummy_apply_func)
+    dataset.pipeline_fallback = "unsupported"
+
+    with pytest.raises(RuntimeError, match="Unknown fallback option: 'unsupported'"):
+        dataset._fallback_action(base_signal)  # noqa: SLF001
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="pipeline_max_retries is not yet validated as positive",
+)
+def test_retry_rejects_zero_max_retries(base_signal):
+    """Retry mode must reject a retry count that cannot make an attempt."""
+    dataset = SafeTorchSigIterableDataset(base_signal, apply_func=dummy_apply_func)
+    dataset.pipeline_fallback = "retry"
+    dataset.pipeline_max_retries = 0
+
+    with pytest.raises(ValueError, match="pipeline_max_retries must be positive"):
+        dataset._run_with_fallback(  # noqa: SLF001
+            dummy_apply_func,
+            base_signal,
+            fallback_raw_signal=base_signal,
+        )

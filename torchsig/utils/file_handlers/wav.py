@@ -1,137 +1,109 @@
-"""File-handler that reads a directory of **stereo** WAV recordings.
-Each WAV file stores *elements_per_file* whole IQ records; every record
-contains *num_iq_samples* complex samples (I/Q pairs).
-"""
+"""File handler for stereo WAV IQ datasets."""
 
-import bisect
 from pathlib import Path
+from typing import Self
 
-import numpy as np
 import soundfile as sf
 
 from torchsig.signals.signal_types import Signal
 
+from .audio import AudioFidelity, AudioHandleCache, AudioRecordLayout
 from .metadata_reader import MetadataReader
 
 __all__ = ["WAVReader"]
 
 
 class WAVReader(MetadataReader):
-    """Read a directory that contains a TorchSig-compatible WAV dataset.
+    """Read fixed-length or manifest-indexed stereo WAV IQ records.
 
-    Required files
-    ---------------
-    * ``*.wav`` - **stereo** audio files.  Each file must store *N*
-      whole IQ records, i.e. ``N x num_iq_samples`` frames.  The reader
-      interprets the *left* channel as the **I** (in-phase) component and
-      the *right* channel as the **Q** (quadrature) component, so the audio
-      stream is effectively a *pair of interleaved real-valued tracks*.
-    * ``metadata.csv`` - one row **per element** (not per frame).  The row
-      supplies the label, modcod, sample-rate, etc.  No header is expected
-      because :class:`WAVReader` supplies the field names internally.
-    * Optional ``info.json`` - must contain the keys ``num_iq_samples`` and
-      ``elements_per_file`` (or they can be inferred from the first WAV file).
-      The JSON also holds the total dataset size, class list, sample-rate,
-      and any other user-defined metadata.
-
-    Public API
-    ----------
-    The reader operates on **element indices**:
-    ``reader.read(i)`` → returns the *i-th* IQ record as a
-    ``torchsig.signals.Signal`` whose ``data`` attribute is a
-    ``complex64`` array of shape ``(num_iq_samples,)``.  The associated
-    metadata row is attached to ``Signal.metadata``.
+    An explicit manifest adds ``file_path``, ``start_frame``, and
+    ``num_frames`` columns to ``metadata.csv``. Records may then have variable
+    lengths and arbitrary distribution across nested WAV files. Legacy
+    datasets continue to use ``num_iq_samples`` and ``elements_per_file``.
     """
 
-    def __init__(self, root: str | Path) -> None:
-        # 1. Initialise base class
-        super().__init__(root)
-        self.root = Path(self.root).resolve()
+    def __init__(
+        self,
+        root: str | Path,
+        audio_handle_cache_size: int = 8,
+        normalization: str = "none",
+        record_normalization_scale: bool = False,
+    ) -> None:
+        """Initialize the reader and its fidelity and handle-cache policies.
 
-        # 2. Locate and sort all WAV files
-        self.wav_files = sorted(list(self.root.rglob("*.wav")), key=lambda p: str(p))
+        ``normalization`` accepts ``"none"`` (the default), ``"rms"``, or
+        ``"peak"``. If ``record_normalization_scale`` is true, reads include
+        the applied scalar in metadata as ``normalization_scale``.
+        """
+        super().__init__(root)
+        self._audio_fidelity = AudioFidelity(normalization)
+        self.normalization = self._audio_fidelity.normalization
+        self.record_normalization_scale = bool(record_normalization_scale)
+        self.audio_handle_cache_size = audio_handle_cache_size
+        self._audio_handles = AudioHandleCache(audio_handle_cache_size)
+        self.wav_files = sorted(self.root.rglob("*.wav"), key=str)
         if not self.wav_files:
             raise FileNotFoundError(f"No .wav files found in {self.root}")
 
-        # ------------------------------------------------------------------
-        # Robustly recalculate dataset_size from the CSV
-        # ------------------------------------------------------------------
-        csv_path = self.root / "metadata.csv"
-        if csv_path.exists():
-            with open(csv_path) as f:
-                # Count only non-empty lines to avoid trailing newline errors
-                rows = [line for line in f if line.strip()]
-                self.dataset_size = len(rows)
-                # Also update the base class rows if it's using a different list
-                if hasattr(self, "metadata_rows"):
-                    self.metadata_rows = rows
-
-        # ------------------------------------------------------------------
-        # Inference of layout
-        # ------------------------------------------------------------------
-        if self.num_iq_samples == 0 or self.elements_per_file == 0:
-            first_info = sf.info(self.wav_files[0])
-            total_frames = int(first_info.frames)
-
+        if not self._has_explicit_manifest() and (self.num_iq_samples == 0 or self.elements_per_file == 0):
+            first_frames = int(sf.info(self.wav_files[0]).frames)
             if self.elements_per_file == 0:
-                # Only trust dataset_size if it's a perfect multiple of files
                 if self.dataset_size > 0 and self.dataset_size % len(self.wav_files) == 0:
                     self.elements_per_file = self.dataset_size // len(self.wav_files)
                 else:
-                    # Default to 1 element per file if CSV is missing/wrong
                     self.elements_per_file = 1
+            self.num_iq_samples = first_frames // self.elements_per_file
 
-            self.num_iq_samples = total_frames // self.elements_per_file
+        if not self._has_explicit_manifest():
+            legacy_total = len(self.wav_files) * self.elements_per_file
+            if self.dataset_size != legacy_total:
+                raise ValueError(f"Metadata contains {self.dataset_size} elements, but WAV layout implies {legacy_total}.")
 
-        # ------------------------------------------------------------------
-        # Build the indexing table
-        # ------------------------------------------------------------------
-        self.file_start_indices = []
-        cum = 0
-        for _ in self.wav_files:
-            self.file_start_indices.append(cum)
-            cum += self.elements_per_file
-        self.total_elements = cum
+        self.record_layout = AudioRecordLayout(
+            self.root,
+            self._metadata_rows,
+            self.wav_files,
+            num_iq_samples=self.num_iq_samples,
+            elements_per_file=self.elements_per_file,
+        )
+        AudioFidelity.validate_layout(self.record_layout, self._metadata_rows, self.sample_rate, reject_lossy_ogg=False)
+        self.total_elements = len(self.record_layout)
+        self.file_start_indices = [] if self.record_layout.is_manifest else list(range(0, self.total_elements, self.elements_per_file))
 
-        # FINAL SANITY CHECK:
-        # If the CSV was too short, we force dataset_size to match the files
-        # so that reader.read(idx) doesn't throw IndexError.
-        self.dataset_size = max(self.dataset_size, self.total_elements)
+    def _has_explicit_manifest(self) -> bool:
+        """Return whether metadata selects explicit record descriptors."""
+        return any("file_path" in row for row in self._metadata_rows)
 
     def read(self, idx: int) -> Signal:
+        """Return the IQ record at global index ``idx``."""
         if idx < 0 or idx >= self.dataset_size:
-            raise IndexError(f"index {idx} out of range")
-
-        # Use bisect to find which file contains the idx-th element
-        file_idx = bisect.bisect_right(self.file_start_indices, idx) - 1
-        element_offset = idx - self.file_start_indices[file_idx]
-
-        # Ensure we are using the SAME sorted list as __init__
-        wav_path = self.wav_files[file_idx]
-
-        # ... (read and convert to complex) ...
-        # Ensure dtype is float32 to avoid the 0.9999 vs 1.0 issue
-        pcm, _ = sf.read(wav_path, dtype="float32", always_2d=True)
-
-        # Extract the specific record
-        start_frame = element_offset * self.num_iq_samples
-        end_frame = start_frame + self.num_iq_samples
-        stereo = pcm[start_frame:end_frame, :]
-
-        complex_vec = (stereo[:, 0] + 1j * stereo[:, 1]).astype(np.complex64)
-        # --------------------------------------------------------------
-        # Pull the CSV row that belongs to this element.
-        # --------------------------------------------------------------
+            raise IndexError(f"index {idx} out of range (size={self.dataset_size})")
+        record = self.record_layout[idx]
+        stereo = self._audio_handles.read(record.path, record.start_frame, record.num_frames)
+        complex_vec, scale = self._audio_fidelity.convert(stereo, record)
         metadata = self.load_row(idx, self.class_list)
-        # --------------------------------------------------------------
-        # Assemble and return the Signal.
-        # --------------------------------------------------------------
-        return Signal(
-            data=complex_vec,
-            component_signals=[],
-            metadata=metadata,
-        )
+        if self.record_normalization_scale:
+            metadata["normalization_scale"] = scale
+        return Signal(data=complex_vec, component_signals=[], metadata=metadata)
+
+    def setup(self) -> None:
+        """Prepare the reader for use after an earlier teardown."""
+        self._audio_handles.setup()
+
+    def teardown(self) -> None:
+        """Close all process-local audio handles."""
+        self._audio_handles.close()
+
+    def __enter__(self) -> Self:
+        """Prepare and return this reader as a context manager."""
+        self.setup()
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback) -> bool:
+        """Close cached handles when leaving a context."""
+        self.teardown()
+        return False
 
     def __len__(self) -> int:
-        """Number of elements (rows in metadata.csv)."""
+        """Return the number of indexed records."""
         return self.dataset_size

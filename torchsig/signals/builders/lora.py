@@ -148,7 +148,7 @@ def lora_modulator(
     """LoRa modulator: builds preamble + data chirps and resamples to bandwidth.
 
     Args:
-        sf: Spreading factor (7–12).
+        sf: Spreading factor (7-12).
         bandwidth: Desired signal bandwidth (Hz); equals the LoRa chip rate.
         sample_rate: Capture sampling rate (Hz).
         num_samples: Number of IQ samples to produce.

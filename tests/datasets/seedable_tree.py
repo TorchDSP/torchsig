@@ -42,7 +42,7 @@ def main():
     ds = TorchSigIterableDataset(dataset_metadata=md, transforms=[impairments.dataset_transforms], component_transforms=[impairments.signal_transforms], target_labels=["class_index"], seed=seed)
     print(ds)
 
-    with open(THIS_DIR / "seedable_tree.txt", "w", encoding="utf-8") as f:
+    with (THIS_DIR / "seedable_tree.txt").open("w", encoding="utf-8") as f:
         print_seedable_tree(ds, f)
 
     print(f"Tree output written: {THIS_DIR / 'seedable_tree.txt'}")

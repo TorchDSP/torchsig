@@ -1,4 +1,4 @@
-FROM python:3.10-slim
+FROM python:3.12-slim
 
 # Prevents Python from writing .pyc files
 # Ensures Python output is not buffered

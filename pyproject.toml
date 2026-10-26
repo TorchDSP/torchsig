@@ -10,7 +10,7 @@ authors = [
     {name = "TorchSig Team"},
 ]
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.12"
 license = "MIT"
 license-files = ["LICENSE.md"]
 keywords = ["signal processing", "machine learning"]
@@ -72,6 +72,11 @@ notebooks = [
     "nb-clean",
     "tqdm",
     "sigmf",
+    # Notebook execution harnesses (see test-notebooks jobs):
+    # nbmake runs notebooks through a Jupyter kernel (magics OK) as
+    # pytest items; pytest-split balances shards by recorded runtime.
+    "nbmake",
+    "pytest-split",
 ]
 
 examples = [
@@ -116,7 +121,7 @@ python_functions = ["test_*", "benchmark_*"]
 [tool.ruff]
 line-length = 200
 target-version = "py310"
-exclude = ["docs"]
+exclude = ["docs",".venv",".git"]
 
 [tool.ruff.lint]
 # Enable all rules by default
@@ -164,6 +169,7 @@ ignore = [
     "D203",  # One blank line required before class docstring
     "D213",  # Multi-line docstring summary should start at the second line
     "T201", # `print` found
+    "CPY001",  # Missing copyright notice at top of file
 ]
 
 [tool.ruff.format]

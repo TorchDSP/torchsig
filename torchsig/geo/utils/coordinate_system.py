@@ -177,7 +177,7 @@ def ecef_to_lla(x: float, y: float, z: float) -> tuple[float, float, float]:
     return (lat, lon, alt)
 
 
-def ecef_distance(lat1: float, lon1: float, alt1: float, lat2: float, lon2: float, alt2: float) -> float:
+def ecef_distance(lat1: float, lon1: float, alt1: float, lat2: float, lon2: float, alt2: float) -> float:  # noqa: PLR0917
     """Calculate 3D Euclidean distance between two geodetic points using ECEF conversion.
 
     This computes the true straight-line distance through 3D space by:

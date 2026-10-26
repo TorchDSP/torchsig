@@ -161,11 +161,10 @@ def is_rectangle_inside_rectangle(rectangle_1: Rectangle, rectangle_2: Rectangle
 
 # determine if two rectangles have any overlap
 def is_rectangle_overlap(rectangle_a: Rectangle, rectangle_b: Rectangle) -> bool:
-    """Check if two rectangles overlap by intersection or containment.
+    """Check whether two axis-aligned rectangles overlap or touch.
 
-    Overlap occurs if:
-        1. Any side of rectangle_a intersects any side of rectangle_b.
-        2. One rectangle is fully contained within the other.
+    Comparing the projections on both axes handles partial overlap,
+    containment, and collinear or touching edges uniformly.
 
     Args:
         rectangle_a (Rectangle): First rectangle.
@@ -174,28 +173,12 @@ def is_rectangle_overlap(rectangle_a: Rectangle, rectangle_b: Rectangle) -> bool
     Returns:
         bool: True if the rectangles overlap.
     """
-    # all side-pairs of rectangle a and b
-    a_sides = [
-        (rectangle_a.coord_lower_left, rectangle_a.coord_lower_right),
-        (rectangle_a.coord_lower_left, rectangle_a.coord_upper_left),
-        (rectangle_a.coord_upper_left, rectangle_a.coord_upper_right),
-        (rectangle_a.coord_upper_right, rectangle_a.coord_lower_right),
-    ]
-    b_sides = [
-        (rectangle_b.coord_lower_left, rectangle_b.coord_lower_right),
-        (rectangle_b.coord_lower_left, rectangle_b.coord_upper_left),
-        (rectangle_b.coord_upper_left, rectangle_b.coord_upper_right),
-        (rectangle_b.coord_upper_right, rectangle_b.coord_lower_right),
-    ]
-
-    # check for any side intersection
-    for a1, a2 in a_sides:
-        for b1, b2 in b_sides:
-            if line_intersection(a1, a2, b1, b2):
-                return True
-
-    # check for full containment either way
-    a_inside_b = is_rectangle_inside_rectangle(rectangle_a, rectangle_b)
-    b_inside_a = is_rectangle_inside_rectangle(rectangle_b, rectangle_a)
-
-    return a_inside_b or b_inside_a
+    horizontal_overlap = max(rectangle_a.coord_lower_left.x, rectangle_b.coord_lower_left.x) <= min(
+        rectangle_a.coord_upper_right.x,
+        rectangle_b.coord_upper_right.x,
+    )
+    vertical_overlap = max(rectangle_a.coord_lower_left.y, rectangle_b.coord_lower_left.y) <= min(
+        rectangle_a.coord_upper_right.y,
+        rectangle_b.coord_upper_right.y,
+    )
+    return bool(horizontal_overlap and vertical_overlap)

@@ -116,7 +116,7 @@ def test_metadata_logging_context_is_pickle_safe():
         correlation_fields=(("split", "train"),),
     )
 
-    restored = pickle.loads(pickle.dumps(context))  # noqa: S301
+    restored = pickle.loads(pickle.dumps(context))
 
     assert restored == context
 

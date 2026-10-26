@@ -344,7 +344,7 @@ class TestEcefToLla:
         We patch CONVERGENCE_EPSILON to 0 to force non-convergence within the 5
         iteration limit, since diff < 0 will never be true.
         """
-        import torchsig.geo.utils.coordinate_system as cs_module
+        import torchsig.geo.utils.coordinate_system as cs_module  # noqa: PLC0415
 
         # Patch the convergence threshold to 0 so iteration never converges
         monkeypatch.setattr(cs_module, "CONVERGENCE_EPSILON", 0.0)

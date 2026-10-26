@@ -24,6 +24,9 @@ __all__ = ["family_names", "lookup_signal_generator_by_string", "num_subcarrier_
 # Stores generator class and metadata for generators to make per label
 SignalGeneratorSpec = tuple[type, dict[str, Any]] | tuple[type, list[tuple[type, dict[str, Any]]], dict[str, Any]]
 
+_SIMPLE_GENERATOR_SPEC_LENGTH = 2
+_CONCAT_GENERATOR_SPEC_LENGTH = 3
+
 non_public_generator_names = {"80211a_ack", "80211a_cts", "80211a_rts"}
 
 signal_generator_lookup_table: dict[str, SignalGeneratorSpec] = {}
@@ -40,40 +43,42 @@ def _add_signal_generator(
 def _family_name(signal_name: str) -> str | None:
     """Return the modulation family for a concrete signal generator name."""
     if signal_name.startswith("ofdm-"):
-        return "ofdm"
-    if signal_name.startswith("am-"):
-        return "am"
-    if signal_name.startswith("lfm-"):
-        return "lfm"
-    if signal_name.startswith("fm-"):
-        return "fm"
-    if signal_name.endswith("fsk") or signal_name.endswith("gfsk"):
-        return "fsk"
-    if signal_name.endswith("msk") or signal_name.endswith("gmsk"):
-        return "msk"
-    if "psk" in signal_name:
-        return "psk"
-    if "qam" in signal_name:
-        return "qam"
-    if "ask" in signal_name:
-        return "ask"
-    if "adsb" in signal_name:
-        return "adsb"
-    if "btle" in signal_name:
-        return "btle"
-    if "gsm" in signal_name:
-        return "cellular"
-    if "dvb" in signal_name:
-        return "dvb"
-    if ("dmr" in signal_name) or ("p25" in signal_name):
-        return "lmr"
-    if "lora" in signal_name:
-        return "lora"
-    if "80211a" in signal_name:
-        return "wifi"
-    if "zigbee" in signal_name:
-        return "zigbee"
-    return None
+        family = "ofdm"
+    elif signal_name.startswith("am-"):
+        family = "am"
+    elif signal_name.startswith("lfm-"):
+        family = "lfm"
+    elif signal_name.startswith("fm-"):
+        family = "fm"
+    elif signal_name.endswith(("fsk", "gfsk")):
+        family = "fsk"
+    elif signal_name.endswith(("msk", "gmsk")):
+        family = "msk"
+    elif "psk" in signal_name:
+        family = "psk"
+    elif "qam" in signal_name:
+        family = "qam"
+    elif "ask" in signal_name:
+        family = "ask"
+    elif "adsb" in signal_name:
+        family = "adsb"
+    elif "btle" in signal_name:
+        family = "btle"
+    elif "gsm" in signal_name:
+        family = "cellular"
+    elif "dvb" in signal_name:
+        family = "dvb"
+    elif ("dmr" in signal_name) or ("p25" in signal_name):
+        family = "lmr"
+    elif "lora" in signal_name:
+        family = "lora"
+    elif "80211a" in signal_name:
+        family = "wifi"
+    elif "zigbee" in signal_name:
+        family = "zigbee"
+    else:
+        family = None
+    return family
 
 
 # Initialize lookup table with signal generators
@@ -166,17 +171,16 @@ def lookup_signal_generator_by_string(signal_generator_name: str) -> Any:
         ValueError: If the signal generator name is not found in the lookup table
             or if there's an error instantiating the generator.
     """
-    try:
-        lookup_value = signal_generator_lookup_table[signal_generator_name]
-        if len(lookup_value) == 2:
-            generator_init, metadata = lookup_value
-            return generator_init(metadata=metadata)
-        if len(lookup_value) == 3 and lookup_value[0] == ConcatSignalGenerator:
-            generator_init, generator_list, metadata = lookup_value
-            return generator_init(
-                signal_generators=[el[0](metadata=el[1]) for el in generator_list],
-                metadata=metadata,
-            )
-        raise KeyError("bad data found in generator lookup table")
-    except KeyError:
-        raise ValueError("could not instantiate signal generator: '" + str(signal_generator_name) + "'")
+    lookup_value = signal_generator_lookup_table.get(signal_generator_name)
+    if lookup_value is None:
+        raise ValueError(f"could not instantiate signal generator: {signal_generator_name!r}")
+    if len(lookup_value) == _SIMPLE_GENERATOR_SPEC_LENGTH:
+        generator_init, metadata = lookup_value
+        return generator_init(metadata=metadata)
+    if len(lookup_value) == _CONCAT_GENERATOR_SPEC_LENGTH and lookup_value[0] == ConcatSignalGenerator:
+        generator_init, generator_list, metadata = lookup_value
+        return generator_init(
+            signal_generators=[element[0](metadata=element[1]) for element in generator_list],
+            metadata=metadata,
+        )
+    raise ValueError(f"could not instantiate signal generator: {signal_generator_name!r}")

@@ -1,80 +1,79 @@
-# ============================================================
-# Python
-# ============================================================
+# Python bytecode and interpreter caches
 __pycache__/
 *.py[cod]
+*.nbi
+*.nbc
 *$py.class
-*.egg
-*.egg-info/
-develop-eggs/
-.eggs/
-eggs/
+*.so
 lib/
 lib64/
 parts/
-sdist/
 var/
-wheels/
-*.so
-.installed.cfg
 
-# ============================================================
-# Text files and configs
-# ============================================================
+# Text files and configuration
 *.yaml
 *.txt
 
-# ============================================================
 # Virtual environments
-# ============================================================
-venv/
 .venv/
-env/
 .venv*/
+venv/
+env/
 env*/
+ENV/
+.conda/
 .env*
 .envrc
-.conda/
 
-# ============================================================
-# Testing & coverage
-# ============================================================
+# Test, coverage, and type-checker output
 .pytest_cache/
-.ruff_cache/
 .coverage
 .coverage.*
 *.coverage
 coverage.xml
 report.xml
+htmlcov/
+.hypothesis/
+.mypy_cache/
+.pyre/
+.ruff_cache/
+.tox/
+.nox/
 
-# ============================================================
-# Jupyter
-# ============================================================
+# Build and packaging output
+/build/
+build/
+dist/
+.eggs/
+eggs/
+develop-eggs/
+sdist/
+wheels/
+*.egg
+*.egg-info/
+torchsig.egg-info/
+.installed.cfg
+
+# Notebook, editor, and operating-system artifacts
 .ipynb_checkpoints/
-
-# ============================================================
-# Editor / OS
-# ============================================================
+.idea/
 .vscode/
 *.swp
 *.swo
 *.conflict
+*~
+.DS_Store
+Thumbs.db
 
-# ============================================================
-# Build / packaging
-# ============================================================
-build/
-dist/
-torchsig.egg-info/
+# Generated notebook execution markers
+*.executed
 
-# ============================================================
-# Model / signal artifacts
-# ============================================================
+# Model and signal artifacts
 *.pt
 *.pt2
 *.ckpt
-*.pth
 *.ckpt*
+*.pth
 *.sigmf-data
 *.sigmf-meta
 *.wav
@@ -84,49 +83,50 @@ torchsig.egg-info/
 *.pkl
 *.h5
 
-# ============================================================
-# Generated data & report files
-# ============================================================
-# Example text reports & outputs
+# Repository-local generated datasets and example output
+/datasets/
+/examples/data/audio_record_manifest_demo/
+/examples/data/downloaded_speech/
+/examples/datasets/create_dataset_example/
+/examples/datasets/signal_generation_config_demo/generated_dataset/
+/examples/datasets/yaml_test_dataset
+examples/lightning_logs/
+examples/runs/
+scripts/sample_dataset/
 examples/*.txt
 examples/transforms/*.txt
 examples/bring_your_own_data_*.txt
-examples/lightning_logs/
 examples/datasets/
-examples/runs/
-scripts/sample_dataset/
-*.executed
 
-# Test data & outputs
+# Test data and generated output
 tests/datasets/*
 !tests/datasets/*.py
 tests/utils/data/
-examples/datasets/
-scripts/sample_dataset/
 tests/**/*.txt
 tests/datasets/profile_datasets.out
-
-# Generated plots
 tests/utils/profile.png
 
-# TorchSig internal weights
-torchsig/utils/pfb_weights/
+# Downloaded model weights and diagnostic output
+/examples/*.pt
+/jitter_diagnostics/
 
-# ============================================================
-# Docs build output
-# ============================================================
+# Reproducible DSP caches
+torchsig/utils/pfb_weights/
+torchsig_*_pfb_weights_num_branches_*_attenuation_db_*.npy
+.torchsig_*_pfb_weights_num_branches_*_attenuation_db_*.npy.*
+
+# Documentation build output
 docs/build/
 docs/_build/
 docs/_autosummary/
 docs/_static/
 
-# ============================================================
-# Keep tracked config, docs & example data
-# (these live outside the generated-data rules above and are
-#  therefore tracked automatically; listed here for clarity)
-# ============================================================
+# Keep selected tracked configuration and documentation
 !torchsig/datasets/default_configs/*.yaml
 !examples/scripts/*.yaml
 !docs/docs-requirements.txt
 !docs/*.png
 !**/LICENSE*
+
+# Local comparison output
+/diff.txt

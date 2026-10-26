@@ -25,14 +25,14 @@ def _write_sigmf_pair(
         "annotations": [],
     }
 
-    with open(root / f"{stem}.sigmf-meta", "w") as f:
+    with (root / f"{stem}.sigmf-meta").open("w") as f:
         json.dump(meta, f)
 
 
 def _write_metadata_csv(root: Path, n_rows: int) -> None:
     labels = ["BPSK", "QPSK", "Noise"]
 
-    with open(root / "metadata.csv", "w") as f:
+    with (root / "metadata.csv").open("w") as f:
         for idx in range(n_rows):
             label = labels[idx % len(labels)]
             modcod = idx  # must be an integer
@@ -141,7 +141,7 @@ def test_sigmf_reader_raises_for_unsupported_datatype(tmp_path):
         }
     }
 
-    with open(tmp_path / "recording_000.sigmf-meta", "w") as f:
+    with (tmp_path / "recording_000.sigmf-meta").open("w") as f:
         json.dump(meta, f)
 
     _write_metadata_csv(tmp_path, 1)
@@ -165,7 +165,7 @@ def test_sigmf_reader_converts_ci16_to_complex64(tmp_path):
         }
     }
 
-    with open(tmp_path / "recording_000.sigmf-meta", "w") as f:
+    with (tmp_path / "recording_000.sigmf-meta").open("w") as f:
         json.dump(meta, f)
 
     _write_metadata_csv(tmp_path, 2)

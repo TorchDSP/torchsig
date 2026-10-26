@@ -243,14 +243,13 @@ class TestDistanceCalculation:
         returns a non-finite value (nan or inf). This is unreachable through normal
         operation since GeoPoint validates coordinates, but tested for completeness.
         """
-        from unittest.mock import patch
+        from unittest.mock import patch  # noqa: PLC0415
 
         p1 = GeoPoint(lat=0.0, lon=0.0, alt=0.0)
         p2 = GeoPoint(lat=0.0, lon=0.0, alt=0.0)
 
-        with patch("torchsig.geo.types.ecef_distance", return_value=non_finite_value):
-            with pytest.raises(ValueError, match="computed non-finite distance"):
-                p1.distance_to(p2)
+        with patch("torchsig.geo.types.ecef_distance", return_value=non_finite_value), pytest.raises(ValueError, match="computed non-finite distance"):
+            p1.distance_to(p2)
 
 
 # =============================================================================
@@ -650,7 +649,7 @@ class TestCoordinateSystemValidation:
 
     def test_lla_to_ecef_nan_raises(self):
         """Test that NaN coordinates raise ValueError in lla_to_ecef."""
-        from torchsig.geo.utils.coordinate_system import lla_to_ecef
+        from torchsig.geo.utils.coordinate_system import lla_to_ecef  # noqa: PLC0415
 
         with pytest.raises(ValueError, match="finite coordinates"):
             lla_to_ecef(float("nan"), 0.0, 0.0)
@@ -661,7 +660,7 @@ class TestCoordinateSystemValidation:
 
     def test_lla_to_ecef_inf_raises(self):
         """Test that Inf coordinates raise ValueError in lla_to_ecef."""
-        from torchsig.geo.utils.coordinate_system import lla_to_ecef
+        from torchsig.geo.utils.coordinate_system import lla_to_ecef  # noqa: PLC0415
 
         with pytest.raises(ValueError, match="finite coordinates"):
             lla_to_ecef(float("inf"), 0.0, 0.0)

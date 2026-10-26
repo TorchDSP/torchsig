@@ -1,7 +1,10 @@
 """Tests for metadata transforms."""
 
+import json
+
 import numpy as np
 import pytest
+import yaml
 
 from torchsig.datasets.datasets import apply_transforms_and_labels_to_signal
 from torchsig.signals.signal_lists import CLASS_FAMILY_DICT, FAMILY_SHARED_LIST
@@ -36,6 +39,7 @@ def component_signal():
         duration_in_samples=500,
         num_iq_samples_dataset=1000,
         bandwidth=200.0,
+        estimated_occupied_bandwidth=100.0,
         center_freq=100.0,
         sample_rate=1000.0,
         dataset_metadata={"sample_rate": 1000.0},
@@ -189,10 +193,12 @@ def test_yolo_label_initializes_expected_metadata_fields():
     assert transform.required_metadata == [
         "class_index",
         "start",
-        "bandwidth",
+        "estimated_occupied_bandwidth",
         "center_freq",
         "dataset_metadata",
     ]
+    assert transform.bandwidth_key == "estimated_occupied_bandwidth"
+    assert transform.class_index_field == "class_index"
     assert transform.targets_metadata == ["yolo_label"]
 
 
@@ -208,7 +214,7 @@ def test_yolo_label_adds_expected_label_to_component_signal(parent_signal):
             0.5,  # start + duration / 2
             0.4,  # 1 - ((sample_rate / 2 + center_freq) / sample_rate)
             0.5,  # duration
-            0.2,  # bandwidth / sample_rate
+            0.1,  # estimated_occupied_bandwidth / sample_rate
         )
     )
 
@@ -219,7 +225,76 @@ def test_yolo_label_apply_returns_component_signal(component_signal):
     transformed_component = transform.__apply__(component_signal)
 
     assert transformed_component is component_signal
+    assert transformed_component.yolo_label == pytest.approx((3, 0.5, 0.4, 0.5, 0.1))
+
+
+def test_yolo_label_can_use_canonical_bandwidth(component_signal):
+    transform = YOLOLabel(bandwidth_key="bandwidth")
+
+    transformed_component = transform(component_signal)
+
+    assert transform.required_metadata[2] == "bandwidth"
     assert transformed_component.yolo_label == pytest.approx((3, 0.5, 0.4, 0.5, 0.2))
+
+
+def test_yolo_label_rejects_invalid_bandwidth_key():
+    with pytest.raises(ValueError, match="bandwidth_key must be"):
+        YOLOLabel(bandwidth_key="occupied_bandwidth")
+
+
+@pytest.mark.parametrize("class_index_field", ["", None, 3])
+def test_yolo_label_rejects_invalid_class_index_field(class_index_field):
+    with pytest.raises(ValueError, match="class_index_field must be"):
+        YOLOLabel(class_index_field=class_index_field)
+
+
+def test_yolo_label_requires_selected_bandwidth(component_signal):
+    del component_signal["estimated_occupied_bandwidth"]
+
+    with pytest.raises(
+        ValueError,
+        match="estimated_occupied_bandwidth is missing",
+    ):
+        YOLOLabel()(component_signal)
+
+
+def test_yolo_label_can_use_family_index_from_grouping(parent_signal):
+    component = parent_signal.component_signals[0]
+    component["class_name"] = "bpsk"
+
+    GroupingLabel("family")(parent_signal)
+    canonical_label = YOLOLabel()(component).yolo_label
+    family_label = YOLOLabel(class_index_field="family_index")(component).yolo_label
+
+    assert family_label[0] == FAMILY_SHARED_LIST.index(CLASS_FAMILY_DICT["bpsk"])
+    assert family_label[1:] == pytest.approx(canonical_label[1:])
+
+
+def test_yolo_label_can_use_custom_group_index(parent_signal):
+    component = parent_signal.component_signals[0]
+    component["class_name"] = "bpsk"
+    grouping = GroupingLabel(
+        {
+            "labels": {"name": "kind", "index": "kind_index"},
+            "groups": [
+                {"name": "frequency", "values": ["2fsk"]},
+                {"name": "phase", "values": ["bpsk"]},
+            ],
+        }
+    )
+
+    grouping(parent_signal)
+    transformed = YOLOLabel(class_index_field="kind_index")(parent_signal)
+
+    assert transformed.component_signals[0].yolo_label == pytest.approx((1, 0.5, 0.4, 0.5, 0.1))
+
+
+def test_yolo_label_requires_selected_class_index_field(component_signal):
+    with pytest.raises(
+        ValueError,
+        match="key: family_index is missing from signal metadata",
+    ):
+        YOLOLabel(class_index_field="family_index")(component_signal)
 
 
 def test_grouping_label_uses_exact_value_rules(parent_signal):
@@ -323,6 +398,116 @@ def test_grouping_label_family_preset_uses_canonical_mapping():
         family_name, family_index = grouping.match(class_name)
         assert family_name == expected_family
         assert family_index == FAMILY_SHARED_LIST.index(expected_family)
+
+
+def test_grouping_label_queries_family_preset():
+    grouping = GroupingLabel("family")
+
+    assert grouping.group_names == tuple(FAMILY_SHARED_LIST)
+    assert grouping.group_list == FAMILY_SHARED_LIST
+    assert grouping.values_for("psk") == tuple(sorted(class_name for class_name, family in CLASS_FAMILY_DICT.items() if family == "psk"))
+    assert grouping.all_values == tuple(value for group_name in grouping.group_names for value in grouping.values_for(group_name))
+
+
+def test_grouping_label_family_preset_serialization_round_trip():
+    grouping = GroupingLabel("family")
+
+    config = grouping.to_dict()
+    restored = GroupingLabel(config)
+
+    assert json.loads(json.dumps(config)) == config
+    assert yaml.safe_load(yaml.safe_dump(config, sort_keys=False)) == config
+    assert restored.group_list == grouping.group_list
+    for value in grouping.all_values:
+        assert restored.match(value) == grouping.match(value)
+
+
+def test_grouping_label_queries_mapping_without_exposing_mutable_values():
+    grouping = GroupingLabel(
+        {
+            "groups": [
+                {"name": "linear", "values": ["bpsk", "qpsk"]},
+                {"name": "frequency", "regex": "fsk$"},
+                {"name": "all", "default": True},
+            ],
+        }
+    )
+
+    assert grouping.group_names == ("linear", "frequency", "all")
+    assert grouping.values_for("linear") == ("bpsk", "qpsk")
+    assert grouping.values_for("frequency") == ()
+    assert grouping.values_for("all") == ()
+    assert grouping.all_values == ("bpsk", "qpsk")
+
+
+def test_grouping_label_mapping_serialization_is_defensive():
+    grouping = GroupingLabel(
+        {
+            "source": "class_name",
+            "labels": {"name": "kind", "index": "kind_index"},
+            "groups": [
+                {"name": "linear", "values": ["bpsk", "qpsk"], "likelihood": 2.0},
+                {"name": "frequency", "regex": "fsk$", "likelihood": 1.0},
+                {"name": "all", "default": True, "likelihood": 1.0},
+            ],
+        }
+    )
+
+    config = grouping.to_dict()
+    restored = GroupingLabel(config)
+
+    assert config == {
+        "source": "class_name",
+        "labels": {"name": "kind", "index": "kind_index"},
+        "groups": [
+            {"name": "linear", "values": ["bpsk", "qpsk"], "likelihood": 2.0},
+            {"name": "frequency", "regex": "fsk$", "likelihood": 1.0},
+            {"name": "all", "default": True, "likelihood": 1.0},
+        ],
+    }
+    for value in ("bpsk", "2fsk", "tone"):
+        assert restored.match(value) == grouping.match(value)
+
+    config["labels"]["name"] = "changed"
+    config["groups"][0]["name"] = "changed"
+    config["groups"][0]["values"].append("8psk")
+    names = grouping.group_list
+    names.append("changed")
+
+    assert grouping.name_label == "kind"
+    assert grouping.group_list == ["linear", "frequency", "all"]
+    assert grouping.values_for("linear") == ("bpsk", "qpsk")
+
+
+def test_grouping_label_queries_yaml_config(tmp_path):
+    config_path = tmp_path / "groups.yaml"
+    config_path.write_text(
+        """
+groups:
+  - name: first
+    values: [one, two]
+  - name: second
+    values: [three]
+"""
+    )
+
+    grouping = GroupingLabel(config_path)
+
+    assert grouping.group_names == ("first", "second")
+    assert grouping.group_list == ["first", "second"]
+    assert grouping.values_for("second") == ("three",)
+    assert grouping.all_values == ("one", "two", "three")
+
+    restored = GroupingLabel(grouping.to_dict())
+    for value in ("one", "two", "three"):
+        assert restored.match(value) == grouping.match(value)
+
+
+def test_grouping_label_values_for_rejects_unknown_group():
+    grouping = GroupingLabel({"groups": [{"name": "linear", "values": ["bpsk"]}]})
+
+    with pytest.raises(KeyError, match=r"unknown grouping name 'missing'.*linear"):
+        grouping.values_for("missing")
 
 
 def test_grouping_label_family_preset_returns_independent_configs():

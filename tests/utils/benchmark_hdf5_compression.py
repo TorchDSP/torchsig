@@ -215,7 +215,7 @@ def run_case(
                 )
             )
             row["error"] = ""
-        except Exception as exc:  # record failures instead of hiding them
+        except Exception as exc:  # noqa: BLE001 - record independent benchmark failures
             row["walltime_s"] = ""
             row["file_size_bytes"] = ""
             row["actual_compression"] = ""
@@ -229,7 +229,7 @@ def run_case(
             row["error"] = f"{type(exc).__name__}: {exc}"
             try:
                 writer.teardown()
-            except Exception:
+            except Exception:  # noqa: BLE001 - cleanup must not mask the benchmark failure
                 pass
 
         raw_rows.append(row)

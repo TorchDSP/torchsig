@@ -71,7 +71,7 @@ class MetadataTransform(Transform):
         __repr__(): Returns a detailed string representation of the transform object.
     """
 
-    def __init__(self, required_metadata: list[str] = [], **kwargs) -> None:
+    def __init__(self, required_metadata: list[str] | None = None, **kwargs) -> None:
         """Initialize the MetadataTransform.
 
         Args:
@@ -96,7 +96,10 @@ class MetadataTransform(Transform):
             raise TypeError(f"input ({type(signal)}) is not a Signal object.")
         for required_metadatum in self.required_metadata:
             if not hasattr(signal, required_metadatum):
-                raise ValueError(f"key: {required_metadatum} is missing from signal metadata, but is required by {self.__class__.__name__}")
+                try:
+                    signal.require_metadata(required_metadatum)
+                except AttributeError as err:
+                    raise ValueError(f"key: {required_metadatum} is missing from signal metadata, but is required by {self.__class__.__name__}. Resolution: {err}") from err
         return signal
 
     def __call__(self, signal: Signal) -> Signal:
@@ -234,31 +237,59 @@ class MultiHotLabel(MetadataTransform):
 
 
 class YOLOLabel(MetadataTransform):
-    """Adds a YOLO_label to a signal.
+    """Add a YOLO label to a signal.
 
-    This transform adds a YOLO_label to a signal in the form of a list of tuples (cid, cx, cy, width, height).
+    The label is a tuple of ``(cid, cx, cy, width, height)``. By default, its
+    frequency-axis height uses the signal's threshold-based
+    ``estimated_occupied_bandwidth``. Set ``bandwidth_key="bandwidth"`` to use
+    the generator-selected canonical bandwidth instead.
+
+    Args:
+        bandwidth_key: Signal metadata field used for the box height. Must be
+            ``"estimated_occupied_bandwidth"`` or ``"bandwidth"``.
+        class_index_field: Signal metadata field used for the class ID.
+        **kwargs: Additional keyword arguments passed to the parent class.
 
     Attributes:
         required_metadata: List of metadata fields required for applying the transform.
         targets_metadata: List of metadata fields that will be added by the transform.
     """
 
-    def __init__(self, **kwargs):
+    def __init__(
+        self,
+        bandwidth_key: str = "estimated_occupied_bandwidth",
+        class_index_field: str = "class_index",
+        **kwargs,
+    ) -> None:
         """Initialize the YOLOLabel transform.
 
         Args:
+            bandwidth_key: Signal metadata field used for the box height.
+            class_index_field: Signal metadata field used for the class ID.
             **kwargs: Additional keyword arguments passed to the parent class.
+
+        Raises:
+            ValueError: If ``bandwidth_key`` is not a supported field or
+                ``class_index_field`` is not a non-empty string.
         """
+        valid_bandwidth_keys = {"bandwidth", "estimated_occupied_bandwidth"}
+        if bandwidth_key not in valid_bandwidth_keys:
+            raise ValueError("bandwidth_key must be 'estimated_occupied_bandwidth' or 'bandwidth'")
+        if not isinstance(class_index_field, str) or not class_index_field:
+            raise ValueError("class_index_field must be a non-empty string")
+
         super().__init__(
             required_metadata=[
-                "class_index",
+                class_index_field,
                 "start",
-                "bandwidth",
+                bandwidth_key,
                 "center_freq",
                 "dataset_metadata",
             ],
             **kwargs,
         )
+        self.bandwidth_key = bandwidth_key
+        self.class_index_field = class_index_field
         self.targets_metadata = ["yolo_label"]
 
     def __apply__(self, signal: Signal) -> Signal:
@@ -270,11 +301,15 @@ class YOLOLabel(MetadataTransform):
         Returns:
             The transformed signal with YOLO_label added.
         """
-        class_index = signal.class_index
+        if not hasattr(signal, self.bandwidth_key):
+            raise ValueError(f"key: {self.bandwidth_key} is missing from signal metadata, but is required by {self.__class__.__name__}.")
+        if not hasattr(signal, self.class_index_field):
+            raise ValueError(f"key: {self.class_index_field} is missing from signal metadata, but is required by {self.__class__.__name__}.")
+        class_index = signal[self.class_index_field]
         # normalized to width of sample
         width = signal.duration
-        # normalize bandwidth with sample rate
-        height = signal.bandwidth / signal.sample_rate
+        # normalize the selected bandwidth with sample rate
+        height = signal[self.bandwidth_key] / signal.sample_rate
         x_center = signal.start + (width / 2.0)
         # normalize center frequency with sample rate
         # subtract from 1 since (0,0) for YOLO is upper left, but we define (0,0) lower left
@@ -411,6 +446,52 @@ class GroupingLabel(MetadataTransform):
         """Return the names of built-in grouping configurations."""
         return tuple(sorted(_BUILTIN_GROUPING_CONFIGS))
 
+    @property
+    def group_names(self) -> tuple[str, ...]:
+        """Return group names in configured index order."""
+        return tuple(group["name"] for group in self.groups)
+
+    @property
+    def group_list(self) -> list[str]:
+        """Return a defensive list of group names in configured index order."""
+        return list(self.group_names)
+
+    def to_dict(self) -> dict[str, Any]:
+        """Return a defensive copy of the constructor-compatible configuration."""
+        return {
+            "source": self.source,
+            "labels": {
+                "name": self.name_label,
+                "index": self.index_label,
+            },
+            "groups": copy.deepcopy(self.groups),
+        }
+
+    def values_for(self, group_name: str) -> tuple[Any, ...]:
+        """Return explicitly configured values for a named group.
+
+        Groups defined by a regex, formula, or default rule do not have an
+        enumerable value collection and return an empty tuple.
+
+        Args:
+            group_name: Configured group name to query.
+
+        Returns:
+            The group's explicit values in configured order.
+
+        Raises:
+            KeyError: If ``group_name`` is not configured.
+        """
+        for group in self.groups:
+            if group["name"] == group_name:
+                return tuple(group.get("values", ()))
+        raise KeyError(f"unknown grouping name {group_name!r}; expected one of {self.group_names}")
+
+    @property
+    def all_values(self) -> tuple[Any, ...]:
+        """Return all explicitly configured values in group order."""
+        return tuple(value for group in self.groups for value in group.get("values", ()))
+
     def _validate_config(self) -> None:
         """Validate grouping configuration structure and label names."""
         for field_name, value in (
@@ -544,7 +625,7 @@ class GroupingLabel(MetadataTransform):
 
         for node in ast.walk(expression):
             if not isinstance(node, self._SAFE_AST_NODES):
-                raise ValueError(  # noqa: TRY004 - invalid formula syntax
+                raise ValueError(  # noqa: TRY004 - invalid formula syntax, not an argument type
                     f"grouping formula uses unsupported syntax: {type(node).__name__}"
                 )
             if isinstance(node, ast.Name) and node.id != "value":
@@ -553,7 +634,7 @@ class GroupingLabel(MetadataTransform):
                 raise ValueError(f"grouping formula method {node.attr!r} is not allowed")
             if isinstance(node, ast.Call):
                 if not isinstance(node.func, ast.Attribute):
-                    raise ValueError(  # noqa: TRY004 - invalid formula call
+                    raise ValueError(  # noqa: TRY004 - invalid formula syntax, not an argument type
                         "grouping formula may only call safe string methods"
                     )
                 if node.keywords:
@@ -561,50 +642,52 @@ class GroupingLabel(MetadataTransform):
 
         return expression.body
 
-    def _evaluate_formula(  # noqa: PLR0911 - one branch per allowed AST node
+    def _evaluate_formula(
         self,
         node: ast.AST,
         value: Any,
     ) -> Any:
         """Evaluate a previously validated formula syntax tree."""
         if isinstance(node, ast.Constant):
-            return node.value
-        if isinstance(node, ast.Name):
-            return value
-        if isinstance(node, (ast.List, ast.Tuple, ast.Set)):
+            result = node.value
+        elif isinstance(node, ast.Name):
+            result = value
+        elif isinstance(node, (ast.List, ast.Tuple, ast.Set)):
             items = [self._evaluate_formula(item, value) for item in node.elts]
             if isinstance(node, ast.List):
-                return items
-            if isinstance(node, ast.Tuple):
-                return tuple(items)
-            return set(items)
-        if isinstance(node, ast.BoolOp):
-            if isinstance(node.op, ast.And):
-                return all(bool(self._evaluate_formula(item, value)) for item in node.values)
-            return any(bool(self._evaluate_formula(item, value)) for item in node.values)
-        if isinstance(node, ast.UnaryOp):
+                result = items
+            elif isinstance(node, ast.Tuple):
+                result = tuple(items)
+            else:
+                result = set(items)
+        elif isinstance(node, ast.BoolOp):
+            result = all(bool(self._evaluate_formula(item, value)) for item in node.values) if isinstance(node.op, ast.And) else any(bool(self._evaluate_formula(item, value)) for item in node.values)
+        elif isinstance(node, ast.UnaryOp):
             operand = self._evaluate_formula(node.operand, value)
             if isinstance(node.op, ast.Not):
-                return not bool(operand)
-            if isinstance(node.op, ast.UAdd):
-                return +operand
-            return -operand
-        if isinstance(node, ast.BinOp):
+                result = not bool(operand)
+            elif isinstance(node.op, ast.UAdd):
+                result = +operand
+            else:
+                result = -operand
+        elif isinstance(node, ast.BinOp):
             left = self._evaluate_formula(node.left, value)
             right = self._evaluate_formula(node.right, value)
             if isinstance(node.op, ast.Add):
-                return left + right
-            if isinstance(node.op, ast.Sub):
-                return left - right
-            if isinstance(node.op, ast.Mult):
-                return left * right
-            if isinstance(node.op, ast.Div):
-                return left / right
-            if isinstance(node.op, ast.FloorDiv):
-                return left // right
-            return left % right
-        if isinstance(node, ast.Compare):
+                result = left + right
+            elif isinstance(node.op, ast.Sub):
+                result = left - right
+            elif isinstance(node.op, ast.Mult):
+                result = left * right
+            elif isinstance(node.op, ast.Div):
+                result = left / right
+            elif isinstance(node.op, ast.FloorDiv):
+                result = left // right
+            else:
+                result = left % right
+        elif isinstance(node, ast.Compare):
             left = self._evaluate_formula(node.left, value)
+            result = True
             for operator, comparator in zip(
                 node.ops,
                 node.comparators,
@@ -628,15 +711,17 @@ class GroupingLabel(MetadataTransform):
                 else:
                     matches = left >= right
                 if not matches:
-                    return False
+                    result = False
+                    break
                 left = right
-            return True
-        if isinstance(node, ast.Call):
+        elif isinstance(node, ast.Call):
             target = self._evaluate_formula(node.func.value, value)
             method = getattr(target, node.func.attr)
             args = [self._evaluate_formula(argument, value) for argument in node.args]
-            return method(*args)
-        raise TypeError(f"unsupported validated formula node: {type(node).__name__}")
+            result = method(*args)
+        else:
+            raise TypeError(f"unsupported validated formula node: {type(node).__name__}")
+        return result
 
     def _rule_matches(
         self,

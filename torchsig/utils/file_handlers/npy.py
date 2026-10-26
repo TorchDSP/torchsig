@@ -8,10 +8,9 @@ A TorchSig dataset is described by three co-located artefacts:
 
 * **One or more ``*.npy`` files** - each file stores a 1-D NumPy array of
   complex samples.
-* **A ``metadata.csv`` file** - one row per *global* waveform index,
-  containing ``index,label,modcod,sample_rate``.
-* **An ``info.json`` file** - a tiny JSON document that must contain at least
-  ``{\"size\": <int>}`` and defines the advertised length of the dataset.
+* **A ``metadata.csv`` file** - one row per *global* waveform index using the
+  versioned header-based schema or its legacy headerless form.
+* An optional **``info.json`` file** with supplementary dataset metadata.
 
 The heavy binary payload lives in the ``*.npy`` files; the human readable
 description lives in the CSV.  This separation keeps loading fast (memory mapped
@@ -92,6 +91,8 @@ class NPYReader(MetadataReader):
             total += length
 
         self.total_elements: int = total
+        if self.dataset_size != self.total_elements:
+            raise ValueError(f"Metadata contains {self.dataset_size} elements, but NPY files contain {self.total_elements}.")
 
     def read(self, idx: int) -> Signal:
         """Return the waveform and its metadata for the *global* index ``idx``.
@@ -140,8 +141,13 @@ class NPYReader(MetadataReader):
         return Signal(data=data, component_signals=[], metadata=metadata)
 
     # ----------------------------------------------------------------------
-    # Length protocol -- reports the *advertised* dataset size from info.json
+    # Length protocol -- reports the reconciled metadata record count
     # ----------------------------------------------------------------------
     def __len__(self) -> int:
-        """Return the size declared in ``info.json``."""
+        """Return the reconciled number of dataset elements.
+
+        The value is the ``metadata.csv`` record count and is validated against
+        both an optional ``info.json`` size and the number of elements stored
+        across all discovered NumPy files during construction.
+        """
         return self.dataset_size

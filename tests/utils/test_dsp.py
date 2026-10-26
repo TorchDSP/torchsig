@@ -1,19 +1,70 @@
 """Tests for the DSP utilities."""
 
-from unittest.mock import Mock
+from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
+from threading import Barrier
+from unittest.mock import MagicMock, Mock
 
 import numpy as np
 import pytest
 import torch
 
+from torchsig.signals.signal_types import Signal
 from torchsig.utils import dsp
-from torchsig.utils.dsp import (
-    TorchSigComplexDataType,
-    compute_spectrogram,
-)
+from torchsig.utils.dsp import TorchSigComplexDataType, compute_spectrogram, update_signal_snr_bandwidth
 
 FFT_SIZE = 64
 ZEROS = np.zeros(512, dtype=TorchSigComplexDataType)
+
+
+def test_update_signal_snr_bandwidth_preserves_canonical_bandwidth(monkeypatch):
+    """A wide threshold estimate is diagnostic and cannot replace bandwidth."""
+    dataset = Mock(
+        fft_size=4,
+        fft_stride=4,
+        noise_power_db=0.0,
+        sample_rate=100.0,
+        frequency_min=-50.0,
+        frequency_max=50.0,
+        random_generator=Mock(uniform=Mock(return_value=40.0)),
+    )
+    signal = Signal(
+        data=np.ones(8, dtype=np.complex64),
+        center_freq=0.0,
+        bandwidth=10.0,
+        snr_db_min=40.0,
+        snr_db_max=40.0,
+    )
+    spectrogram_db = np.array(
+        [
+            [0.0, 0.0],
+            [10.0, 10.0],
+            [0.0, 0.0],
+            [10.0, 10.0],
+        ],
+        dtype=np.float32,
+    )
+    monkeypatch.setattr(dsp, "compute_spectrogram", lambda *_args: spectrogram_db.copy())
+
+    dsp.update_signal_snr_bandwidth(dataset, signal)
+
+    assert signal.bandwidth == pytest.approx(10.0)
+    assert signal.estimated_occupied_bandwidth == pytest.approx(87.5)
+    assert signal.snr_db == pytest.approx(40.0)
+
+
+def test_estimate_occupied_bandwidth_returns_none_without_exceedance():
+    """The diagnostic is absent when no bin exceeds its threshold."""
+    dataset = Mock(
+        fft_size=4,
+        noise_power_db=0.0,
+        sample_rate=100.0,
+        frequency_min=-50.0,
+        frequency_max=50.0,
+    )
+    spectrogram_db = np.full((4, 2), 3.0, dtype=np.float32)
+
+    assert dsp.estimate_occupied_bandwidth(dataset, spectrogram_db) is None
 
 
 def _tone(bin_index, num_samples=512, fft_size=FFT_SIZE, amplitude=1.0):
@@ -164,8 +215,9 @@ def test_fractional_resampler_is_symmetric_around_unity(monkeypatch) -> None:
     )
 
 
-def test_prototype_polyphase_filter_uses_in_memory_cache(monkeypatch) -> None:
+def test_prototype_polyphase_filter_uses_in_memory_cache(monkeypatch, tmp_path) -> None:
     """Repeated filter requests should not reload identical weights from disk."""
+    monkeypatch.setenv("TORCHSIG_CACHE_DIR", str(tmp_path))
     load = Mock(return_value=np.ones(8, dtype=np.float32))
     monkeypatch.setattr(dsp.np, "load", load)
     monkeypatch.setattr(dsp.Path, "is_file", lambda _path: True)
@@ -177,6 +229,69 @@ def test_prototype_polyphase_filter_uses_in_memory_cache(monkeypatch) -> None:
     assert load.call_count == 1
     assert first is not second
     assert first.flags.writeable
+
+
+def test_prototype_polyphase_filter_uses_configured_disk_cache(monkeypatch, tmp_path) -> None:
+    expected = np.linspace(0.0, 1.0, 8)
+    design = Mock(return_value=expected)
+    monkeypatch.setenv("TORCHSIG_CACHE_DIR", str(tmp_path))
+    monkeypatch.setattr(dsp, "low_pass_iterative_design", design)
+
+    first = dsp.prototype_polyphase_filter(num_branches=12_346)
+    dsp._prototype_polyphase_filter_cached.cache_clear()  # noqa: SLF001 - verify the disk cache independently
+    second = dsp.prototype_polyphase_filter(num_branches=12_346)
+
+    np.testing.assert_array_equal(first, expected)
+    np.testing.assert_array_equal(second, expected)
+    assert design.call_count == 1
+    assert len(list(tmp_path.glob("*.npy"))) == 1
+    assert not list(tmp_path.glob(".*.npy.*"))
+
+
+def test_prototype_polyphase_filter_uses_per_user_cache_by_default(monkeypatch, tmp_path) -> None:
+    expected = np.linspace(0.0, 1.0, 8)
+    monkeypatch.delenv("TORCHSIG_CACHE_DIR", raising=False)
+    monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path))
+    monkeypatch.setattr(dsp, "low_pass_iterative_design", Mock(return_value=expected))
+
+    actual = dsp.prototype_polyphase_filter(num_branches=12_349)
+
+    np.testing.assert_array_equal(actual, expected)
+    assert len(list((tmp_path / "torchsig").glob("*.npy"))) == 1
+    assert not list((Path(dsp.__file__).parent / "pfb_weights").glob("*12349*"))
+
+
+def test_prototype_polyphase_filter_falls_back_when_cache_is_unwritable(monkeypatch, tmp_path) -> None:
+    expected = np.linspace(0.0, 1.0, 8)
+    monkeypatch.setenv("TORCHSIG_CACHE_DIR", str(tmp_path))
+    monkeypatch.setattr(dsp.Path, "mkdir", Mock(side_effect=PermissionError))
+    monkeypatch.setattr(dsp, "low_pass_iterative_design", Mock(return_value=expected))
+
+    actual = dsp.prototype_polyphase_filter(num_branches=12_347)
+
+    np.testing.assert_array_equal(actual, expected)
+
+
+def test_prototype_polyphase_filter_publishes_concurrent_writes_atomically(monkeypatch, tmp_path) -> None:
+    expected = np.linspace(0.0, 1.0, 8)
+    barrier = Barrier(4)
+
+    def design(*_args):
+        barrier.wait()
+        return expected.copy()
+
+    monkeypatch.setenv("TORCHSIG_CACHE_DIR", str(tmp_path))
+    monkeypatch.setattr(dsp, "low_pass_iterative_design", design)
+
+    with ThreadPoolExecutor(max_workers=4) as executor:
+        outputs = list(executor.map(lambda _: dsp.prototype_polyphase_filter(num_branches=12_348), range(4)))
+
+    for output in outputs:
+        np.testing.assert_array_equal(output, expected)
+    cache_files = list(tmp_path.glob("*.npy"))
+    assert len(cache_files) == 1
+    np.testing.assert_array_equal(np.load(cache_files[0], allow_pickle=False), expected)
+    assert not list(tmp_path.glob(".*.npy.*"))
 
 
 @pytest.mark.parametrize(
@@ -276,3 +391,26 @@ def test_float32_polyphase_filter_preserves_spectral_performance() -> None:
     for edge in (passband_edge, stopband_edge):
         edge_index = int(np.argmin(np.abs(frequencies - edge)))
         assert response32_db[edge_index] == pytest.approx(responses_db[np.float64][edge_index], abs=0.1)
+
+
+def test_update_signal_snr_bandwidth_falls_back_to_canonical_bandwidth(
+    monkeypatch,
+):
+    signal = Signal(
+        data=np.ones(1024, dtype=np.complex64),
+        bandwidth=100_000,
+    )
+
+    monkeypatch.setattr(
+        "torchsig.utils.dsp.update_signal_snr",
+        lambda dataset, signal: np.zeros((16, 16)),
+    )
+    monkeypatch.setattr(
+        "torchsig.utils.dsp.estimate_occupied_bandwidth",
+        lambda dataset, spectrogram: None,
+    )
+
+    update_signal_snr_bandwidth(MagicMock(), signal)
+
+    assert signal.bandwidth == 100_000
+    assert signal.estimated_occupied_bandwidth == 100_000

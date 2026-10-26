@@ -50,7 +50,7 @@ def test_packed_reader_rejects_unsupported_schema_major(tmp_path) -> None:
     reader = PackedHDF5Reader(tmp_path)
     with pytest.raises(ValueError, match="schema major version"):
         reader.read(0)
-    assert reader._file is None  # noqa: SLF001
+    assert reader._file is None
 
 
 def test_packed_reader_rejects_other_format(tmp_path) -> None:
@@ -117,7 +117,7 @@ def test_packed_reader_rejects_incomplete_file(tmp_path) -> None:
     reader = PackedHDF5Reader(tmp_path)
     with pytest.raises(ValueError, match="file is incomplete"):
         reader.read(0)
-    assert reader._file is None  # noqa: SLF001
+    assert reader._file is None
 
 
 def test_packed_reader_rejects_missing_completeness_marker(tmp_path) -> None:
@@ -128,4 +128,4 @@ def test_packed_reader_rejects_missing_completeness_marker(tmp_path) -> None:
     reader = PackedHDF5Reader(tmp_path)
     with pytest.raises(ValueError, match="missing completeness marker"):
         reader.read(0)
-    assert reader._file is None  # noqa: SLF001
+    assert reader._file is None
