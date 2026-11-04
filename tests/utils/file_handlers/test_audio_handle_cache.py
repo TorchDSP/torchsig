@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import pickle
+import threading
+import time
 from pathlib import Path
 from typing import Self
 
@@ -116,7 +118,7 @@ def test_pickle_excludes_handles(fake_soundfile) -> None:
 
 def test_pid_change_closes_and_reopens(fake_soundfile, monkeypatch) -> None:
     pid = 100
-    monkeypatch.setattr("torchsig.utils.file_handlers.audio.os.getpid", lambda: pid)
+    monkeypatch.setattr("torchsig.utils.file_handlers.resources.os.getpid", lambda: pid)
     cache = AudioHandleCache(1)
     cache.read(Path("one.wav"), 0, 1)
 
@@ -125,6 +127,33 @@ def test_pid_change_closes_and_reopens(fake_soundfile, monkeypatch) -> None:
 
     assert len(fake_soundfile) == 2
     assert fake_soundfile[0].closed
+
+
+def test_concurrent_reads_serialize_shared_handle(fake_soundfile, monkeypatch) -> None:
+    active = 0
+    maximum_active = 0
+    original_read = FakeSoundFile.read
+
+    def guarded_read(self, *, frames, dtype, always_2d):
+        nonlocal active, maximum_active
+        active += 1
+        maximum_active = max(maximum_active, active)
+        time.sleep(0.02)
+        try:
+            return original_read(self, frames=frames, dtype=dtype, always_2d=always_2d)
+        finally:
+            active -= 1
+
+    monkeypatch.setattr(FakeSoundFile, "read", guarded_read)
+    cache = AudioHandleCache(1)
+    threads = [threading.Thread(target=cache.read, args=(Path("one.wav"), index, 1)) for index in range(2)]
+
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+
+    assert maximum_active == 1
 
 
 @pytest.mark.parametrize("value", [-1, True, 1.5])

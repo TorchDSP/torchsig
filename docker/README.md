@@ -22,3 +22,10 @@ docker run -it torchsig-gpu
 
 ## Tips
 - To run with GPU support add `--gpus all` in `docker run` command
+- The build is split into two layers: dependencies are installed first and
+  cached on `pyproject.toml`, so editing source only re-runs a fast editable
+  reinstall instead of re-downloading torch. Rebuilds are quickest when the
+  Docker layer cache is available (`--cache-from` in CI).
+- OpenCV is installed as `opencv-python-headless` (no display/GL deps).
+- The GPU image pulls PyTorch CUDA 12.6 wheels; the CPU image pulls the
+  CPU-only wheels.

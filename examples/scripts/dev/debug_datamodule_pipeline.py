@@ -7,8 +7,6 @@ Run from the repository root:
 Pass ``--root PATH`` to keep the generated static dataset for inspection.
 """
 
-# ruff: noqa: INP001
-
 from __future__ import annotations
 
 import argparse

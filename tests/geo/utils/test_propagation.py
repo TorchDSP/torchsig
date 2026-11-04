@@ -157,7 +157,7 @@ class TestFreeSpacePathLoss:
 
     def test_nan_distance_raises(self):
         """Test FSPL with NaN distance raises ValueError."""
-        import numpy as np  # noqa: PLC0415
+        import numpy as np
 
         distance = np.nan
         frequency = 2.4e9
@@ -166,7 +166,7 @@ class TestFreeSpacePathLoss:
 
     def test_nan_frequency_raises(self):
         """Test FSPL with NaN frequency raises ValueError."""
-        import numpy as np  # noqa: PLC0415
+        import numpy as np
 
         distance = 1000.0
         frequency = np.nan
@@ -175,7 +175,7 @@ class TestFreeSpacePathLoss:
 
     def test_inf_distance_raises(self):
         """Test FSPL with infinite distance raises ValueError."""
-        import numpy as np  # noqa: PLC0415
+        import numpy as np
 
         distance = np.inf
         frequency = 2.4e9

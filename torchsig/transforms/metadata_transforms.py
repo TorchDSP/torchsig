@@ -303,13 +303,43 @@ class YOLOLabel(MetadataTransform):
         """
         if not hasattr(signal, self.bandwidth_key):
             raise ValueError(f"key: {self.bandwidth_key} is missing from signal metadata, but is required by {self.__class__.__name__}.")
+        metadata = signal.get_full_metadata()
+        dataset_metadata = metadata.get("dataset_metadata", {})
+        frequency_min = metadata.get("frequency_min", dataset_metadata.get("frequency_min"))
+        frequency_max = metadata.get("frequency_max", dataset_metadata.get("frequency_max"))
+        center_freq = float(signal.center_freq)
+        selected_bandwidth = float(signal[self.bandwidth_key])
+        if not np.isfinite(center_freq):
+            raise ValueError(f"center_freq must be finite, got {center_freq}")
+        if not np.isfinite(selected_bandwidth) or selected_bandwidth <= 0:
+            raise ValueError(f"bandwidth must be finite and positive, got {selected_bandwidth}")
+
+        validated_frequency_min = None if frequency_min is None else float(frequency_min)
+        validated_frequency_max = None if frequency_max is None else float(frequency_max)
+        if validated_frequency_min is not None and not np.isfinite(validated_frequency_min):
+            raise ValueError(f"frequency_min must be finite, got {validated_frequency_min}")
+        if validated_frequency_max is not None and not np.isfinite(validated_frequency_max):
+            raise ValueError(f"frequency_max must be finite, got {validated_frequency_max}")
+        if validated_frequency_min is not None and validated_frequency_max is not None and validated_frequency_min > validated_frequency_max:
+            raise ValueError(f"frequency_min {validated_frequency_min} exceeds frequency_max {validated_frequency_max}")
+        if validated_frequency_min is not None and center_freq < validated_frequency_min:
+            raise ValueError(f"center_freq {center_freq} is below frequency_min {validated_frequency_min}")
+        if validated_frequency_max is not None and center_freq > validated_frequency_max:
+            raise ValueError(f"center_freq {center_freq} is above frequency_max {validated_frequency_max}")
+
+        if self.bandwidth_key == "bandwidth":
+            signal.validate_frequency_interval(
+                frequency_min=validated_frequency_min,
+                frequency_max=validated_frequency_max,
+            )
+
         if not hasattr(signal, self.class_index_field):
             raise ValueError(f"key: {self.class_index_field} is missing from signal metadata, but is required by {self.__class__.__name__}.")
         class_index = signal[self.class_index_field]
         # normalized to width of sample
         width = signal.duration
         # normalize the selected bandwidth with sample rate
-        height = signal[self.bandwidth_key] / signal.sample_rate
+        height = selected_bandwidth / signal.sample_rate
         x_center = signal.start + (width / 2.0)
         # normalize center frequency with sample rate
         # subtract from 1 since (0,0) for YOLO is upper left, but we define (0,0) lower left

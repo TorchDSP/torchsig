@@ -1,6 +1,6 @@
 [build-system]
 # Define build dependencies and backend
-requires = ["setuptools>=61", "build"]
+requires = ["setuptools>=61", "packaging>=24.2", "build"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -33,7 +33,7 @@ dependencies = [
     "h5py",
     "matplotlib",
     "PyYAML",
-    "opencv-python>=4.10",
+    "opencv-python-headless",
     "numba>=0.60",
     "soundfile",
 ]
@@ -46,7 +46,7 @@ dev = [
     "pytest",
     "pylint",
     "pytest-cov",
-    "pytest-benchmark",
+    "pytest-benchmark>=5.3.0",
     "pytest-xdist",
     "ruff",
     "pygal",
@@ -81,7 +81,7 @@ notebooks = [
 
 examples = [
     "torchsig[notebooks]",
-    "opencv-python>=4.10",
+    "opencv-python-headless",
 ]
 
 [project.urls]
@@ -90,8 +90,14 @@ Documentation = "https://torchsig.readthedocs.io/en/latest/index.html"
 Repository = "https://github.com/TorchDSP/torchsig.git"
 Issues = "https://github.com/TorchDSP/torchsig/issues"
 
+[project.scripts]
+torchsig-generate = "torchsig.cli.generate:main"
+
 [tool.setuptools.packages.find]
 where = ["."]
+
+[tool.setuptools.package-data]
+"torchsig.datasets.default_configs" = ["*.yaml", "*.md"]
 
 [tool.setuptools.dynamic]
 # Dynamically read version from torchsig.__version__
@@ -121,55 +127,74 @@ python_functions = ["test_*", "benchmark_*"]
 [tool.ruff]
 line-length = 200
 target-version = "py310"
-exclude = ["docs",".venv",".git"]
+exclude = ["docs", ".venv", ".git", "*.ipynb"]
 
 [tool.ruff.lint]
 # Enable all rules by default
 select = ["ALL"]
 # Ignore specific rules
+
+
+# ---------------------------------------------------------------------------
+# Global lint ignores
+# ---------------------------------------------------------------------------
 ignore = [
-    "ANN", # flake8-annotations
-    "COM", # flake8-commas
-    "C90", # mccabe complexity
-    "DJ",  # django
-    "EXE", # flake8-executable
-    "T10", # debugger
-    "TID", # flake8-tidy-imports
-    "B006", # Do not use mutable data structures for argument defaults
-    "E501",  # Line too long (handled by line-length)
-    "D100",  # Missing docstring in public module
-    "D104",  # Missing docstring in public package
-    "D107",  # Missing docstring in __init__
-    "D204", # 1 blank line required after class docstring
-    "D205", # 1 blank line required between summary line and description
-    "D400", # First line should end with a period
-    "D401", # First line of docstring should be in imperative mood
-    "D413", # Missing blank line after last section
-    "D415", # First line should end with a period, question mark, or exclamation point
-    "D417", # Missing argument description in the docstring for `__init__`: `**kwargs`
-    "C901",  # Function too complex
-    "PLR0913",  # Too many arguments
-    "PLR0912",  # Too many branches
-    "PLR0915",  # Too many statements
-    "PLW2901",  # Redefined loop name
-    "ANN101",  # Missing type annotation for self
-    "ANN102",  # Missing type annotation for cls
-    "TD002",  # Missing author in TODO
-    "TD003",  # Missing issue link in TODO
-    "TRY003", # external messages in exceptions are too verbose
-    "FIX002",  # Line contains TODO
-    "FBT001", # Boolean-typed positional argument in function definition
-    "FBT002", # Boolean default positional argument in function definition
-    "E722", # Do not use bare `except`
-    "EM101",  # Exception must not use a string literal
-    "EM102",  # Exception must not use an f-string literal
-    "G004",  # Logging statement uses f-string
-    "COM812",  # Trailing comma missing
-    "ISC001",  # Implicitly concatenated string literals
-    "D203",  # One blank line required before class docstring
-    "D213",  # Multi-line docstring summary should start at the second line
-    "T201", # `print` found
-    "CPY001",  # Missing copyright notice at top of file
+    # Rule families not enforced by project policy
+    "ANN",     # flake8-annotations: type annotation requirements
+    "COM",     # flake8-commas: comma formatting rules
+    "C90",     # mccabe: cyclomatic complexity
+    "DJ",      # flake8-django: Django-specific conventions
+    "EXE",     # flake8-executable: executable file and shebang rules
+    "T10",     # flake8-debugger: debugger usage
+    "TID",     # flake8-tidy-imports: import restrictions
+
+    # Docstring conventions
+    "D100",    # Missing docstring in public module
+    "D104",    # Missing docstring in public package
+    "D107",    # Missing docstring in __init__
+    "D204",    # Missing blank line after class docstring
+    "D205",    # Missing blank line between summary and description
+    "D400",    # Docstring summary missing terminal period
+    "D401",    # Docstring summary not in imperative mood
+    "D413",    # Missing blank line after last docstring section
+    "D415",    # Docstring summary missing terminal punctuation
+    "D417",    # Missing argument descriptions in docstring
+    "D203",    # Requires blank line before class docstring
+    "D213",    # Requires multiline docstring summary on second line
+
+    # Complexity and API design
+    "C901",    # Function exceeds cyclomatic complexity limit
+    "PLR0912", # Too many branches
+    "PLR0913", # Too many function arguments
+    "PLR0915", # Too many statements
+    "FBT001",  # Boolean-typed positional parameter
+    "FBT002",  # Boolean default for positional parameter
+
+    # Exception handling and logging conventions
+    "TRY003",  # Long exception messages defined inline
+    "EM101",   # Exception constructed with string literal
+    "EM102",   # Exception constructed with f-string literal
+    "G004",    # Logging call uses f-string
+
+    # TODO/comment conventions
+    "TD002",   # TODO comment missing author
+    "TD003",   # TODO comment missing issue link
+    "FIX002",  # TODO comment present
+
+    # Ruff formatter compatibility
+    "E501",    # Line too long; handled by formatter/line-length policy
+    "COM812",  # Missing trailing comma; conflicts with formatter
+    "ISC001",  # Implicit string concatenation; may conflict with formatter
+
+    # Copyright and output conventions
+    "CPY001",  # Missing copyright notice
+    "T201",    # print() used instead of logging
+
+    # TODO: Remove as existing violations are fixed
+    "B006",    # Mutable default argument
+    "E722",    # Bare except clause
+    "PLW2901", # Loop variable overwritten within loop
+    "PLR0917", # Too many positional arguments (default maximum: 5)
 ]
 
 [tool.ruff.format]
@@ -180,18 +205,177 @@ skip-magic-trailing-comma = false
 docstring-code-format = true
 docstring-code-line-length = "dynamic"
 
+
+# ---------------------------------------------------------------------------
+# Per-file lint ignores
+# ---------------------------------------------------------------------------
 [tool.ruff.lint.per-file-ignores]
-# Ignore specific rules for test files
+
 "tests/*" = [
-    "S101",  # Use of assert
-    "PLR2004",  # Magic value used in comparison
-    "ARG001",  # Unused function argument
-    "D103",  # Missing docstring in public function
+    # Test-specific conventions
+    "S101",    # assert statements are expected in tests
+    "PLR2004", # Literal values in assertions are intentional
+    "ARG001",  # Unused arguments in fixtures and callbacks
+    "D103",    # Public test functions do not require docstrings
+
+    # TODO: Remove as existing test violations are fixed
+
+    # Unused variables, arguments, and redefinitions
+    "ARG002",  # Unused method argument
+    "ARG005",  # Unused lambda argument
+    "B007",    # Unused loop variable
+    "F811",    # Name redefined before previous use
+    "F841",    # Assigned local variable never used
+    "RUF059",  # Unused unpacked variable
+
+    # Correctness and potentially unsafe behavior
+    "B017",    # Broad exception assertion
+    "B905",    # zip() missing explicit strict argument
+    "E721",    # Direct type comparison instead of isinstance()
+    "PLR0124", # Value compared with itself
+    "RUF012",  # Mutable class attribute without ClassVar
+    "RUF043",  # Ambiguous regex pattern in pytest.raises()
+    "RUF046",  # Unnecessary int() conversion
+    "S108",    # Hardcoded temporary file path
+    "S110",    # Exception silently ignored
+    "S301",    # Potentially unsafe pickle deserialization
+    "S603",    # subprocess call requires security review
+
+    # Pytest conventions
+    "PT006",   # Incorrect parametrize argument-name type
+    "PT011",   # Broad pytest.raises() without match
+    "PT012",   # Multiple statements inside pytest.raises()
+    "PT014",   # Duplicate parametrized test cases
+
+    # Naming and imports
+    "ICN001",  # Nonstandard import alias
+    "INP001",  # Missing __init__.py
+    "N802",    # Function name not snake_case
+    "N803",    # Argument name not snake_case
+    "N806",    # Local variable not lowercase
+    "N812",    # Lowercase import given non-lowercase alias
+    "N816",    # Mixed-case module-level variable
+    "PLC0415", # Import outside module top level
+    "SLF001",  # Access to private member
+
+    # Documentation and legacy code
+    "D101",    # Missing public class docstring
+    "D102",    # Missing public method docstring
+    "D105",    # Missing magic method docstring
+    "ERA001",  # Commented-out code
+    "RUF001",  # Ambiguous Unicode in string
+    "RUF003",  # Ambiguous Unicode in comment
+
+    # Style and simplification
+    "C403",    # List comprehension used to construct set
+    "C408",    # Unnecessary collection constructor
+    "E731",    # Lambda assigned to variable
+    "E741",    # Ambiguous variable name
+    "FBT003",  # Boolean literal passed positionally
+    "PLW0108", # Unnecessary lambda wrapper
+    "SIM101",  # Duplicate isinstance() checks
+    "SIM105",  # Exception handler could use suppress()
+    "SIM108",  # Assignment could use conditional expression
+    "SIM118",  # Unnecessary .keys() in membership test
+
+    # Performance and NumPy modernization
+    "NPY002",  # Legacy NumPy random API
+    "PERF203", # try/except inside loop
+
+    # pathlib modernization
+    "PTH103",  # os.makedirs() instead of Path.mkdir()
+    "PTH109",  # os.getcwd() instead of Path.cwd()
+    "PTH110",  # os.path.exists() instead of Path.exists()
+    "PTH202",  # os.path.basename() instead of Path.name
+    "PTH208",  # os.listdir() instead of Path.iterdir()
 ]
 
 "benchmarks/*" = [
-    "S101",  # Use of assert
-    "PLR2004",  # Magic value used in comparison
+    # Benchmark-specific conventions
+    "S101",    # assert statements used for benchmark validation
+    "PLR2004", # Numeric literals used in benchmark comparisons
+    "ARG001",  # Unused callback or interface arguments
+    "D102",    # Public benchmark methods need no docstrings
+    "SLF001",  # Benchmarks intentionally inspect private state
+    "NPY002",  # Preserve legacy NumPy RNG for reproducibility
+    "INP001",  # Benchmark directories need not be packages
+
+    # TODO: Remove as benchmark violations are fixed
+    "FBT003",  # Boolean literal passed positionally
+    "PT006",   # Incorrect parametrize argument-name type
+]
+
+"examples/**" = [
+    # Example-specific conventions
+    "T203",    # pprint() allowed for demonstration output
+    "S101",    # assert statements allowed in examples
+    "PLR2004", # Literal values useful in instructional code
+    "NPY002",  # Preserve legacy NumPy RNG in historical examples
+    "INP001",  # Example directories need not be packages
+
+    # TODO: Remove as example violations are fixed
+
+    # Unused arguments and variables
     "ARG001",  # Unused function argument
-    "D102",  # Missing docstring in public function
+    "ARG002",  # Unused method argument
+    "B007",    # Unused loop variable
+    "F841",    # Assigned local variable never used
+    "RUF059",  # Unused unpacked variable
+
+    # Imports and naming
+    "A004",    # Import shadows Python builtin
+    "ICN001",  # Nonstandard import alias
+    "N803",    # Argument name not snake_case
+    "N806",    # Local variable not lowercase
+    "N812",    # Lowercase import given non-lowercase alias
+    "N816",    # Mixed-case module-level variable
+    "PLC0415", # Import outside module top level
+    "SLF001",  # Access to private member
+
+    # Documentation and formatting
+    "D101",    # Missing public class docstring
+    "D102",    # Missing public method docstring
+    "D103",    # Missing public function docstring
+    "D105",    # Missing magic method docstring
+    "E402",    # Module import not at top of file
+    "E702",    # Multiple statements on one line
+    "E741",    # Ambiguous variable name
+    "ERA001",  # Commented-out code
+    "RUF003",  # Ambiguous Unicode in comment
+    "RUF013",  # Implicit Optional type annotation
+    "W293",    # Blank line contains whitespace
+
+    # Correctness and exception handling
+    "B904",    # Missing exception chaining in except block
+    "B905",    # zip() missing explicit strict argument
+    "DTZ003",  # datetime.utcnow() creates naive datetime
+    "FBT003",  # Boolean literal passed positionally
+    "S113",    # HTTP request without timeout
+    "S310",    # URL open requires scheme validation
+    "S506",    # Unsafe YAML loader
+    "TRY300",  # Statement should be in else block
+
+    # Performance and simplification
+    "C408",    # Unnecessary collection constructor
+    "C416",    # Unnecessary list comprehension
+    "PERF102", # Dictionary iteration could use .items()
+    "PERF401", # List comprehension preferred to append loop
+    "RET504",  # Unnecessary assignment before return
+    "SIM108",  # Assignment could use conditional expression
+    "SIM118",  # Unnecessary .keys() in membership test
+
+    # pathlib modernization
+    "PTH100",  # os.path.abspath() instead of Path.resolve()
+    "PTH103",  # os.makedirs() instead of Path.mkdir()
+    "PTH107",  # os.remove() instead of Path.unlink()
+    "PTH109",  # os.getcwd() instead of Path.cwd()
+    "PTH110",  # os.path.exists() instead of Path.exists()
+    "PTH118",  # os.path.join() instead of Path operations
+    "PTH119",  # os.path.basename() instead of Path.name
+    "PTH123",  # open() instead of Path.open()
+]
+
+"scripts/**" = [
+    # Standalone scripts are not importable packages
+    "INP001",  # Missing __init__.py
 ]

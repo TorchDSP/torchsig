@@ -79,7 +79,7 @@ def polyphase_resample_at_positions_numba(x_real, x_imag, uprate, positions, h_p
 
 
 @jit(nopython=True, cache=True)
-def sampling_clock_impairments_numba(  # noqa: PLR0917
+def sampling_clock_impairments_numba(
     x_real,
     x_imag,
     uprate,
@@ -165,7 +165,7 @@ def sampling_clock_impairments_numba(  # noqa: PLR0917
     return result
 
 
-def sampling_clock_impairments_numba_wrapper(  # noqa: PLR0917
+def sampling_clock_impairments_numba_wrapper(
     h,
     x,
     uprate,
@@ -180,6 +180,7 @@ def sampling_clock_impairments_numba_wrapper(  # noqa: PLR0917
     drift_rate_ppm_per_sec=0.0,
     drift_noise_ppm_per_sqrt_sec=0.0,
     sample_rate_hz=1.0,
+    return_nominal_indices=False,
 ):
     """Wrapper for the numba-optimized sampling clock impairments function.
 
@@ -228,11 +229,14 @@ def sampling_clock_impairments_numba_wrapper(  # noqa: PLR0917
     x_real = np.ascontiguousarray(x.real, dtype=np.float32)
     x_imag = np.ascontiguousarray(x.imag, dtype=np.float32)
 
-    return polyphase_resample_at_positions_numba(x_real, x_imag, uprate, positions.actual, h_pfb_reversed, taps_per_phase)
+    output = polyphase_resample_at_positions_numba(x_real, x_imag, uprate, positions.actual, h_pfb_reversed, taps_per_phase)
+    if return_nominal_indices:
+        return output, positions.nominal_indices
+    return output
 
 
 @jit(nopython=True, cache=True)
-def digital_agc_numba(  # noqa: PLR0917
+def digital_agc_numba(
     data: complex64[:],  # 1D complex64 array (Numba type)
     initial_gain_db: float32,  # All scalars must be Numba types
     alpha_smooth: float32,

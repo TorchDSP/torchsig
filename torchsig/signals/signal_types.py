@@ -291,9 +291,14 @@ class SignalMetadataObject(HierarchicalMetadataObject):
         if validated_frequency_min is not None and validated_frequency_max is not None and validated_frequency_min > validated_frequency_max:
             raise ValueError(f"frequency_min {validated_frequency_min} exceeds frequency_max {validated_frequency_max}")
 
-        if validated_frequency_min is not None and lower_freq < validated_frequency_min:
+        # Frequency bounds are inclusive, and the derived edges (center +/- bandwidth / 2)
+        # can differ from the bound by floating-point rounding (e.g. 999.9999999999999 vs
+        # 1000.0). Tolerate that rounding without masking a genuine out-of-band edge.
+        lower_tol = 1e-9 + 1e-9 * abs(validated_frequency_min) if validated_frequency_min is not None else None
+        upper_tol = 1e-9 + 1e-9 * abs(validated_frequency_max) if validated_frequency_max is not None else None
+        if validated_frequency_min is not None and lower_tol is not None and lower_freq < validated_frequency_min - lower_tol:
             raise ValueError(f"lower_freq {lower_freq} is below frequency_min {validated_frequency_min}")
-        if validated_frequency_max is not None and upper_freq > validated_frequency_max:
+        if validated_frequency_max is not None and upper_tol is not None and upper_freq > validated_frequency_max + upper_tol:
             raise ValueError(f"upper_freq {upper_freq} is above frequency_max {validated_frequency_max}")
 
     def to_dict(self) -> dict[str, Any]:

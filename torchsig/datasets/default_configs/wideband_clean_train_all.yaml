@@ -2,7 +2,7 @@
 # wideband, no impairments, all per-signals classes
 schema_version: "2.1.1"
 dataset_id: "wideband_clean_train_all"
-dataset_length: 57_000   # 1k items per signal class (57 classes)
+dataset_length: 69_000   # 1k items per signal class (69 classes)
 seed: 1234567890
 impairment_level: 0  # no impairments
 
@@ -12,7 +12,7 @@ output:
 signal_sampling:
   mode: "per_signal" # equal probability per signal class
 
-# wideband: spectrograms with 3-5 short bursts 
+# wideband: spectrograms with 3-5 short bursts
 dataset_metadata:
   sample_rate: 10_000_000
   num_iq_samples_dataset: 262_144 # 512^2
@@ -33,11 +33,11 @@ dataset_metadata:
   signal_duration_in_samples_min: 16_384    # ~0.0625 * 262144
   signal_duration_in_samples_max: 32_768    # 0.125 * 262144
 
-  bandwidth_min: 62_500     # 0.0125 * sample rate 
+  bandwidth_min: 62_500     # 0.0125 * sample rate
   bandwidth_max: 1_000_000  # 0.1 * sample rate
 
   signal_center_freq_min: -4_000_000
   signal_center_freq_max: 4_000_000
   frequency_min: -5_000_000
   frequency_max: 4_999_999
-  
+

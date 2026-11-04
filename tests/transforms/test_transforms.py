@@ -5,7 +5,6 @@
 # Third Party
 import numpy as np
 import pytest
-from test_transforms_utils import generate_composite_signal, generate_test_signal
 
 from torchsig.signals.signal_types import Signal
 from torchsig.transforms.transforms import (
@@ -45,6 +44,8 @@ from torchsig.transforms.transforms import (
     reconstruct_spectrogram_support_vectors,
 )
 from torchsig.utils.dsp import TorchSigComplexDataType, TorchSigRealDataType, compute_spectrogram, low_pass
+
+from .test_transforms_utils import generate_composite_signal, generate_test_signal
 
 RTOL = 1e-6
 TEST_SIGNAL = generate_test_signal(num_iq_samples=64, scale=1.0)

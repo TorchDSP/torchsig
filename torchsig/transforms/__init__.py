@@ -8,6 +8,8 @@ from torchsig._lazy import lazy_dir, lazy_getattr
 
 if TYPE_CHECKING:
     from . import base_transforms as base_transforms
+    from . import batch as batch
+    from . import config as config
     from . import functional as functional
     from . import impairments as impairments
     from . import metadata_transforms as metadata_transforms

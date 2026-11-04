@@ -3,14 +3,15 @@
 from __future__ import annotations
 
 from abc import ABC
-from collections.abc import Callable
 from typing import TYPE_CHECKING, Any, Literal
 
-import torchsig.transforms.functional as F
+from torchsig.transforms import functional
 from torchsig.utils.printing import generate_repr_str
 from torchsig.utils.random import Seedable
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from torchsig.signals.signal_types import Signal
 
 
@@ -230,7 +231,7 @@ class Normalize(Transform):
         if self.flatten:
             signal.data = signal.data.reshape(signal.data.size)
 
-        signal.data = F.normalize(signal.data, norm_order=self.norm, flatten=self.flatten)
+        signal.data = functional.normalize(signal.data, norm_order=self.norm, flatten=self.flatten)
         return signal
 
 

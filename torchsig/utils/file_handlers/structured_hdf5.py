@@ -272,10 +272,7 @@ class StructuredHDF5Reader(FileReader):
     def read(self, idx: int) -> Any:
         """Read and reconstruct one sample by non-negative index."""
         self._ensure_open()
-        if not isinstance(idx, int) or isinstance(idx, bool):
-            raise TypeError("Structured HDF5 sample index must be an integer")
-        if idx < 0 or idx >= self._length:
-            raise IndexError(f"Structured HDF5 sample index out of range: {idx}")
+        self.validate_index(idx)
         return _reconstruct(self.schema.root, [dataset[idx] for dataset in self._datasets])
 
     def read_batch(self, start: int, stop: int) -> list[Any]:
@@ -322,6 +319,16 @@ class StructuredHDF5Reader(FileReader):
             return [_reconstruct(self.schema.root, [dataset[index] for dataset in self._datasets]) for index in indices]
         leaves = [np.concatenate([dataset[int(run[0]) : int(run[-1]) + 1] for run in runs], axis=0) for dataset in self._datasets]
         return [_reconstruct(self.schema.root, [field_values[position] for field_values in leaves]) for position in inverse]
+
+    def read_many(self, indices) -> list[Any]:
+        """Read arbitrary indices using the optimized structured selection path."""
+        if isinstance(indices, (str, bytes)):
+            raise TypeError("read_many() indices must be an iterable of integers")
+        try:
+            requested = list(indices)
+        except TypeError as error:
+            raise TypeError("read_many() indices must be an iterable of integers") from error
+        return self.read_indices([self.validate_index(index) for index in requested])
 
     def teardown(self) -> None:
         """Close the process-local HDF5 file and field handles."""

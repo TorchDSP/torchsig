@@ -1,4 +1,3 @@
-# ruff: noqa: INP001
 """Generate and write a TorchSig dataset using a configuration YAML file."""
 
 from __future__ import annotations

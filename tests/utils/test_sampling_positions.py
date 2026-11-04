@@ -178,6 +178,24 @@ def test_python_numba_parity_for_all_jitter_models(model: str) -> None:
     np.testing.assert_allclose(actual, expected, rtol=0.0, atol=1e-6)
 
 
+def test_sampling_clock_implementations_can_return_nominal_indices() -> None:
+    kwargs = {
+        "h": np.array([1.0], dtype=np.float32),
+        "x": np.arange(8, dtype=np.complex64),
+        "uprate": 1,
+        "drate": 1.0,
+        "jitter_ppm": 1_000_000.0,
+        "drift_ppm": 0.0,
+        "return_nominal_indices": True,
+    }
+
+    python_output, python_indices = sampling_clock_impairments(rng=np.random.default_rng(3), **kwargs)
+    numba_output, numba_indices = sampling_clock_impairments_numba_wrapper(rng=np.random.default_rng(3), **kwargs)
+
+    np.testing.assert_array_equal(numba_indices, python_indices)
+    np.testing.assert_allclose(numba_output, python_output, rtol=0.0, atol=1e-6)
+
+
 @pytest.mark.parametrize(
     ("overrides", "message"),
     [

@@ -655,7 +655,7 @@ def _load_iq_file(out_path: str | Path, sample_rate: int | None = None) -> tuple
     if out_path.suffix == ".wav":
         sr, data = wavfile.read(str(out_path))
 
-        if data.ndim != 2 or data.shape[1] != 2:  # noqa: PLR2004
+        if data.ndim != 2 or data.shape[1] != 2:
             raise ValueError("Expected a stereo (2-channel) wav containing I & Q.")
 
         if data.dtype == np.int16:

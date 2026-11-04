@@ -7,7 +7,7 @@ import warnings
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Any, Literal, Protocol
 
 import numpy as np
 from torch.utils.data import Dataset, IterableDataset, get_worker_info
@@ -39,8 +39,23 @@ if TYPE_CHECKING:
 
     from torchsig.transforms.base_transforms import Transform
 
-__all__ = ["StaticTorchSigDataset", "TorchSigDatasetConfig", "TorchSigIterableDataset", "apply_label_to_signal", "apply_transforms_and_labels_to_signal"]
+__all__ = [
+    "BackgroundGenerator",
+    "StaticTorchSigDataset",
+    "TorchSigDatasetConfig",
+    "TorchSigIterableDataset",
+    "apply_label_to_signal",
+    "apply_transforms_and_labels_to_signal",
+]
 """Dataset Base Classes for creation and static loading."""
+
+
+class BackgroundGenerator(Protocol):
+    """Generate one background from an empty complex IQ buffer and the dataset RNG."""
+
+    def __call__(self, data: np.ndarray, /, *, rng: np.random.Generator) -> np.ndarray:
+        """Return complex background IQ samples with the same shape as data."""
+        ...
 
 
 @dataclass(frozen=True)
@@ -215,6 +230,7 @@ class TorchSigIterableDataset(HierarchicalMetadataObject, IterableDataset):
         transforms: list[Transform | callable] | None = None,
         component_transforms: list[Transform | callable] | None = None,
         target_labels: list | None = None,
+        background_generator: BackgroundGenerator | None = None,
         sampling_grouping: GroupingLabel | str | Path | Mapping[str, Any] | None = None,
         per_signal_metadata: dict[str, dict[str, int | float]] | None = None,
         experiment_config: ExperimentConfig | str | Path | Mapping[str, Any] | None = None,
@@ -228,6 +244,12 @@ class TorchSigIterableDataset(HierarchicalMetadataObject, IterableDataset):
             transforms: List of transforms to apply to the entire signal.
             component_transforms: List of transforms to apply to individual signal components.
             target_labels: Labels to extract from the signal.
+            background_generator: Optional callable receiving a zero-filled complex64 IQ
+                buffer and the dataset RNG as keyword ``rng``. Return a finite complex
+                array of the same shape. Its spectrum is scaled to the configured
+                average noise floor before component insertion. For pink noise, pass
+                ``functools.partial(additive_noise, color="pink")`` from
+                ``torchsig.transforms.functional``. Defaults to Gaussian white noise.
             sampling_grouping: A GroupingLabel, grouping YAML path, or
                 grouping configuration mapping. When provided, signal
                 generators use each group's configured ``probability`` or
@@ -260,6 +282,9 @@ class TorchSigIterableDataset(HierarchicalMetadataObject, IterableDataset):
         self.signal_probabilities = np.array([], dtype=float)
         self._signal_probability_mode = "likelihood"
         self.target_labels = target_labels
+        if background_generator is not None and not callable(background_generator):
+            raise TypeError("background_generator must be callable")
+        self.background_generator = background_generator
         self.per_signal_metadata = self._validate_per_signal_metadata(per_signal_metadata)
         self.experiment_config = load_experiment_config(experiment_config)
         self.transforms = [] if transforms is None else transforms
@@ -779,10 +804,20 @@ class TorchSigIterableDataset(HierarchicalMetadataObject, IterableDataset):
         Returns:
             The generated IQ samples representing the noise floor.
         """
-        real_samples = self.random_generator.normal(0, 1, self["num_iq_samples_dataset"])
-        imag_samples = self.random_generator.normal(0, 1, self["num_iq_samples_dataset"])
-        # combine real and imaginary portions of noise
-        iq_samples = real_samples + 1j * imag_samples
+        num_samples = self["num_iq_samples_dataset"]
+        if self.background_generator is None:  # default AWGN
+            real_samples = self.random_generator.normal(0, 1, num_samples)
+            imag_samples = self.random_generator.normal(0, 1, num_samples)
+            iq_samples = real_samples + 1j * imag_samples
+        else:
+            # note: background samples' estimated average noise is used in the correction factor below
+            buffer = np.zeros(num_samples, dtype=np.complex64)
+            iq_samples = np.asarray(self.background_generator(buffer, rng=self.random_generator))
+            if iq_samples.shape != (num_samples,) or not np.iscomplexobj(iq_samples):
+                raise ValueError(f"background_generator must return a complex array of shape ({num_samples},)")
+            if not np.isfinite(iq_samples).all():
+                raise ValueError("background_generator must return finite IQ samples")
+
         # compute an estimate of the noise floor in the frequency domain. use a large stride to process a subset
         # of the data since not many FFTs are needed to be averaged for the noise
         noise_spectrogram_db = compute_spectrogram(iq_samples, self["fft_size"], self["fft_stride"] * 16)
@@ -1046,10 +1081,12 @@ class TorchSigIterableDataset(HierarchicalMetadataObject, IterableDataset):
         # calculate start and stop time in terms of FFT number
         fft_start_time = np.round(start_sample / self["fft_size"])
         fft_stop_time = np.round((start_sample + len(new_signal.data)) / self["fft_size"])
-        # calculate bin position in FFT
+        # Map the component's canonical occupied edges across the complete
+        # Nyquist span. ``lower_freq`` and ``upper_freq`` already account for
+        # the full two-sided bandwidth.
         fs = self["sample_rate"]
-        fft_start_bin_norm = ((new_signal.center_freq - new_signal.bandwidth) + (fs / 2)) / (fs / 2)
-        fft_stop_bin_norm = ((new_signal.center_freq + new_signal.bandwidth) + (fs / 2)) / (fs / 2)
+        fft_start_bin_norm = (new_signal.lower_freq + (fs / 2)) / fs
+        fft_stop_bin_norm = (new_signal.upper_freq + (fs / 2)) / fs
         fft_start_bin_index = np.round(fft_start_bin_norm * self["fft_size"])
         fft_stop_bin_index = np.round(fft_stop_bin_norm * self["fft_size"])
         # map the position into retangle coordinates

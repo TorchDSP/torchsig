@@ -112,8 +112,7 @@ class NPYReader(MetadataReader):
         # --------------------------------------------------------------
         # 0️⃣ Guard against out-of-range accesses
         # --------------------------------------------------------------
-        if idx < 0 or idx >= self.total_elements:
-            raise IndexError(f"Index {idx} out of range (0 ≤ idx < {self.total_elements})")
+        self.validate_index(idx)
 
         # --------------------------------------------------------------
         # 1️⃣ Identify the file that contains this global index (binary search)

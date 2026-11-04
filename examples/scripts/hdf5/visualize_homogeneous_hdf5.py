@@ -4,8 +4,6 @@ Example:
     python examples/scripts/visualize_homogeneous_hdf5.py --samples 4
 """
 
-# ruff: noqa: INP001
-
 from __future__ import annotations
 
 import argparse
@@ -33,10 +31,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--root",
         type=Path,
-        help=(
-            "Dataset directory containing data.h5. A temporary directory is "
-            "used when omitted."
-        ),
+        help=("Dataset directory containing data.h5. A temporary directory is used when omitted."),
     )
     parser.add_argument(
         "--samples",
@@ -75,17 +70,9 @@ def parse_args() -> argparse.Namespace:
     if args.samples < 1:
         parser.error("--samples must be positive")
     if args.num_iq_samples < MIN_IQ_SAMPLES:
-        parser.error(
-            f"--num-iq-samples must be at least {MIN_IQ_SAMPLES}"
-        )
-    if (
-        args.fft_size < MIN_FFT_SIZE
-        or args.fft_size > args.num_iq_samples
-    ):
-        parser.error(
-            f"--fft-size must be at least {MIN_FFT_SIZE} and no larger "
-            "than --num-iq-samples"
-        )
+        parser.error(f"--num-iq-samples must be at least {MIN_IQ_SAMPLES}")
+    if args.fft_size < MIN_FFT_SIZE or args.fft_size > args.num_iq_samples:
+        parser.error(f"--fft-size must be at least {MIN_FFT_SIZE} and no larger than --num-iq-samples")
     if args.root is not None and args.root.exists() and not args.overwrite:
         parser.error("the --root directory exists; pass --overwrite to replace it")
     return args
@@ -108,26 +95,20 @@ def make_component(
         symbol_count = int(np.ceil(length / samples_per_symbol))
         symbols = rng.choice((-1.0, 1.0), size=symbol_count)
         baseband = np.repeat(symbols, samples_per_symbol)[:length]
-        data = baseband * np.exp(
-            2j * np.pi * center_frequency * time
-        )
+        data = baseband * np.exp(2j * np.pi * center_frequency * time)
     elif class_name == "qpsk":
         center_frequency = 0.1
         symbol_count = int(np.ceil(length / samples_per_symbol))
         symbol_indices = rng.integers(0, 4, size=symbol_count)
         symbols = np.exp(0.5j * np.pi * symbol_indices)
         baseband = np.repeat(symbols, samples_per_symbol)[:length]
-        data = baseband * np.exp(
-            2j * np.pi * center_frequency * time
-        )
+        data = baseband * np.exp(2j * np.pi * center_frequency * time)
     elif class_name == "lfm":
         start_frequency = -0.3
         stop_frequency = 0.3
         chirp_rate = (stop_frequency - start_frequency) / length
         center_frequency = 0.0
-        phase = 2 * np.pi * (
-            start_frequency * time + 0.5 * chirp_rate * time**2
-        )
+        phase = 2 * np.pi * (start_frequency * time + 0.5 * chirp_rate * time**2)
         data = np.exp(1j * phase)
     else:
         raise ValueError(f"Unknown signal class: {class_name}")
@@ -142,18 +123,10 @@ def make_signals(count: int, num_iq_samples: int) -> list[Signal]:
 
     for signal_index in range(count):
         components = []
-        iq = (
-            0.03
-            * (
-                rng.standard_normal(num_iq_samples)
-                + 1j * rng.standard_normal(num_iq_samples)
-            )
-        ).astype(np.complex64)
+        iq = (0.03 * (rng.standard_normal(num_iq_samples) + 1j * rng.standard_normal(num_iq_samples))).astype(np.complex64)
 
         for component_index in range(2 + signal_index % 3):
-            class_name = SIGNAL_CLASSES[
-                (2 * signal_index + component_index) % len(SIGNAL_CLASSES)
-            ]
+            class_name = SIGNAL_CLASSES[(2 * signal_index + component_index) % len(SIGNAL_CLASSES)]
             component_length = num_iq_samples // (2 + component_index)
             component, center_frequency = make_component(
                 class_name,
@@ -161,9 +134,7 @@ def make_signals(count: int, num_iq_samples: int) -> list[Signal]:
                 rng,
             )
             available_start = num_iq_samples - component_length
-            start = (
-                signal_index * 173 + component_index * 251
-            ) % (available_start + 1)
+            start = (signal_index * 173 + component_index * 251) % (available_start + 1)
             stop = start + component_length
             iq[start:stop] += component
             components.append(
@@ -182,9 +153,7 @@ def make_signals(count: int, num_iq_samples: int) -> list[Signal]:
                 data=iq,
                 component_signals=components,
                 sample_index=signal_index,
-                signal_classes=tuple(
-                    component["class_name"] for component in components
-                ),
+                signal_classes=tuple(component["class_name"] for component in components),
                 description="homogeneous HDF5 example",
             )
         )
@@ -221,15 +190,11 @@ def verify_round_trip(
 ) -> None:
     """Verify top-level arrays, metadata, and component arrays."""
     if len(read_back) != len(written):
-        raise AssertionError(
-            f"Expected {len(written)} Signals, read {len(read_back)}"
-        )
+        raise AssertionError(f"Expected {len(written)} Signals, read {len(read_back)}")
     for expected, actual in zip(written, read_back, strict=True):
         np.testing.assert_array_equal(actual.data, expected.data)
         if actual.data.dtype != expected.data.dtype:
-            raise AssertionError(
-                f"Expected dtype {expected.data.dtype}, got {actual.data.dtype}"
-            )
+            raise AssertionError(f"Expected dtype {expected.data.dtype}, got {actual.data.dtype}")
         if actual["sample_index"] != expected["sample_index"]:
             raise AssertionError("Signal metadata did not round-trip")
         if actual["signal_classes"] != expected["signal_classes"]:
@@ -252,9 +217,7 @@ def verify_round_trip(
                 "normalized_center_frequency",
             ):
                 if actual_component[key] != expected_component[key]:
-                    raise AssertionError(
-                        f"Component metadata {key!r} did not round-trip"
-                    )
+                    raise AssertionError(f"Component metadata {key!r} did not round-trip")
 
 
 def plot_spectrogram_comparison(
@@ -271,9 +234,7 @@ def plot_spectrogram_comparison(
         constrained_layout=True,
     )
 
-    for row, (original, reconstructed) in enumerate(
-        zip(before_write, after_read, strict=True)
-    ):
+    for row, (original, reconstructed) in enumerate(zip(before_write, after_read, strict=True)):
         original_spectrogram = compute_spectrogram(
             original.data,
             fft_size=fft_size,
@@ -284,9 +245,7 @@ def plot_spectrogram_comparison(
             fft_size=fft_size,
             fft_stride=fft_size // 2,
         )
-        difference = np.abs(
-            reconstructed_spectrogram - original_spectrogram
-        )
+        difference = np.abs(reconstructed_spectrogram - original_spectrogram)
         value_min = min(
             float(np.min(original_spectrogram)),
             float(np.min(reconstructed_spectrogram)),
@@ -295,13 +254,9 @@ def plot_spectrogram_comparison(
             float(np.max(original_spectrogram)),
             float(np.max(reconstructed_spectrogram)),
         )
-        max_iq_error = float(
-            np.max(np.abs(reconstructed.data - original.data))
-        )
+        max_iq_error = float(np.max(np.abs(reconstructed.data - original.data)))
         original_classes = ", ".join(original["signal_classes"])
-        reconstructed_classes = ", ".join(
-            reconstructed["signal_classes"]
-        )
+        reconstructed_classes = ", ".join(reconstructed["signal_classes"])
 
         before_image = axes[row, 0].imshow(
             original_spectrogram,
@@ -311,10 +266,7 @@ def plot_spectrogram_comparison(
             vmin=value_min,
             vmax=value_max,
         )
-        axes[row, 0].set_title(
-            f"Before write — sample {original['sample_index']}\n"
-            f"{original_classes}"
-        )
+        axes[row, 0].set_title(f"Before write — sample {original['sample_index']}\n{original_classes}")
 
         axes[row, 1].imshow(
             reconstructed_spectrogram,
@@ -324,10 +276,7 @@ def plot_spectrogram_comparison(
             vmin=value_min,
             vmax=value_max,
         )
-        axes[row, 1].set_title(
-            f"After read — {len(reconstructed.component_signals)} components\n"
-            f"{reconstructed_classes}"
-        )
+        axes[row, 1].set_title(f"After read — {len(reconstructed.component_signals)} components\n{reconstructed_classes}")
 
         difference_image = axes[row, 2].imshow(
             difference,
@@ -337,9 +286,7 @@ def plot_spectrogram_comparison(
             vmin=0,
             vmax=max(float(np.max(difference)), np.finfo(float).eps),
         )
-        axes[row, 2].set_title(
-            f"Absolute difference\nmax IQ error={max_iq_error:.3g}"
-        )
+        axes[row, 2].set_title(f"Absolute difference\nmax IQ error={max_iq_error:.3g}")
 
         for axis in axes[row]:
             axis.set_xlabel("Time bin")
@@ -361,11 +308,7 @@ def plot_spectrogram_comparison(
 def main() -> None:
     """Round-trip homogeneous Signals and display the reconstructed data."""
     args = parse_args()
-    root = (
-        args.root.expanduser().resolve()
-        if args.root is not None
-        else Path(tempfile.mkdtemp(prefix="torchsig-homogeneous-"))
-    )
+    root = args.root.expanduser().resolve() if args.root is not None else Path(tempfile.mkdtemp(prefix="torchsig-homogeneous-"))
     written = make_signals(args.samples, args.num_iq_samples)
     write_signals(root, written)
     read_back = read_signals(root)

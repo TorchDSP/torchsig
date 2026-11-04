@@ -218,7 +218,7 @@ def make_geo_ds(
     Returns:
         TorchSigGeoDataset instance
     """
-    from torchsig.utils.defaults import TorchSigDefaults  # noqa: PLC0415
+    from torchsig.utils.defaults import TorchSigDefaults
 
     metadata = TorchSigDefaults().default_dataset_metadata.copy()
     metadata["num_iq_samples_dataset"] = SIGNAL_LENGTH
@@ -248,7 +248,7 @@ def compute_fspl(distance, frequency, propagation_constant=1.0):
     Returns:
         Path loss in dB
     """
-    from torchsig.geo.utils.propagation import SPEED_OF_LIGHT_M_PER_S  # noqa: PLC0415
+    from torchsig.geo.utils.propagation import SPEED_OF_LIGHT_M_PER_S
 
     effective_speed = SPEED_OF_LIGHT_M_PER_S * propagation_constant
     wavelength = effective_speed / frequency

@@ -25,6 +25,7 @@ if TYPE_CHECKING:
     from pathlib import Path
 
 from .base_handler import FileReader
+from .errors import FileHandlerIndexError
 
 __all__ = ["SIDECAR_SCHEMA_VERSION", "MetadataIndexError", "MetadataReader"]
 
@@ -36,7 +37,7 @@ _LEGACY_OPTIONAL_COLUMNS = ("snr_db", "seed")
 _DEFAULT_CLASS_LIST = ["BPSK", "QPSK", "Noise"]
 
 
-class MetadataIndexError(IndexError):
+class MetadataIndexError(FileHandlerIndexError):
     """Raised when a caller requests a metadata row that does not exist."""
 
 
@@ -113,6 +114,14 @@ class MetadataReader(FileReader):
         dataset root, and reconciled dataset size.
         """
         return f"{self.__class__.__name__}(root={self.root!s}, size={self.dataset_size})"
+
+    def read(self, idx: int) -> dict[str, Any]:
+        """Return one metadata record for metadata-only consumers."""
+        return self.load_row(idx, self.class_list)
+
+    def __len__(self) -> int:
+        """Return the number of indexed metadata records."""
+        return self.dataset_size
 
     @staticmethod
     def _optional_nonnegative_int(value: Any, name: str) -> int | None:

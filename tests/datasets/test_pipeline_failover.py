@@ -233,7 +233,7 @@ def test_run_with_fallback_reraises_when_no_fallback_signal(base_signal, caplog)
     dataset.pipeline_max_retries = 2
 
     with pytest.raises(RuntimeError, match="generation failed"):
-        dataset._run_with_fallback(  # noqa: SLF001
+        dataset._run_with_fallback(
             generation_fails,
             fallback_raw_signal=None,
         )
@@ -250,7 +250,7 @@ def test_run_with_fallback_forwards_args_and_kwargs(base_signal):
     def combine(signal, *, scale, offset):
         return signal.data * scale + offset
 
-    result = dataset._run_with_fallback(  # noqa: SLF001
+    result = dataset._run_with_fallback(
         combine,
         base_signal,
         scale=2,
@@ -266,7 +266,7 @@ def test_fallback_action_rejects_unknown_option(base_signal):
     dataset.pipeline_fallback = "unsupported"
 
     with pytest.raises(RuntimeError, match="Unknown fallback option: 'unsupported'"):
-        dataset._fallback_action(base_signal)  # noqa: SLF001
+        dataset._fallback_action(base_signal)
 
 
 @pytest.mark.xfail(
@@ -280,7 +280,7 @@ def test_retry_rejects_zero_max_retries(base_signal):
     dataset.pipeline_max_retries = 0
 
     with pytest.raises(ValueError, match="pipeline_max_retries must be positive"):
-        dataset._run_with_fallback(  # noqa: SLF001
+        dataset._run_with_fallback(
             dummy_apply_func,
             base_signal,
             fallback_raw_signal=base_signal,

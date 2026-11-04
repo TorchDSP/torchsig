@@ -25,9 +25,7 @@ SEED = 42
 def _complex_noise() -> np.ndarray:
     """Return deterministic complex64 input for the benchmark cases."""
     rng = np.random.default_rng(SEED)
-    return (rng.standard_normal(NUM_SAMPLES) + 1j * rng.standard_normal(NUM_SAMPLES)).astype(
-        TorchSigComplexDataType
-    )
+    return (rng.standard_normal(NUM_SAMPLES) + 1j * rng.standard_normal(NUM_SAMPLES)).astype(TorchSigComplexDataType)
 
 
 @pytest.mark.benchmark

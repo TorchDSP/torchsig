@@ -7,7 +7,6 @@ import pytest
 import scipy as sp
 from numba.core.errors import TypingError
 from numpy.testing import assert_allclose, assert_array_equal
-from test_transforms_utils import generate_test_signal, generate_tone_signal
 
 from torchsig.transforms.functional import (
     _build_full_profile,
@@ -53,6 +52,8 @@ from torchsig.utils.dsp import (
     TorchSigRealDataType,
     compute_spectrogram,
 )
+
+from .test_transforms_utils import generate_test_signal, generate_tone_signal
 
 RTOL = 1e-6
 TEST_DATA = generate_test_signal(num_iq_samples=8192, scale=1.0).data
@@ -1221,7 +1222,7 @@ def test_fallback_on_calculation_error(monkeypatch):
         raise RuntimeError("Simulated internal math failure")
 
     # 2. Monkeypatch _build_full_profile since that is where the logic starts now
-    from torchsig.transforms import functional  # noqa: PLC0415
+    from torchsig.transforms import functional
 
     monkeypatch.setattr(functional, "_build_full_profile", mock_fail)
 
@@ -1235,7 +1236,7 @@ def test_fallback_raise_mode(monkeypatch):
     data = np.random.randn(1024)
     rng = np.random.default_rng(42)
 
-    from torchsig.transforms import functional  # noqa: PLC0415
+    from torchsig.transforms import functional
 
     def mock_fail(*args, **kwargs):
         raise RuntimeError("Simulated internal math failure")
@@ -1293,7 +1294,7 @@ def test_fft_filter_reconstruction_error(num_taps, trim_tol, ripple_amp):
 
 
 def test_build_full_profile_hermitian_symmetry():
-    from torchsig.transforms.functional import _build_full_profile  # noqa: PLC0415
+    from torchsig.transforms.functional import _build_full_profile
 
     rng = np.random.default_rng(42)
     N = 1025

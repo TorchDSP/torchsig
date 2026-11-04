@@ -2,7 +2,7 @@
 # narrowband, no impairments, all per-signals classes
 schema_version: "2.1.1"
 dataset_id: "narrowband_clean_train_all"
-dataset_length: 1_140_000   # 20k items per signal class (57 classes)
+dataset_length: 1_380_000   # 20k items per signal class (69 classes)
 seed: 1234567890
 impairment_level: 0  # clean, ideal digital signals
 
@@ -40,4 +40,4 @@ dataset_metadata:
   signal_center_freq_max: 2499999
   frequency_min: -2500000
   frequency_max: 2499999
-  
+

@@ -2,7 +2,7 @@
 # narrowband, with impairments, all per-signals classes
 schema_version: "2.1.1"
 dataset_id: "narrowband_impaired_train_all"
-dataset_length: 5_700_000   # 100k items per signal class (57 classes)
+dataset_length: 6_900_000   # 100k items per signal class (69 classes)
 seed: 1234567892
 impairment_level: 2  # impaired, wireless channel-like conditions
 
@@ -40,4 +40,4 @@ dataset_metadata:
   signal_center_freq_max: 2499999
   frequency_min: -2500000
   frequency_max: 2499999
-  
+

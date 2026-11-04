@@ -58,6 +58,9 @@ class _OptionRecordingWriter(FileWriter):
     def write(self, batch_idx, data) -> None:
         del batch_idx, data
 
+    def __len__(self) -> int:
+        return 0
+
 
 @pytest.mark.parametrize("multithreading", [False, True])
 @pytest.mark.parametrize("spectrogram", [False, True], ids=["iq", "spectrogram"])
@@ -91,7 +94,7 @@ def test_dataset_creator_round_trips_packed_signals(tmp_path, multithreading, sp
 
 
 @pytest.mark.parametrize("multithreading", [False, True])
-def test_dataset_creator_failure_leaves_packed_file_incomplete(tmp_path, multithreading) -> None:
+def test_dataset_creator_failure_removes_staging_dataset(tmp_path, multithreading) -> None:
     dataloader = DataLoader(_FailingSignalDataset(), batch_size=2)
     creator = DatasetCreator(
         dataloader=dataloader,
@@ -103,12 +106,29 @@ def test_dataset_creator_failure_leaves_packed_file_incomplete(tmp_path, multith
     with pytest.raises(RuntimeError, match="injected generation failure"):
         creator.create()
 
-    with h5py.File(tmp_path / "data.h5", "r") as handle:
-        assert not bool(handle.attrs["complete"])
-    with pytest.raises(ValueError, match="file is incomplete"):
-        PackedHDF5Reader(tmp_path).read(0)
-    writer_info = yaml.safe_load((tmp_path / "writer_info.yaml").read_text())
-    assert writer_info["complete"] is False
+    assert not (tmp_path / "data.h5").exists()
+    assert not list(tmp_path.parent.glob(f".{tmp_path.name}.*.staging"))
+
+
+def test_dataset_creator_failure_preserves_existing_complete_dataset(tmp_path) -> None:
+    DatasetCreator(
+        dataloader=DataLoader(_SignalDataset(), batch_size=2),
+        root=tmp_path,
+        file_handler=PackedHDF5Writer,
+        multithreading=False,
+    ).create()
+    original = (tmp_path / "data.h5").read_bytes()
+
+    with pytest.raises(RuntimeError, match="injected generation failure"):
+        DatasetCreator(
+            dataloader=DataLoader(_FailingSignalDataset(), batch_size=2),
+            root=tmp_path,
+            file_handler=PackedHDF5Writer,
+            multithreading=False,
+        ).create()
+
+    assert (tmp_path / "data.h5").read_bytes() == original
+    assert len(PackedHDF5Reader(tmp_path)) == DATASET_LENGTH
 
 
 def test_dataset_creator_forwards_and_records_packed_writer_options(

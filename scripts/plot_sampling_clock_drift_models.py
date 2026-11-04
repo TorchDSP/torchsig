@@ -1,4 +1,3 @@
-# ruff: noqa: INP001
 """Plot diagnostics for the three sampling-clock drift models."""
 
 import matplotlib.pyplot as plt

@@ -5,6 +5,7 @@ import logging
 import warnings
 from collections import Counter
 from copy import deepcopy
+from functools import partial
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -24,11 +25,12 @@ from torchsig.datasets.datasets import (
 )
 from torchsig.signals.builder import BaseSignalGenerator, ConcatSignalGenerator
 from torchsig.signals.signal_types import Signal
+from torchsig.transforms.functional import additive_noise
 from torchsig.transforms.metadata_transforms import GroupingLabel, MultiHotLabel, YOLOLabel
 from torchsig.transforms.transforms import ComplexTo2D, Spectrogram
 from torchsig.utils.data_loading import WorkerSeedingDataLoader
 from torchsig.utils.defaults import TorchSigDefaults
-from torchsig.utils.dsp import TorchSigRealDataType
+from torchsig.utils.dsp import TorchSigRealDataType, compute_spectrogram
 from torchsig.utils.metadata_logging import (
     MetadataLoggingContext,
     get_metadata_logging_context,
@@ -231,7 +233,7 @@ def test_generate_component_accepts_final_frequency_interval(
         lambda _signal, **_kwargs: placed,
     )
 
-    result = dataset._generate_component_signal(generator)  # noqa: SLF001
+    result = dataset._generate_component_signal(generator)
 
     assert result is placed
     assert result.lower_freq >= dataset["frequency_min"]
@@ -278,7 +280,7 @@ def test_generate_component_rejects_out_of_bounds_final_frequency_interval(
     )
 
     with pytest.raises(ValueError, match=message):
-        dataset._generate_component_signal(generator)  # noqa: SLF001
+        dataset._generate_component_signal(generator)
 
 
 @pytest.mark.parametrize("generator_name", ["80211a_rts", "bpsk"])
@@ -1118,6 +1120,59 @@ def test_choose_start_sample_warns_when_signal_is_too_large():
         start_sample = dataset._choose_start_sample(iq_samples, signal)
 
     assert start_sample == 0
+
+
+@pytest.mark.parametrize(
+    ("center_freq", "bandwidth", "expected_bins"),
+    [
+        (0.0, 16.0, (0.0, 16.0)),
+        (0.0, 8.0, (4.0, 12.0)),
+        (-4.0, 4.0, (2.0, 6.0)),
+        (4.0, 4.0, (10.0, 14.0)),
+    ],
+    ids=["full-nyquist", "zero-centered-half-rate", "negative-center", "positive-center"],
+)
+def test_map_to_coordinates_uses_canonical_frequency_edges(center_freq, bandwidth, expected_bins):
+    """Frequency rectangles map canonical edges over the full Nyquist span."""
+    metadata = _small_metadata()
+    metadata.update({"fft_size": 16, "sample_rate": 16, "frequency_min": -8, "frequency_max": 8})
+    dataset = TorchSigIterableDataset(
+        metadata=metadata,
+        signal_generators=[],
+        validate_init=False,
+    )
+    signal = Signal(
+        data=np.ones(16, dtype=np.complex64),
+        center_freq=center_freq,
+        bandwidth=bandwidth,
+    )
+
+    rectangle = dataset._map_to_coordinates(signal, start_sample=0)
+
+    assert rectangle.coord_lower_left.y == expected_bins[0]
+    assert rectangle.coord_upper_right.y == expected_bins[1]
+
+
+@pytest.mark.parametrize(
+    ("second_center", "expected_overlap"),
+    [(-1.0, False), (-3.0, True), (-4.0, True)],
+    ids=["separated", "touching", "intersecting"],
+)
+def test_frequency_coordinate_rectangles_preserve_overlap_boundaries(second_center, expected_overlap):
+    """Canonical separation, touching, and intersection reach overlap logic unchanged."""
+    metadata = _small_metadata()
+    metadata.update({"fft_size": 16, "sample_rate": 16, "frequency_min": -8, "frequency_max": 8})
+    dataset = TorchSigIterableDataset(
+        metadata=metadata,
+        signal_generators=[],
+        validate_init=False,
+    )
+    first = Signal(data=np.ones(16, dtype=np.complex64), center_freq=-5, bandwidth=2)
+    second = Signal(data=np.ones(16, dtype=np.complex64), center_freq=second_center, bandwidth=2)
+    first_rectangle = dataset._map_to_coordinates(first, start_sample=0)
+    second_rectangle = dataset._map_to_coordinates(second, start_sample=0)
+
+    assert dataset._check_if_overlap(second_rectangle, [first_rectangle]) is expected_overlap
 
 
 def test_generate_new_signal_sets_component_start_and_clips_duration(monkeypatch):
@@ -2455,3 +2510,41 @@ def test_sampling_grouping_all_wideband_classes():
     )
 
     assert dataset.signal_generators
+
+
+@pytest.mark.parametrize(("color", "expected_ratio"), [("white", 1), ("pink", 8)])
+def test_background_generator(color, expected_ratio):
+    """Test the dataset background_generator feature using additive colored noise.
+    Bands separated by three octaves distinguish flat from 1/f power.
+    """
+    size = 32768
+    dataset = TorchSigIterableDataset(
+        signal_generators=[],
+        target_labels=[],
+        background_generator=partial(additive_noise, color=color),
+        metadata={
+            "num_iq_samples_dataset": size,
+            "num_signals_min": 0,
+            "num_signals_max": 0,
+            "fft_size": 256,
+            "fft_stride": 64,
+            "noise_power_db": -12.0,
+            "signal_duration_in_samples_max": size,
+        },
+        seed=42,
+    )
+    samples = next(dataset)
+    assert samples.shape == (size,)
+    assert samples.dtype == np.complex64
+    
+    # estimate noise floor
+    floor_db = compute_spectrogram(samples, 256, 64 * 16).mean()
+    assert floor_db == pytest.approx(-12.0, abs=0.01)
+    
+    spectrum = np.abs(np.fft.fft(samples)) ** 2
+    low = spectrum[size // 64 : size // 32].mean()
+    high = spectrum[size // 8 : size // 4].mean()
+    assert low / high == pytest.approx(expected_ratio, rel=0.25)
+    assert not np.array_equal(samples, next(dataset))
+    dataset.seed(42)
+    np.testing.assert_array_equal(samples, next(dataset))

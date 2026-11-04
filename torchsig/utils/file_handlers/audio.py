@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import os
 from collections import OrderedDict
 from contextlib import suppress
 from dataclasses import dataclass
@@ -12,6 +11,8 @@ from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import soundfile as sf
+
+from .resources import ProcessLocalResource
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
@@ -115,14 +116,12 @@ class AudioHandleCache:
             raise ValueError("audio_handle_cache_size must be nonnegative")
         self.max_size = max_size
         self._handles: OrderedDict[Path, sf.SoundFile] = OrderedDict()
-        self._pid = os.getpid()
+        self._resource = ProcessLocalResource()
 
     def _reset_after_process_change(self) -> None:
         """Discard inherited handles when the current process changes."""
-        pid = os.getpid()
-        if pid != self._pid:
+        if self._resource.process_changed():
             self.close()
-            self._pid = pid
 
     def setup(self) -> None:
         """Prepare the cache in the current process."""
@@ -142,14 +141,15 @@ class AudioHandleCache:
 
     def read(self, path: Path, start_frame: int, num_frames: int) -> np.ndarray:
         """Read exactly the requested frame range from ``path``."""
-        if self.max_size == 0:
-            self._reset_after_process_change()
-            with sf.SoundFile(path, mode="r") as handle:
-                handle.seek(start_frame)
-                return handle.read(frames=num_frames, dtype="float32", always_2d=True)
-        handle = self._get(path)
-        handle.seek(start_frame)
-        return handle.read(frames=num_frames, dtype="float32", always_2d=True)
+        with self._resource.synchronized():
+            if self.max_size == 0:
+                self._reset_after_process_change()
+                with sf.SoundFile(path, mode="r") as handle:
+                    handle.seek(start_frame)
+                    return handle.read(frames=num_frames, dtype="float32", always_2d=True)
+            handle = self._get(path)
+            handle.seek(start_frame)
+            return handle.read(frames=num_frames, dtype="float32", always_2d=True)
 
     def close(self) -> None:
         """Close and remove every cached handle."""
@@ -159,13 +159,13 @@ class AudioHandleCache:
 
     def __getstate__(self) -> dict[str, Any]:
         """Return pickle state without live process-local handles."""
-        return {"max_size": self.max_size, "_handles": OrderedDict(), "_pid": None}
+        return {"max_size": self.max_size, "_handles": OrderedDict(), "_resource": ProcessLocalResource()}
 
     def __setstate__(self, state: dict[str, Any]) -> None:
         """Restore an empty cache in the receiving process."""
         self.max_size = state["max_size"]
         self._handles = OrderedDict()
-        self._pid = os.getpid()
+        self._resource = ProcessLocalResource()
 
     def __del__(self) -> None:
         """Best-effort cleanup for readers not explicitly torn down."""

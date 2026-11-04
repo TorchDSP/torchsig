@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import concurrent.futures
 import math
+import shutil
+import tempfile
 import threading
 from dataclasses import dataclass
 from pathlib import Path
@@ -14,16 +16,8 @@ import yaml
 from torch.utils.data._utils.collate import default_collate as torch_default_collate
 from tqdm.auto import tqdm
 
-from torchsig.utils.file_handlers.hdf5 import HDF5Reader, HDF5Writer
-from torchsig.utils.file_handlers.homogeneous_hdf5 import (
-    HomogeneousHDF5Reader,
-    HomogeneousHDF5Writer,
-)
-from torchsig.utils.file_handlers.packed_hdf5 import (
-    PackedHDF5Reader,
-    PackedHDF5Writer,
-)
-from torchsig.utils.file_handlers.packed_npy import PackedNPYReader, PackedNPYWriter
+from torchsig.utils.file_handlers.hdf5 import HDF5Writer
+from torchsig.utils.file_handlers.registry import file_handler_registry
 
 if TYPE_CHECKING:
     from torch.utils.data import DataLoader
@@ -35,16 +29,10 @@ __all__ = ["DatasetCreator", "default_collate_fn", "identity_collate_fn"]
 
 
 _MISSING = object()
-_KNOWN_FILE_HANDLER_PAIRS = {
-    HDF5Writer: HDF5Reader,
-    PackedHDF5Writer: PackedHDF5Reader,
-    HomogeneousHDF5Writer: HomogeneousHDF5Reader,
-    PackedNPYWriter: PackedNPYReader,
-}
 
 
 def _resolve_file_reader(file_writer, file_reader):
-    expected_reader = _KNOWN_FILE_HANDLER_PAIRS.get(file_writer)
+    expected_reader = file_handler_registry.reader_for_writer(file_writer)
     if file_reader is None:
         return expected_reader
     if expected_reader is not None and file_reader is not expected_reader:
@@ -376,6 +364,48 @@ class DatasetCreator:
         return orig_target_labels, orig_collate_fn
 
     def create(self) -> None:
+        """Generate into a sibling staging directory and publish atomically."""
+        destination = self.root.resolve()
+        if destination.exists() and not self.overwrite:
+            self._create_in_place()
+            return
+
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        staging = Path(tempfile.mkdtemp(prefix=f".{destination.name}.", suffix=".staging", dir=destination.parent))
+        original_root = self.root
+        original_dataset_info = self.dataset_info_filepath
+        original_writer_info = self.writer_info_filepath
+        try:
+            self.root = staging
+            self.dataset_info_filepath = staging / "dataset_info.yaml"
+            self.writer_info_filepath = staging / "writer_info.yaml"
+            self._create_in_place()
+            self._publish_staging(staging, destination)
+        finally:
+            self.root = original_root
+            self.dataset_info_filepath = original_dataset_info
+            self.writer_info_filepath = original_writer_info
+            if staging.exists():
+                shutil.rmtree(staging)
+
+    def _publish_staging(self, staging: Path, destination: Path) -> None:
+        """Publish ``staging`` while restoring an existing destination on failure."""
+        backup: Path | None = None
+        if destination.exists():
+            backup = Path(tempfile.mkdtemp(prefix=f".{destination.name}.", suffix=".backup", dir=destination.parent))
+            backup.rmdir()
+            destination.replace(backup)
+        try:
+            staging.replace(destination)
+        except Exception:
+            if backup is not None and backup.exists() and not destination.exists():
+                backup.replace(destination)
+            raise
+        else:
+            if backup is not None and backup.exists():
+                shutil.rmtree(backup)
+
+    def _create_in_place(self) -> None:
         """Creates the dataset on disk by writing batches to the file handler.
 
         This method generates the dataset in batches and saves it to disk. If the

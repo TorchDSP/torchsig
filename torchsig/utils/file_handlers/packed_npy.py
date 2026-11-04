@@ -280,8 +280,7 @@ class PackedNPYReader(FileReader):
 
     def read(self, idx: int) -> Signal:
         """Read one record by index as a memory-mapped array view."""
-        if idx < 0 or idx >= len(self):
-            raise IndexError(f"Packed NPY sample index out of range: {idx}")
+        self.validate_index(idx)
         record = self.records[idx]
         start = int(record["sample_offset"])
         stop = start + int(record["sample_count"])

@@ -62,7 +62,7 @@ def test_clock_functionals_propagate_initial_phase(monkeypatch, functional) -> N
 
     def fake_sampling_clock_impairments(**kwargs):
         captured.update(kwargs)
-        return kwargs["x"]
+        return kwargs["x"], np.arange(len(kwargs["x"]))
 
     monkeypatch.setattr(F, "_sampling_clock_impairments", fake_sampling_clock_impairments)
     data = np.ones(8, dtype=np.complex64)

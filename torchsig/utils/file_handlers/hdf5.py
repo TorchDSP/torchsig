@@ -27,6 +27,7 @@ from torchsig.utils.abstractions import HierarchicalMetadataObject
 # TorchSig
 from torchsig.utils.dsp import torchsig_cache_version
 from torchsig.utils.file_handlers.base_handler import BaseFileHandler, FileReader, FileWriter
+from torchsig.utils.file_handlers.resources import ProcessLocalResource
 
 __all__ = [
     "HDF5FileHandler",
@@ -487,6 +488,14 @@ class HDF5Reader(FileReader):
         self._file = None
         self._len_cache = None
         self._locking = False  # do not lock data file
+        self._resource = ProcessLocalResource()
+
+    def __getstate__(self) -> dict[str, Any]:
+        """Return pickle state without a live HDF5 handle."""
+        state = self.__dict__.copy()
+        state["_file"] = None
+        state["_resource"] = ProcessLocalResource()
+        return state
 
     def __len__(self) -> int:
         """Returns the total number of samples in the dataset.
@@ -509,6 +518,7 @@ class HDF5Reader(FileReader):
         Returns:
             Signal: The sample as a Signal object.
         """
+        self.validate_index(idx)
         self._ensure_open()
         return load_signal_from_group_by_index(self._file, idx)
 
@@ -523,6 +533,9 @@ class HDF5Reader(FileReader):
         is opened lazily to mitigate issues with multiprocessing and worker
         initialization in PyTorch DataLoaders.
         """
+        if self._resource.process_changed() and self._file is not None:
+            self._file.close()
+            self._file = None
         if self._file is None:
             self._file = h5py.File(self.datapath, "r", locking=self._locking)
 

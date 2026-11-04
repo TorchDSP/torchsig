@@ -50,7 +50,7 @@ def test_standard_hdf5_writer_round_trips_array_metadata(tmp_path) -> None:
     assert loaded.scalar_value == 7
     np.testing.assert_array_equal(loaded.sequence_value, [1, 2, 3])
     np.testing.assert_array_equal(loaded.array_value, array_value)
-    assert "omitted_value" not in loaded.keys()  # noqa: SIM118 - metadata objects are not iterable
+    assert "omitted_value" not in loaded.keys()
 
 
 def test_standard_hdf5_writer_rejects_unsupported_array_metadata(tmp_path) -> None:

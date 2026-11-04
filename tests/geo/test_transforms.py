@@ -802,7 +802,7 @@ class TestPathLossIntegration:
 
     def test_with_torchsig_geo_dataset(self):
         """Verify PathLoss works in the full TorchSigGeoDataset pipeline."""
-        from torchsig.utils.defaults import TorchSigDefaults  # noqa: PLC0415
+        from torchsig.utils.defaults import TorchSigDefaults
 
         metadata = TorchSigDefaults().default_dataset_metadata.copy()
         metadata["num_iq_samples_dataset"] = SIGNAL_LENGTH
@@ -847,7 +847,7 @@ class TestPathDelayIntegration:
 
     def test_with_torchsig_geo_dataset(self):
         """Verify PathDelay works in the full TorchSigGeoDataset pipeline."""
-        from torchsig.utils.defaults import TorchSigDefaults  # noqa: PLC0415
+        from torchsig.utils.defaults import TorchSigDefaults
 
         metadata = TorchSigDefaults().default_dataset_metadata.copy()
         metadata["num_iq_samples_dataset"] = SIGNAL_LENGTH
@@ -1625,9 +1625,9 @@ class TestDopplerShiftApplication:
 
     def test_apply_with_signal_center_freq_and_geo_parent(self):
         """Verify DopplerShift works with center_freq in signal metadata."""
-        from torchsig.geo.datasets import Receiver, TorchSigGeoDataset  # noqa: PLC0415
-        from torchsig.geo.types import GeoPoint  # noqa: PLC0415
-        from torchsig.utils.defaults import TorchSigDefaults  # noqa: PLC0415
+        from torchsig.geo.datasets import Receiver, TorchSigGeoDataset
+        from torchsig.geo.types import GeoPoint
+        from torchsig.utils.defaults import TorchSigDefaults
 
         metadata = TorchSigDefaults().default_dataset_metadata.copy()
         metadata["num_iq_samples_dataset"] = SIGNAL_LENGTH
@@ -1671,9 +1671,9 @@ class TestDopplerShiftApplication:
 
     def test_apply_with_zero_velocity(self):
         """Verify DopplerShift works with zero velocity (stationary transmitter and receiver)."""
-        from torchsig.geo.datasets import Receiver, TorchSigGeoDataset  # noqa: PLC0415
-        from torchsig.geo.types import GeoPoint  # noqa: PLC0415
-        from torchsig.utils.defaults import TorchSigDefaults  # noqa: PLC0415
+        from torchsig.geo.datasets import Receiver, TorchSigGeoDataset
+        from torchsig.geo.types import GeoPoint
+        from torchsig.utils.defaults import TorchSigDefaults
 
         metadata = TorchSigDefaults().default_dataset_metadata.copy()
         metadata["num_iq_samples_dataset"] = SIGNAL_LENGTH
@@ -1707,9 +1707,9 @@ class TestDopplerShiftApplication:
 
     def test_apply_requires_position_metadata(self):
         """Verify DopplerShift requires position metadata."""
-        from torchsig.geo.datasets import Receiver, TorchSigGeoDataset  # noqa: PLC0415
-        from torchsig.geo.types import GeoPoint  # noqa: PLC0415
-        from torchsig.utils.defaults import TorchSigDefaults  # noqa: PLC0415
+        from torchsig.geo.datasets import Receiver, TorchSigGeoDataset
+        from torchsig.geo.types import GeoPoint
+        from torchsig.utils.defaults import TorchSigDefaults
 
         metadata = TorchSigDefaults().default_dataset_metadata.copy()
         metadata["num_iq_samples_dataset"] = SIGNAL_LENGTH

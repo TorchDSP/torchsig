@@ -16,7 +16,7 @@ dataset_yaml_name = "create_dataset_info.yaml"
 writer_yaml_name = "writer_info.yaml"
 
 
-def frequency_shift_signal(  # noqa: PLR0917
+def frequency_shift_signal(
     signal: Signal,
     center_freq_min: float,
     center_freq_max: float,

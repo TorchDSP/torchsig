@@ -1,11 +1,9 @@
 """Regression tests for the shared sampling-clock transform wrapper."""
 
-# ruff: noqa: INP001
-
 import numpy as np
 import pytest
 
-from torchsig.transforms import functional as F  # noqa: N812
+from torchsig.transforms import functional as F
 from torchsig.utils.dsp import (
     TorchSigComplexDataType,
     TorchSigRealDataType,
@@ -31,7 +29,7 @@ def _legacy_wrapper_output(data, implementation, *, seed: int, **impairment_kwar
         **impairment_kwargs,
     )
     filter_delay = (len(prototype_filter) - 1) / (2 * uprate)
-    return F._preserve_sampling_clock_output(  # noqa: SLF001
+    return F._preserve_sampling_clock_output(
         impaired,
         len(complex_data),
         start_position=filter_delay,

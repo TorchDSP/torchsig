@@ -297,6 +297,94 @@ def test_yolo_label_requires_selected_class_index_field(component_signal):
         YOLOLabel(class_index_field="family_index")(component_signal)
 
 
+def test_yolo_label_uses_final_clipped_frequency_interval(component_signal):
+    component_signal["center_freq"] = 450.0
+    component_signal["bandwidth"] = 100.0
+    component_signal["estimated_occupied_bandwidth"] = 100.0
+    component_signal["dataset_metadata"] = {
+        "sample_rate": 1000.0,
+        "frequency_min": -500.0,
+        "frequency_max": 500.0,
+    }
+
+    transformed = YOLOLabel()(component_signal)
+
+    assert transformed.lower_freq == pytest.approx(400.0)
+    assert transformed.upper_freq == pytest.approx(500.0)
+    assert transformed.yolo_label == pytest.approx((3, 0.5, 0.05, 0.5, 0.1))
+
+
+def test_yolo_label_allows_estimated_bandwidth_beyond_frequency_bounds(component_signal):
+    component_signal["center_freq"] = 475.0
+    component_signal["estimated_occupied_bandwidth"] = 100.0
+    component_signal["dataset_metadata"] = {
+        "sample_rate": 1000.0,
+        "frequency_min": -500.0,
+        "frequency_max": 500.0,
+    }
+
+    transformed = YOLOLabel()(component_signal)
+
+    assert transformed.yolo_label == pytest.approx((3, 0.5, 0.025, 0.5, 0.1))
+
+
+def test_yolo_label_rejects_center_outside_frequency_bounds(component_signal):
+    component_signal["center_freq"] = 525.0
+    component_signal["dataset_metadata"] = {
+        "sample_rate": 1000.0,
+        "frequency_min": -500.0,
+        "frequency_max": 500.0,
+    }
+
+    with pytest.raises(ValueError, match=r"center_freq 525\.0 is above frequency_max"):
+        YOLOLabel()(component_signal)
+
+
+def test_yolo_label_prefers_top_level_frequency_bounds(component_signal):
+    component_signal["center_freq"] = 490.0
+    component_signal["estimated_occupied_bandwidth"] = 100.0
+    component_signal["frequency_max"] = 475.0
+    component_signal["dataset_metadata"] = {
+        "sample_rate": 1000.0,
+        "frequency_min": -500.0,
+        "frequency_max": 500.0,
+    }
+
+    with pytest.raises(ValueError, match=r"center_freq 490\.0 is above frequency_max 475\.0"):
+        YOLOLabel()(component_signal)
+
+
+def test_yolo_label_does_not_validate_unused_canonical_bandwidth(component_signal):
+    component_signal["bandwidth"] = np.nan
+
+    transformed = YOLOLabel()(component_signal)
+
+    assert transformed.yolo_label == pytest.approx((3, 0.5, 0.4, 0.5, 0.1))
+
+
+@pytest.mark.parametrize("bandwidth", [0.0, -1.0, np.nan, np.inf])
+def test_yolo_label_rejects_invalid_selected_bandwidth(component_signal, bandwidth):
+    component_signal["estimated_occupied_bandwidth"] = bandwidth
+
+    with pytest.raises(ValueError, match="bandwidth must be finite and positive"):
+        YOLOLabel()(component_signal)
+
+
+def test_yolo_label_validates_explicit_canonical_bandwidth(component_signal):
+    component_signal["center_freq"] = 475.0
+    component_signal["bandwidth"] = 100.0
+    component_signal["estimated_occupied_bandwidth"] = 10.0
+    component_signal["dataset_metadata"] = {
+        "sample_rate": 1000.0,
+        "frequency_min": -500.0,
+        "frequency_max": 500.0,
+    }
+
+    YOLOLabel()(component_signal)
+    with pytest.raises(ValueError, match="above frequency_max"):
+        YOLOLabel(bandwidth_key="bandwidth")(component_signal)
+
+
 def test_grouping_label_uses_exact_value_rules(parent_signal):
     parent_signal.component_signals[0]["class_name"] = "bpsk"
     transform = GroupingLabel(

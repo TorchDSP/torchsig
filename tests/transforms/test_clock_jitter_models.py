@@ -1,13 +1,11 @@
 """Tests for jitter-model selection through the public transform APIs."""
 
-# ruff: noqa: INP001
-
 from types import SimpleNamespace
 
 import numpy as np
 import pytest
 
-from torchsig.transforms import functional as F  # noqa: N812
+from torchsig.transforms import functional as F
 from torchsig.transforms.transforms import ClockJitter
 
 
@@ -17,7 +15,7 @@ def test_clock_jitter_functional_forwards_model_parameters(monkeypatch, jitter_m
 
     def fake_sampling_clock_impairments(**kwargs):
         captured.update(kwargs)
-        return kwargs["x"]
+        return kwargs["x"], np.arange(len(kwargs["x"]))
 
     monkeypatch.setattr(F, "_sampling_clock_impairments", fake_sampling_clock_impairments)
     data = np.ones(16, dtype=np.complex64)
@@ -96,7 +94,7 @@ def test_clock_jitter_default_model_is_unchanged(monkeypatch) -> None:
 
     def fake_sampling_clock_impairments(**kwargs):
         captured.update(kwargs)
-        return kwargs["x"]
+        return kwargs["x"], np.arange(len(kwargs["x"]))
 
     monkeypatch.setattr(F, "_sampling_clock_impairments", fake_sampling_clock_impairments)
 
@@ -104,3 +102,18 @@ def test_clock_jitter_default_model_is_unchanged(monkeypatch) -> None:
 
     assert captured["jitter_model"] == "independent"
     assert captured["jitter_alpha"] == 0.9
+    assert captured["jitter_ppm"] == 10
+
+
+def test_clock_jitter_restores_omitted_boundary_position_without_sample_shift() -> None:
+    sample_count = 1_024
+    time = np.arange(sample_count)
+    data = np.exp(2j * np.pi * 0.1 * time).astype(np.complex64)
+    ideal = F.clock_jitter(data, jitter_ppm=0.0, rng=np.random.default_rng(4))
+
+    # This seed and magnitude move the first requested position just below the
+    # resampler boundary. The output must remain nominal-index aligned.
+    impaired = F.clock_jitter(data, jitter_ppm=500.0, rng=np.random.default_rng(4))
+
+    normalized_error = np.mean(np.abs(impaired - ideal) ** 2) / np.mean(np.abs(ideal) ** 2)
+    assert normalized_error < 1e-5

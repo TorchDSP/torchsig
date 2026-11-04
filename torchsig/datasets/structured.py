@@ -203,7 +203,7 @@ def _validate_materialized_samples(
                 raise ValueError(f"Structured validation failed at sample {index}, field {path}: values differ")
 
 
-def _record_validation_metadata(  # noqa: PLR0917
+def _record_validation_metadata(
     root: Path,
     mode: ValidationMode | None,
     count: int,

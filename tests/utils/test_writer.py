@@ -298,10 +298,10 @@ def test_writer_memory_growth(tmp_path):
     The per-run numbers are printed so they appear in the pytest log when
     running with ``-s`` and are useful for manual inspection.
     """
-    import gc  # noqa: PLC0415
-    import tracemalloc  # noqa: PLC0415
+    import gc
+    import tracemalloc
 
-    from torchsig.signals.signal_types import Signal  # noqa: PLC0415
+    from torchsig.signals.signal_types import Signal
 
     SEED = 27182
     BATCH_SIZE = 4

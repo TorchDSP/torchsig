@@ -641,8 +641,7 @@ class HomogeneousHDF5Reader(FileReader):
 
     def read(self, idx: int) -> Signal:
         """Read one complete signal by top-level dataset index."""
-        if idx < 0 or idx >= len(self):
-            raise IndexError(f"Homogeneous HDF5 sample index out of range: {idx}")
+        self.validate_index(idx)
         component_start = int(self._component_offsets[idx])
         component_stop = int(self._component_offsets[idx + 1])
         return Signal(
@@ -690,6 +689,15 @@ class HomogeneousHDF5Reader(FileReader):
         if start < 0 or stop < start or stop > len(self):
             raise IndexError(f"Homogeneous HDF5 batch range out of bounds: [{start}, {stop})")
         return self._data[start:stop]
+
+    def read_many(self, indices) -> list[Signal]:
+        """Read arbitrary signals, optimizing a unique contiguous request."""
+        requested = [self.validate_index(index) for index in indices]
+        if not requested:
+            return []
+        if requested == list(range(requested[0], requested[0] + len(requested))):
+            return self.read_signals_batch(requested[0], requested[-1] + 1)
+        return [self.read(index) for index in requested]
 
     def teardown(self) -> None:
         """Close the homogeneous HDF5 file."""

@@ -36,6 +36,7 @@ __all__ = [
     "estimate_filter_length",
     "estimate_occupied_bandwidth",
     "estimate_tone_bandwidth",
+    "frequency_hopping_offsets",
     "frequency_shift",
     "gaussian_taps",
     "generate_sampling_positions",
@@ -62,6 +63,7 @@ __all__ = [
     "slice_head_tail_to_length",
     "slice_tail_to_length",
     "srrc_taps",
+    "time_varying_frequency_shift",
     "upconversion_anti_aliasing_filter",
     "update_signal_snr",
     "update_signal_snr_bandwidth",
@@ -216,7 +218,7 @@ def pad_head_tail_to_length(input_signal: np.ndarray, num_samples: int) -> np.nd
 
 # apply an anti-aliasing filter to a signal which has aliased and wrapped around the
 # -fs/2 or +fs/2 boundary due to upconversion
-def upconversion_anti_aliasing_filter(  # noqa: PLR0917
+def upconversion_anti_aliasing_filter(
     input_signal: np.ndarray,
     center_freq: float,
     bandwidth: float,
@@ -1052,7 +1054,7 @@ def generate_sampling_positions(
     )
 
 
-def sampling_clock_impairments(  # noqa: PLR0917
+def sampling_clock_impairments(
     h: np.ndarray,
     x: np.ndarray,
     uprate: int,
@@ -1067,7 +1069,8 @@ def sampling_clock_impairments(  # noqa: PLR0917
     drift_rate_ppm_per_sec: float = 0.0,
     drift_noise_ppm_per_sqrt_sec: float = 0.0,
     sample_rate_hz: float = 1.0,
-) -> np.ndarray:
+    return_nominal_indices: bool = False,
+) -> np.ndarray | tuple[np.ndarray, np.ndarray]:
     """Apply sampling-clock jitter and drift using polyphase filtering.
 
     This function generates sampling positions with clock impairments
@@ -1092,9 +1095,12 @@ def sampling_clock_impairments(  # noqa: PLR0917
         drift_noise_ppm_per_sqrt_sec: Random-walk period-error innovation
             strength in ppm/sqrt(second).
         sample_rate_hz: Physical output sampling rate used for drift time scaling.
+        return_nominal_indices: Return the retained nominal sampling indices
+            with the output. Defaults to False for backward compatibility.
 
     Returns:
-        Output signal with clock impairments.
+        Output signal with clock impairments, or an ``(output,
+        nominal_indices)`` tuple when ``return_nominal_indices`` is true.
     """
     if not isinstance(uprate, (int, np.integer)) or uprate <= 0:
         raise ValueError("uprate must be a positive integer")
@@ -1116,12 +1122,15 @@ def sampling_clock_impairments(  # noqa: PLR0917
         sample_rate_hz=sample_rate_hz,
     )
 
-    return polyphase_resample_at_positions(
+    output = polyphase_resample_at_positions(
         h=h,
         x=x,
         uprate=uprate,
         positions=positions.actual,
     )
+    if return_nominal_indices:
+        return output, positions.nominal_indices
+    return output
 
 
 def upsample(signal: np.ndarray, rate: int) -> np.ndarray:
@@ -1233,6 +1242,95 @@ def frequency_shift(signal: np.ndarray, frequency: float, sample_rate: float) ->
     # build mixer
     mixer = np.exp(2j * np.pi * (frequency / sample_rate) * np.arange(0, len(signal))).astype(TorchSigComplexDataType)
     return signal * mixer
+
+
+def time_varying_frequency_shift(
+    signal: np.ndarray,
+    frequencies: np.ndarray,
+    sample_rate: float,
+) -> np.ndarray:
+    """Apply a phase-continuous, per-sample frequency shift to complex IQ.
+
+    The output is ``signal[n] * exp(1j * phase[n])``, where ``phase[0]`` is
+    zero and ``phase[n] = 2*pi/sample_rate * sum(frequencies[:n])``. Thus,
+    ``frequencies[n]`` is the phase increment from output sample ``n`` to
+    sample ``n + 1``; the final frequency value has no successor for a
+    finite-length waveform but is retained to keep one value per IQ sample.
+
+    Args:
+        signal: One-dimensional complex IQ waveform.
+        frequencies: One-dimensional frequency offsets in Hz, one per sample.
+        sample_rate: Sample rate in Hz.
+
+    Returns:
+        Frequency-shifted IQ with the input shape and dtype.
+
+    Raises:
+        TypeError: If ``signal`` is not complex-valued.
+        ValueError: If an input is not one-dimensional, array lengths differ,
+            the sample rate is not positive and finite, or an offset is not
+            finite.
+    """
+    data = np.asarray(signal)
+    offsets = np.asarray(frequencies)
+    if data.ndim != 1:
+        raise ValueError(f"signal must be one dimensional, got shape {data.shape}")
+    if not np.issubdtype(data.dtype, np.complexfloating):
+        raise TypeError("signal must contain complex IQ samples")
+    if offsets.ndim != 1:
+        raise ValueError(f"frequencies must be one dimensional, got shape {offsets.shape}")
+    if len(offsets) != len(data):
+        raise ValueError("frequencies must have one value per signal sample")
+    if not np.isfinite(sample_rate) or sample_rate <= 0:
+        raise ValueError("sample_rate must be positive and finite")
+    if not np.all(np.isfinite(offsets)):
+        raise ValueError("frequencies must contain only finite values")
+    if len(data) == 0:
+        return data.copy()
+
+    phase = np.zeros(len(data), dtype=np.float64)
+    np.cumsum(offsets[:-1], dtype=np.float64, out=phase[1:])
+    phase *= 2 * np.pi / sample_rate
+    mixer = np.exp(1j * phase).astype(data.dtype, copy=False)
+    return (data * mixer).astype(data.dtype, copy=False)
+
+
+def frequency_hopping_offsets(
+    num_samples: int,
+    frequency_span: float,
+    rng: np.random.Generator,
+) -> np.ndarray:
+    """Generate equal-interval, piecewise-constant frequency offsets.
+
+    One hop is used for a one-sample waveform. Otherwise, the hop count is
+    drawn uniformly from 2 through ``min(16, num_samples)`` and hop frequencies
+    are drawn uniformly from ``[-frequency_span / 2, frequency_span / 2)``.
+
+    Args:
+        num_samples: Number of offsets to generate.
+        frequency_span: Full frequency-offset span in Hz.
+        rng: NumPy random generator.
+
+    Returns:
+        Float64 frequency offsets with one value per sample.
+
+    Raises:
+        ValueError: If the sample count or frequency span is invalid.
+    """
+    if num_samples <= 0:
+        raise ValueError("num_samples must be positive")
+    if not np.isfinite(frequency_span) or frequency_span <= 0:
+        raise ValueError("frequency_span must be positive and finite")
+
+    max_hops = min(16, num_samples)
+    min_hops = min(2, max_hops)
+    num_hops = int(rng.integers(min_hops, max_hops + 1))
+    hop_frequencies = rng.uniform(-frequency_span / 2, frequency_span / 2, size=num_hops)
+    hop_index = np.minimum(
+        np.arange(num_samples) * num_hops // num_samples,
+        num_hops - 1,
+    )
+    return hop_frequencies[hop_index]
 
 
 def compute_spectrogram(iq_samples: np.ndarray, fft_size: int, fft_stride: int) -> np.ndarray:

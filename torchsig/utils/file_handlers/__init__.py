@@ -14,9 +14,16 @@ if TYPE_CHECKING:
     from . import packed_hdf5 as packed_hdf5
     from . import structured_hdf5 as structured_hdf5
     from . import structured_schema as structured_schema
+    from .audio_reader import AudioReader as AudioReader
     from .base_handler import BaseFileHandler as BaseFileHandler
     from .base_handler import FileReader as FileReader
     from .base_handler import FileWriter as FileWriter
+    from .errors import CorruptDatasetError as CorruptDatasetError
+    from .errors import FileHandlerError as FileHandlerError
+    from .errors import FileHandlerIndexError as FileHandlerIndexError
+    from .errors import IncompatibleOptionsError as IncompatibleOptionsError
+    from .errors import IncompleteDatasetError as IncompleteDatasetError
+    from .errors import UnsupportedSchemaError as UnsupportedSchemaError
     from .hdf5 import HDF5FileHandler as HDF5FileHandler
     from .hdf5 import HDF5Reader as HDF5Reader
     from .hdf5 import HDF5Writer as HDF5Writer
@@ -30,6 +37,9 @@ if TYPE_CHECKING:
     from .packed_hdf5 import PackedHDF5Writer as PackedHDF5Writer
     from .packed_npy import PackedNPYReader as PackedNPYReader
     from .packed_npy import PackedNPYWriter as PackedNPYWriter
+    from .registry import BackendSpec as BackendSpec
+    from .registry import FileHandlerRegistry as FileHandlerRegistry
+    from .registry import file_handler_registry as file_handler_registry
     from .sigmf import SigMFReader as SigMFReader
     from .structured_hdf5 import StructuredHDF5Reader as StructuredHDF5Reader
     from .structured_hdf5 import StructuredHDF5Writer as StructuredHDF5Writer
@@ -49,8 +59,15 @@ _EXPORTS = {
     "structured_hdf5": ("torchsig.utils.file_handlers.structured_hdf5", None),
     "structured_schema": ("torchsig.utils.file_handlers.structured_schema", None),
     "BaseFileHandler": ("torchsig.utils.file_handlers.base_handler", "BaseFileHandler"),
+    "AudioReader": ("torchsig.utils.file_handlers.audio_reader", "AudioReader"),
     "FileReader": ("torchsig.utils.file_handlers.base_handler", "FileReader"),
     "FileWriter": ("torchsig.utils.file_handlers.base_handler", "FileWriter"),
+    "FileHandlerError": ("torchsig.utils.file_handlers.errors", "FileHandlerError"),
+    "FileHandlerIndexError": ("torchsig.utils.file_handlers.errors", "FileHandlerIndexError"),
+    "IncompleteDatasetError": ("torchsig.utils.file_handlers.errors", "IncompleteDatasetError"),
+    "UnsupportedSchemaError": ("torchsig.utils.file_handlers.errors", "UnsupportedSchemaError"),
+    "CorruptDatasetError": ("torchsig.utils.file_handlers.errors", "CorruptDatasetError"),
+    "IncompatibleOptionsError": ("torchsig.utils.file_handlers.errors", "IncompatibleOptionsError"),
     "HDF5FileHandler": ("torchsig.utils.file_handlers.hdf5", "HDF5FileHandler"),
     "HDF5Reader": ("torchsig.utils.file_handlers.hdf5", "HDF5Reader"),
     "HDF5Writer": ("torchsig.utils.file_handlers.hdf5", "HDF5Writer"),
@@ -64,6 +81,9 @@ _EXPORTS = {
     "PackedHDF5Writer": ("torchsig.utils.file_handlers.packed_hdf5", "PackedHDF5Writer"),
     "PackedNPYReader": ("torchsig.utils.file_handlers.packed_npy", "PackedNPYReader"),
     "PackedNPYWriter": ("torchsig.utils.file_handlers.packed_npy", "PackedNPYWriter"),
+    "BackendSpec": ("torchsig.utils.file_handlers.registry", "BackendSpec"),
+    "FileHandlerRegistry": ("torchsig.utils.file_handlers.registry", "FileHandlerRegistry"),
+    "file_handler_registry": ("torchsig.utils.file_handlers.registry", "file_handler_registry"),
     "SigMFReader": ("torchsig.utils.file_handlers.sigmf", "SigMFReader"),
     "StructuredHDF5Reader": ("torchsig.utils.file_handlers.structured_hdf5", "StructuredHDF5Reader"),
     "StructuredHDF5Writer": ("torchsig.utils.file_handlers.structured_hdf5", "StructuredHDF5Writer"),

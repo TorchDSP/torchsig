@@ -9,7 +9,7 @@ from __future__ import annotations
 import inspect
 import json
 import random
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -27,20 +27,12 @@ from torchsig.datasets.datasets import (
 )
 from torchsig.datasets.structured import StructuredHDF5Dataset, materialize_structured_dataset
 from torchsig.transforms.impairments import Impairments
-from torchsig.transforms.metadata_transforms import GroupingLabel, YOLOLabel
+from torchsig.transforms.metadata_transforms import GroupingLabel, MetadataTransform, YOLOLabel
 from torchsig.transforms.transforms import ComplexTo2D, Spectrogram
 from torchsig.utils.data_loading import WorkerSeedingDataLoader
 from torchsig.utils.defaults import TorchSigDefaults
 from torchsig.utils.file_handlers.hdf5 import HDF5Reader, HDF5Writer
-from torchsig.utils.file_handlers.homogeneous_hdf5 import (
-    HomogeneousHDF5Reader,
-    HomogeneousHDF5Writer,
-)
-from torchsig.utils.file_handlers.packed_hdf5 import (
-    PackedHDF5Reader,
-    PackedHDF5Writer,
-)
-from torchsig.utils.file_handlers.packed_npy import PackedNPYReader, PackedNPYWriter
+from torchsig.utils.file_handlers.registry import file_handler_registry
 from torchsig.utils.random import Seedable
 from torchsig.utils.writer import DatasetCreator, identity_collate_fn
 from torchsig.utils.yaml import load_config_from_yaml
@@ -84,13 +76,7 @@ def _resolve_file_reader(file_writer, file_reader):
     Homogeneous HDF5 is opt-in and requires fixed-shape, fixed-dtype top-level
     samples. Component counts and component arrays may remain variable.
     """
-    known_pairs = {
-        HDF5Writer: HDF5Reader,
-        PackedHDF5Writer: PackedHDF5Reader,
-        HomogeneousHDF5Writer: HomogeneousHDF5Reader,
-        PackedNPYWriter: PackedNPYReader,
-    }
-    expected_reader = known_pairs.get(file_writer)
+    expected_reader = file_handler_registry.reader_for_writer(file_writer)
     if file_reader is None:
         return expected_reader or HDF5Reader
     if expected_reader is not None and file_reader is not expected_reader:
@@ -154,6 +140,39 @@ def _config_transforms(cfg: TorchSigDatasetConfig) -> list[Any]:
 
     fft_size = getattr(cfg, "fft_size", 256)
     return [Spectrogram(fft_size=int(fft_size))]
+
+
+def _resolve_metadata_transforms(
+    transforms: Sequence[MetadataTransform | str | Path | Mapping[str, Any]] | None,
+) -> list[MetadataTransform]:
+    """Resolve programmatic and declarative metadata transforms in order."""
+    if transforms is None:
+        return []
+    if isinstance(transforms, (str, bytes, Path, Mapping)) or not isinstance(transforms, Sequence):
+        raise TypeError("metadata_transforms must be a sequence")
+
+    resolved = []
+    for transform in transforms:
+        if isinstance(transform, MetadataTransform):
+            resolved.append(transform)
+        elif isinstance(transform, (str, Path)):
+            resolved.append(GroupingLabel(transform))
+        elif isinstance(transform, Mapping):
+            transform_type = transform.get("transform")
+            if transform_type is None:
+                resolved.append(GroupingLabel(transform))
+            elif transform_type == "GroupingLabel":
+                unknown = set(transform) - {"transform", "config"}
+                if unknown:
+                    raise ValueError(f"unknown GroupingLabel configuration fields: {sorted(unknown)}")
+                if "config" not in transform:
+                    raise ValueError("GroupingLabel configuration requires config")
+                resolved.append(GroupingLabel(transform["config"]))
+            else:
+                raise ValueError(f"unknown declarative metadata transform: {transform_type}")
+        else:
+            raise TypeError("metadata transforms must be MetadataTransform instances or GroupingLabel configurations")
+    return resolved
 
 
 def _metadata_debug_options(
@@ -469,6 +488,7 @@ class TorchSigDataModule(_StructuredMaterializationMixin, pl.LightningDataModule
         overwrite: bool = False,
         impairment_level: int = 0,
         transforms: list | None = None,
+        metadata_transforms: Sequence[MetadataTransform | str | Path | Mapping[str, Any]] | None = None,
         target_labels: list[str] | None = None,
         signal_generators: str | list = "all",
         sampling_grouping: GroupingLabel | str | Path | Mapping[str, Any] | None = None,
@@ -503,6 +523,8 @@ class TorchSigDataModule(_StructuredMaterializationMixin, pl.LightningDataModule
             overwrite: If True, existing data at `root` will be overwritten. Defaults to False.
             impairment_level: Level of synthetic impairment to apply. Defaults to 0 (no impairment).
             transforms: List of transforms applied to each sample's input. Defaults to [].
+            metadata_transforms: Ordered metadata transforms applied after
+                impairments and before representation-specific transforms.
             target_labels: Names of metadata fields to include. Defaults to None.
             signal_generators: Signal generators available during dataset creation.
             sampling_grouping: Optional grouping used to balance generator sampling.
@@ -541,7 +563,8 @@ class TorchSigDataModule(_StructuredMaterializationMixin, pl.LightningDataModule
         impairments = Impairments(level=impairment_level)
         self.burst_impairments = impairments.signal_transforms
         self.whole_signal_impairments = impairments.dataset_transforms
-        self.transforms = [self.whole_signal_impairments, *(transforms or [])]
+        self.metadata_transforms = _resolve_metadata_transforms(metadata_transforms)
+        self.transforms = [self.whole_signal_impairments, *self.metadata_transforms, *(transforms or [])]
 
         self.target_labels = target_labels
         self.signal_generators = signal_generators
@@ -605,6 +628,7 @@ class TorchSigDataModule(_StructuredMaterializationMixin, pl.LightningDataModule
         target_labels: list[str] | None = None,
         signal_generators: str | list = "all",
         sampling_grouping: GroupingLabel | str | Path | Mapping[str, Any] | None = None,
+        metadata_transforms: Sequence[MetadataTransform | str | Path | Mapping[str, Any]] | None = None,
         **kwargs,
     ) -> TorchSigDataModule:
         """Create a TorchSigDataModule from a TorchSigDatasetConfig or YAML path.
@@ -627,6 +651,9 @@ class TorchSigDataModule(_StructuredMaterializationMixin, pl.LightningDataModule
             target_labels: List of target label names (default: None → auto-select based on output_representation)
             signal_generators: Signal generators available during dataset creation.
             sampling_grouping: Optional grouping used to balance generator sampling.
+            metadata_transforms: Ordered metadata transform objects or
+                GroupingLabel configurations. These run before Spectrogram and
+                automatically constructed YOLOLabel transforms.
             **kwargs: Additional arguments passed to TorchSigDataModule constructor
 
         Returns:
@@ -683,6 +710,7 @@ class TorchSigDataModule(_StructuredMaterializationMixin, pl.LightningDataModule
             collate_fn=collate_fn,
             impairment_level=cfg.impairment_level,
             transforms=additional_transforms,
+            metadata_transforms=metadata_transforms,
             target_labels=target_labels or None,
             signal_generators=signal_generators,
             sampling_grouping=sampling_grouping,

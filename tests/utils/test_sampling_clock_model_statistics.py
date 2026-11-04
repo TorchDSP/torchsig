@@ -105,9 +105,7 @@ def test_random_walk_drift_ensemble_matches_theoretical_variances() -> None:
         period_index * innovation_variance,
         rel=variance_relative_tolerance,
     )
-    expected_timing_variance = (
-        innovation_variance * (timing_index - 1) * timing_index * (2 * timing_index - 1) / 6.0
-    )
+    expected_timing_variance = innovation_variance * (timing_index - 1) * timing_index * (2 * timing_index - 1) / 6.0
     assert np.var(timing_errors, ddof=1) == pytest.approx(
         expected_timing_variance,
         rel=variance_relative_tolerance,

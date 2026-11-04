@@ -238,7 +238,7 @@ def test_prototype_polyphase_filter_uses_configured_disk_cache(monkeypatch, tmp_
     monkeypatch.setattr(dsp, "low_pass_iterative_design", design)
 
     first = dsp.prototype_polyphase_filter(num_branches=12_346)
-    dsp._prototype_polyphase_filter_cached.cache_clear()  # noqa: SLF001 - verify the disk cache independently
+    dsp._prototype_polyphase_filter_cached.cache_clear()
     second = dsp.prototype_polyphase_filter(num_branches=12_346)
 
     np.testing.assert_array_equal(first, expected)

@@ -1,12 +1,96 @@
 """Utility to handle random number generators."""
 
+import hashlib
+import json
 import secrets
-from typing import Any, Optional
+from contextlib import contextmanager
+from typing import TYPE_CHECKING, Any, Optional
 
 import numpy as np
 from torch import Generator
 
-__all__ = ["ChoiceDistribution", "Distribution", "Log10UniformRangeDistribution", "Seedable", "UniformDistribution", "UniformRangeDistribution", "make_distribution"]
+if TYPE_CHECKING:
+    from collections.abc import Iterator
+
+__all__ = [
+    "ChoiceDistribution",
+    "Distribution",
+    "Log10UniformRangeDistribution",
+    "Seedable",
+    "UniformDistribution",
+    "UniformRangeDistribution",
+    "derive_keyed_seed",
+    "make_distribution",
+]
+
+_KEYED_SEED_DOMAIN = b"torchsig-keyed-replay-v1\0"
+_MAX_SEED = 2**64 - 1
+
+
+def derive_keyed_seed(
+    base_seed: int,
+    *,
+    sample_identity: str | int,
+    impairment_identity: str,
+    severity: str | float,
+    replicate: int = 0,
+) -> int:
+    """Derive a stable 64-bit seed for one impairment realization.
+
+    The version-1 contract hashes a domain separator followed by a compact,
+    UTF-8 JSON array containing the typed values ``base_seed``,
+    ``sample_identity``, ``impairment_identity``, ``severity``, and
+    ``replicate`` in that order. SHA-256's first eight digest bytes are decoded
+    as an unsigned big-endian integer. This definition is stable across Python
+    processes and does not depend on Python's randomized :func:`hash`.
+
+    Args:
+        base_seed: Non-negative experiment seed no greater than ``2**64 - 1``.
+        sample_identity: Stable integer or string identifying the clean sample.
+        impairment_identity: Stable non-empty name for the impairment or pipeline.
+        severity: Stable string or numeric condition severity.
+        replicate: Non-negative replicate number. Defaults to zero.
+
+    Returns:
+        A deterministic unsigned 64-bit seed.
+
+    Raises:
+        TypeError: If a key component has an unsupported type.
+        ValueError: If a numeric value is out of range, an identity is empty,
+            or severity is not finite.
+    """
+    if isinstance(base_seed, bool) or not isinstance(base_seed, int):
+        raise TypeError("base_seed must be an integer")
+    if not 0 <= base_seed <= _MAX_SEED:
+        raise ValueError("base_seed must be between 0 and 2**64 - 1")
+    if isinstance(sample_identity, bool) or not isinstance(sample_identity, (str, int)):
+        raise TypeError("sample_identity must be a string or integer")
+    if isinstance(sample_identity, str) and not sample_identity:
+        raise ValueError("sample_identity cannot be empty")
+    if not isinstance(impairment_identity, str):
+        raise TypeError("impairment_identity must be a string")
+    if not impairment_identity:
+        raise ValueError("impairment_identity cannot be empty")
+    if isinstance(severity, bool) or not isinstance(severity, (str, int, float)):
+        raise TypeError("severity must be a string, integer, or float")
+    if isinstance(severity, str) and not severity:
+        raise ValueError("severity cannot be empty")
+    if isinstance(replicate, bool) or not isinstance(replicate, int):
+        raise TypeError("replicate must be an integer")
+    if replicate < 0:
+        raise ValueError("replicate cannot be negative")
+
+    try:
+        encoded_key = json.dumps(
+            [base_seed, sample_identity, impairment_identity, severity, replicate],
+            ensure_ascii=True,
+            allow_nan=False,
+            separators=(",", ":"),
+        ).encode("utf-8")
+    except ValueError as exc:
+        raise ValueError("severity must be finite") from exc
+    digest = hashlib.sha256(_KEYED_SEED_DOMAIN + encoded_key).digest()
+    return int.from_bytes(digest[:8], byteorder="big", signed=False)
 
 
 class Seedable:
@@ -85,6 +169,50 @@ class Seedable:
         """
         self.rng_seed = seed
         self.setup_rngs()
+
+    @contextmanager
+    def keyed_replay(
+        self,
+        base_seed: int,
+        *,
+        sample_identity: str | int,
+        impairment_identity: str,
+        severity: str | float,
+        replicate: int = 0,
+    ) -> "Iterator[int]":
+        """Temporarily seed this RNG hierarchy for one keyed realization.
+
+        Exiting the context restores the exact NumPy and Torch generator
+        objects used by the sequential RNG mode, including their positions.
+        The context is therefore opt-in and does not consume or reset the
+        surrounding sequential stream. It is not safe to overlap contexts on
+        the same object from multiple threads.
+
+        Args:
+            base_seed: Experiment seed used by :func:`derive_keyed_seed`.
+            sample_identity: Stable identity of the clean sample.
+            impairment_identity: Stable impairment or pipeline identity.
+            severity: Stable condition severity.
+            replicate: Non-negative replicate number. Defaults to zero.
+
+        Yields:
+            The derived seed used inside the context.
+        """
+        replay_seed = derive_keyed_seed(
+            base_seed,
+            sample_identity=sample_identity,
+            impairment_identity=impairment_identity,
+            severity=severity,
+            replicate=replicate,
+        )
+        sequential_state = (self.rng_seed, self.np_rng, self.torch_rng, self.random_generator)
+        self.seed(replay_seed)
+        try:
+            yield replay_seed
+        finally:
+            self.rng_seed, self.np_rng, self.torch_rng, self.random_generator = sequential_state
+            for child in self.children:
+                child.update_from_parent()
 
     def get_second_seed(self, seed: int) -> int:
         """Gets second seed, usually used to seed both torch and numpy generators with slightly different seeds.

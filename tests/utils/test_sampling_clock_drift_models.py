@@ -88,9 +88,7 @@ def test_random_walk_ensemble_statistics_match_theory() -> None:
         period_index * innovation_variance,
         rel=variance_relative_tolerance,
     )
-    expected_position_variance = (
-        innovation_variance * (position_index - 1) * position_index * (2 * position_index - 1) / 6.0
-    )
+    expected_position_variance = innovation_variance * (position_index - 1) * position_index * (2 * position_index - 1) / 6.0
     assert np.var(position_errors, ddof=1) == pytest.approx(
         expected_position_variance,
         rel=variance_relative_tolerance,

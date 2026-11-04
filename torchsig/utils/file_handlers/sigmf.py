@@ -97,8 +97,7 @@ class SigMFReader(MetadataReader):
 
     def read(self, idx: int) -> Signal:
         """Read one dataset element by global element index."""
-        if idx < 0 or idx >= self.dataset_size:
-            raise IndexError(f"index {idx} out of range")
+        self.validate_index(idx)
 
         file_idx = bisect.bisect_right(self.file_start_indices, idx) - 1
         element_offset = idx - self.file_start_indices[file_idx]

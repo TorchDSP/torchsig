@@ -40,6 +40,7 @@ from torchsig.utils.file_handlers.metadata_codec import (
     decode_metadata,
     encode_metadata,
 )
+from torchsig.utils.file_handlers.resources import ProcessLocalResource
 
 __all__ = ["PackedHDF5Reader", "PackedHDF5Writer"]
 
@@ -679,8 +680,32 @@ class PackedHDF5Reader(FileReader):
         self._metadata_cache: dict[int, dict[str, Any]] = {}
         self._locking = False
         self.schema: PackedHDF5Schema | None = None
+        self._resource = ProcessLocalResource()
+
+    def __getstate__(self) -> dict[str, Any]:
+        """Return pickle state without live HDF5 objects."""
+        state = self.__dict__.copy()
+        for name in (
+            "_file",
+            "_records",
+            "_metadata",
+            "_components",
+            "_shapes",
+            "_index",
+            "_data",
+            "_data_streams",
+            "_dtypes",
+            "_parent_records",
+            "_parent_metadata",
+        ):
+            state.pop(name, None)
+        state["_file"] = None
+        state["_resource"] = ProcessLocalResource()
+        return state
 
     def _ensure_open(self) -> None:
+        if self._resource.process_changed() and self._file is not None:
+            self.teardown()
         if self._file is None:
             self._file = h5py.File(self.datapath, "r", locking=self._locking)
             try:
@@ -929,8 +954,7 @@ class PackedHDF5Reader(FileReader):
 
     def read(self, idx: int) -> Signal:
         """Read a top-level signal by dataset index."""
-        if idx < 0 or idx >= len(self):
-            raise IndexError(f"Packed HDF5 sample index out of range: {idx}")
+        self.validate_index(idx)
         return self._read_record(int(self._index[idx]))
 
     def teardown(self) -> None:

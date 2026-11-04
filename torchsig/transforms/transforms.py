@@ -13,7 +13,13 @@ import numpy.typing as npt
 import torchsig.transforms.functional as F  # noqa: N812 - conventional functional API alias
 from torchsig.signals.signal_types import Signal
 from torchsig.transforms.base_transforms import Transform
-from torchsig.utils.dsp import TorchSigComplexDataType, TorchSigRealDataType, low_pass
+from torchsig.utils.dsp import (
+    TorchSigComplexDataType,
+    TorchSigRealDataType,
+    frequency_hopping_offsets,
+    low_pass,
+    time_varying_frequency_shift,
+)
 
 __all__ = [
     "AWGN",
@@ -33,6 +39,7 @@ __all__ = [
     "DigitalAGC",
     "Doppler",
     "Fading",
+    "FrequencyHopping",
     "IQImbalance",
     "InterleaveComplex",
     "IntermodulationProducts",
@@ -52,6 +59,8 @@ __all__ = [
     "TimeVaryingNoise",
     "reconstruct_spectrogram_support_vectors",
 ]
+
+_MINIMUM_DRIFT_PPM_EXCLUSIVE = -1_000_000.0
 
 
 def reconstruct_spectrogram_support_vectors(
@@ -548,6 +557,85 @@ class CarrierFrequencyDrift(SignalTransform):
         return signal
 
 
+class FrequencyHopping(SignalTransform):
+    """Apply experimental, phase-continuous frequency hopping to IQ data.
+
+    The input waveform is not regenerated: a piecewise-constant frequency
+    translation is applied across approximately equal-duration intervals.
+    ``frequency_span`` is the full range, in Hz, from which offsets are drawn.
+
+    Frequency metadata describes the union occupied over all generated hops.
+    The output center is the midpoint of that union and its bandwidth is the
+    original occupied bandwidth plus the realized offset range. Per-hop
+    frequency metadata is intentionally deferred because the current Signal
+    metadata schema has no time-varying frequency representation.
+
+    Warning:
+        This transform is experimental and its API may change with the FHSS
+        signal family work.
+    """
+
+    def __init__(self, frequency_span: float, **kwargs) -> None:
+        """Initialize the hopping transform.
+
+        Args:
+            frequency_span: Full uniform frequency-offset span in Hz.
+            **kwargs: Additional arguments passed to :class:`SignalTransform`.
+
+        Raises:
+            ValueError: If ``frequency_span`` is not positive and finite.
+        """
+        if not np.isfinite(frequency_span) or frequency_span <= 0:
+            raise ValueError("frequency_span must be positive and finite")
+        super().__init__(
+            required_metadata=["sample_rate", "center_freq", "bandwidth"],
+            data_dtype=None,
+            **kwargs,
+        )
+        self.frequency_span = float(frequency_span)
+        self._last_frequency_offsets: npt.NDArray[np.float64] | None = None
+
+    def __apply__(self, signal: Signal) -> Signal:
+        """Apply one randomly generated hopping plan to ``signal``."""
+        if signal.data.ndim != 1:
+            raise ValueError(f"signal data must be one dimensional, got shape {signal.data.shape}")
+        if not np.issubdtype(signal.data.dtype, np.complexfloating):
+            raise TypeError("signal data must contain complex IQ samples")
+        if not np.isfinite(signal.sample_rate) or signal.sample_rate <= 0:
+            raise ValueError("sample_rate must be positive and finite")
+        if not np.isfinite(signal.center_freq) or not np.isfinite(signal.bandwidth) or signal.bandwidth < 0:
+            raise ValueError("center_freq and bandwidth must be finite, with nonnegative bandwidth")
+        nyquist = signal.sample_rate / 2
+
+        num_samples = len(signal.data)
+        if num_samples == 0:
+            self._last_frequency_offsets = np.empty(0, dtype=np.float64)
+            return signal
+
+        frequency_offsets = frequency_hopping_offsets(
+            num_samples,
+            self.frequency_span,
+            self.random_generator,
+        )
+        self._last_frequency_offsets = frequency_offsets
+
+        original_lower = signal.lower_freq
+        original_upper = signal.upper_freq
+        shifted_lower = original_lower + float(np.min(frequency_offsets))
+        shifted_upper = original_upper + float(np.max(frequency_offsets))
+        if shifted_lower < -nyquist or shifted_upper > nyquist:
+            raise ValueError("frequency hopping would move signal support beyond Nyquist")
+
+        signal.data = time_varying_frequency_shift(
+            signal.data,
+            frequency_offsets,
+            signal.sample_rate,
+        )
+        signal.center_freq = (shifted_lower + shifted_upper) / 2
+        signal.bandwidth = shifted_upper - shifted_lower
+        return signal
+
+
 class CarrierPhaseNoise(SignalTransform):
     """Apply Carrier phase noise to signal.
 
@@ -715,7 +803,7 @@ class ClockDrift(SignalTransform):
         drift_values = np.asarray(drift_ppm, dtype=float)
         rate_values = np.asarray(drift_rate_ppm_per_sec, dtype=float)
         noise_values = np.asarray(drift_noise_ppm_per_sqrt_sec, dtype=float)
-        if np.any(~np.isfinite(drift_values)) or np.any(drift_values <= -1_000_000.0):
+        if np.any(~np.isfinite(drift_values)) or np.any(drift_values <= _MINIMUM_DRIFT_PPM_EXCLUSIVE):
             raise ValueError("drift_ppm must be finite and greater than -1000000")
         if np.any(~np.isfinite(rate_values)):
             raise ValueError("drift_rate_ppm_per_sec must be finite")

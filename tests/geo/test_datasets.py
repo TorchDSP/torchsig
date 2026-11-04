@@ -60,8 +60,8 @@ class TestTransmitter:
 
     def test_dataset_without_sample_rate_raises(self, tx_pos):
         """Verify ValueError raised when dataset is missing sample_rate metadata."""
-        from torchsig.datasets import TorchSigIterableDataset  # noqa: PLC0415
-        from torchsig.utils.defaults import TorchSigDefaults  # noqa: PLC0415
+        from torchsig.datasets import TorchSigIterableDataset
+        from torchsig.utils.defaults import TorchSigDefaults
 
         metadata = TorchSigDefaults().default_dataset_metadata.copy()
         # Remove sample_rate - need to remove from the defaults properly
@@ -993,8 +993,8 @@ class TestGeoFilesSerialization:
 
     def test_to_yaml_dat_pairs_integer_data_requires_normalization(self, source_dataset, tx_pos, rx_pos, temp_dir):
         """Verify that writing to integer formats raises ValueError for unnormalized data."""
-        from torchsig.geo.datasets import Receiver, TorchSigGeoDataset, Transmitter  # noqa: PLC0415
-        from torchsig.transforms.base_transforms import Lambda  # noqa: PLC0415
+        from torchsig.geo.datasets import Receiver, TorchSigGeoDataset, Transmitter
+        from torchsig.transforms.base_transforms import Lambda
 
         # Clean directory
         for f in temp_dir.glob("*"):
@@ -1564,7 +1564,7 @@ class TestValidationHelpers:
 
     def test_validate_position_type_valid_geo_point(self):
         """Test _validate_position_type passes for valid GeoPoint."""
-        from torchsig.geo.datasets import GeoPoint, _validate_callable_or_instance  # noqa: PLC0415
+        from torchsig.geo.datasets import GeoPoint, _validate_callable_or_instance
 
         point = GeoPoint(lat=37.7749, lon=-122.4194, alt=10)
         # Should not raise
@@ -1572,7 +1572,7 @@ class TestValidationHelpers:
 
     def test_validate_position_type_valid_callable(self):
         """Test _validate_position_type passes for callable returning GeoPoint."""
-        from torchsig.geo.datasets import GeoPoint, _validate_callable_or_instance  # noqa: PLC0415
+        from torchsig.geo.datasets import GeoPoint, _validate_callable_or_instance
 
         def position_func(frame_index):
             return GeoPoint(lat=37.7749, lon=-122.4194, alt=10)
@@ -1581,28 +1581,28 @@ class TestValidationHelpers:
 
     def test_validate_position_type_invalid_type(self):
         """Test _validate_position_type fails for non-GeoPoint, non-callable."""
-        from torchsig.geo.datasets import GeoPoint, _validate_callable_or_instance  # noqa: PLC0415
+        from torchsig.geo.datasets import GeoPoint, _validate_callable_or_instance
 
         with pytest.raises(TypeError, match="position must be a GeoPoint or callable"):
             _validate_callable_or_instance("not a point", "Transmitter", "position", GeoPoint, allow_none=False)
 
     def test_validate_velocity_type_valid_none(self):
         """Test _validate_velocity_type passes for None velocity."""
-        from torchsig.geo.datasets import GeoVelocity, _validate_callable_or_instance  # noqa: PLC0415
+        from torchsig.geo.datasets import GeoVelocity, _validate_callable_or_instance
 
         # Should not raise
         _validate_callable_or_instance(None, "Transmitter", "velocity", GeoVelocity, allow_none=True)
 
     def test_validate_velocity_type_valid_geo_velocity(self):
         """Test _validate_velocity_type passes for valid GeoVelocity."""
-        from torchsig.geo.datasets import GeoVelocity, _validate_callable_or_instance  # noqa: PLC0415
+        from torchsig.geo.datasets import GeoVelocity, _validate_callable_or_instance
 
         vel = GeoVelocity(east=10.0, north=5.0, up=2.0)
         _validate_callable_or_instance(vel, "Transmitter", "velocity", GeoVelocity, allow_none=True)
 
     def test_validate_velocity_type_valid_callable(self):
         """Test _validate_velocity_type passes for callable returning GeoVelocity."""
-        from torchsig.geo.datasets import GeoVelocity, _validate_callable_or_instance  # noqa: PLC0415
+        from torchsig.geo.datasets import GeoVelocity, _validate_callable_or_instance
 
         def velocity_func(frame_index):
             return GeoVelocity(east=10.0, north=5.0, up=2.0)
@@ -1611,14 +1611,14 @@ class TestValidationHelpers:
 
     def test_validate_velocity_type_invalid_type(self):
         """Test _validate_velocity_type fails for non-GeoVelocity, non-callable, non-None."""
-        from torchsig.geo.datasets import GeoVelocity, _validate_callable_or_instance  # noqa: PLC0415
+        from torchsig.geo.datasets import GeoVelocity, _validate_callable_or_instance
 
         with pytest.raises(TypeError, match="velocity must be a GeoVelocity or callable"):
             _validate_callable_or_instance("not a velocity", "Transmitter", "velocity", GeoVelocity, allow_none=True)
 
     def test_validate_position_callable_tests_at_init(self):
         """Test that callable position is called with frame_index=0 during validation."""
-        from torchsig.geo.datasets import GeoPoint, _validate_callable_or_instance  # noqa: PLC0415
+        from torchsig.geo.datasets import GeoPoint, _validate_callable_or_instance
 
         call_count = 0
 
@@ -1634,8 +1634,8 @@ class TestValidationHelpers:
 
     def test_validate_velocity_callable_does_not_call_at_init(self):
         """Validation must accept a velocity callable without invoking it."""
-        from torchsig.geo.datasets import _validate_callable_or_instance  # noqa: PLC0415
-        from torchsig.geo.types import GeoVelocity  # noqa: PLC0415
+        from torchsig.geo.datasets import _validate_callable_or_instance
+        from torchsig.geo.types import GeoVelocity
 
         call_count = 0
 
@@ -2067,7 +2067,7 @@ class TestCoverageEdgeCases:
 
     def test_signal_duration_validation_raises_nan_duration(self, minimal_metadata):
         """Test line 864: ValueError for non-finite signal duration (nan)."""
-        from unittest.mock import patch  # noqa: PLC0415
+        from unittest.mock import patch
 
         # Create a transmitter that returns a signal where duration calculation results in nan
         # Duration is calculated as: len(tx_signal.data) / receiver.sample_rate

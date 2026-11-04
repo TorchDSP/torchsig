@@ -81,9 +81,20 @@ def _preserve_sampling_clock_output(
     data: np.ndarray,
     length: int,
     start_position: float | None = None,
+    nominal_indices: np.ndarray | None = None,
 ) -> np.ndarray:
     """Align sampling-clock output and return complex64 ``length`` samples."""
     output = np.asarray(data, dtype=TorchSigComplexDataType)
+    if nominal_indices is not None:
+        nominal_indices = np.asarray(nominal_indices, dtype=np.int64)
+        if len(nominal_indices) != len(output):
+            raise ValueError("nominal_indices must have one entry per output sample")
+        required_length = length
+        if start_position is not None:
+            required_length = int(np.ceil(start_position + length)) + 1
+        if len(nominal_indices) and (nominal_indices[0] != 0 or np.any(np.diff(nominal_indices) != 1) or nominal_indices[-1] + 1 < required_length):
+            restored_indices = np.arange(max(required_length, nominal_indices[-1] + 1))
+            output = (np.interp(restored_indices, nominal_indices, output.real) + 1j * np.interp(restored_indices, nominal_indices, output.imag)).astype(TorchSigComplexDataType)
     if start_position is not None:
         if len(output) == 0:
             return np.zeros(length, dtype=TorchSigComplexDataType)
@@ -138,7 +149,7 @@ def _apply_sampling_clock_impairment(
     complex_data = data.astype(TorchSigComplexDataType)
     uprate = 5000
     prototype_filter = prototype_polyphase_filter(num_branches=uprate).astype(TorchSigRealDataType)
-    impaired_data = _sampling_clock_impairments(
+    impaired_data, nominal_indices = _sampling_clock_impairments(
         h=prototype_filter,
         x=complex_data,
         uprate=uprate,
@@ -153,9 +164,15 @@ def _apply_sampling_clock_impairment(
         drift_rate_ppm_per_sec=drift_rate_ppm_per_sec,
         drift_noise_ppm_per_sqrt_sec=drift_noise_ppm_per_sqrt_sec,
         sample_rate_hz=sample_rate_hz,
+        return_nominal_indices=True,
     )
     filter_delay = (len(prototype_filter) - 1) / (2 * uprate)
-    return _preserve_sampling_clock_output(impaired_data, len(complex_data), start_position=filter_delay)
+    return _preserve_sampling_clock_output(
+        impaired_data,
+        len(complex_data),
+        start_position=filter_delay,
+        nominal_indices=nominal_indices,
+    )
 
 
 log = logging.getLogger(__name__)
@@ -326,7 +343,9 @@ def clock_drift(
     Args:
         data: Complex valued IQ data samples.
         drift_ppm: Signed initial sampling-period error in ppm. Positive values
-            advance input positions faster. Defaults to 10.
+            advance input positions faster. The 10 ppm default is an
+            augmentation-oriented reference value; pass a hardware-specific
+            value for physical simulation.
         rng: Random number generator. Defaults to np.random.default_rng(seed=None).
         initial_phase: Initial sampling phase in input-sample periods. Must be
             in the half-open interval ``[0, 1)``. Defaults to 0.
@@ -377,7 +396,10 @@ def clock_jitter(
 
     Args:
         data: Complex valued IQ data samples.
-        jitter_ppm: Jitter in parts per million (ppm). Default 10.
+        jitter_ppm: Standard deviation of the timing error, expressed in ppm
+            of one input-sample period. The 10 ppm default is therefore
+            0.03 sample RMS and is augmentation-oriented. Pass a value derived
+            from timing jitter and sample rate for physical simulation.
         rng: Random number generator. Defaults to np.random.default_rng(seed=None).
         initial_phase: Initial sampling phase in input-sample periods. Must be
             in the half-open interval ``[0, 1)``. Defaults to 0.
@@ -577,7 +599,7 @@ def digital_agc(
     return output.astype(TorchSigComplexDataType)
 
 
-def _digital_agc_python(  # noqa: PLR0917
+def _digital_agc_python(
     data: np.ndarray,
     initial_gain_db: float,
     alpha_smooth: float,
@@ -1440,6 +1462,75 @@ def phase_offset(data: np.ndarray, phase: float) -> np.ndarray:
     return (data * np.exp(1j * phase)).astype(TorchSigComplexDataType)
 
 
+def _quantize_iq(
+    data: np.ndarray,
+    num_bits: int,
+    ref_level_adjustment_db: float,
+    rounding_mode: Literal["floor", "ceiling"],
+    *,
+    axis: int | None = None,
+) -> np.ndarray:
+    """Quantize complex IQ globally or independently along an array axis.
+
+    Args:
+        data: Finite complex IQ samples.
+        num_bits: Number of quantization bits.
+        ref_level_adjustment_db: Reference-level adjustment in decibels.
+        rounding_mode: Quantization threshold placement.
+        axis: Sample axis for independent row-wise quantization. If ``None``,
+            use one scale for the complete input array.
+
+    Returns:
+        Quantized complex64 IQ with the same shape as ``data``.
+
+    Raises:
+        ValueError: If the rounding mode is unsupported.
+    """
+    num_levels = 2**num_bits
+    quant_levels = np.arange(-num_levels // 2, num_levels // 2) / (num_levels // 2)
+    distance = quant_levels[1] - quant_levels[0]
+    if rounding_mode == "floor":
+        thresholds = quant_levels + distance / 2
+    elif rounding_mode == "ceiling":
+        thresholds = quant_levels - distance / 2
+    else:
+        raise ValueError(f"quantize() rounding mode is: {rounding_mode}, must be ceiling or floor")
+
+    maximum = np.maximum(
+        np.max(np.abs(data.real), axis=axis),
+        np.max(np.abs(data.imag), axis=axis),
+    )
+    result = np.zeros(data.shape, dtype=TorchSigComplexDataType)
+    nonzero = maximum != 0
+    if not np.any(nonzero):
+        return result
+
+    scale = 10 ** (ref_level_adjustment_db / 20)
+    if axis is None:
+        selected = data * scale / maximum
+        output_index = (...,)
+        unscale = maximum
+    else:
+        if axis not in (1, -1):
+            raise ValueError("_quantize_iq() row-wise quantization requires a two-dimensional array with axis=1")
+        selected_maximum = maximum[nonzero]
+        selected = data[nonzero] * scale / selected_maximum[:, np.newaxis]
+        output_index = nonzero
+        unscale = selected_maximum[:, np.newaxis]
+
+    def quantize_component(component: np.ndarray) -> np.ndarray:
+        indices = np.digitize(component, thresholds)
+        # The established scalar behavior treats the lowest threshold as
+        # saturated, while np.digitize assigns equality to the next bin.
+        indices = np.where(component <= thresholds[0], 0, indices)
+        indices = np.clip(indices, 0, len(quant_levels) - 1)
+        return quant_levels[indices].astype(TorchSigRealDataType, copy=False)
+
+    quantized = quantize_component(selected.real) + 1j * quantize_component(selected.imag)
+    result[output_index] = (quantized * unscale / scale).astype(TorchSigComplexDataType)
+    return result
+
+
 def quantize(
     data: np.ndarray,
     num_bits: int,
@@ -1472,88 +1563,18 @@ def quantize(
         raise TypeError("quantize() num_bits must be an integer.")
 
     data = np.asarray(data)  # force ndarray for consistent behavior
-    orig_shape = data.shape
-
     # reject non-finite inputs
     if np.isnan(data).any():
         raise ValueError("quantize() input contains one or more NaN (np.nan) values.")
     if np.isinf(data).any():
         raise ValueError("quantize() input contains one or more infinite (np.inf) values.")
 
-    # calculate number of levels
-    num_levels = int(2**num_bits)
-
-    # establish quantization levels
-    quant_levels = np.arange(-num_levels // 2, num_levels // 2) / (num_levels // 2)
-
-    # the distance between two quantization levels
-    quant_level_distance = quant_levels[1] - quant_levels[0]
-
-    # determine threshold levels
-    if rounding_mode == "floor":
-        threshold_levels = quant_levels + (quant_level_distance / 2)
-    elif rounding_mode == "ceiling":
-        threshold_levels = quant_levels - (quant_level_distance / 2)
-    else:
-        raise ValueError(f"quantize() rounding mode is: {rounding_mode}, must be ceiling or floor")
-
-    # determine maximum value of signal amplitude
-    max_value_signal_real = np.max(np.abs(data.real))
-    max_value_signal_imag = np.max(np.abs(data.imag))
-    max_value_signal = np.max((max_value_signal_real, max_value_signal_imag))
-
-    # all-zero input: quantization is identity (zeros), avoid divide-by-zero
-    if max_value_signal == 0:
-        return np.zeros(orig_shape, dtype=TorchSigComplexDataType)
-
-    # convert the reference level adjustment into a linear value.
-    # +3 dB -> 3 dB above max scaling (saturation)
-    # -3 dB -> 3 dB below max scaling (dynamic range loss)
-    ref_level_adjustment_linear = 10 ** (ref_level_adjustment_db / 20)
-
-    # scale the input signal
-    input_signal_scaled = data * ref_level_adjustment_linear / max_value_signal
-
-    # quantize real and imag seperately
-    quant_signal_real = np.zeros(len(data), dtype=TorchSigRealDataType)
-    quant_signal_imag = np.zeros(len(data), dtype=TorchSigRealDataType)
-
-    input_signal_scaled_real = input_signal_scaled.real
-    input_signal_scaled_imag = input_signal_scaled.imag
-
-    # check for saturated values minimum
-    real_saturation_neg_index = np.where(input_signal_scaled_real <= threshold_levels[0])[0]
-    imag_saturation_neg_index = np.where(input_signal_scaled_imag <= threshold_levels[0])[0]
-    quant_signal_real[real_saturation_neg_index] = quant_levels[0]
-    quant_signal_imag[imag_saturation_neg_index] = quant_levels[0]
-
-    # check for saturated values maximum
-    real_saturation_pos_index = np.where(input_signal_scaled_real >= threshold_levels[-1])[0]
-    imag_saturation_pos_index = np.where(input_signal_scaled_imag >= threshold_levels[-1])[0]
-    quant_signal_real[real_saturation_pos_index] = quant_levels[-1]
-    quant_signal_imag[imag_saturation_pos_index] = quant_levels[-1]
-
-    # calculate which remaining indicies have not yet been quantized
-    all_index = np.arange(0, len(data))
-    remaining_real_index = np.setdiff1d(all_index, real_saturation_neg_index)
-    remaining_real_index = np.setdiff1d(remaining_real_index, real_saturation_pos_index)
-    remaining_imag_index = np.setdiff1d(all_index, imag_saturation_neg_index)
-    remaining_imag_index = np.setdiff1d(remaining_imag_index, imag_saturation_pos_index)
-
-    # quantize all other levels. by default implements "ceiling"
-    real_index_subset = np.digitize(input_signal_scaled_real[remaining_real_index], threshold_levels)
-    imag_index_subset = np.digitize(input_signal_scaled_imag[remaining_imag_index], threshold_levels)
-
-    quant_signal_real[remaining_real_index] = quant_levels[real_index_subset]
-    quant_signal_imag[remaining_imag_index] = quant_levels[imag_index_subset]
-
-    # form the quantized IQ samples
-    quantized_data = quant_signal_real + 1j * quant_signal_imag
-
-    # undo quantization-based scaling
-    data_unscaled = quantized_data * max_value_signal / ref_level_adjustment_linear
-
-    return data_unscaled.astype(TorchSigComplexDataType)
+    return _quantize_iq(
+        data,
+        num_bits,
+        ref_level_adjustment_db,
+        rounding_mode,
+    )
 
 
 def shadowing(

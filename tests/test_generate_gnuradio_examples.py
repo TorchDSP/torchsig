@@ -43,7 +43,7 @@ def test_record_seed_is_stable_across_hash_seeds():
         environment = os.environ.copy()
         environment["PYTHONHASHSEED"] = hash_seed
         outputs.append(
-            subprocess.check_output(  # noqa: S603
+            subprocess.check_output(
                 [sys.executable, "-c", command],
                 cwd=Path(__file__).parents[1],
                 env=environment,
