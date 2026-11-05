@@ -859,6 +859,23 @@ def test_iq_imbalance(data: Any, params: dict, expected: bool, is_error: bool) -
         assert (data.dtype == TorchSigComplexDataType) == expected
 
 
+def test_iq_imbalance_amplitude_ratio() -> None:
+    """Test that iq_imbalance sets the I/Q amplitude ratio to the requested dB value.
+
+    Raises:
+        AssertionError: If the I/Q amplitude ratio does not match the requested imbalance.
+
+    """
+    amplitude_imbalance = 6.0
+    data = np.ones(1024, dtype=np.complex64) * (1 + 1j)
+
+    # DC offset is negligible here, so the output is only the amplitude imbalance
+    data = iq_imbalance(data, amplitude_imbalance=amplitude_imbalance, phase_imbalance=0.0, dc_offset_db=-200.0, dc_offset_phase_rads=0.0, noise_power_db=-100.0)
+
+    ratio_db = 20 * np.log10(np.abs(np.real(data[0])) / np.abs(np.imag(data[0])))
+    assert np.isclose(ratio_db, amplitude_imbalance, atol=1e-3), f"I/Q amplitude ratio {ratio_db:.3f} dB, expected {amplitude_imbalance} dB"
+
+
 @pytest.mark.parametrize(
     "data, params, expected, is_error",
     [

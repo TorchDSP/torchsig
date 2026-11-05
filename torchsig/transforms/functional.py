@@ -778,7 +778,7 @@ def iq_imbalance(
         IQ data with IQ Imbalance applied.
     """
     # amplitude imbalance
-    data = 10 ** (amplitude_imbalance / 10.0) * np.real(data) + 1j * 10 ** (amplitude_imbalance / 10.0) * np.imag(data)
+    data = 10 ** (0.5 * amplitude_imbalance / 20.0) * np.real(data) + 1j * 10 ** (-0.5 * amplitude_imbalance / 20.0) * np.imag(data)
 
     # phase imbalance
     data = np.exp(-1j * phase_imbalance / 2.0) * np.real(data) + np.exp(1j * (np.pi / 2.0 + phase_imbalance / 2.0)) * np.imag(data)
