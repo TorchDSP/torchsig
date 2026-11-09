@@ -249,7 +249,6 @@ docstring-code-line-length = "dynamic"
 
     # Naming and imports
     "ICN001",  # Nonstandard import alias
-    "INP001",  # Missing __init__.py
     "N802",    # Function name not snake_case
     "N803",    # Argument name not snake_case
     "N806",    # Local variable not lowercase
@@ -281,13 +280,6 @@ docstring-code-line-length = "dynamic"
     # Performance and NumPy modernization
     "NPY002",  # Legacy NumPy random API
     "PERF203", # try/except inside loop
-
-    # pathlib modernization
-    "PTH103",  # os.makedirs() instead of Path.mkdir()
-    "PTH109",  # os.getcwd() instead of Path.cwd()
-    "PTH110",  # os.path.exists() instead of Path.exists()
-    "PTH202",  # os.path.basename() instead of Path.name
-    "PTH208",  # os.listdir() instead of Path.iterdir()
 ]
 
 "benchmarks/*" = [
@@ -360,19 +352,8 @@ docstring-code-line-length = "dynamic"
     "C416",    # Unnecessary list comprehension
     "PERF102", # Dictionary iteration could use .items()
     "PERF401", # List comprehension preferred to append loop
-    "RET504",  # Unnecessary assignment before return
     "SIM108",  # Assignment could use conditional expression
     "SIM118",  # Unnecessary .keys() in membership test
-
-    # pathlib modernization
-    "PTH100",  # os.path.abspath() instead of Path.resolve()
-    "PTH103",  # os.makedirs() instead of Path.mkdir()
-    "PTH107",  # os.remove() instead of Path.unlink()
-    "PTH109",  # os.getcwd() instead of Path.cwd()
-    "PTH110",  # os.path.exists() instead of Path.exists()
-    "PTH118",  # os.path.join() instead of Path operations
-    "PTH119",  # os.path.basename() instead of Path.name
-    "PTH123",  # open() instead of Path.open()
 ]
 
 "scripts/**" = [

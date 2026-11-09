@@ -820,16 +820,14 @@ class TorchSigIterableDataset(HierarchicalMetadataObject, IterableDataset):
 
         # compute an estimate of the noise floor in the frequency domain. use a large stride to process a subset
         # of the data since not many FFTs are needed to be averaged for the noise
-        noise_spectrogram_db = compute_spectrogram(iq_samples, self["fft_size"], self["fft_stride"] * 16)
-        # average over time
-        noise_fft_db = np.mean(noise_spectrogram_db, axis=1)
-        # estimate the average noise value in dB in the frequency domain
-        noise_avg_db = np.mean(noise_fft_db)
-        # compute the correction factor as the distance from the desired level
-        correction_db = self["noise_power_db"] - noise_avg_db
-        # apply the correction
-        correction = 10 ** (correction_db / 10)
-        iq_samples = np.sqrt(correction) * iq_samples
+        power = compute_spectrogram(iq_samples, self["fft_size"], self["fft_stride"] * 16, return_db=False)
+        mean_power = power.mean(dtype=np.float64)
+        if mean_power == 0 and not np.any(iq_samples):
+            return iq_samples.astype(np.complex64)
+        if not np.isfinite(mean_power) or mean_power <= 0:
+            raise ValueError("Cannot normalize background without finite, positive power in the sampled frames")
+        target_power = 10.0 ** (self["noise_power_db"] / 10.0)
+        iq_samples = np.sqrt(target_power / mean_power) * iq_samples
         return iq_samples.astype(np.complex64)
 
     def __generate_new_signal__(self) -> Signal:

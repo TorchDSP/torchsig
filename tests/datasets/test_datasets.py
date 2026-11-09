@@ -30,7 +30,7 @@ from torchsig.transforms.metadata_transforms import GroupingLabel, MultiHotLabel
 from torchsig.transforms.transforms import ComplexTo2D, Spectrogram
 from torchsig.utils.data_loading import WorkerSeedingDataLoader
 from torchsig.utils.defaults import TorchSigDefaults
-from torchsig.utils.dsp import TorchSigRealDataType, compute_spectrogram
+from torchsig.utils.dsp import TorchSigRealDataType
 from torchsig.utils.metadata_logging import (
     MetadataLoggingContext,
     get_metadata_logging_context,
@@ -2538,7 +2538,9 @@ def test_background_generator(color, expected_ratio):
     assert samples.dtype == np.complex64
     
     # estimate noise floor
-    floor_db = compute_spectrogram(samples, 256, 64 * 16).mean()
+    frames = np.lib.stride_tricks.sliding_window_view(samples, 256)[:: 64 * 16]
+    spectra = np.fft.fft(frames * np.blackman(257)[:-1], axis=1)
+    floor_db = 10 * np.log10(np.mean(np.abs(spectra) ** 2))
     assert floor_db == pytest.approx(-12.0, abs=0.01)
     
     spectrum = np.abs(np.fft.fft(samples)) ** 2
@@ -2548,3 +2550,64 @@ def test_background_generator(color, expected_ratio):
     assert not np.array_equal(samples, next(dataset))
     dataset.seed(42)
     np.testing.assert_array_equal(samples, next(dataset))
+
+
+@pytest.mark.parametrize("outside_sampled_frames", [False, True])
+def test_background_with_zero_sampled_power(outside_sampled_frames):
+    def background(data, *, rng):
+        if outside_sampled_frames:
+            data[300] = 1
+        return data
+
+    dataset = TorchSigIterableDataset(
+        signal_generators=[],
+        target_labels=[],
+        background_generator=background,
+        metadata={
+            "num_iq_samples_dataset": 2048,
+            "signal_duration_in_samples_max": 2048,
+            "num_signals_min": 0,
+            "num_signals_max": 0,
+            "fft_size": 256,
+            "fft_stride": 64,
+        },
+    )
+    if outside_sampled_frames:
+        with pytest.raises(ValueError, match="positive power in the sampled frames"):
+            next(dataset)
+    else:
+        np.testing.assert_array_equal(next(dataset), np.zeros(2048, dtype=np.complex64))
+
+
+@pytest.mark.parametrize("class_name", ["qpsk", "chirpss"])
+def test_generated_component_peak_bin_snr(class_name):
+    """A centered component exposes calibrated IQ separately from the noisy mixture."""
+    dataset = TorchSigIterableDataset(
+        signal_generators=[class_name],
+        metadata={
+            "sample_rate": 10_000_000,
+            "num_iq_samples_dataset": 4096,
+            "signal_duration_in_samples_min": 3276,
+            "signal_duration_in_samples_max": 4096,
+            "bandwidth_min": 2_500_000,
+            "bandwidth_max": 3_333_333,
+            "signal_center_freq_min": 0.0,
+            "signal_center_freq_max": 0.0,
+            "frequency_min": -5_000_000,
+            "frequency_max": 4_999_999,
+            "fft_size": 64,
+            "fft_stride": 64,
+            "noise_power_db": -3.0,
+            "snr_db_min": 10.0,
+            "snr_db_max": 10.0,
+            "num_signals_min": 1,
+            "num_signals_max": 1,
+        },
+        seed=42,
+    )
+    (component,) = next(dataset).component_signals
+    frames = np.lib.stride_tricks.sliding_window_view(component.data, 64)[::64]
+    fft = np.fft.fft(frames * np.blackman(65)[:-1], axis=1)
+    measured = 10 * np.log10((np.abs(fft) ** 2).mean(axis=0).max()) - dataset.noise_power_db
+    assert component.snr_db == 10.0
+    assert measured == pytest.approx(component.snr_db, abs=1e-4)

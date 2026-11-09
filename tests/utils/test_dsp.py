@@ -44,7 +44,7 @@ def test_update_signal_snr_bandwidth_preserves_canonical_bandwidth(monkeypatch):
         ],
         dtype=np.float32,
     )
-    monkeypatch.setattr(dsp, "compute_spectrogram", lambda *_args: spectrogram_db.copy())
+    monkeypatch.setattr(dsp, "compute_spectrogram", lambda *_args, return_db: 10 ** (spectrogram_db / 10))
 
     dsp.update_signal_snr_bandwidth(dataset, signal)
 
@@ -414,3 +414,46 @@ def test_update_signal_snr_bandwidth_falls_back_to_canonical_bandwidth(
 
     assert signal.bandwidth == 100_000
     assert signal.estimated_occupied_bandwidth == 100_000
+
+
+@pytest.mark.parametrize(
+    ("waveform", "num_samples", "stride", "target"),
+    [
+        ("tone", 4096, 64, 10.0),
+        ("chirp", 4096, 64, 10.0),
+        ("burst", 4096, 32, -7.0),
+        ("chirp", 4133, 96, 4.0),
+        ("tone", 31, 64, 0.0),
+    ],
+)
+def test_snr_uses_peak_of_mean_bin_power(waveform, num_samples, stride, target):
+    """Measure corrected IQ independently of TorchSig's spectrogram and dB floor."""
+    t = np.arange(num_samples)
+    phase = 0.125 * t
+    if waveform == "chirp":
+        phase = -0.35 * t + 0.35 * t**2 / num_samples
+    data = np.exp(2j * np.pi * phase).astype(np.complex64)
+    if waveform == "burst":
+        data[num_samples // 8 :] = 0
+    dataset = Mock(fft_size=FFT_SIZE, fft_stride=stride, noise_power_db=-12.0, random_generator=np.random.default_rng(42))
+    signal = Signal(data=data, bandwidth=0.25, snr_db_min=target, snr_db_max=target)
+    adjusted_db = dsp.update_signal_snr(dataset, signal)
+
+    samples = np.pad(signal.data, (0, max(0, FFT_SIZE - num_samples)))
+    frames = np.lib.stride_tricks.sliding_window_view(samples, FFT_SIZE)[::stride]
+    fft = np.fft.fft(frames * np.blackman(FFT_SIZE + 1)[:-1], axis=1)
+    peak_db = 10 * np.log10((np.abs(fft) ** 2).mean(axis=0).max())
+    assert peak_db - dataset.noise_power_db == pytest.approx(target, abs=1e-4)
+    assert signal.snr_db == target
+    assert signal.data.dtype == np.complex64
+    # Very low sidelobes are sensitive to float32 roundoff after rescaling.
+    expected_db = compute_spectrogram(signal.data, FFT_SIZE, stride)
+    np.testing.assert_allclose(adjusted_db, expected_db, atol=0.2)
+
+
+def test_silent_component_cannot_be_calibrated():
+    dataset = Mock(fft_size=FFT_SIZE, fft_stride=FFT_SIZE, noise_power_db=0.0, random_generator=np.random.default_rng(42))
+    signal = Signal(data=ZEROS.copy(), bandwidth=0.25, snr_db_min=10, snr_db_max=10)
+    with pytest.raises(ValueError, match="positive signal power"):
+        dsp.update_signal_snr(dataset, signal)
+    np.testing.assert_array_equal(signal.data, ZEROS)

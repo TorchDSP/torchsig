@@ -2,9 +2,11 @@
 
 import pathlib
 import shutil
+import time
 from abc import ABC, abstractmethod
 from collections.abc import Iterable
 from contextlib import suppress
+from functools import wraps
 from operator import index as integer_index
 from types import TracebackType
 from typing import Any, Self
@@ -12,6 +14,7 @@ from typing import Any, Self
 from torchsig.utils.printing import generate_repr_str
 
 from .errors import FileHandlerIndexError
+from .metrics import FileHandlerMetrics, ValidationPolicy
 
 __all__ = ["BaseFileHandler", "FileReader", "FileWriter", "reset_folder"]
 
@@ -49,6 +52,22 @@ class FileWriter(ABC):
         root (pathlib.Path): Location on disk to write dataset.
     """
 
+    def __init_subclass__(cls, **kwargs: Any) -> None:
+        """Instrument concrete writes when metrics are enabled."""
+        super().__init_subclass__(**kwargs)
+        operation = cls.__dict__.get("write")
+        if operation is None or getattr(operation, "__isabstractmethod__", False) or getattr(operation, "metrics_wrapped", False):
+            return
+
+        @wraps(operation)
+        def measured(self, batch_idx: int, data: Any) -> None:
+            started = time.perf_counter()
+            operation(self, batch_idx, data)
+            self.metrics.record_write(data, started)
+
+        measured.metrics_wrapped = True  # type: ignore[attr-defined]
+        cls.write = measured
+
     def __init__(self, root: str | pathlib.Path, **kwargs: Any) -> None:
         """Initializes the FileWriter.
 
@@ -57,6 +76,7 @@ class FileWriter(ABC):
         """
         _ = kwargs  # Accepted for a uniform file-handler constructor API.
         self.root: pathlib.Path = pathlib.Path(root).resolve()
+        self.metrics = FileHandlerMetrics()
 
     def _setup(self) -> None:  # noqa: B027 - optional lifecycle hook
         """Hook for subclasses to perform setup after folder reset."""
@@ -134,6 +154,23 @@ class FileReader(ABC):
         dataset_info_filepath (pathlib.Path): Path to dataset info file.
     """
 
+    def __init_subclass__(cls, **kwargs: Any) -> None:
+        """Instrument concrete scalar reads when metrics are enabled."""
+        super().__init_subclass__(**kwargs)
+        operation = cls.__dict__.get("read")
+        if operation is None or getattr(operation, "__isabstractmethod__", False) or getattr(operation, "metrics_wrapped", False):
+            return
+
+        @wraps(operation)
+        def measured(self, idx: int) -> Any:
+            started = time.perf_counter()
+            value = operation(self, idx)
+            self.metrics.record_read(value, started)
+            return value
+
+        measured.metrics_wrapped = True  # type: ignore[attr-defined]
+        cls.read = measured
+
     def __init__(self, root: str | pathlib.Path, **kwargs: Any) -> None:
         """File reader base class
 
@@ -143,6 +180,16 @@ class FileReader(ABC):
         _ = kwargs  # Accepted for a uniform file-handler constructor API.
         self.root = pathlib.Path(root).resolve()
         self.dataset_info_filepath = self.root.joinpath("dataset_info.yaml")
+        self.metrics = FileHandlerMetrics()
+        self.validation_policy = ValidationPolicy.STRICT
+
+    def enable_metrics(self, enabled: bool = True) -> None:
+        """Enable or disable process-local operation metrics."""
+        self.metrics.enabled = bool(enabled)
+
+    def set_validation_policy(self, policy: str | ValidationPolicy) -> None:
+        """Select validation policy for backends that support it."""
+        self.validation_policy = ValidationPolicy.parse(policy)
 
     @abstractmethod
     def read(self, idx: int) -> Any:

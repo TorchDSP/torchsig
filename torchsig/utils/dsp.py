@@ -1333,8 +1333,8 @@ def frequency_hopping_offsets(
     return hop_frequencies[hop_index]
 
 
-def compute_spectrogram(iq_samples: np.ndarray, fft_size: int, fft_stride: int) -> np.ndarray:
-    """Computes two-dimensional spectrogram values in dB, in image row order.
+def compute_spectrogram(iq_samples: np.ndarray, fft_size: int, fft_stride: int, *, return_db: bool = True) -> np.ndarray:
+    """Compute a power spectrogram in image row order, in dB by default.
 
     Output shape is ``(fft_size, num_frames)`` with ``num_frames =
     1 + (num_samples - fft_size) // fft_stride``, where ``num_samples`` is the
@@ -1357,7 +1357,7 @@ def compute_spectrogram(iq_samples: np.ndarray, fft_size: int, fft_stride: int) 
     edge padding is inserted, so column index maps linearly to sample index with
     no offset.
 
-    Values are power in dB, floored 100 dB below the peak bin. No window or
+    The dB output is floored 100 dB below the peak bin. No window or
     length normalization is applied, so absolute levels are not comparable
     across different values of ``fft_size``; only relative levels within one
     spectrogram are meaningful.
@@ -1370,6 +1370,7 @@ def compute_spectrogram(iq_samples: np.ndarray, fft_size: int, fft_stride: int) 
             pointer increases for each FFT. When fft_stride=fft_size, then there is
             no overlap of input samples in successive FFTs. Note: permits strides
             larger than fft_size for data subset sampling.
+        return_db: Return floored dB values if true, or raw linear power if false.
 
     Raises:
         ValueError: If ``fft_size`` is not positive. If ``fft_stride`` is not
@@ -1377,7 +1378,7 @@ def compute_spectrogram(iq_samples: np.ndarray, fft_size: int, fft_stride: int) 
 
     Returns:
         np.ndarray: Array of shape ``(fft_size, num_frames)`` of spectrogram
-        values in dB, with descending frequency along axis 0.
+        values in the requested units, with descending frequency along axis 0.
     """
     # argument error handling
     if fft_size <= 0:
@@ -1419,13 +1420,16 @@ def compute_spectrogram(iq_samples: np.ndarray, fft_size: int, fft_stride: int) 
     # flip to descending order so row 0 is the top of the image
     spectrogram_linear = torch.flip(spectrogram_linear, dims=(0,))
 
-    # convert to numpy types
-    spectrogram_numpy = spectrogram_linear.numpy()
+    power = spectrogram_linear.numpy()
+    return _power_to_db(power) if return_db else power
 
+
+def _power_to_db(power: np.ndarray) -> np.ndarray:
+    """Convert linear power to display dB with the peak-relative floor."""
     # dB scaling with -100 dB floor
-    peak = spectrogram_numpy.max()
-    floor = peak * _POWER_FLOOR_RATIO if peak > 0 else np.finfo(spectrogram_numpy.dtype).tiny
-    return 10.0 * np.log10(np.maximum(spectrogram_numpy, floor))
+    peak = power.max()
+    floor = peak * _POWER_FLOOR_RATIO if peak > 0 else np.finfo(power.dtype).tiny
+    return 10.0 * np.log10(np.maximum(power, floor))
 
 
 def estimate_tone_bandwidth(num_samples: int, sample_rate: float):
@@ -1769,27 +1773,14 @@ def update_signal_snr(dataset: "TorchSigIterableDataset", new_signal: "Signal") 
     """
     # corrects snr of signal according to dataset
     snr_db = np.round(dataset.random_generator.uniform(new_signal.snr_db_min, new_signal.snr_db_max), 1)
-    # compute spectral estimate of signal. use a large stride to process only a
-    # subset of the data to reduce computation
-    signal_spectrogram_db = compute_spectrogram(
-        new_signal.data,
-        dataset.fft_size,
-        dataset.fft_stride,
-    )
-    # average over time, used in PSD estimate for SNR calculation
-    signal_avg_fft_db = np.mean(signal_spectrogram_db, axis=1)
-    # estimate the frequency response maximum value
-    max_value_db = np.max(signal_avg_fft_db)
-    # estimate SNR
-    snr_estimate_db = max_value_db - dataset.noise_power_db
-    # calculate the appropriate correction to set SNR
-    correction_db = snr_db - snr_estimate_db
-    # convert correction value to linear
-    correction = 10 ** (correction_db / 10)
-    # apply correction value to signal
-    new_signal.data *= np.sqrt(correction)
-    signal_avg_fft_db += correction_db
-    signal_spectrogram_db += correction_db
+    power = compute_spectrogram(new_signal.data, dataset.fft_size, dataset.fft_stride, return_db=False)
+    # Take the strongest bin of the time-averaged power spectrum.
+    peak_power = power.mean(axis=1, dtype=np.float64).max()
+    if not np.isfinite(peak_power) or peak_power <= 0:
+        raise ValueError("Cannot set SNR without finite, positive signal power in the sampled frames")
+    correction_db = snr_db + dataset.noise_power_db - 10.0 * np.log10(peak_power)
+    new_signal.data *= 10.0 ** (correction_db / 20.0)
+    signal_spectrogram_db = _power_to_db(power) + np.float32(correction_db)
     new_signal["snr_db"] = snr_db
 
     return signal_spectrogram_db

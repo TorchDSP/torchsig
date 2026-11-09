@@ -15,6 +15,7 @@ versioned packed HDF5 schema. Its frozen format identifier is
 from __future__ import annotations
 
 import os
+import time
 from math import prod
 from typing import Any
 
@@ -28,6 +29,7 @@ from torchsig.utils.file_handlers.metadata_codec import (
     decode_metadata,
     encode_metadata,
 )
+from torchsig.utils.file_handlers.metrics import ValidationPolicy
 
 __all__ = ["HomogeneousHDF5Reader", "HomogeneousHDF5Writer"]
 
@@ -389,12 +391,13 @@ class HomogeneousHDF5Reader(FileReader):
     omits metadata and component signals.
     """
 
-    def __init__(self, root) -> None:
+    def __init__(self, root, validation_policy: str | ValidationPolicy = ValidationPolicy.CACHED) -> None:
         """Initialize a process-safe lazy reader for ``root/data.h5``."""
         super().__init__(root=root)
         self.datapath = self.root / "data.h5"
         self._file: h5py.File | None = None
         self._pid: int | None = None
+        self.set_validation_policy(validation_policy)
 
     def _ensure_open(self) -> None:
         pid = os.getpid()
@@ -447,13 +450,24 @@ class HomogeneousHDF5Reader(FileReader):
             raise ValueError("Homogeneous HDF5 file is incomplete")
         cache_key = str(self.datapath)
         fingerprint = self._fingerprint()
-        if _VALIDATED_FILES.get(cache_key) == fingerprint:
+        if self.validation_policy is ValidationPolicy.LAZY:
             return
+        started = time.perf_counter()
+        if self.validation_policy is ValidationPolicy.CACHED and _VALIDATED_FILES.get(cache_key) == fingerprint:
+            if self.metrics.enabled:
+                self.metrics.validation_cache_hits += 1
+                self.metrics.validation_seconds += time.perf_counter() - started
+            return
+        if self.metrics.enabled:
+            self.metrics.validation_cache_misses += 1
         self._validate_structure()
         self._validate_integrity()
-        if cache_key not in _VALIDATED_FILES and len(_VALIDATED_FILES) >= _VALIDATION_CACHE_SIZE:
-            del _VALIDATED_FILES[next(iter(_VALIDATED_FILES))]
-        _VALIDATED_FILES[cache_key] = self._fingerprint()
+        if self.metrics.enabled:
+            self.metrics.validation_seconds += time.perf_counter() - started
+        if self.validation_policy is ValidationPolicy.CACHED:
+            if cache_key not in _VALIDATED_FILES and len(_VALIDATED_FILES) >= _VALIDATION_CACHE_SIZE:
+                del _VALIDATED_FILES[next(iter(_VALIDATED_FILES))]
+            _VALIDATED_FILES[cache_key] = self._fingerprint()
 
     def _fingerprint(self) -> tuple[int, int, int, int]:
         stat = self.datapath.stat()

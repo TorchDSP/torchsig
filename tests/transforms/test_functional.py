@@ -10,6 +10,7 @@ from numpy.testing import assert_allclose, assert_array_equal
 
 from torchsig.transforms.functional import (
     _build_full_profile,
+    _fading_reference,
     _fft_filter,
     _preserve_sampling_clock_output,
     add_slope,
@@ -842,6 +843,77 @@ def test_fading(data: Any, params: dict, expected: bool | IndexError, is_error: 
         assert (abs(data_mean_power - data_test_mean_power) < 1e-1) == expected
         assert (type(data) == type(data_test)) == expected
         assert (data.dtype == TorchSigComplexDataType) == expected
+
+
+@pytest.mark.parametrize("length", [8, 256, 4096])
+@pytest.mark.parametrize("coherence_bandwidth", [0.01, 0.1, 0.34])
+@pytest.mark.parametrize(
+    "power_delay_profile",
+    [
+        np.ones(16, dtype=np.float32) / 16,
+        np.array([1.0, 0.4, 0.1], dtype=np.float32),
+    ],
+)
+def test_fading_matches_preoptimization_reference(length, coherence_bandwidth, power_delay_profile):
+    data_rng = np.random.default_rng(123)
+    data = (data_rng.standard_normal(length) + 1j * data_rng.standard_normal(length)).astype(np.complex64)
+
+    expected = _fading_reference(data, coherence_bandwidth, power_delay_profile, np.random.default_rng(42))
+    actual = fading(data, coherence_bandwidth, power_delay_profile, np.random.default_rng(42))
+
+    assert_array_equal(actual, expected)
+
+
+def test_fading_preserves_rng_consumption():
+    data = np.ones(256, dtype=np.complex64)
+    power_delay_profile = np.array([1.0, 0.5], dtype=np.float32)
+    reference_rng = np.random.default_rng(42)
+    optimized_rng = np.random.default_rng(42)
+
+    _fading_reference(data, 0.1, power_delay_profile, reference_rng)
+    fading(data, 0.1, power_delay_profile, optimized_rng)
+
+    assert_array_equal(optimized_rng.standard_normal(16), reference_rng.standard_normal(16))
+
+
+def test_fading_preserves_multidimensional_reference_behavior():
+    data = np.arange(16, dtype=np.float32).reshape(2, 8).astype(np.complex64)
+    power_delay_profile = np.array([1.0, 0.5], dtype=np.float32)
+
+    expected = _fading_reference(data, 0.1, power_delay_profile, np.random.default_rng(42))
+    actual = fading(data, 0.1, power_delay_profile, np.random.default_rng(42))
+
+    assert_array_equal(actual, expected)
+
+
+@pytest.mark.parametrize("coherence_bandwidth", [1.0, 2.0])
+def test_fading_preserves_single_tap_boundary_error(coherence_bandwidth):
+    data = np.ones(8, dtype=np.complex64)
+
+    with pytest.raises(ValueError):
+        fading(data, coherence_bandwidth, np.array([1.0, 0.5]), np.random.default_rng(42))
+
+
+def test_fading_preserves_output_power_shape_and_dtype():
+    data_rng = np.random.default_rng(123)
+    data = (data_rng.standard_normal(4096) + 1j * data_rng.standard_normal(4096)).astype(np.complex128)
+
+    actual = fading(data, 0.1, np.array([1.0, 0.5]), np.random.default_rng(42))
+
+    assert actual.shape == data.shape
+    assert actual.dtype == np.dtype(TorchSigComplexDataType)
+    assert np.linalg.norm(actual) == pytest.approx(np.linalg.norm(data), rel=1e-6)
+
+
+def test_fading_preserves_silent_input_behavior():
+    data = np.zeros(256, dtype=np.complex64)
+    power_delay_profile = np.array([1.0, 0.5], dtype=np.float32)
+
+    expected = _fading_reference(data, 0.1, power_delay_profile, np.random.default_rng(42))
+    actual = fading(data, 0.1, power_delay_profile, np.random.default_rng(42))
+
+    assert_array_equal(actual, expected)
+    assert_array_equal(actual, data)
 
 
 @pytest.mark.parametrize(

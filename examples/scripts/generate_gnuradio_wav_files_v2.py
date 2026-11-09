@@ -10,7 +10,6 @@ Each element in the dataset has the modulation type specified in its metadata ro
 import argparse
 import csv
 import json
-import os
 from pathlib import Path
 
 import numpy as np
@@ -177,7 +176,7 @@ class IQGenerator:
         self.modulation = modulation.upper()
         self.rng = rng
 
-        os.makedirs(output_dir, exist_ok=True)
+        output_dir.mkdir(parents=True, exist_ok=True)
 
         class_list = ["BPSK", "QPSK", "8PSK", "16QAM", "NOISE"] if modulation == "ALL" else [modulation]
 

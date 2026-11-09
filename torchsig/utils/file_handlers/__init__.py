@@ -31,6 +31,8 @@ if TYPE_CHECKING:
     from .homogeneous_hdf5 import HomogeneousHDF5Writer as HomogeneousHDF5Writer
     from .metadata_reader import MetadataIndexError as MetadataIndexError
     from .metadata_reader import MetadataReader as MetadataReader
+    from .metrics import FileHandlerMetrics as FileHandlerMetrics
+    from .metrics import ValidationPolicy as ValidationPolicy
     from .npy import NPYReader as NPYReader
     from .ogg import OGGReader as OGGReader
     from .packed_hdf5 import PackedHDF5Reader as PackedHDF5Reader
@@ -75,6 +77,8 @@ _EXPORTS = {
     "HomogeneousHDF5Writer": ("torchsig.utils.file_handlers.homogeneous_hdf5", "HomogeneousHDF5Writer"),
     "MetadataIndexError": ("torchsig.utils.file_handlers.metadata_reader", "MetadataIndexError"),
     "MetadataReader": ("torchsig.utils.file_handlers.metadata_reader", "MetadataReader"),
+    "FileHandlerMetrics": ("torchsig.utils.file_handlers.metrics", "FileHandlerMetrics"),
+    "ValidationPolicy": ("torchsig.utils.file_handlers.metrics", "ValidationPolicy"),
     "NPYReader": ("torchsig.utils.file_handlers.npy", "NPYReader"),
     "OGGReader": ("torchsig.utils.file_handlers.ogg", "OGGReader"),
     "PackedHDF5Reader": ("torchsig.utils.file_handlers.packed_hdf5", "PackedHDF5Reader"),

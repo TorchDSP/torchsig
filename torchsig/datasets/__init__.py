@@ -10,10 +10,18 @@ if TYPE_CHECKING:
     from . import datamodules as datamodules
     from . import dataset_utils as dataset_utils
     from . import datasets as datasets
+    from . import split_manifest as split_manifest
     from . import structured as structured
     from .datamodules import TorchSigDataModule as TorchSigDataModule
     from .datasets import SafeTorchSigIterableDataset as SafeTorchSigIterableDataset
     from .datasets import TorchSigIterableDataset as TorchSigIterableDataset
+    from .split_manifest import DatasetSplitManifest as DatasetSplitManifest
+    from .split_manifest import ManifestProvenance as ManifestProvenance
+    from .split_manifest import MembershipReference as MembershipReference
+    from .split_manifest import SplitManifestEntry as SplitManifestEntry
+    from .split_manifest import dump_split_manifest as dump_split_manifest
+    from .split_manifest import load_split_manifest as load_split_manifest
+    from .split_manifest import save_split_manifest as save_split_manifest
     from .structured import StructuredHDF5Dataset as StructuredHDF5Dataset
     from .structured import materialize_structured_dataset as materialize_structured_dataset
 
@@ -21,10 +29,18 @@ _EXPORTS = {
     "datamodules": ("torchsig.datasets.datamodules", None),
     "dataset_utils": ("torchsig.datasets.dataset_utils", None),
     "datasets": ("torchsig.datasets.datasets", None),
+    "split_manifest": ("torchsig.datasets.split_manifest", None),
     "structured": ("torchsig.datasets.structured", None),
     "SafeTorchSigIterableDataset": ("torchsig.datasets.datasets", "SafeTorchSigIterableDataset"),
     "TorchSigDataModule": ("torchsig.datasets.datamodules", "TorchSigDataModule"),
     "TorchSigIterableDataset": ("torchsig.datasets.datasets", "TorchSigIterableDataset"),
+    "DatasetSplitManifest": ("torchsig.datasets.split_manifest", "DatasetSplitManifest"),
+    "ManifestProvenance": ("torchsig.datasets.split_manifest", "ManifestProvenance"),
+    "MembershipReference": ("torchsig.datasets.split_manifest", "MembershipReference"),
+    "SplitManifestEntry": ("torchsig.datasets.split_manifest", "SplitManifestEntry"),
+    "dump_split_manifest": ("torchsig.datasets.split_manifest", "dump_split_manifest"),
+    "load_split_manifest": ("torchsig.datasets.split_manifest", "load_split_manifest"),
+    "save_split_manifest": ("torchsig.datasets.split_manifest", "save_split_manifest"),
     "StructuredHDF5Dataset": ("torchsig.datasets.structured", "StructuredHDF5Dataset"),
     "materialize_structured_dataset": ("torchsig.datasets.structured", "materialize_structured_dataset"),
 }

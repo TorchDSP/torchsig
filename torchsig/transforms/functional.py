@@ -76,6 +76,9 @@ __all__ = [
     "time_varying_noise",
 ]
 
+_FADING_INTERPOLATION_FACTOR = 100
+_MIN_INTERPOLATED_FADING_TAPS = 2
+
 
 def _preserve_sampling_clock_output(
     data: np.ndarray,
@@ -752,35 +755,65 @@ def fading(
         IQ data with fading applied.
     """
     rng = rng or np.random.default_rng()
+    if not isinstance(data, np.ndarray):
+        return _fading_reference(data, coherence_bandwidth, power_delay_profile, rng)
+    data_length = data.shape[0]
+    num_taps = int(np.ceil(1.0 / coherence_bandwidth))
 
-    num_taps = int(np.ceil(1.0 / coherence_bandwidth))  # filter length to get desired coherence bandwidth
+    # The legacy filter interpolates by 100 and immediately decimates by 100.
+    # For one-dimensional IQ, upfirdn therefore uses only taps 0, 100, ... .
+    # Constructing those effective taps directly preserves the exact channel
+    # response while avoiding the expanded arrays and high-rate filter.
+    if data.ndim != 1 or num_taps < _MIN_INTERPOLATED_FADING_TAPS:
+        return _fading_reference(data, coherence_bandwidth, power_delay_profile, rng)
 
-    power_taps = np.sqrt(
+    rayleigh_taps = rng.standard_normal(num_taps) + 1j * rng.standard_normal(num_taps)
+    old_time = np.linspace(0, 1.0, num_taps, endpoint=True)
+    effective_time = np.arange(num_taps, dtype=np.float64) * _FADING_INTERPOLATION_FACTOR / (_FADING_INTERPOLATION_FACTOR * num_taps - 1)
+    effective_taps = np.interp(effective_time, old_time, rayleigh_taps.real) + 1j * np.interp(effective_time, old_time, rayleigh_taps.imag)
+    effective_taps *= np.sqrt(
         np.interp(
-            np.linspace(0, 1.0, 100 * num_taps),
+            effective_time,
             np.linspace(0, 1.0, len(power_delay_profile)),
             power_delay_profile,
         )
     )
 
-    # Generate initial taps
-    rayleigh_taps = rng.standard_normal(num_taps) + 1j * rng.standard_normal(num_taps)  # multi-path channel
-
-    # Linear interpolate taps by a factor of 100 -- so we can get accurate coherence bandwidths
-    old_time = np.linspace(0, 1.0, num_taps, endpoint=True)
-    real_tap_function = sp_interp1d(old_time, rayleigh_taps.real)
-    imag_tap_function = sp_interp1d(old_time, rayleigh_taps.imag)
-
-    new_time = np.linspace(0, 1.0, 100 * num_taps, endpoint=True)
-    rayleigh_taps = real_tap_function(new_time) + 1j * imag_tap_function(new_time)
-    rayleigh_taps *= power_taps
-
-    # Ensure we maintain same amount of power before and after the transform
     input_power = np.linalg.norm(data)
-    data = sp.upfirdn(rayleigh_taps, data, up=100, down=100)[-data.shape[0] :]
+    data = np.convolve(data, effective_taps, mode="full")[-data_length:]
     output_power = np.linalg.norm(data)
     data = np.multiply(_power_renorm_scale(input_power, output_power), data)
 
+    return data.astype(TorchSigComplexDataType)
+
+
+def _fading_reference(
+    data: np.ndarray,
+    coherence_bandwidth: float,
+    power_delay_profile: np.ndarray,
+    rng: np.random.Generator,
+) -> np.ndarray:
+    """Return the pre-483 fading result for parity tests and fallbacks."""
+    num_taps = int(np.ceil(1.0 / coherence_bandwidth))
+    power_taps = np.sqrt(
+        np.interp(
+            np.linspace(0, 1.0, _FADING_INTERPOLATION_FACTOR * num_taps),
+            np.linspace(0, 1.0, len(power_delay_profile)),
+            power_delay_profile,
+        )
+    )
+    rayleigh_taps = rng.standard_normal(num_taps) + 1j * rng.standard_normal(num_taps)
+    old_time = np.linspace(0, 1.0, num_taps, endpoint=True)
+    real_tap_function = sp_interp1d(old_time, rayleigh_taps.real)
+    imag_tap_function = sp_interp1d(old_time, rayleigh_taps.imag)
+    new_time = np.linspace(0, 1.0, _FADING_INTERPOLATION_FACTOR * num_taps, endpoint=True)
+    rayleigh_taps = real_tap_function(new_time) + 1j * imag_tap_function(new_time)
+    rayleigh_taps *= power_taps
+
+    input_power = np.linalg.norm(data)
+    data = sp.upfirdn(rayleigh_taps, data, up=_FADING_INTERPOLATION_FACTOR, down=_FADING_INTERPOLATION_FACTOR)[-data.shape[0] :]
+    output_power = np.linalg.norm(data)
+    data = np.multiply(_power_renorm_scale(input_power, output_power), data)
     return data.astype(TorchSigComplexDataType)
 
 
