@@ -128,18 +128,21 @@ def test_fm_modulator_generates_requested_number_of_message_samples():
     rng.normal.assert_called_once_with(0, 1, 17)
 
 
-def test_fm_modulator_normalizes_message_to_unit_power():
-    """The unfiltered source message should have average unit power."""
+def _expected_fm(filtered_source, bandwidth, sample_rate, mod_index):
+    """Reference FM output: filtered message scaled to unit power, limited to +/-1, then FM."""
+    fdev = (bandwidth / 2) / (1 + 1 / mod_index)
+    source = np.clip(filtered_source / np.sqrt(np.mean(np.abs(filtered_source) ** 2)), -1.0, 1.0)
+    return np.exp(2j * np.pi * np.cumsum(source) * fdev / sample_rate).astype(TorchSigComplexDataType)
+
+
+@pytest.mark.parametrize("filtered_amplitude", [1.0, 0.01])
+def test_fm_modulator_scales_filtered_message_to_unit_power_and_limits_peaks(filtered_amplitude):
+    """The deviation should not depend on how much power the LPF removed from the message."""
     rng = MagicMock(spec=np.random.Generator)
     rng.uniform.return_value = 2.0
-    rng.normal.return_value = np.array([1.0, 2.0, 3.0, 4.0])
+    rng.normal.return_value = np.ones(4)
 
-    captured_message = None
-
-    def capture_message(message, _filter):
-        nonlocal captured_message
-        captured_message = message.copy()
-        return message
+    filtered_source = filtered_amplitude * np.array([1.0, -2.0, 3.0, -4.0])
 
     with (
         patch(
@@ -148,18 +151,45 @@ def test_fm_modulator_normalizes_message_to_unit_power():
         ),
         patch(
             f"{MODULE_PATH}.convolve",
-            side_effect=capture_message,
+            return_value=filtered_source,
         ),
     ):
-        fm_modulator(
+        result = fm_modulator(
             bandwidth=1_000,
             sample_rate=10_000,
             num_samples=4,
             rng=rng,
         )
 
-    assert captured_message is not None
-    assert np.mean(np.abs(captured_message) ** 2) == pytest.approx(1.0)
+    np.testing.assert_allclose(
+        result,
+        _expected_fm(filtered_source, bandwidth=1_000, sample_rate=10_000, mod_index=2.0),
+        rtol=1e-6,
+        atol=1e-6,
+    )
+
+
+@pytest.mark.parametrize("mod_index", [1.0, 5.0, 10.0])
+def test_fm_modulator_occupies_requested_bandwidth(mod_index):
+    """The 99% occupied bandwidth should be close to, and not above, the requested bandwidth.
+
+    Regression test: scaling the message to unit power before the LPF left only a fraction
+    ~2*fmax/sample_rate of its power, so the signal occupied ~10% of `bandwidth`.
+    """
+    sample_rate = 40e6
+    bandwidth = 260e3
+    rng = MagicMock(spec=np.random.Generator)
+    rng.uniform.return_value = mod_index
+    rng.normal.side_effect = np.random.default_rng(0).normal
+
+    signal = fm_modulator(bandwidth=bandwidth, sample_rate=sample_rate, num_samples=2**19, rng=rng)
+
+    power_spectrum = np.fft.fftshift(np.abs(np.fft.fft(signal)) ** 2)
+    freqs = np.fft.fftshift(np.fft.fftfreq(signal.size, d=1 / sample_rate))
+    cumulative_power = np.cumsum(power_spectrum) / power_spectrum.sum()
+    occupied_bandwidth = freqs[np.searchsorted(cumulative_power, 0.995)] - freqs[np.searchsorted(cumulative_power, 0.005)]
+
+    assert 0.7 * bandwidth <= occupied_bandwidth <= 1.05 * bandwidth
 
 
 @pytest.mark.parametrize(
@@ -233,8 +263,8 @@ def test_fm_modulator_accepts_bandwidth_above_half_sample_rate():
     assert filter_design.call_args.kwargs["transition_bandwidth"] == pytest.approx(1_875)
 
 
-def test_fm_modulator_passes_normalized_message_and_filter_to_convolve():
-    """The normalized source and designed LPF should be convolved."""
+def test_fm_modulator_passes_message_and_filter_to_convolve():
+    """The raw message and designed LPF should be convolved (scaling happens after the LPF)."""
     rng = MagicMock(spec=np.random.Generator)
     rng.uniform.return_value = 2.0
     rng.normal.return_value = np.array([1.0, -1.0, 1.0, -1.0])
@@ -259,11 +289,11 @@ def test_fm_modulator_passes_normalized_message_and_filter_to_convolve():
             rng=rng,
         )
 
-    normalized_message = np.array([1.0, -1.0, 1.0, -1.0])
+    message = np.array([1.0, -1.0, 1.0, -1.0])
 
     np.testing.assert_allclose(
         convolve_mock.call_args.args[0],
-        normalized_message,
+        message,
     )
     assert convolve_mock.call_args.args[1] is low_pass_filter
 
@@ -293,10 +323,7 @@ def test_fm_modulator_matches_phase_accumulation_formula():
             rng=rng,
         )
 
-    mod_index = 2.0
-    fdev = (1_000 / 2) / (1 + 1 / mod_index)
-
-    expected = np.exp(2j * np.pi * np.cumsum(filtered_source) * fdev / 10_000).astype(TorchSigComplexDataType)
+    expected = _expected_fm(filtered_source, bandwidth=1_000, sample_rate=10_000, mod_index=2.0)
 
     np.testing.assert_allclose(
         result,
