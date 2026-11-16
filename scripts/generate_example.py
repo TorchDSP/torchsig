@@ -1,12 +1,11 @@
-from torchsig.datasets.datasets import TorchSigIterableDataset, StaticTorchSigDataset
-from torchsig.utils.data_loading import WorkerSeedingDataLoader
-from torchsig.utils.writer import DatasetCreator
-from torchsig.utils.defaults import TorchSigDefaults
-from torchsig.transforms.impairments import Impairments
-from torchsig.transforms.transforms import Spectrogram
-
 import matplotlib.pyplot as plt
 
+from torchsig.datasets.datasets import StaticTorchSigDataset, TorchSigIterableDataset
+from torchsig.transforms.impairments import Impairments
+from torchsig.transforms.transforms import Spectrogram
+from torchsig.utils.data_loading import WorkerSeedingDataLoader
+from torchsig.utils.defaults import TorchSigDefaults
+from torchsig.utils.writer import DatasetCreator
 
 # define dataset metadata, can override defaults
 dataset_metadata = TorchSigDefaults().default_dataset_metadata
@@ -38,7 +37,7 @@ dataset_creator.create()
 # load the dataset in from disk
 static_dataset = StaticTorchSigDataset(
     root="./sample_dataset",
-    target_labels=[] # empty list -> dataset returns Signal.data only
+    target_labels=[],  # empty list -> dataset returns Signal.data only
 )
 
 # save or show the first 4 items of the dataset

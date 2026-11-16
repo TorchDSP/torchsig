@@ -1,6 +1,5 @@
 """Unit Tests for dataset_summarizer"""
 
-import os
 import shutil
 from pathlib import Path
 
@@ -25,9 +24,9 @@ data_dir = Path.joinpath(Path(__file__).parent, "summarizer_data")
 
 def setup_module(module):
     """Create a small static dataset on disk for summarizer tests."""
-    if os.path.exists(data_dir):
+    if data_dir.exists():
         shutil.rmtree(data_dir)
-    os.makedirs(data_dir)
+    data_dir.mkdir(parents=True)
 
     md = TorchSigDefaults().default_dataset_metadata
     # Use small IQ size for speed
@@ -52,7 +51,7 @@ def setup_module(module):
 
 def teardown_module(module):
     """Clean up test data."""
-    if os.path.exists(data_dir):
+    if data_dir.exists():
         shutil.rmtree(data_dir)
 
 
@@ -132,8 +131,8 @@ def test_plot_save(tmp_path):
     save_path = str(tmp_path / "summary.png")
     fig, _ = summary.plot(save_path=save_path)
 
-    assert os.path.exists(save_path)
-    assert os.path.getsize(save_path) > 0
+    assert Path(save_path).exists()
+    assert Path(save_path).stat().st_size > 0
     plt.close(fig)
 
 

@@ -1,7 +1,5 @@
 """End-to-end benchmarks for TorchSIG's default training-data pipelines."""
 
-# ruff: noqa: INP001
-
 from __future__ import annotations
 
 from pathlib import Path

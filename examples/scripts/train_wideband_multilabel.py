@@ -10,7 +10,6 @@ Example:
     python examples/scripts/train_wideband_multilabel.py --steps 20
 """
 
-# ruff: noqa: INP001
 
 from __future__ import annotations
 

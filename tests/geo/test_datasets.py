@@ -9,30 +9,27 @@ Organized into logical test classes covering:
 - Mobile objects: moving transmitters/receivers, velocity
 """
 
+import builtins
 import warnings
 from itertools import islice
 from pathlib import Path
 
 import numpy as np
 import pytest
-import builtins
 
 from torchsig.datasets.datasets import TorchSigIterableDataset
 from torchsig.geo.datasets import Receiver, StaticTorchSigGeoDataset, TorchSigGeoDataset, Transmitter, apply_transforms_to_signal
+from torchsig.geo.transforms import LineOfSight, PathLoss
 from torchsig.geo.types import GeoPoint, GeoVelocity
-from torchsig.geo.transforms import DopplerShift, GeoSignalTransform, LineOfSight, PathDelay, PathLoss
 from torchsig.signals.signal_types import Signal, SignalMetadataObject
-from torchsig.transforms.transforms import AWGN, SignalTransform, Spectrogram
+from torchsig.transforms.transforms import AWGN, Spectrogram
 
 from .conftest import (
     CENTER_FREQ,
-    MAX_SIGNAL_DURATION,
-    MIN_SIGNAL_DURATION,
     NEAR_SF_ALT,
     NEAR_SF_LAT,
     NEAR_SF_LON,
     SAMPLE_RATE,
-    SF_ALT,
     SF_LAT,
     SF_LON,
     SIGNAL_LENGTH,
@@ -40,7 +37,6 @@ from .conftest import (
     make_rx,
     make_tx,
 )
-
 
 TX_POSITION = GeoPoint(37.7749, -122.4194, 10.0)
 RX_POSITION = GeoPoint(37.7759, -122.4194, 10.0)
@@ -59,8 +55,6 @@ class TestTransmitter:
 
     def test_invalid_dataset_type_raises(self, tx_pos):
         """Verify TypeError raised when dataset is not TorchSigIterableDataset."""
-        from torchsig.signals.signal_types import Signal as Sig
-
         with pytest.raises(TypeError, match="Transmitter dataset must be a TorchSigIterableDataset"):
             Transmitter("not a dataset", tx_pos, identifier="tx_bad")
 
@@ -68,7 +62,6 @@ class TestTransmitter:
         """Verify ValueError raised when dataset is missing sample_rate metadata."""
         from torchsig.datasets import TorchSigIterableDataset
         from torchsig.utils.defaults import TorchSigDefaults
-        from torchsig.utils.abstractions import MetadataAttributeError
 
         metadata = TorchSigDefaults().default_dataset_metadata.copy()
         # Remove sample_rate - need to remove from the defaults properly
@@ -420,7 +413,6 @@ class TestTorchSigGeoDatasetCreation:
         non_signal_transform = PathLoss(model="custom", loss_db=5.0)  # Actually IS a SignalTransform
         # but we need a non-SignalTransform - use AWGN which might be SignalTransform too
         # Let's use a plain object
-        from torchsig.transforms.transforms import AWGN
 
         # AWGN is a SignalTransform, so we just use a plain object
         with pytest.raises(TypeError, match=r"channel_transforms\[0\] must be a SignalTransform"):
@@ -1572,7 +1564,7 @@ class TestValidationHelpers:
 
     def test_validate_position_type_valid_geo_point(self):
         """Test _validate_position_type passes for valid GeoPoint."""
-        from torchsig.geo.datasets import _validate_callable_or_instance, GeoPoint
+        from torchsig.geo.datasets import GeoPoint, _validate_callable_or_instance
 
         point = GeoPoint(lat=37.7749, lon=-122.4194, alt=10)
         # Should not raise
@@ -1580,7 +1572,7 @@ class TestValidationHelpers:
 
     def test_validate_position_type_valid_callable(self):
         """Test _validate_position_type passes for callable returning GeoPoint."""
-        from torchsig.geo.datasets import _validate_callable_or_instance, GeoPoint
+        from torchsig.geo.datasets import GeoPoint, _validate_callable_or_instance
 
         def position_func(frame_index):
             return GeoPoint(lat=37.7749, lon=-122.4194, alt=10)
@@ -1589,28 +1581,28 @@ class TestValidationHelpers:
 
     def test_validate_position_type_invalid_type(self):
         """Test _validate_position_type fails for non-GeoPoint, non-callable."""
-        from torchsig.geo.datasets import _validate_callable_or_instance, GeoPoint
+        from torchsig.geo.datasets import GeoPoint, _validate_callable_or_instance
 
         with pytest.raises(TypeError, match="position must be a GeoPoint or callable"):
             _validate_callable_or_instance("not a point", "Transmitter", "position", GeoPoint, allow_none=False)
 
     def test_validate_velocity_type_valid_none(self):
         """Test _validate_velocity_type passes for None velocity."""
-        from torchsig.geo.datasets import _validate_callable_or_instance, GeoVelocity
+        from torchsig.geo.datasets import GeoVelocity, _validate_callable_or_instance
 
         # Should not raise
         _validate_callable_or_instance(None, "Transmitter", "velocity", GeoVelocity, allow_none=True)
 
     def test_validate_velocity_type_valid_geo_velocity(self):
         """Test _validate_velocity_type passes for valid GeoVelocity."""
-        from torchsig.geo.datasets import _validate_callable_or_instance, GeoVelocity
+        from torchsig.geo.datasets import GeoVelocity, _validate_callable_or_instance
 
         vel = GeoVelocity(east=10.0, north=5.0, up=2.0)
         _validate_callable_or_instance(vel, "Transmitter", "velocity", GeoVelocity, allow_none=True)
 
     def test_validate_velocity_type_valid_callable(self):
         """Test _validate_velocity_type passes for callable returning GeoVelocity."""
-        from torchsig.geo.datasets import _validate_callable_or_instance, GeoVelocity
+        from torchsig.geo.datasets import GeoVelocity, _validate_callable_or_instance
 
         def velocity_func(frame_index):
             return GeoVelocity(east=10.0, north=5.0, up=2.0)
@@ -1619,14 +1611,14 @@ class TestValidationHelpers:
 
     def test_validate_velocity_type_invalid_type(self):
         """Test _validate_velocity_type fails for non-GeoVelocity, non-callable, non-None."""
-        from torchsig.geo.datasets import _validate_callable_or_instance, GeoVelocity
+        from torchsig.geo.datasets import GeoVelocity, _validate_callable_or_instance
 
         with pytest.raises(TypeError, match="velocity must be a GeoVelocity or callable"):
             _validate_callable_or_instance("not a velocity", "Transmitter", "velocity", GeoVelocity, allow_none=True)
 
     def test_validate_position_callable_tests_at_init(self):
         """Test that callable position is called with frame_index=0 during validation."""
-        from torchsig.geo.datasets import _validate_callable_or_instance, GeoPoint
+        from torchsig.geo.datasets import GeoPoint, _validate_callable_or_instance
 
         call_count = 0
 
@@ -2094,11 +2086,10 @@ class TestCoverageEdgeCases:
         # Patch receiver.sample_rate to nan after dataset creation
         # Suppress the resampling warning since we're intentionally creating an invalid state
         # to test duration validation, not resampling behavior
-        with patch.object(rx, "sample_rate", float("nan")):
-            with warnings.catch_warnings():
-                warnings.simplefilter("ignore", UserWarning)
-                with pytest.raises(ValueError, match="Signal duration must be positive and finite"):
-                    _ = next(geo_ds)
+        with patch.object(rx, "sample_rate", float("nan")), warnings.catch_warnings():
+            warnings.simplefilter("ignore", UserWarning)
+            with pytest.raises(ValueError, match="Signal duration must be positive and finite"):
+                _ = next(geo_ds)
 
     def test_signal_alignment_padding_and_truncation(self, minimal_metadata):
         """Test that signals are aligned via padding/truncation and metadata is updated."""
@@ -2198,8 +2189,6 @@ class TestCoverageEdgeCases:
 
     def test_to_file_default_handler_is_hdf5(self, simple_geo_ds, temp_dir):
         """Test lines 1128-1132: default file_handler_class is HDF5Writer when None is passed."""
-        from torchsig.utils.file_handlers.hdf5 import HDF5Writer
-
         # Call to_file without file_handler_class argument (defaults to None)
         simple_geo_ds.to_file(root=temp_dir, dataset_length=2, overwrite=True)
 

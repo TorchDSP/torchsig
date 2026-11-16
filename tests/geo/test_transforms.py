@@ -15,27 +15,23 @@ import pytest
 
 from torchsig.datasets.datasets import TorchSigIterableDataset
 from torchsig.geo.datasets import Receiver, TorchSigGeoDataset, Transmitter
-from torchsig.geo.types import GeoPoint, GeoVelocity
 from torchsig.geo.transforms import (
     DopplerShift,
-    GeoSignalTransform,
     LineOfSight,
     PathDelay,
     PathLoss,
     align_signal_length,
     get_absolute_center_freq,
-    map_signal_tree,
     map_signal_leaves,
+    map_signal_tree,
     rebuild_signal_from_leaves,
 )
-from torchsig.transforms.transforms import AWGN, SignalTransform
+from torchsig.geo.types import GeoPoint, GeoVelocity
 from torchsig.geo.utils.propagation import SPEED_OF_LIGHT_M_PER_S
-from torchsig.geo.utils.coordinate_system import lla_to_ecef
 from torchsig.signals.signal_types import Signal
 
 from .conftest import (
     CENTER_FREQ,
-    PATH_DISTANCE,
     NEAR_SF_ALT,
     NEAR_SF_LAT,
     NEAR_SF_LON,
@@ -43,13 +39,11 @@ from .conftest import (
     SF_ALT,
     SF_LAT,
     SF_LON,
-    MIN_SIGNAL_CENTER_FREQ,
     SIGNAL_LENGTH,
     compute_fspl,
     make_rx,
     make_tx,
 )
-
 
 # =============================================================================
 # PathLoss Creation Tests
@@ -1782,8 +1776,6 @@ class TestDopplerShiftApplication:
 
     def test_apply_with_signal_center_freq(self):
         """Verify DopplerShift uses signal center_freq when available."""
-        from torchsig.geo.types import GeoVelocity
-
         tx = make_tx(identifier="tx_0", vel=GeoVelocity(0, 0, 0))
         rx = make_rx(identifier="rx_0")
         geo_ds = TorchSigGeoDataset(transmitters=[tx], receivers=[rx])
@@ -1818,8 +1810,6 @@ class TestDopplerShiftApplication:
 
     def test_doppler_formula_correctness(self):
         """Verify Doppler shift formula is applied correctly."""
-        from torchsig.geo.types import GeoVelocity
-
         # Set up stationary transmitter and receiver (zero radial velocity)
         tx = make_tx(identifier="tx_0", vel=GeoVelocity(0, 0, 0))
         rx = make_rx(identifier="rx_0")
@@ -1862,8 +1852,6 @@ class TestDopplerShiftApplication:
 
     def test_metadata_added(self):
         """Verify DopplerShift adds required metadata."""
-        from torchsig.geo.types import GeoVelocity
-
         tx = make_tx(identifier="tx_0", vel=GeoVelocity(0, 0, 0))
         rx = make_rx(identifier="rx_0")
         geo_ds = TorchSigGeoDataset(transmitters=[tx], receivers=[rx])
@@ -1898,8 +1886,6 @@ class TestDopplerShiftApplication:
 
     def test_returns_signal(self):
         """Verify DopplerShift returns a Signal object."""
-        from torchsig.geo.types import GeoVelocity
-
         tx = make_tx(identifier="tx_0", vel=GeoVelocity(0, 0, 0))
         rx = make_rx(identifier="rx_0")
         geo_ds = TorchSigGeoDataset(transmitters=[tx], receivers=[rx])
@@ -1936,8 +1922,6 @@ class TestDopplerShiftWithVelocity:
 
     def test_moving_transmitter(self):
         """Verify DopplerShift with moving transmitter."""
-        from torchsig.geo.types import GeoVelocity
-
         # Transmitter moving east at 100 m/s
         tx = make_tx(identifier="tx_0", vel=GeoVelocity(east=100.0, north=0.0, up=0.0))
         rx = make_rx(identifier="rx_0")
@@ -1978,8 +1962,6 @@ class TestDopplerShiftWithVelocity:
 
     def test_propagation_constant_scaling(self):
         """Verify propagation_constant scales the speed of light correctly."""
-        from torchsig.geo.types import GeoVelocity
-
         # Same setup but with different propagation constants
         tx = make_tx(identifier="tx_0", vel=GeoVelocity(east=100.0, north=0.0, up=0.0))
         rx = make_rx(identifier="rx_0")
@@ -2026,8 +2008,6 @@ class TestDopplerShiftWithVelocity:
         no defined direction vector. The transform should return zero radial
         velocity and zero Doppler shift instead of NaN.
         """
-        from torchsig.geo.types import GeoVelocity
-
         # Transmitter and receiver at the exact same position
         tx = make_tx(identifier="tx_0", lat=SF_LAT, lon=SF_LON, alt=SF_ALT, vel=GeoVelocity(east=100.0, north=0.0, up=0.0))
         rx = make_rx(lat=SF_LAT, lon=SF_LON, alt=SF_ALT, identifier="rx_0")
@@ -2078,9 +2058,6 @@ class TestDopplerShiftIntegration:
         transmitter component signal level. Therefore, DopplerShift as a channel
         transform needs the metadata to be available through hierarchical parent access.
         """
-        from torchsig.utils.defaults import TorchSigDefaults
-        from torchsig.geo.types import GeoVelocity
-
         # Create a simple signal with all required metadata for DopplerShift
         # This simulates a pre-processed signal with proper parent hierarchy
         tx = make_tx(identifier="tx_0", vel=GeoVelocity(east=100.0, north=0.0, up=0.0))

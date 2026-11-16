@@ -15,6 +15,7 @@ versioned packed HDF5 schema. Its frozen format identifier is
 from __future__ import annotations
 
 import os
+import time
 from math import prod
 from typing import Any
 
@@ -28,6 +29,7 @@ from torchsig.utils.file_handlers.metadata_codec import (
     decode_metadata,
     encode_metadata,
 )
+from torchsig.utils.file_handlers.metrics import ValidationPolicy
 
 __all__ = ["HomogeneousHDF5Reader", "HomogeneousHDF5Writer"]
 
@@ -72,7 +74,7 @@ def _encode_flat_metadata(signal: Signal) -> str:
         current = current.parent
     values = {}
     for item in reversed(chain):
-        values.update({key: item[key] for key in item.keys()})  # noqa: SIM118
+        values.update({key: item[key] for key in item.keys()})  # noqa: SIM118 - metadata objects are not iterable
     metadata = HierarchicalMetadataObject(
         metadata=values,
     )
@@ -95,6 +97,7 @@ class HomogeneousHDF5Writer(FileWriter):
     def __init__(
         self,
         root,
+        *,
         compression: str | None = "lzf",
         compression_opts: int | None = None,
         shuffle: bool = True,
@@ -388,12 +391,13 @@ class HomogeneousHDF5Reader(FileReader):
     omits metadata and component signals.
     """
 
-    def __init__(self, root) -> None:
+    def __init__(self, root, validation_policy: str | ValidationPolicy = ValidationPolicy.CACHED) -> None:
         """Initialize a process-safe lazy reader for ``root/data.h5``."""
         super().__init__(root=root)
         self.datapath = self.root / "data.h5"
         self._file: h5py.File | None = None
         self._pid: int | None = None
+        self.set_validation_policy(validation_policy)
 
     def _ensure_open(self) -> None:
         pid = os.getpid()
@@ -446,13 +450,24 @@ class HomogeneousHDF5Reader(FileReader):
             raise ValueError("Homogeneous HDF5 file is incomplete")
         cache_key = str(self.datapath)
         fingerprint = self._fingerprint()
-        if _VALIDATED_FILES.get(cache_key) == fingerprint:
+        if self.validation_policy is ValidationPolicy.LAZY:
             return
+        started = time.perf_counter()
+        if self.validation_policy is ValidationPolicy.CACHED and _VALIDATED_FILES.get(cache_key) == fingerprint:
+            if self.metrics.enabled:
+                self.metrics.validation_cache_hits += 1
+                self.metrics.validation_seconds += time.perf_counter() - started
+            return
+        if self.metrics.enabled:
+            self.metrics.validation_cache_misses += 1
         self._validate_structure()
         self._validate_integrity()
-        if cache_key not in _VALIDATED_FILES and len(_VALIDATED_FILES) >= _VALIDATION_CACHE_SIZE:
-            del _VALIDATED_FILES[next(iter(_VALIDATED_FILES))]
-        _VALIDATED_FILES[cache_key] = self._fingerprint()
+        if self.metrics.enabled:
+            self.metrics.validation_seconds += time.perf_counter() - started
+        if self.validation_policy is ValidationPolicy.CACHED:
+            if cache_key not in _VALIDATED_FILES and len(_VALIDATED_FILES) >= _VALIDATION_CACHE_SIZE:
+                del _VALIDATED_FILES[next(iter(_VALIDATED_FILES))]
+            _VALIDATED_FILES[cache_key] = self._fingerprint()
 
     def _fingerprint(self) -> tuple[int, int, int, int]:
         stat = self.datapath.stat()
@@ -640,8 +655,7 @@ class HomogeneousHDF5Reader(FileReader):
 
     def read(self, idx: int) -> Signal:
         """Read one complete signal by top-level dataset index."""
-        if idx < 0 or idx >= len(self):
-            raise IndexError(f"Homogeneous HDF5 sample index out of range: {idx}")
+        self.validate_index(idx)
         component_start = int(self._component_offsets[idx])
         component_stop = int(self._component_offsets[idx + 1])
         return Signal(
@@ -689,6 +703,15 @@ class HomogeneousHDF5Reader(FileReader):
         if start < 0 or stop < start or stop > len(self):
             raise IndexError(f"Homogeneous HDF5 batch range out of bounds: [{start}, {stop})")
         return self._data[start:stop]
+
+    def read_many(self, indices) -> list[Signal]:
+        """Read arbitrary signals, optimizing a unique contiguous request."""
+        requested = [self.validate_index(index) for index in indices]
+        if not requested:
+            return []
+        if requested == list(range(requested[0], requested[0] + len(requested))):
+            return self.read_signals_batch(requested[0], requested[-1] + 1)
+        return [self.read(index) for index in requested]
 
     def teardown(self) -> None:
         """Close the homogeneous HDF5 file."""

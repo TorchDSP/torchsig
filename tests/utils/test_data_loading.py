@@ -1,3 +1,4 @@
+import inspect
 import re
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
@@ -5,7 +6,8 @@ from unittest.mock import Mock, patch
 import numpy as np
 import pytest
 import torch
-from torch.utils.data import Dataset
+from lightning.fabric.utilities.data import _update_dataloader
+from torch.utils.data import Dataset, SequentialSampler
 
 from torchsig.utils.data_loading import (
     WorkerSeedingDataLoader,
@@ -133,6 +135,54 @@ def test_worker_seeding_dataloader_rejects_external_worker_init_fn():
             batch_size=2,
             worker_init_fn=lambda _: None,
         )
+
+
+def test_worker_seeding_dataloader_exposes_and_forwards_dataloader_arguments():
+    dataset = SeedableToyDataset()
+    generator = torch.Generator().manual_seed(17)
+
+    loader = WorkerSeedingDataLoader(
+        dataset,
+        seed=123,
+        batch_size=3,
+        shuffle=True,
+        num_workers=0,
+        collate_fn=metadata_padding_collate_fn,
+        pin_memory=True,
+        drop_last=True,
+        timeout=0,
+        generator=generator,
+    )
+
+    parameters = inspect.signature(WorkerSeedingDataLoader.__init__).parameters
+    assert not any(parameter.kind is inspect.Parameter.VAR_KEYWORD for parameter in parameters.values())
+    assert loader.batch_size == 3
+    assert loader.num_workers == 0
+    assert loader.collate_fn is metadata_padding_collate_fn
+    assert loader.pin_memory is True
+    assert loader.drop_last is True
+    assert loader.generator is generator
+
+
+def test_worker_seeding_dataloader_can_be_reconstructed_with_replacement_sampler():
+    dataset = SeedableToyDataset()
+    loader = WorkerSeedingDataLoader(
+        dataset,
+        seed=123,
+        batch_size=2,
+        num_workers=0,
+        collate_fn=metadata_padding_collate_fn,
+    )
+    replacement_sampler = SequentialSampler(dataset)
+
+    reconstructed = _update_dataloader(loader, replacement_sampler)
+
+    assert isinstance(reconstructed, WorkerSeedingDataLoader)
+    assert reconstructed.dataset is dataset
+    assert reconstructed.sampler is replacement_sampler
+    assert reconstructed.batch_size == loader.batch_size
+    assert reconstructed.collate_fn is loader.collate_fn
+    assert reconstructed.worker_init_fn == reconstructed.init_worker_seed
 
 
 def test_worker_seeding_dataloader_iterates_with_zero_workers():

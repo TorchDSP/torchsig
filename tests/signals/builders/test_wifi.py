@@ -56,8 +56,20 @@ def test_wifi_control_frame_symbol_counts_in_baseband():
     symbol_len = ifft_size + osr * 16
     preamble = 2 * (160 * osr) + symbol_len  # STF + LTF + SIGNAL
     rng = np.random.default_rng(0)
-    rts = wifi_80211a_modulator_baseband("rts", "bpsk", 100, osr, rng)
-    ack = wifi_80211a_modulator_baseband("ack", "bpsk", 100, osr, rng)
+    rts = wifi_80211a_modulator_baseband(
+        "rts",
+        "bpsk",
+        max_num_samples=100,
+        oversampling_rate_nominal=osr,
+        rng=rng,
+    )
+    ack = wifi_80211a_modulator_baseband(
+        "ack",
+        "bpsk",
+        max_num_samples=100,
+        oversampling_rate_nominal=osr,
+        rng=rng,
+    )
     assert len(rts) == preamble + 8 * symbol_len
     assert len(ack) == preamble + 6 * symbol_len
     # control frames are shorter than (typical) data frames
@@ -85,11 +97,30 @@ def test_wifi_modulator_output(frame_type):
 def test_wifi_modulator_invalid_args():
     """Invalid bandwidth and frame types raise."""
     with pytest.raises(ValueError):
-        wifi_80211a_modulator("data", "qpsk", 0, 20_000_000, 8192)
+        wifi_80211a_modulator(
+            "data",
+            "qpsk",
+            bandwidth=0,
+            sample_rate=20_000_000,
+            num_samples=8192,
+        )
+
     with pytest.raises(ValueError):
-        wifi_80211a_modulator("data", "qpsk", 11_000_000, 20_000_000, 8192)
+        wifi_80211a_modulator(
+            "data",
+            "qpsk",
+            bandwidth=11_000_000,
+            sample_rate=20_000_000,
+            num_samples=8192,
+        )
+
     with pytest.raises(ValueError):
-        wifi_80211a_modulator_baseband("bogus", "qpsk", 8192, WIFI_OVERSAMPLING_NOMINAL)
+        wifi_80211a_modulator_baseband(
+            "bogus",
+            "qpsk",
+            max_num_samples=8192,
+            oversampling_rate_nominal=WIFI_OVERSAMPLING_NOMINAL,
+        )
 
 
 @pytest.mark.parametrize(

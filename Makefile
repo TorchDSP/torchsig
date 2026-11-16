@@ -6,6 +6,7 @@
 PYTHON = python3
 PIP = $(PYTHON) -m pip
 PYTEST = $(PYTHON) -m pytest
+VENV = .venv
 
 # Directories
 SRC_DIR = torchsig
@@ -55,10 +56,24 @@ help:
 # --- Targets ---
 
 # Setup
+# uv-first, pip fallback. If uv is available we manage a project virtual
+# environment (`.venv`) and swap opencv for the headless build (no display/GL
+# deps). If uv is absent we fall back to plain `pip install`; in that case the
+# user is responsible for providing/activating their own virtual environment.
 install:
 	@echo "Installing dependencies..."
-	$(PIP) install --upgrade pip
-	$(PIP) install -e ".[dev]"
+	@if command -v uv >/dev/null 2>&1; then \
+		echo "Creating uv-managed virtual environment..."; \
+		uv venv $(VENV); \
+		. $(VENV)/bin/activate; \
+		uv pip install -e ".[dev]"; \
+		uv pip uninstall opencv-python opencv-python-headless || true; \
+		uv pip install opencv-python-headless==4.12.0.88; \
+	else \
+		echo "uv not found; installing with pip (provide your own venv)..."; \
+		$(PIP) install -e ".[dev]"; \
+	fi
+	@echo "Installation complete."
 
 
 # Build
@@ -116,34 +131,52 @@ test-cov:
 		$(TEST_DIR)
 
 # test-notebooks target
-HAS_GPU := $(shell python3 -c "import torch; print(int(torch.cuda.is_available()))")
-
-ifeq ($(HAS_GPU),1)
+# Notebooks are executed with pytest-nbmake (kernel-based, so magics like
+# %matplotlib inline work) and run in parallel with pytest-xdist. The GPU
+# training notebooks (detector, classifier) are kept separate from the CPU
+# notebooks so they can run on the right runner. Use test-notebooks-cpu and
+# test-notebooks-gpu; test-notebooks runs both.
+#
+# pytest-split can shard a group across multiple CI pods by recorded runtime
+# (see the CI jobs). Locally, pytest-xdist (-n) parallelizes within one process.
 NOTEBOOKS := $(wildcard examples/*.ipynb examples/*/*.ipynb)
-else
-NOTEBOOKS := $(filter-out \
-	examples/classifier_example.ipynb \
-	examples/create_dataset_example.ipynb, \
-	$(wildcard examples/*.ipynb examples/*/*.ipynb))
-endif
-EXECUTED_STAMPS  := $(patsubst %.ipynb,%.executed,$(NOTEBOOKS))
+GPU_NOTEBOOKS := \
+	examples/detector_example.ipynb \
+	examples/classifier_example.ipynb
+CPU_NOTEBOOKS := $(filter-out $(GPU_NOTEBOOKS),$(NOTEBOOKS))
 
-test-notebooks: $(EXECUTED_STAMPS)
+# Cap local xdist workers (override with: PYTEST_NPROCS=8 make test-notebooks-cpu)
+PYTEST_NPROCS ?= 4
 
-%.executed: %.ipynb
-	jupyter trust $< || { echo "❌ $< is not a valid notebook"; exit 1; }
-	PYTHONPATH=$(PWD) jupyter nbconvert \
-		--to notebook \
-		--execute $< \
-		--output $(notdir $<) \
-		--output-dir $(dir $<) \
-		--ExecutePreprocessor.startup_timeout=300 \
-		--ExecutePreprocessor.timeout=7200 \
-		|| { rm -f $@; exit 1; }
-	touch $@
+# Optional pytest-split args, e.g. --splits 3 --group 1 (set by CI)
+PYTEST_SPLIT_ARGS ?=
+
+.PHONY: test-notebooks test-notebooks-cpu test-notebooks-gpu test-notebooks-clean
+
+# Run everything (keeps the old target name working)
+test-notebooks: test-notebooks-cpu test-notebooks-gpu
+
+test-notebooks-cpu:
+	@echo "Running CPU notebooks ($(PYTEST_NPROCS) workers)..."
+	PYTHONPATH=$(PWD) $(PYTEST) \
+		--nbmake \
+		-n $(PYTEST_NPROCS) \
+		--dist loadfile \
+		$(PYTEST_SPLIT_ARGS) \
+		$(CPU_NOTEBOOKS)
+
+test-notebooks-gpu:
+	@echo "Running GPU notebooks ($(PYTEST_NPROCS) workers)..."
+	PYTHONPATH=$(PWD) $(PYTEST) \
+		--nbmake \
+		-n $(PYTEST_NPROCS) \
+		--dist loadfile \
+		$(PYTEST_SPLIT_ARGS) \
+		$(GPU_NOTEBOOKS)
 
 test-notebooks-clean:
-	rm -f $(EXECUTED_STAMPS) .cleaned
+	@echo "Removing stale notebook artifacts..."
+	rm -f examples/**/*.executed .cleaned
 
 
 clean-notebooks:
@@ -219,6 +252,21 @@ clean:
 	# Remove temporary directories created by file-handler tests
 	# (Adjust the pattern if your tests use a different tmp naming convention)
 	rm -fr "/tmp/pytest-of-$(USER)"
+	# Remove generated polyphase weights without disturbing other cache entries
+	@cache_dir="$$TORCHSIG_CACHE_DIR"; \
+	if [ -z "$$cache_dir" ]; then \
+		if [ "$$OS" = "Windows_NT" ] && [ -n "$$LOCALAPPDATA" ]; then \
+			cache_dir="$$LOCALAPPDATA/torchsig"; \
+		else \
+			cache_dir="$${XDG_CACHE_HOME:-$$HOME/.cache}/torchsig"; \
+		fi; \
+	fi; \
+	if [ -d "$$cache_dir" ]; then \
+		find "$$cache_dir" -maxdepth 1 -type f \
+			\( -name "torchsig_*_pfb_weights_num_branches_*_attenuation_db_*.npy" \
+			-o -name ".torchsig_*_pfb_weights_num_branches_*_attenuation_db_*.npy.*" \) \
+			-delete; \
+	fi
 	@echo "Cleanup complete."
 
 check-lfs:

@@ -7,11 +7,12 @@ import pytest
 import scipy as sp
 from numba.core.errors import TypingError
 from numpy.testing import assert_allclose, assert_array_equal
-from test_transforms_utils import generate_test_signal, generate_tone_signal
 
 from torchsig.transforms.functional import (
     _build_full_profile,
+    _fading_reference,
     _fft_filter,
+    _preserve_sampling_clock_output,
     add_slope,
     additive_noise,
     adjacent_channel_interference,
@@ -19,6 +20,7 @@ from torchsig.transforms.functional import (
     carrier_frequency_drift,
     carrier_phase_noise,
     channel_swap,
+    clock_drift,
     clock_jitter,
     coarse_gain_change,
     cochannel_interference,
@@ -52,8 +54,64 @@ from torchsig.utils.dsp import (
     compute_spectrogram,
 )
 
+from .test_transforms_utils import generate_test_signal, generate_tone_signal
+
 RTOL = 1e-6
 TEST_DATA = generate_test_signal(num_iq_samples=8192, scale=1.0).data
+
+
+@pytest.mark.parametrize("source_length", [2, 3, 4, 5, 6])
+def test_preserve_sampling_clock_output_length_and_dtype(source_length: int) -> None:
+    """Sampling-clock normalization handles shorter and odd/even excess output."""
+    data = np.arange(source_length, dtype=np.float64).astype(np.complex128)
+
+    output = _preserve_sampling_clock_output(data, length=4)
+
+    assert output.shape == (4,)
+    assert output.dtype == np.dtype(TorchSigComplexDataType)
+
+
+def test_preserve_sampling_clock_output_crops_one_extra_sample() -> None:
+    """A one-sample excess must not trigger the empty ``array[1:-0]`` slice."""
+    data = np.arange(5, dtype=np.float32).astype(np.complex64)
+
+    output = _preserve_sampling_clock_output(data, length=4)
+
+    np.testing.assert_array_equal(output, data[1:])
+
+
+def test_preserve_sampling_clock_output_uses_fractional_alignment_position() -> None:
+    data = np.array([0.0, 2.0, 4.0, 6.0], dtype=np.complex64)
+
+    output = _preserve_sampling_clock_output(data, length=2, start_position=1.5)
+
+    np.testing.assert_array_equal(output, np.array([3.0, 5.0], dtype=np.complex64))
+
+
+def test_preserve_sampling_clock_output_extends_edges_when_output_is_short() -> None:
+    data = np.array([1.0, 2.0], dtype=np.complex64)
+
+    output = _preserve_sampling_clock_output(data, length=4)
+
+    np.testing.assert_array_equal(output, np.array([1.0, 1.0, 2.0, 2.0], dtype=np.complex64))
+
+
+def test_preserve_sampling_clock_output_extends_aligned_tail() -> None:
+    data = np.array([1.0, 2.0, 3.0], dtype=np.complex64)
+
+    output = _preserve_sampling_clock_output(data, length=4, start_position=1.0)
+
+    np.testing.assert_array_equal(output, np.array([2.0, 3.0, 3.0, 3.0], dtype=np.complex64))
+
+
+def test_clock_drift_zero_impairment_is_phase_aligned() -> None:
+    time = np.arange(1024)
+    data = np.exp(2j * np.pi * 0.05 * time).astype(np.complex64)
+
+    output = clock_drift(data, drift_ppm=0.0, rng=np.random.default_rng(7))
+
+    phase_error = np.angle(np.vdot(data[32:-32], output[32:-32]))
+    assert phase_error == pytest.approx(0.0, abs=1e-3)
 
 
 @pytest.mark.parametrize("data, expected, is_error", [(0, ValueError, True), (TEST_DATA.copy(), True, False)])
@@ -787,6 +845,77 @@ def test_fading(data: Any, params: dict, expected: bool | IndexError, is_error: 
         assert (data.dtype == TorchSigComplexDataType) == expected
 
 
+@pytest.mark.parametrize("length", [8, 256, 4096])
+@pytest.mark.parametrize("coherence_bandwidth", [0.01, 0.1, 0.34])
+@pytest.mark.parametrize(
+    "power_delay_profile",
+    [
+        np.ones(16, dtype=np.float32) / 16,
+        np.array([1.0, 0.4, 0.1], dtype=np.float32),
+    ],
+)
+def test_fading_matches_preoptimization_reference(length, coherence_bandwidth, power_delay_profile):
+    data_rng = np.random.default_rng(123)
+    data = (data_rng.standard_normal(length) + 1j * data_rng.standard_normal(length)).astype(np.complex64)
+
+    expected = _fading_reference(data, coherence_bandwidth, power_delay_profile, np.random.default_rng(42))
+    actual = fading(data, coherence_bandwidth, power_delay_profile, np.random.default_rng(42))
+
+    assert_array_equal(actual, expected)
+
+
+def test_fading_preserves_rng_consumption():
+    data = np.ones(256, dtype=np.complex64)
+    power_delay_profile = np.array([1.0, 0.5], dtype=np.float32)
+    reference_rng = np.random.default_rng(42)
+    optimized_rng = np.random.default_rng(42)
+
+    _fading_reference(data, 0.1, power_delay_profile, reference_rng)
+    fading(data, 0.1, power_delay_profile, optimized_rng)
+
+    assert_array_equal(optimized_rng.standard_normal(16), reference_rng.standard_normal(16))
+
+
+def test_fading_preserves_multidimensional_reference_behavior():
+    data = np.arange(16, dtype=np.float32).reshape(2, 8).astype(np.complex64)
+    power_delay_profile = np.array([1.0, 0.5], dtype=np.float32)
+
+    expected = _fading_reference(data, 0.1, power_delay_profile, np.random.default_rng(42))
+    actual = fading(data, 0.1, power_delay_profile, np.random.default_rng(42))
+
+    assert_array_equal(actual, expected)
+
+
+@pytest.mark.parametrize("coherence_bandwidth", [1.0, 2.0])
+def test_fading_preserves_single_tap_boundary_error(coherence_bandwidth):
+    data = np.ones(8, dtype=np.complex64)
+
+    with pytest.raises(ValueError):
+        fading(data, coherence_bandwidth, np.array([1.0, 0.5]), np.random.default_rng(42))
+
+
+def test_fading_preserves_output_power_shape_and_dtype():
+    data_rng = np.random.default_rng(123)
+    data = (data_rng.standard_normal(4096) + 1j * data_rng.standard_normal(4096)).astype(np.complex128)
+
+    actual = fading(data, 0.1, np.array([1.0, 0.5]), np.random.default_rng(42))
+
+    assert actual.shape == data.shape
+    assert actual.dtype == np.dtype(TorchSigComplexDataType)
+    assert np.linalg.norm(actual) == pytest.approx(np.linalg.norm(data), rel=1e-6)
+
+
+def test_fading_preserves_silent_input_behavior():
+    data = np.zeros(256, dtype=np.complex64)
+    power_delay_profile = np.array([1.0, 0.5], dtype=np.float32)
+
+    expected = _fading_reference(data, 0.1, power_delay_profile, np.random.default_rng(42))
+    actual = fading(data, 0.1, power_delay_profile, np.random.default_rng(42))
+
+    assert_array_equal(actual, expected)
+    assert_array_equal(actual, data)
+
+
 @pytest.mark.parametrize(
     "data, params, expected, is_error",
     [
@@ -842,7 +971,6 @@ def test_iq_imbalance(data: Any, params: dict, expected: bool, is_error: bool) -
 
     """
     amplitude_imbalance = params["amplitude_imbalance"]
-    amplitude_imbalance_linear = 10 ** (amplitude_imbalance / 10.0)
     phase_imbalance = params["phase_imbalance"]
     dc_offset_db = params["dc_offset_db"]
     dc_offset_phase_rads = params["dc_offset_phase_rads"]
@@ -857,6 +985,29 @@ def test_iq_imbalance(data: Any, params: dict, expected: bool, is_error: bool) -
 
         assert (type(data) == type(data_test)) == expected
         assert (data.dtype == TorchSigComplexDataType) == expected
+
+
+@pytest.mark.parametrize("amplitude_imbalance", [-6.0, 0.0, 6.0])
+def test_iq_imbalance_applies_relative_channel_gain(amplitude_imbalance: float) -> None:
+    """The requested dB value must equal the I-to-Q voltage imbalance."""
+    channel = np.tile(np.array([1.0, -1.0], dtype=np.float32), 512)
+    data = (channel + 1j * channel).astype(TorchSigComplexDataType)
+
+    result = iq_imbalance(
+        data,
+        amplitude_imbalance=amplitude_imbalance,
+        phase_imbalance=0.0,
+        dc_offset_db=-300.0,
+        dc_offset_phase_rads=0.0,
+        noise_power_db=0.0,
+    )
+
+    i_rms = np.sqrt(np.mean(np.square(result.real)))
+    q_rms = np.sqrt(np.mean(np.square(result.imag)))
+    measured_imbalance_db = 20 * np.log10(i_rms / q_rms)
+
+    assert measured_imbalance_db == pytest.approx(amplitude_imbalance, abs=1e-5)
+    assert result.dtype == TorchSigComplexDataType
 
 
 @pytest.mark.parametrize(

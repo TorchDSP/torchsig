@@ -25,7 +25,13 @@ def frequency_shift_signal(
     frequency_min: float,
     random_generator: np.random.Generator | None = None,
 ) -> Signal:
-    """Randomly shifts the frequency of a signal to a new center frequency and applies aliasing filters if necessary.
+    """Shift a signal in frequency and clip any out-of-band interval.
+
+    ``center_freq`` and the full two-sided ``bandwidth`` are the canonical
+    frequency metadata. If the shifted interval exceeds a dataset frequency
+    limit, the anti-aliasing filter returns the retained interval's center and
+    bandwidth. Both canonical fields are updated so the derived lower and upper
+    edges describe the filtered data and remain within the dataset limits.
 
     Args:
         signal (Signal): The signal object to be frequency shifted.

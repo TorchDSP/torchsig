@@ -58,7 +58,7 @@ def build_gsm_burst(tsc_idx: int, rng: np.random.Generator) -> np.ndarray:
     """Builds one 157-bit GSM Normal Burst (148 active + 9 guard bits).
 
     Args:
-        tsc_idx: Index 0–7 selecting the Training Sequence Code.
+        tsc_idx: Index 0-7 selecting the Training Sequence Code.
         rng: Random number generator.
 
     Returns:

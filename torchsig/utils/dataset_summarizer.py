@@ -10,10 +10,14 @@ from __future__ import annotations
 
 from collections import Counter
 from math import ceil
+from typing import TYPE_CHECKING
 
 import matplotlib.pyplot as plt
 import numpy as np
 from tqdm import tqdm
+
+if TYPE_CHECKING:
+    from torchsig.datasets.datasets import StaticTorchSigDataset
 
 __all__ = ["DEF_N_BINS", "DatasetSummary", "summarize_dataset"]
 
@@ -56,7 +60,7 @@ class DatasetSummary:
                 metrics, or a dict mapping metric names to bin counts.
                 Defaults to 50.
         """
-        from torchsig.datasets.datasets import StaticTorchSigDataset
+        from torchsig.datasets.datasets import StaticTorchSigDataset  # noqa: PLC0415
 
         dataset = StaticTorchSigDataset(root=root, target_labels=None)
         self._build(dataset, n_bins)
@@ -79,7 +83,7 @@ class DatasetSummary:
             A populated ``DatasetSummary``.
         """
         instance = cls.__new__(cls)
-        instance._build(dataset, n_bins)
+        cls._build(instance, dataset, n_bins)
         return instance
 
     def _build(
@@ -140,6 +144,7 @@ class DatasetSummary:
     def plot(
         self,
         metrics: list[str] | None = None,
+        *,
         max_cols: int = 2,
         width_per_plot: int = 15,
         height_per_plot: int = 10,

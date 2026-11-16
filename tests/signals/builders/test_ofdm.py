@@ -15,14 +15,14 @@ from torchsig.utils.dsp import TorchSigComplexDataType
 MODULE_PATH = "torchsig.signals.builders.ofdm"
 
 
-@pytest.mark.parametrize("num_subcarriers", [0, -1, -16])
-def test_ofdm_modulator_baseband_rejects_nonpositive_num_subcarriers(
+@pytest.mark.parametrize("num_subcarriers", [0, -1, 3, 8193])
+def test_ofdm_modulator_baseband_rejects_out_of_range_num_subcarriers(
     num_subcarriers,
 ):
-    """Nonpositive subcarrier counts should be rejected."""
+    """Subcarrier counts outside the supported range should be rejected."""
     with pytest.raises(
         ValueError,
-        match="num_subcarriers must be positive",
+        match="num_subcarriers must be between 4 and 8192, inclusive",
     ):
         ofdm_modulator_baseband(
             num_subcarriers=num_subcarriers,
@@ -232,6 +232,8 @@ def test_ofdm_modulator_baseband_adds_cyclic_prefix():
             ifft_output[:, 0],
         )
     )
+    expected_windowed = serialized_with_cp.copy()
+    expected_windowed[:8] *= np.blackman(16)[:8]
 
     with (
         patch.object(
@@ -266,12 +268,65 @@ def test_ofdm_modulator_baseband_adds_cyclic_prefix():
 
     np.testing.assert_array_equal(
         slice_tail.call_args.args[0],
-        serialized_with_cp,
+        expected_windowed,
     )
     np.testing.assert_array_equal(
         result,
-        serialized_with_cp,
+        expected_windowed,
     )
+
+
+def test_ofdm_modulator_baseband_windowing_overlap_adds_adjacent_symbols():
+    """Cyclic-prefix window tails should overlap the following symbol starts."""
+    rng = MagicMock(spec=np.random.Generator)
+    rng.integers.side_effect = [
+        0,
+        np.zeros((4, 2), dtype=int),
+    ]
+
+    first_symbol = np.arange(16, dtype=np.float32)
+    second_symbol = np.arange(16, 32, dtype=np.float32)
+    ifft_output = np.column_stack((first_symbol, second_symbol)).astype(np.complex64)
+
+    cp_len_oversampled = 4
+    window = np.blackman(2 * cp_len_oversampled)
+    first_extended = np.concatenate((first_symbol[-4:], first_symbol, first_symbol[:4]))
+    second_extended = np.concatenate((second_symbol[-4:], second_symbol, second_symbol[:4]))
+    first_extended[:4] *= window[:4]
+    first_extended[-4:] *= window[4:]
+    second_extended[:4] *= window[:4]
+    second_extended[-4:] *= window[4:]
+    expected = np.zeros(44, dtype=np.complex64)
+    expected[:24] += first_extended
+    expected[20:] += second_extended
+    expected = expected[:-4]
+
+    with (
+        patch.object(
+            __import__(MODULE_PATH, fromlist=["TorchSigSignalLists"]).TorchSigSignalLists,
+            "ofdm_subcarrier_modulations",
+            ["test"],
+        ),
+        patch.dict(
+            f"{MODULE_PATH}.all_symbol_maps",
+            {"test": np.array([-1 + 0j, 1 + 0j])},
+        ),
+        patch(f"{MODULE_PATH}.np.fft.ifft", return_value=ifft_output),
+        patch(
+            f"{MODULE_PATH}.slice_tail_to_length",
+            side_effect=lambda signal, length: signal[:length],
+        ) as slice_tail,
+    ):
+        result = ofdm_modulator_baseband(
+            num_subcarriers=4,
+            max_num_samples=40,
+            oversampling_rate_nominal=4,
+            rng=rng,
+            cyclic_prefix_len=1,
+        )
+
+    np.testing.assert_allclose(slice_tail.call_args.args[0], expected)
+    np.testing.assert_allclose(result, expected)
 
 
 def test_ofdm_modulator_baseband_selects_subcarrier_modulation():
@@ -447,6 +502,44 @@ def test_ofdm_modulator_baseband_leaves_dc_and_guard_bins_zero():
 
     for index in inactive_indices:
         assert captured_grid[index, 0] == 0
+
+
+def test_ofdm_modulator_baseband_supports_odd_subcarrier_count():
+    """Odd carrier counts should be split around DC without dropping one."""
+    rng = MagicMock(spec=np.random.Generator)
+    rng.integers.side_effect = [0, np.arange(5, dtype=int).reshape(5, 1)]
+    captured_grid = None
+
+    def capture_ifft(grid, axis):
+        nonlocal captured_grid
+        captured_grid = grid.copy()
+        return np.zeros_like(grid)
+
+    with (
+        patch.object(
+            __import__(MODULE_PATH, fromlist=["TorchSigSignalLists"]).TorchSigSignalLists,
+            "ofdm_subcarrier_modulations",
+            ["test"],
+        ),
+        patch.dict(
+            f"{MODULE_PATH}.all_symbol_maps",
+            {"test": np.arange(1, 6, dtype=np.complex64)},
+        ),
+        patch(f"{MODULE_PATH}.np.fft.ifft", side_effect=capture_ifft),
+    ):
+        ofdm_modulator_baseband(
+            num_subcarriers=5,
+            max_num_samples=20,
+            oversampling_rate_nominal=4,
+            rng=rng,
+            cyclic_prefix_len=0,
+        )
+
+    assert captured_grid is not None
+    assert np.count_nonzero(captured_grid[:, 0]) == 5
+    assert captured_grid[0, 0] == 0
+    assert np.count_nonzero(captured_grid[1:4, 0]) == 3
+    assert np.count_nonzero(captured_grid[-2:, 0]) == 2
 
 
 def test_ofdm_modulator_baseband_requests_expected_symbol_grid_shape():
@@ -750,9 +843,9 @@ def test_ofdm_modulator_calculates_resampling_parameters():
     # ceil(100 / 2.5) = 40
     baseband_modulator.assert_called_once_with(
         64,
-        40,
-        4,
-        rng,
+        max_num_samples=40,
+        oversampling_rate_nominal=4,
+        rng=rng,
     )
     resampler.assert_called_once_with(
         baseband,
@@ -880,6 +973,26 @@ def test_ofdm_modulator_returns_torchsig_complex_dtype():
     assert result.dtype == np.dtype(TorchSigComplexDataType)
 
 
+@pytest.mark.parametrize("num_subcarriers", [4, 5, 64, 8192])
+def test_ofdm_modulator_supports_variable_subcarrier_range(num_subcarriers):
+    """Representative supported counts should generate repeatable waveforms."""
+    kwargs = {
+        "num_subcarriers": num_subcarriers,
+        "bandwidth": 1_000,
+        "sample_rate": 10_000,
+        "num_samples": 64,
+        "cyclic_prefix_len": 0,
+    }
+
+    first = ofdm_modulator(**kwargs, rng=np.random.default_rng(42))
+    second = ofdm_modulator(**kwargs, rng=np.random.default_rng(42))
+
+    assert first.shape == (64,)
+    assert first.dtype == np.dtype(TorchSigComplexDataType)
+    assert np.all(np.isfinite(first))
+    np.testing.assert_array_equal(first, second)
+
+
 def test_ofdm_signal_generator_initialization():
     """The generator should configure required fields and class name."""
     metadata = {"num_subcarriers": 64}
@@ -965,11 +1078,11 @@ def test_ofdm_signal_generator_generate():
 
     modulator.assert_called_once_with(
         64,
-        800,
-        10_000,
-        150,
-        rng,
-        16,
+        bandwidth=800,
+        sample_rate=10_000,
+        num_samples=150,
+        rng=rng,
+        cyclic_prefix_len=16,
     )
 
     signal_class.assert_called_once_with(
@@ -1008,3 +1121,31 @@ def test_ofdm_signal_generator_labels_absent_cyclic_prefix():
 
     assert signal.has_cyclic_prefix is False
     assert signal.cyclic_prefix_len == 0
+
+
+def test_ofdm_signal_generator_selects_valid_prefix_for_minimum_count():
+    """The minimum supported count should have a nonempty automatic CP range."""
+    metadata = {
+        "sample_rate": 10_000,
+        "bandwidth_min": 500,
+        "bandwidth_max": 1_000,
+        "num_subcarriers": 4,
+        "signal_duration_in_samples_min": 100,
+        "signal_duration_in_samples_max": 200,
+    }
+    rng = MagicMock(spec=np.random.Generator)
+    rng.integers.side_effect = [150, 800, 1]
+    rng.uniform.return_value = 0.75
+
+    class GeneratorStub:
+        random_generator = rng
+
+        def __getitem__(self, key):
+            return metadata[key]
+
+    with patch(f"{MODULE_PATH}.ofdm_modulator", return_value=np.ones(150)):
+        signal = OFDMSignalGenerator.generate(GeneratorStub())
+
+    assert rng.integers.call_args_list[-1] == call(1, 2)
+    assert signal.has_cyclic_prefix is True
+    assert signal.cyclic_prefix_len == 1

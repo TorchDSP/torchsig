@@ -60,6 +60,35 @@ def test_numba_reproducible():
     np.testing.assert_array_equal(a, b)
 
 
+@pytest.mark.parametrize("seed", [3, 11])
+def test_sampling_clock_clamps_large_jitter_to_valid_boundaries(seed):
+    """Large timing offsets cannot produce invalid input or phase reads."""
+    h = np.array([1.0, 0.5, -0.25, 0.125], dtype=np.float32)
+    x = np.arange(32, dtype=np.float32).astype(np.complex64)
+    kwargs = dict(
+        h=h,
+        x=x,
+        uprate=4,
+        drate=4.0,
+        jitter_ppm=100_000_000.0,
+        drift_ppm=0.0,
+    )
+
+    reference = sampling_clock_impairments(
+        rng=np.random.default_rng(seed),
+        **kwargs,
+    )
+    accelerated = sampling_clock_impairments_numba_wrapper(
+        rng=np.random.default_rng(seed),
+        **kwargs,
+    )
+
+    assert reference.dtype == np.complex64
+    assert accelerated.dtype == np.complex64
+    assert np.all(np.isfinite(reference))
+    np.testing.assert_allclose(accelerated, reference, rtol=0.0, atol=1e-4)
+
+
 def test_functional_uses_numba():
     """functional.py wired the accelerated implementation in."""
     assert F._sampling_clock_impairments is sampling_clock_impairments_numba_wrapper
@@ -242,7 +271,6 @@ def test_sampling_clock_impairments_numba_py_func_covers_kernel_body():
     jitter_drift_pool = rng.normal(0.0, 1.0, num_output_samples * 2).astype(np.float32) * 1e-6
 
     out = sampling_clock_impairments_numba.py_func(
-        h,
         x.real.astype(np.float32),
         x.imag.astype(np.float32),
         uprate,
@@ -254,7 +282,9 @@ def test_sampling_clock_impairments_numba_py_func_covers_kernel_body():
         taps_per_phase,
         padded_len,
         max_start,
+        drate,
         num_output_samples,
+        0.0,
     )
 
     assert out.dtype == np.complex64
@@ -267,7 +297,6 @@ def test_sampling_clock_impairments_numba_py_func_handles_empty_output():
     x = np.array([], dtype=np.complex64)
 
     out = sampling_clock_impairments_numba.py_func(
-        h,
         x.real.astype(np.float32),
         x.imag.astype(np.float32),
         1,
@@ -279,11 +308,33 @@ def test_sampling_clock_impairments_numba_py_func_handles_empty_output():
         1,
         0,
         -1,
+        1.0,
         1,
+        0.0,
     )
 
     assert out.shape == (0,)
     assert out.dtype == np.complex64
+
+
+def test_sampling_clock_numba_kernel_rejects_exhausted_output_capacity():
+    with pytest.raises(RuntimeError, match="sampling clock output capacity exhausted"):
+        sampling_clock_impairments_numba.py_func(
+            np.ones(4, dtype=np.float32),
+            np.zeros(4, dtype=np.float32),
+            1,
+            1.0,
+            0.0,
+            0.0,
+            np.zeros(2, dtype=np.float32),
+            np.array([[1.0]], dtype=np.float32),
+            1,
+            4,
+            3,
+            1.0,
+            1,
+            0.0,
+        )
 
 
 def test_digital_agc_numba_py_func_covers_kernel_body():

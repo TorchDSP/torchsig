@@ -10,8 +10,6 @@ Example:
     python examples/scripts/dev/debug_wideband_pipeline.py --num-samples 2
 """
 
-# ruff: noqa: INP001
-
 from __future__ import annotations
 
 import argparse
@@ -24,10 +22,7 @@ from torchsig.datasets.datamodules import TorchSigDataModule
 from torchsig.utils.metadata_logging import MetadataDebugFormatter
 from torchsig.utils.writer import identity_collate_fn
 
-DEFAULT_CONFIG = (
-    Path(__file__).resolve().parents[3]
-    / "torchsig/datasets/default_configs/wideband_clean_train_all.yaml"
-)
+DEFAULT_CONFIG = Path(__file__).resolve().parents[3] / "torchsig/datasets/default_configs/wideband_clean_train_all.yaml"
 DEBUG_KEYS = {
     "bandwidth_max",
     "bandwidth_min",
@@ -121,11 +116,7 @@ def main() -> None:
     """Generate wideband samples while reporting metadata resolution."""
     args = parse_args()
     configure_metadata_logger()
-    root_context = (
-        nullcontext(args.root)
-        if args.root is not None
-        else TemporaryDirectory(prefix="torchsig-wideband-debug-")
-    )
+    root_context = nullcontext(args.root) if args.root is not None else TemporaryDirectory(prefix="torchsig-wideband-debug-")
     with root_context as root:
         datamodule = build_wideband_datamodule(
             args.config,

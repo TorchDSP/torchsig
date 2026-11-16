@@ -13,6 +13,7 @@ from torchsig.utils.abstractions import (
     MetadataAttributeError,
     MetadataDebugConfig,
     MetadataDebugStatistics,
+    MetadataParentCycleError,
     MetadataResolution,
 )
 
@@ -48,6 +49,15 @@ def test_initialization_without_metadata_creates_empty_metadata():
     assert dict(obj.keys()) == {}
     assert obj["metadata"] == {}
     assert obj.rng_seed == 123
+
+
+@pytest.mark.parametrize("parent", [object(), "parent", 1])
+def test_initialization_rejects_invalid_parent_type(parent):
+    with pytest.raises(
+        TypeError,
+        match="parent must be a HierarchicalMetadataObject or None",
+    ):
+        HierarchicalMetadataObject(parent=parent)
 
 
 def test_initialization_copies_metadata_values():
@@ -260,6 +270,24 @@ def test_get_full_metadata_returns_new_dictionary():
     assert obj["field"] == "original"
 
 
+def test_getitem_raises_clear_error_for_parent_cycle():
+    parent = HierarchicalMetadataObject()
+    child = HierarchicalMetadataObject(parent=parent)
+    parent.parent = child
+
+    with pytest.raises(MetadataParentCycleError, match="cycle detected.*missing"):
+        child["missing"]
+
+
+def test_get_full_metadata_raises_clear_error_for_parent_cycle():
+    parent = HierarchicalMetadataObject(metadata={"parent": 1})
+    child = HierarchicalMetadataObject(parent=parent, metadata={"child": 2})
+    parent.parent = child
+
+    with pytest.raises(MetadataParentCycleError, match="cycle detected"):
+        child.get_full_metadata()
+
+
 def test_explain_metadata_reports_local_key():
     obj = HierarchicalMetadataObject(metadata={"field": "value"})
 
@@ -366,6 +394,67 @@ def test_explain_metadata_rejects_non_string_key():
 
     with pytest.raises(TypeError, match="metadata key must be a string"):
         obj.explain_metadata(123)
+
+
+def test_require_metadata_accepts_local_and_inherited_keys():
+    parent = ExampleMetadataObject(metadata={"inherited": "value"})
+    child = HierarchicalMetadataObject(
+        parent=parent,
+        metadata={"local": "value"},
+    )
+
+    assert child.require_metadata("local", "inherited") is None
+
+
+def test_require_metadata_can_require_local_definition():
+    parent = ExampleMetadataObject(metadata={"field": "value"})
+    child = HierarchicalMetadataObject(parent=parent)
+
+    with pytest.raises(
+        MetadataAttributeError,
+        match="required locally defined metadata key 'field' was not found",
+    ):
+        child.require_metadata("field", inherited=False)
+
+
+def test_require_metadata_reports_missing_key_and_parent_chain():
+    parent = ExampleMetadataObject(metadata={"other": "value"})
+    child = HierarchicalMetadataObject(parent=parent)
+
+    with pytest.raises(MetadataAttributeError) as exc_info:
+        child.require_metadata("missing")
+
+    message = str(exc_info.value)
+    assert "required metadata key 'missing' was not found" in message
+    assert "HierarchicalMetadataObject -> ExampleMetadataObject" in message
+    assert "cycle detected: False" in message
+
+
+def test_require_metadata_rejects_non_string_key():
+    obj = HierarchicalMetadataObject()
+
+    with pytest.raises(TypeError, match="metadata key must be a string"):
+        obj.require_metadata(123)
+
+
+def test_require_metadata_reports_parent_cycle():
+    parent = ExampleMetadataObject()
+    child = HierarchicalMetadataObject(parent=parent)
+    parent.parent = child
+
+    with pytest.raises(MetadataAttributeError, match="cycle detected: True"):
+        child.require_metadata("missing")
+
+
+def test_missing_item_error_reports_parent_chain():
+    parent = ExampleMetadataObject()
+    child = HierarchicalMetadataObject(parent=parent)
+
+    with pytest.raises(MetadataAttributeError) as exc_info:
+        _ = child["missing"]
+
+    assert "key: 'missing' could not be found in metadata" in str(exc_info.value)
+    assert "HierarchicalMetadataObject -> ExampleMetadataObject" in str(exc_info.value)
 
 
 def test_metadata_debug_is_disabled_by_default(caplog):
@@ -486,7 +575,7 @@ def test_metadata_debug_state_survives_pickle_round_trip():
         value_repr_limit=50,
     )
 
-    restored = pickle.loads(pickle.dumps(obj))  # noqa: S301
+    restored = pickle.loads(pickle.dumps(obj))
 
     assert restored.metadata_debug_enabled is True
     assert restored.metadata_debug_config == MetadataDebugConfig(

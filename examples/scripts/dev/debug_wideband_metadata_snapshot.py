@@ -10,8 +10,6 @@ Example:
     python examples/scripts/dev/debug_wideband_metadata_snapshot.py
 """
 
-# ruff: noqa: INP001
-
 from __future__ import annotations
 
 import argparse
@@ -24,10 +22,7 @@ from torchsig.datasets.datamodules import TorchSigDataModule
 from torchsig.utils.metadata_logging import MetadataSnapshotFormatter
 from torchsig.utils.writer import identity_collate_fn
 
-DEFAULT_CONFIG = (
-    Path(__file__).resolve().parents[3]
-    / "torchsig/datasets/default_configs/wideband_clean_train_all.yaml"
-)
+DEFAULT_CONFIG = Path(__file__).resolve().parents[3] / "torchsig/datasets/default_configs/wideband_clean_train_all.yaml"
 
 
 def parse_args() -> argparse.Namespace:
@@ -105,11 +100,7 @@ def main() -> None:
     """Generate samples and emit one completed metadata snapshot per sample."""
     args = parse_args()
     configure_snapshot_logger()
-    root_context = (
-        nullcontext(args.root)
-        if args.root is not None
-        else TemporaryDirectory(prefix="torchsig-wideband-snapshot-")
-    )
+    root_context = nullcontext(args.root) if args.root is not None else TemporaryDirectory(prefix="torchsig-wideband-snapshot-")
     with root_context as root:
         datamodule = build_wideband_datamodule(
             args.config,

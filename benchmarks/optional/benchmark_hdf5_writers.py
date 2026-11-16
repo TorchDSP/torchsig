@@ -27,15 +27,10 @@ WRITER_IMPLEMENTATIONS: dict[str, Callable] = {
 def signals() -> list[Signal]:
     """Build representative complex signals with shared and component metadata."""
     rng = np.random.default_rng(0)
-    parent = HierarchicalMetadataObject(
-        metadata={"sample_rate": 1_000_000.0, "dataset_name": "writer-benchmark"}
-    )
+    parent = HierarchicalMetadataObject(metadata={"sample_rate": 1_000_000.0, "dataset_name": "writer-benchmark"})
     result = []
     for idx in range(NUM_SIGNALS):
-        data = (
-            rng.standard_normal(NUM_SAMPLES)
-            + 1j * rng.standard_normal(NUM_SAMPLES)
-        ).astype(np.complex64)
+        data = (rng.standard_normal(NUM_SAMPLES) + 1j * rng.standard_normal(NUM_SAMPLES)).astype(np.complex64)
         component = Signal(
             data=data[:256],
             parent=parent,

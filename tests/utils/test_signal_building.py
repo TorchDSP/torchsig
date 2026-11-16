@@ -38,6 +38,55 @@ def test_ofdm_generator_entries(num_subcarriers):
     )
 
 
+def test_ofdm_generator_entries_preserve_default_values():
+    assert signal_building.num_subcarrier_values == [64, 72, 128, 180, 256, 300, 512, 600, 900, 1024, 1200, 2048]
+
+
+@pytest.mark.parametrize("num_subcarriers", [4, 5, 4097, 8192])
+def test_lookup_supports_explicit_variable_ofdm_count(num_subcarriers):
+    generator = signal_building.lookup_signal_generator_by_string(f"ofdm-{num_subcarriers}")
+
+    assert isinstance(generator, OFDMSignalGenerator)
+    assert generator.num_subcarriers == num_subcarriers
+    assert generator.class_name == f"ofdm-{num_subcarriers}"
+
+
+def test_lookup_configures_ofdm_family_from_parameter():
+    generator = signal_building.lookup_signal_generator_by_string(
+        "ofdm",
+        ofdm_num_subcarriers=[4, 5, 4097],
+    )
+
+    assert [child.num_subcarriers for child in generator.signal_generators] == [4, 5, 4097]
+
+
+def test_lookup_configures_all_aggregate_without_changing_other_generators():
+    default_generator = signal_building.lookup_signal_generator_by_string("all")
+    configured_generator = signal_building.lookup_signal_generator_by_string(
+        "all",
+        ofdm_num_subcarriers=[5],
+    )
+
+    default_non_ofdm = [child.class_name for child in default_generator.signal_generators if not child.class_name.startswith("ofdm-")]
+    configured_non_ofdm = [child.class_name for child in configured_generator.signal_generators if not child.class_name.startswith("ofdm-")]
+    configured_ofdm = [child.class_name for child in configured_generator.signal_generators if child.class_name.startswith("ofdm-")]
+
+    assert configured_non_ofdm == default_non_ofdm
+    assert configured_ofdm == ["ofdm-5"]
+
+
+@pytest.mark.parametrize("values", [[], [3], [8193], [4.5], [True], "4"])
+def test_lookup_rejects_invalid_configured_ofdm_counts(values):
+    with pytest.raises((TypeError, ValueError), match="ofdm_num_subcarriers"):
+        signal_building.lookup_signal_generator_by_string("ofdm", values)
+
+
+@pytest.mark.parametrize("name", ["ofdm-3", "ofdm-8193", "ofdm-4.5", "ofdm-four", "ofdm-"])
+def test_lookup_rejects_invalid_explicit_ofdm_names(name):
+    with pytest.raises(ValueError, match="could not instantiate signal generator"):
+        signal_building.lookup_signal_generator_by_string(name)
+
+
 @pytest.mark.parametrize(
     ("name", "metadata"),
     [

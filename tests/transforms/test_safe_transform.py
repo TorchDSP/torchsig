@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 from unittest.mock import patch
 
 import numpy as np
@@ -9,7 +10,7 @@ from torchsig.transforms.transforms import transform_crash_logger
 
 @pytest.fixture
 def temp_dir(tmp_path):
-    original_dir = os.getcwd()
+    original_dir = Path.cwd()
     os.chdir(tmp_path)
     yield
     os.chdir(original_dir)
@@ -42,7 +43,7 @@ def test_failed_transform_saves_state(mock_time, temp_dir):
     with pytest.raises(ValueError):
         transform_crash_logger(failing_transform, data, param=42)
 
-    assert os.path.exists(expected_filename)
+    assert Path(expected_filename).exists()
     with np.load(expected_filename, allow_pickle=True) as f:
         assert np.array_equal(f["data"], data)
         assert isinstance(f["seed"].item(), (int, np.integer))
@@ -94,5 +95,5 @@ def test_unique_filenames_rapid_failures(mock_time, temp_dir):
         transform_crash_logger(failing_transform, data)
 
     # Verify transform_crash_logger handles collisions
-    files = [f for f in os.listdir() if f.startswith("crash_failing_transform_")]
+    files = [p.name for p in Path().iterdir() if p.name.startswith("crash_failing_transform_")]
     assert len(files) == 2

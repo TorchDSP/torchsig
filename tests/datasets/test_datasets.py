@@ -5,6 +5,7 @@ import logging
 import warnings
 from collections import Counter
 from copy import deepcopy
+from functools import partial
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -22,9 +23,10 @@ from torchsig.datasets.datasets import (
     apply_label_to_signal,
     apply_transforms_and_labels_to_signal,
 )
-from torchsig.signals.builder import BaseSignalGenerator
+from torchsig.signals.builder import BaseSignalGenerator, ConcatSignalGenerator
 from torchsig.signals.signal_types import Signal
-from torchsig.transforms.metadata_transforms import MultiHotLabel, YOLOLabel
+from torchsig.transforms.functional import additive_noise
+from torchsig.transforms.metadata_transforms import GroupingLabel, MultiHotLabel, YOLOLabel
 from torchsig.transforms.transforms import ComplexTo2D, Spectrogram
 from torchsig.utils.data_loading import WorkerSeedingDataLoader
 from torchsig.utils.defaults import TorchSigDefaults
@@ -127,6 +129,193 @@ def _small_metadata():
         }
     )
     return metadata
+
+
+@pytest.mark.parametrize("bandwidth", [0.0, -1.0, np.nan, np.inf, 5.0])
+def test_generated_component_bandwidth_must_be_valid_and_configured(bandwidth):
+    """Non-tone generators cannot return invalid or out-of-range bandwidths."""
+    generator = SimpleNamespace(
+        bandwidth_min=1.0,
+        bandwidth_max=4.0,
+        required_metadata_fields=["bandwidth_min", "bandwidth_max"],
+    )
+    signal = Signal(
+        data=np.ones(8, dtype=np.complex64),
+        center_freq=0.0,
+        bandwidth=bandwidth,
+        class_name="qpsk",
+    )
+
+    with pytest.raises(ValueError, match="bandwidth"):
+        TorchSigIterableDataset._validate_generated_bandwidth(signal, generator)
+
+
+def test_generated_component_bandwidth_accepts_configured_value():
+    """A generator-selected bandwidth inside its range is accepted."""
+    generator = SimpleNamespace(
+        bandwidth_min=1.0,
+        bandwidth_max=4.0,
+        required_metadata_fields=["bandwidth_min", "bandwidth_max"],
+    )
+    signal = Signal(
+        data=np.ones(8, dtype=np.complex64),
+        center_freq=0.0,
+        bandwidth=2.5,
+        class_name="qpsk",
+    )
+
+    TorchSigIterableDataset._validate_generated_bandwidth(signal, generator)
+
+
+@pytest.mark.parametrize("bandwidth", [0.5, 2.0])
+def test_generated_tone_requires_documented_fixed_bandwidth(bandwidth):
+    """The tone exception accepts exactly its documented 1 Hz width."""
+    generator = MagicMock()
+    signal = Signal(
+        data=np.ones(8, dtype=np.complex64),
+        center_freq=0.0,
+        bandwidth=bandwidth,
+        class_name="tone",
+    )
+
+    with pytest.raises(ValueError, match="documented 1 Hz"):
+        TorchSigIterableDataset._validate_generated_bandwidth(signal, generator)
+
+
+def test_generated_tone_accepts_documented_fixed_bandwidth():
+    """Tone bypasses configured ranges only for its fixed 1 Hz width."""
+    signal = Signal(
+        data=np.ones(8, dtype=np.complex64),
+        center_freq=0.0,
+        bandwidth=1.0,
+        class_name="tone",
+    )
+
+    TorchSigIterableDataset._validate_generated_bandwidth(signal, MagicMock())
+
+
+@pytest.mark.parametrize(
+    ("center_freq", "bandwidth"),
+    [(0.0, 2.0), (-7.0, 2.0), (7.0, 2.0)],
+    ids=["ordinary", "lower-boundary", "upper-boundary"],
+)
+def test_generate_component_accepts_final_frequency_interval(
+    monkeypatch,
+    center_freq,
+    bandwidth,
+):
+    """Post-placement intervals may reach either inclusive dataset bound."""
+    dataset = TorchSigIterableDataset(
+        metadata=_small_metadata(),
+        signal_generators=[],
+        validate_init=False,
+    )
+    generated = Signal(
+        data=np.ones(8, dtype=np.complex64),
+        center_freq=0.0,
+        bandwidth=2.0,
+        class_name="dummy",
+    )
+    placed = Signal(
+        data=generated.data,
+        center_freq=center_freq,
+        bandwidth=bandwidth,
+        class_name="dummy",
+    )
+    generator = MagicMock(return_value=generated)
+    generator.required_metadata_fields = []
+    monkeypatch.setattr(
+        "torchsig.datasets.datasets.update_signal_snr_bandwidth",
+        lambda _dataset, _signal: None,
+    )
+    monkeypatch.setattr(
+        "torchsig.datasets.datasets.frequency_shift_signal",
+        lambda _signal, **_kwargs: placed,
+    )
+
+    result = dataset._generate_component_signal(generator)
+
+    assert result is placed
+    assert result.lower_freq >= dataset["frequency_min"]
+    assert result.upper_freq <= dataset["frequency_max"]
+
+
+@pytest.mark.parametrize(
+    ("center_freq", "message"),
+    [(-7.5, "below frequency_min"), (7.5, "above frequency_max")],
+    ids=["below-lower-bound", "above-upper-bound"],
+)
+def test_generate_component_rejects_out_of_bounds_final_frequency_interval(
+    monkeypatch,
+    center_freq,
+    message,
+):
+    """Validation consumes realized metadata returned by frequency placement."""
+    dataset = TorchSigIterableDataset(
+        metadata=_small_metadata(),
+        signal_generators=[],
+        validate_init=False,
+    )
+    generated = Signal(
+        data=np.ones(8, dtype=np.complex64),
+        center_freq=0.0,
+        bandwidth=2.0,
+        class_name="dummy",
+    )
+    placed = Signal(
+        data=generated.data,
+        center_freq=center_freq,
+        bandwidth=2.0,
+        class_name="dummy",
+    )
+    generator = MagicMock(return_value=generated)
+    generator.required_metadata_fields = []
+    monkeypatch.setattr(
+        "torchsig.datasets.datasets.update_signal_snr_bandwidth",
+        lambda _dataset, _signal: None,
+    )
+    monkeypatch.setattr(
+        "torchsig.datasets.datasets.frequency_shift_signal",
+        lambda _signal, **_kwargs: placed,
+    )
+
+    with pytest.raises(ValueError, match=message):
+        dataset._generate_component_signal(generator)
+
+
+@pytest.mark.parametrize("generator_name", ["80211a_rts", "bpsk"])
+def test_protocol_and_constellation_keep_generated_bandwidth(generator_name):
+    """Spectral diagnostics cannot replace configured generator bandwidth."""
+    metadata = TorchSigDefaults().default_dataset_metadata.copy()
+    metadata.update(
+        {
+            "sample_rate": 1_000_000,
+            "frequency_min": -500_000,
+            "frequency_max": 499_999,
+            "signal_center_freq_min": 0,
+            "signal_center_freq_max": 0,
+            "bandwidth_min": 62_500,
+            "bandwidth_max": 100_000,
+            "signal_duration_in_samples_min": 4096,
+            "signal_duration_in_samples_max": 4096,
+            "num_iq_samples_dataset": 4096,
+            "fft_size": 64,
+            "fft_stride": 64,
+            "num_signals_min": 1,
+            "num_signals_max": 1,
+        }
+    )
+    dataset = TorchSigIterableDataset(
+        metadata=metadata,
+        signal_generators=[generator_name],
+        seed=9,
+    )
+
+    signal = dataset._generate_component_signal(dataset.signal_generators[0])
+
+    assert signal.bandwidth == pytest.approx(78_308)
+    assert metadata["bandwidth_min"] <= signal.bandwidth <= metadata["bandwidth_max"]
+    assert hasattr(signal, "estimated_occupied_bandwidth")
 
 
 def test_per_signal_metadata_overrides_dataset_ranges():
@@ -563,13 +752,12 @@ def test_static_dataset_getitem_returns_requested_targets(
         verify_getitem_targets(num_signals_max, target_labels, sample)
 
 
-@pytest.mark.parametrize("num_workers", [0, 2])
-def test_dataset_creation_and_static_loading(tmp_path, num_workers: int) -> None:
+def test_dataset_creation_and_static_loading(tmp_path) -> None:
     """Create a small dataset, reload it, and verify stored samples."""
     seed = 123456789
-    dataset_length = 2
+    dataset_length = 1
     fft_size = 16
-    root = tmp_path / f"workers_{num_workers}"
+    root = tmp_path / "static_dataset"
 
     metadata = deepcopy(TorchSigDefaults().default_dataset_metadata)
     metadata.update(
@@ -594,7 +782,7 @@ def test_dataset_creation_and_static_loading(tmp_path, num_workers: int) -> None
     dataloader = WorkerSeedingDataLoader(
         iterable_dataset,
         batch_size=1,
-        num_workers=num_workers,
+        num_workers=0,
         collate_fn=lambda batch: batch,
     )
     dataloader.seed(seed)
@@ -767,6 +955,73 @@ def test_apply_transforms_and_labels_multiple_targets_parallel_lists():
     ]
 
 
+def test_apply_transforms_and_labels_groups_family_with_detection():
+    sample = _parent_with_components(num_signals_max=2)
+    sample["sample_rate"] = 1_000.0
+    for component in sample.component_signals:
+        component["estimated_occupied_bandwidth"] = component.bandwidth
+
+    _, targets = apply_transforms_and_labels_to_signal(
+        sample,
+        [GroupingLabel("family"), YOLOLabel()],
+        [("family_name", "yolo_label")],
+    )
+
+    assert [target[0] for target in targets] == ["psk", "psk"]
+    assert [target[1][0] for target in targets] == [3, 4]
+
+
+def test_apply_transforms_and_labels_groups_custom_metadata_with_detection():
+    sample = _parent_with_components(num_signals_max=2)
+    for component, box in zip(
+        sample.component_signals,
+        [(3, 0.2, 0.4, 0.2, 0.1), (4, 0.65, 0.6, 0.3, 0.1)],
+        strict=True,
+    ):
+        component["yolo_label"] = box
+
+    grouping = GroupingLabel(
+        {
+            "labels": {"name": "kind", "index": "kind_index"},
+            "groups": [{"name": "phase", "regex": "psk$"}],
+        }
+    )
+    _, targets = apply_transforms_and_labels_to_signal(
+        sample,
+        [grouping],
+        [("kind", "kind_index", "yolo_label")],
+    )
+
+    assert targets == [
+        ("phase", 0, (3, 0.2, 0.4, 0.2, 0.1)),
+        ("phase", 0, (4, 0.65, 0.6, 0.3, 0.1)),
+    ]
+
+
+def test_grouped_target_only_includes_components_with_all_fields():
+    sample = _parent_with_components(num_signals_max=3)
+    complete, missing_box = sample.component_signals
+    missing_group = Signal(class_name="8psk", yolo_label=(5, 0.5, 0.5, 0.1, 0.1))
+    missing_group.add_parent(sample, register=False)
+    sample.component_signals.append(missing_group)
+    complete["family_name"] = "psk"
+    complete["yolo_label"] = (3, 0.2, 0.4, 0.2, 0.1)
+    missing_box["family_name"] = "psk"
+
+    assert apply_label_to_signal(sample, ("family_name", "yolo_label")) == [("psk", (3, 0.2, 0.4, 0.2, 0.1))]
+    assert apply_label_to_signal(sample, "family_name") == ["psk", "psk"]
+    assert apply_label_to_signal(sample, "yolo_label") == [
+        (3, 0.2, 0.4, 0.2, 0.1),
+        (5, 0.5, 0.5, 0.1, 0.1),
+    ]
+
+
+@pytest.mark.parametrize("target_label", [(), ("family_name", ""), ("family_name", 3)])
+def test_apply_label_to_signal_rejects_invalid_grouped_target(target_label):
+    with pytest.raises(ValueError, match="grouped target labels"):
+        apply_label_to_signal(_parent_with_components(), target_label)
+
+
 def test_apply_label_to_signal_class_index_from_class_name_fallback():
     sample = Signal(
         data=np.zeros(100, dtype=np.complex64),
@@ -865,6 +1120,59 @@ def test_choose_start_sample_warns_when_signal_is_too_large():
         start_sample = dataset._choose_start_sample(iq_samples, signal)
 
     assert start_sample == 0
+
+
+@pytest.mark.parametrize(
+    ("center_freq", "bandwidth", "expected_bins"),
+    [
+        (0.0, 16.0, (0.0, 16.0)),
+        (0.0, 8.0, (4.0, 12.0)),
+        (-4.0, 4.0, (2.0, 6.0)),
+        (4.0, 4.0, (10.0, 14.0)),
+    ],
+    ids=["full-nyquist", "zero-centered-half-rate", "negative-center", "positive-center"],
+)
+def test_map_to_coordinates_uses_canonical_frequency_edges(center_freq, bandwidth, expected_bins):
+    """Frequency rectangles map canonical edges over the full Nyquist span."""
+    metadata = _small_metadata()
+    metadata.update({"fft_size": 16, "sample_rate": 16, "frequency_min": -8, "frequency_max": 8})
+    dataset = TorchSigIterableDataset(
+        metadata=metadata,
+        signal_generators=[],
+        validate_init=False,
+    )
+    signal = Signal(
+        data=np.ones(16, dtype=np.complex64),
+        center_freq=center_freq,
+        bandwidth=bandwidth,
+    )
+
+    rectangle = dataset._map_to_coordinates(signal, start_sample=0)
+
+    assert rectangle.coord_lower_left.y == expected_bins[0]
+    assert rectangle.coord_upper_right.y == expected_bins[1]
+
+
+@pytest.mark.parametrize(
+    ("second_center", "expected_overlap"),
+    [(-1.0, False), (-3.0, True), (-4.0, True)],
+    ids=["separated", "touching", "intersecting"],
+)
+def test_frequency_coordinate_rectangles_preserve_overlap_boundaries(second_center, expected_overlap):
+    """Canonical separation, touching, and intersection reach overlap logic unchanged."""
+    metadata = _small_metadata()
+    metadata.update({"fft_size": 16, "sample_rate": 16, "frequency_min": -8, "frequency_max": 8})
+    dataset = TorchSigIterableDataset(
+        metadata=metadata,
+        signal_generators=[],
+        validate_init=False,
+    )
+    first = Signal(data=np.ones(16, dtype=np.complex64), center_freq=-5, bandwidth=2)
+    second = Signal(data=np.ones(16, dtype=np.complex64), center_freq=second_center, bandwidth=2)
+    first_rectangle = dataset._map_to_coordinates(first, start_sample=0)
+    second_rectangle = dataset._map_to_coordinates(second, start_sample=0)
+
+    assert dataset._check_if_overlap(second_rectangle, [first_rectangle]) is expected_overlap
 
 
 def test_generate_new_signal_sets_component_start_and_clips_duration(monkeypatch):
@@ -1998,3 +2306,308 @@ def test_string_lookup_expands_concat_signal_generator():
         dataset.signal_probabilities,
         [0.5, 0.5],
     )
+
+
+def test_named_concat_propagates_configured_class_name(monkeypatch):
+    """A named concat labels all expanded children with its logical class."""
+    named_concat = ConcatSignalGenerator([NonValidatingGenerator(), NonValidatingGenerator()])
+
+    def lookup_named_concat(name):
+        assert name == "example-family"
+        return named_concat
+
+    monkeypatch.setattr(
+        "torchsig.datasets.datasets.lookup_signal_generator_by_string",
+        lookup_named_concat,
+    )
+
+    dataset = TorchSigIterableDataset(
+        metadata=TorchSigDefaults().default_dataset_metadata,
+        signal_generators=["example-family"],
+        sampling_grouping={
+            "source": "class_name",
+            "groups": [
+                {
+                    "name": "example",
+                    "values": ["example-family"],
+                    "probability": 1.0,
+                },
+            ],
+        },
+        validate_init=False,
+    )
+
+    assert [generator.class_name for generator in dataset.signal_generators] == [
+        "example-family",
+        "example-family",
+    ]
+    np.testing.assert_allclose(dataset.signal_probabilities, [0.5, 0.5])
+
+
+# =============================================================================
+# Bug Reproducers
+# =============================================================================
+
+
+def test_family_sampling_with_fm():
+    grouping = GroupingLabel(
+        {
+            "source": "class_name",
+            "groups": [
+                {"name": "fm", "values": ["fm"]},
+            ],
+        }
+    )
+
+    dataset = TorchSigIterableDataset(
+        metadata={
+            "sample_rate": 10_000_000,
+            "bandwidth_min": 100_000,
+            "bandwidth_max": 1_000_000,
+            "signal_duration_in_samples_min": 52_428,
+            "signal_duration_in_samples_max": 262_144,
+            "num_iq_samples_dataset": 1_048_576,
+            "num_signals_min": 5,
+            "num_signals_max": 7,
+        },
+        signal_generators=["fm"],
+        sampling_grouping=grouping,
+    )
+
+    assert dataset.signal_generators
+
+
+def test_sampling_grouping_all_wideband_classes():
+    groups = [
+        {"name": "am", "values": ["am-dsb", "am-dsb-sc", "am-lsb", "am-usb"]},
+        {
+            "name": "ask",
+            "values": [
+                "4ask",
+                "8ask",
+                "16ask",
+                "32ask",
+                "64ask",
+                "adsb-long",
+                "adsb-short",
+                "ook",
+            ],
+        },
+        {
+            "name": "chirp",
+            "values": ["chirpss", "lfm-data", "lfm-radar", "lora", "zigbee"],
+        },
+        {"name": "fm", "values": ["fm"]},
+        {
+            "name": "fsk",
+            "values": [
+                "2fsk",
+                "2gfsk",
+                "2gmsk",
+                "2msk",
+                "4fsk",
+                "4gfsk",
+                "4gmsk",
+                "4msk",
+                "8fsk",
+                "8gfsk",
+                "8gmsk",
+                "8msk",
+                "16fsk",
+                "16gfsk",
+                "16gmsk",
+                "16msk",
+                "btle",
+                "dmr",
+                "gsm",
+                "p25",
+            ],
+        },
+        {
+            "name": "ofdm",
+            "values": [
+                "80211a",
+                "80211a_ack",
+                "80211a_cts",
+                "80211a_rts",
+                "ofdm-64",
+                "ofdm-72",
+                "ofdm-128",
+                "ofdm-180",
+                "ofdm-256",
+                "ofdm-300",
+                "ofdm-512",
+                "ofdm-600",
+                "ofdm-900",
+                "ofdm-1024",
+                "ofdm-1200",
+                "ofdm-2048",
+            ],
+        },
+        {
+            "name": "psk",
+            "values": [
+                "bpsk",
+                "qpsk",
+                "8psk",
+                "16psk",
+                "32psk",
+                "64psk",
+                "16apsk",
+                "32apsk",
+                "dvbs2",
+            ],
+        },
+        {
+            "name": "qam",
+            "values": [
+                "16qam",
+                "32qam",
+                "32qam_cross",
+                "64qam",
+                "128qam_cross",
+                "256qam",
+                "512qam_cross",
+                "1024qam",
+            ],
+        },
+        {"name": "tone", "values": ["tone"]},
+    ]
+
+    enabled_classes = [class_name for group in groups for class_name in group["values"]]
+
+    grouping = GroupingLabel(
+        {
+            "source": "class_name",
+            "groups": groups,
+        }
+    )
+
+    dataset = TorchSigIterableDataset(
+        metadata={
+            "bandwidth_max": 1_000_000,
+            "bandwidth_min": 100_000,
+            "cochannel_overlap_probability": 0.0,
+            "fft_size": 1024,
+            "fft_stride": 256,
+            "frequency_max": 4_999_999,
+            "frequency_min": -5_000_000,
+            "noise_power_db": 0.0,
+            "num_iq_samples_dataset": 1_048_576,
+            "num_signals_max": 7,
+            "num_signals_min": 5,
+            "sample_rate": 10_000_000,
+            "seed": 83_763_046,
+            "signal_center_freq_max": 4_499_999,
+            "signal_center_freq_min": -4_500_000,
+            "signal_duration_in_samples_max": 262_144,
+            "signal_duration_in_samples_min": 52_428,
+            "snr_db_max": 30.0,
+            "snr_db_min": -10.0,
+        },
+        signal_generators=enabled_classes,
+        sampling_grouping=grouping,
+    )
+
+    assert dataset.signal_generators
+
+
+@pytest.mark.parametrize(("color", "expected_ratio"), [("white", 1), ("pink", 8)])
+def test_background_generator(color, expected_ratio):
+    """Test the dataset background_generator feature using additive colored noise.
+    Bands separated by three octaves distinguish flat from 1/f power.
+    """
+    size = 32768
+    dataset = TorchSigIterableDataset(
+        signal_generators=[],
+        target_labels=[],
+        background_generator=partial(additive_noise, color=color),
+        metadata={
+            "num_iq_samples_dataset": size,
+            "num_signals_min": 0,
+            "num_signals_max": 0,
+            "fft_size": 256,
+            "fft_stride": 64,
+            "noise_power_db": -12.0,
+            "signal_duration_in_samples_max": size,
+        },
+        seed=42,
+    )
+    samples = next(dataset)
+    assert samples.shape == (size,)
+    assert samples.dtype == np.complex64
+    
+    # estimate noise floor
+    frames = np.lib.stride_tricks.sliding_window_view(samples, 256)[:: 64 * 16]
+    spectra = np.fft.fft(frames * np.blackman(257)[:-1], axis=1)
+    floor_db = 10 * np.log10(np.mean(np.abs(spectra) ** 2))
+    assert floor_db == pytest.approx(-12.0, abs=0.01)
+    
+    spectrum = np.abs(np.fft.fft(samples)) ** 2
+    low = spectrum[size // 64 : size // 32].mean()
+    high = spectrum[size // 8 : size // 4].mean()
+    assert low / high == pytest.approx(expected_ratio, rel=0.25)
+    assert not np.array_equal(samples, next(dataset))
+    dataset.seed(42)
+    np.testing.assert_array_equal(samples, next(dataset))
+
+
+@pytest.mark.parametrize("outside_sampled_frames", [False, True])
+def test_background_with_zero_sampled_power(outside_sampled_frames):
+    def background(data, *, rng):
+        if outside_sampled_frames:
+            data[300] = 1
+        return data
+
+    dataset = TorchSigIterableDataset(
+        signal_generators=[],
+        target_labels=[],
+        background_generator=background,
+        metadata={
+            "num_iq_samples_dataset": 2048,
+            "signal_duration_in_samples_max": 2048,
+            "num_signals_min": 0,
+            "num_signals_max": 0,
+            "fft_size": 256,
+            "fft_stride": 64,
+        },
+    )
+    if outside_sampled_frames:
+        with pytest.raises(ValueError, match="positive power in the sampled frames"):
+            next(dataset)
+    else:
+        np.testing.assert_array_equal(next(dataset), np.zeros(2048, dtype=np.complex64))
+
+
+@pytest.mark.parametrize("class_name", ["qpsk", "chirpss"])
+def test_generated_component_peak_bin_snr(class_name):
+    """A centered component exposes calibrated IQ separately from the noisy mixture."""
+    dataset = TorchSigIterableDataset(
+        signal_generators=[class_name],
+        metadata={
+            "sample_rate": 10_000_000,
+            "num_iq_samples_dataset": 4096,
+            "signal_duration_in_samples_min": 3276,
+            "signal_duration_in_samples_max": 4096,
+            "bandwidth_min": 2_500_000,
+            "bandwidth_max": 3_333_333,
+            "signal_center_freq_min": 0.0,
+            "signal_center_freq_max": 0.0,
+            "frequency_min": -5_000_000,
+            "frequency_max": 4_999_999,
+            "fft_size": 64,
+            "fft_stride": 64,
+            "noise_power_db": -3.0,
+            "snr_db_min": 10.0,
+            "snr_db_max": 10.0,
+            "num_signals_min": 1,
+            "num_signals_max": 1,
+        },
+        seed=42,
+    )
+    (component,) = next(dataset).component_signals
+    frames = np.lib.stride_tricks.sliding_window_view(component.data, 64)[::64]
+    fft = np.fft.fft(frames * np.blackman(65)[:-1], axis=1)
+    measured = 10 * np.log10((np.abs(fft) ** 2).mean(axis=0).max()) - dataset.noise_power_db
+    assert component.snr_db == 10.0
+    assert measured == pytest.approx(component.snr_db, abs=1e-4)

@@ -309,7 +309,7 @@ def test_homogeneous_hdf5_caches_successful_validation(
 ) -> None:
     _write_signals(tmp_path)
     calls = 0
-    original = HomogeneousHDF5Reader._validate_integrity  # noqa: SLF001
+    original = HomogeneousHDF5Reader._validate_integrity
 
     def count_validation(reader) -> None:
         nonlocal calls

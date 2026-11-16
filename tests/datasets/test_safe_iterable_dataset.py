@@ -9,9 +9,6 @@ from typing import TYPE_CHECKING
 import numpy as np
 import pytest
 
-if TYPE_CHECKING:
-    from collections.abc import Callable
-
 # ----------------------------------------------------------------------
 # Imports from the real package
 # ----------------------------------------------------------------------
@@ -25,6 +22,18 @@ from torchsig.utils.metadata_logging import (
     get_metadata_logging_context,
     metadata_logging_context,
 )
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
+
+# ----------------------------------------------------------------------
+# Test configuration
+# ----------------------------------------------------------------------
+# Seed the dataset RNG so signal generation is deterministic. Generation runs on
+# every pipeline attempt; without a fixed seed a randomly-changed carrier could
+# land on a frequency-bound edge and trip validation, adding an unexpected retry
+# log and making retry-count assertions flaky.
+RANDOM_SEED = 1234
 
 
 # ----------------------------------------------------------------------
@@ -123,7 +132,7 @@ def _make_safe_dataset(
     target_labels: list | None = None,
 ) -> SafeTorchSigIterableDataset:
     md = _minimal_metadata()
-    return SafeTorchSigIterableDataset(
+    ds = SafeTorchSigIterableDataset(
         signal_generators=[DummySignalGenerator()],
         transforms=transforms or [],
         component_transforms=[],
@@ -131,6 +140,10 @@ def _make_safe_dataset(
         validate_init=False,
         **md,
     )
+    # Deterministic generation so retry-count assertions only reflect the test's
+    # transform failures, never incidental generation-side failures.
+    ds.random_generator = np.random.default_rng(RANDOM_SEED)
+    return ds
 
 
 # ----------------------------------------------------------------------

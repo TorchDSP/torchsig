@@ -4,6 +4,7 @@ from pathlib import Path
 
 
 def main() -> int:
+    """Normalize metadata in the notebook paths supplied on the command line."""
     for filename in sys.argv[1:]:
         path = Path(filename)
 

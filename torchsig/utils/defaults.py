@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from contextlib import suppress
+
 from torchsig.transforms.impairments import Impairments
 from torchsig.utils.data_loading import WorkerSeedingDataLoader
 from torchsig.utils.writer import default_collate_fn
@@ -64,7 +66,7 @@ def default_dataset(impairment_level=None, transforms=[], component_transforms=[
     Returns:
         TorchSigIterableDataset: A configured dataset instance.
     """
-    from torchsig.datasets.datasets import TorchSigIterableDataset
+    from torchsig.datasets.datasets import TorchSigIterableDataset  # noqa: PLC0415
 
     defaults_to_use = TorchSigDefaults()
     dataset_metadata = defaults_to_use.default_dataset_metadata
@@ -79,10 +81,8 @@ def default_dataset(impairment_level=None, transforms=[], component_transforms=[
         new_component_transforms = component_transforms
     new_dataset = TorchSigIterableDataset(metadata=dataset_metadata, transforms=new_transforms, **kwargs)
     for signal_gen in new_dataset.signal_generators:
-        try:
+        with suppress(KeyError, TypeError):
             signal_gen["transforms"] = new_component_transforms
-        except:
-            pass  # this object has no transforms to set
     return new_dataset
 
 

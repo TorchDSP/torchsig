@@ -1,9 +1,12 @@
 """YAML utilities"""
 
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import yaml
+
+if TYPE_CHECKING:
+    from torchsig.datasets.datasets import TorchSigDatasetConfig, TorchSigIterableDataset
 
 __all__ = ["custom_representer", "dataset_from_yaml_dict", "dataset_metadata_to_yaml_dict", "load_config_from_yaml", "load_dataset_yaml", "save_dataset_yaml", "write_dict_to_yaml"]
 
@@ -40,7 +43,8 @@ def load_config_from_yaml(path: Path) -> "TorchSigDatasetConfig":
     Returns:
         A dictionary containing the dataset metadata extracted from the YAML file.
     """
-    from torchsig.datasets.datasets import TorchSigDatasetConfig
+    from torchsig.datasets.datasets import TorchSigDatasetConfig  # noqa: PLC0415
+    from torchsig.utils.experiment_config import load_experiment_config  # noqa: PLC0415
 
     # load configuration from yaml file
     cfg = yaml.safe_load(path.read_text()) or {}
@@ -58,16 +62,32 @@ def load_config_from_yaml(path: Path) -> "TorchSigDatasetConfig":
     mode = ss.get("mode")
     _require(mode in ("per_signal", "per_family"), "signal_sampling.mode must be 'per_signal' or 'per_family'")
 
-    return TorchSigDatasetConfig(
-        dataset_id=str(cfg.get("dataset_id", path.stem)),
-        dataset_length=int(cfg["dataset_length"]),
-        seed=int(cfg["seed"]),
-        impairment_level=int(cfg["impairment_level"]),
-        output_representation=rep,
-        output_spectrogram_fft=cfg["dataset_metadata"].get("fft_size"),
-        signal_sampling_mode=mode,
-        dataset_metadata=dict(cfg["dataset_metadata"]),
-    )
+    storage = cfg.get("storage")
+    if storage is None:
+        storage = {}
+    _require(isinstance(storage, dict), "storage must be a dict")
+    writer_name = storage.get("writer", "legacy")
+    _require(writer_name in ("legacy", "packed", "homogeneous"), "storage.writer must be 'legacy', 'packed', or 'homogeneous'")
+    writer_options = storage.get("options")
+    if writer_options is None:
+        writer_options = {}
+    _require(isinstance(writer_options, dict), "storage.options must be a dict")
+
+    config_kwargs = {
+        "dataset_id": str(cfg.get("dataset_id", path.stem)),
+        "dataset_length": int(cfg["dataset_length"]),
+        "seed": int(cfg["seed"]),
+        "impairment_level": int(cfg["impairment_level"]),
+        "output_representation": rep,
+        "output_spectrogram_fft": cfg["dataset_metadata"].get("fft_size"),
+        "signal_sampling_mode": mode,
+        "dataset_metadata": dict(cfg["dataset_metadata"]),
+        "file_writer_name": writer_name,
+        "file_writer_kwargs": dict(writer_options),
+    }
+    if "signals" in cfg:
+        config_kwargs["experiment_config"] = load_experiment_config({"signals": cfg["signals"]})
+    return TorchSigDatasetConfig(**config_kwargs)
 
 
 def dataset_from_yaml_dict(yaml_dict: dict[str, Any]) -> "TorchSigIterableDataset":
@@ -85,7 +105,7 @@ def dataset_from_yaml_dict(yaml_dict: dict[str, Any]) -> "TorchSigIterableDatase
     Returns:
         Configured TorchSigIterableDataset instance.
     """
-    from torchsig.datasets.datasets import TorchSigIterableDataset
+    from torchsig.datasets.datasets import TorchSigIterableDataset  # noqa: PLC0415
 
     dataset_metadata = yaml_dict["dataset_metadata"]
     return TorchSigIterableDataset(
@@ -109,7 +129,7 @@ def load_dataset_yaml(filepath: str) -> "TorchSigIterableDataset":
         Configured TorchSigIterableDataset instance.
     """
     loaded_dict = {}
-    with open(filepath) as yaml_file:
+    with Path(filepath).open() as yaml_file:
         loaded_dict = yaml.safe_load(yaml_file)
     return dataset_from_yaml_dict(loaded_dict)
 
@@ -162,5 +182,5 @@ def write_dict_to_yaml(filename: str, info_dict: dict[str, Any]) -> None:
     """
     yaml.add_representer(list, custom_representer)
 
-    with open(filename, "w+") as file:
+    with Path(filename).open("w+") as file:
         yaml.dump(info_dict, file, default_flow_style=False, sort_keys=False, width=200)

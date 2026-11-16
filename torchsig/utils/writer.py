@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import concurrent.futures
 import math
+import shutil
+import tempfile
 import threading
 from dataclasses import dataclass
 from pathlib import Path
@@ -14,15 +16,8 @@ import yaml
 from torch.utils.data._utils.collate import default_collate as torch_default_collate
 from tqdm.auto import tqdm
 
-from torchsig.utils.file_handlers.hdf5 import HDF5Reader, HDF5Writer
-from torchsig.utils.file_handlers.packed_hdf5 import (
-    PackedHDF5Reader,
-    PackedHDF5Writer,
-)
-from torchsig.utils.file_handlers.homogeneous_hdf5 import (
-    HomogeneousHDF5Reader,
-    HomogeneousHDF5Writer,
-)
+from torchsig.utils.file_handlers.hdf5 import HDF5Writer
+from torchsig.utils.file_handlers.registry import file_handler_registry
 
 if TYPE_CHECKING:
     from torch.utils.data import DataLoader
@@ -34,15 +29,10 @@ __all__ = ["DatasetCreator", "default_collate_fn", "identity_collate_fn"]
 
 
 _MISSING = object()
-_KNOWN_FILE_HANDLER_PAIRS = {
-    HDF5Writer: HDF5Reader,
-    PackedHDF5Writer: PackedHDF5Reader,
-    HomogeneousHDF5Writer: HomogeneousHDF5Reader,
-}
 
 
 def _resolve_file_reader(file_writer, file_reader):
-    expected_reader = _KNOWN_FILE_HANDLER_PAIRS.get(file_writer)
+    expected_reader = file_handler_registry.reader_for_writer(file_writer)
     if file_reader is None:
         return expected_reader
     if expected_reader is not None and file_reader is not expected_reader:
@@ -53,20 +43,22 @@ def _resolve_file_reader(file_writer, file_reader):
 def _yaml_safe_value(value: Any) -> Any:
     """Return a stable YAML-safe representation of a runtime option."""
     if value is None or isinstance(value, (str, int, float, bool)):
-        return value
-    if isinstance(value, Path):
-        return str(value)
-    if isinstance(value, type):
-        return f"{value.__module__}.{value.__qualname__}"
-    if isinstance(value, dict):
-        return {str(key): _yaml_safe_value(item) for key, item in value.items()}
-    if isinstance(value, (list, tuple)):
-        return [_yaml_safe_value(item) for item in value]
-    try:
-        yaml.safe_dump(value)
-    except yaml.YAMLError:
-        return repr(value)
-    return value
+        safe_value = value
+    elif isinstance(value, Path):
+        safe_value = str(value)
+    elif isinstance(value, type):
+        safe_value = f"{value.__module__}.{value.__qualname__}"
+    elif isinstance(value, dict):
+        safe_value = {str(key): _yaml_safe_value(item) for key, item in value.items()}
+    elif isinstance(value, (list, tuple)):
+        safe_value = [_yaml_safe_value(item) for item in value]
+    else:
+        try:
+            yaml.safe_dump(value)
+            safe_value = value
+        except yaml.YAMLError:
+            safe_value = repr(value)
+    return safe_value
 
 
 def _qualified_name(value: Any) -> str:
@@ -88,7 +80,7 @@ def default_collate_fn(batch):
     Returns:
         tuple: A tuple of zipped elements, where each element corresponds to a single batch item.
     """
-    return tuple(zip(*batch))
+    return tuple(zip(*batch, strict=False))
 
 
 def identity_collate_fn(batch):
@@ -115,29 +107,19 @@ class _DatasetExistenceProbe:
 def _deep_equal(a: Any, b: Any, *, float_rtol: float = 1e-9, float_atol: float = 0.0) -> bool:
     """Recursive equality for YAML-loaded structures (dict/list/scalars)."""
     if a is b:
-        return True
-    if a is None or b is None:
-        return a is b
-
-    # Floats: tolerate tiny rounding changes from serialization/IO
-    if isinstance(a, (float, int)) and isinstance(b, (float, int)):
-        if isinstance(a, float) or isinstance(b, float):
-            return math.isclose(float(a), float(b), rel_tol=float_rtol, abs_tol=float_atol)
-        return int(a) == int(b)
-
-    # Dicts
-    if isinstance(a, dict) and isinstance(b, dict):
-        if set(a.keys()) != set(b.keys()):
-            return False
-        return all(_deep_equal(a[k], b[k], float_rtol=float_rtol, float_atol=float_atol) for k in a)
-
-    # Sequences
-    if isinstance(a, (list, tuple)) and isinstance(b, (list, tuple)):
-        if len(a) != len(b):
-            return False
-        return all(_deep_equal(x, y, float_rtol=float_rtol, float_atol=float_atol) for x, y in zip(a, b, strict=True))
-
-    return a == b
+        equal = True
+    elif a is None or b is None:
+        equal = a is b
+    elif isinstance(a, (float, int)) and isinstance(b, (float, int)):
+        # Floats: tolerate tiny rounding changes from serialization/IO
+        equal = math.isclose(float(a), float(b), rel_tol=float_rtol, abs_tol=float_atol) if isinstance(a, float) or isinstance(b, float) else int(a) == int(b)
+    elif isinstance(a, dict) and isinstance(b, dict):
+        equal = False if set(a.keys()) != set(b.keys()) else all(_deep_equal(a[k], b[k], float_rtol=float_rtol, float_atol=float_atol) for k in a)
+    elif isinstance(a, (list, tuple)) and isinstance(b, (list, tuple)):
+        equal = False if len(a) != len(b) else all(_deep_equal(x, y, float_rtol=float_rtol, float_atol=float_atol) for x, y in zip(a, b, strict=True))
+    else:
+        equal = a == b
+    return equal
 
 
 class DatasetCreator:
@@ -163,6 +145,7 @@ class DatasetCreator:
         self,
         dataloader: DataLoader,
         dataset_length: int | None = None,
+        *,
         root: str = ".",
         overwrite: bool = True,
         tqdm_desc: str | None = None,
@@ -250,7 +233,7 @@ class DatasetCreator:
             maybe_data_file = getattr(writer, "datapath", None)
             if isinstance(maybe_data_file, (str, Path)):
                 maybe_data_file = Path(maybe_data_file)
-        except Exception:
+        except Exception:  # noqa: BLE001 - optional handler probes may execute third-party code
             # best-effort only
             maybe_data_file = None
         return _DatasetExistenceProbe(root=self.root, maybe_data_file=maybe_data_file)
@@ -275,12 +258,16 @@ class DatasetCreator:
         ds = self.dataloader.dataset
         seed = getattr(ds, "rng_seed", None)
 
-        return {
+        result = {
             "dataset_length": int(dataset_length),
             "seed": None if seed is None else int(seed),
             "target_labels": original_target_labels,
             "dataset_metadata": self._get_dataset_metadata_dict(),
         }
+        experiment_config = getattr(ds, "experiment_config", None)
+        if experiment_config is not None:
+            result["experiment_config"] = experiment_config.to_dict()
+        return result
 
     def get_writer_info_dict(self, *, complete: bool) -> dict[str, Any]:
         """Returns a dictionary with information about the dataset writing configuration.
@@ -312,7 +299,7 @@ class DatasetCreator:
         if not self.writer_info_filepath.exists():
             return False, [("writer_info.yaml", "missing", "expected present")]
 
-        with open(self.writer_info_filepath) as f:
+        with self.writer_info_filepath.open() as f:
             writer_disk = yaml.safe_load(f) or {}
         complete = bool(writer_disk.get("complete", False))
         expected_handler = getattr(self.file_handler, "__name__", str(self.file_handler))
@@ -340,10 +327,12 @@ class DatasetCreator:
             differences.append(("dataset_info.yaml", "missing", "expected present"))
             return complete, differences
 
-        with open(self.dataset_info_filepath) as f:
+        with self.dataset_info_filepath.open() as f:
             dataset_disk = yaml.safe_load(f) or {}
 
         stable_keys = ["seed", "target_labels", "dataset_metadata"]
+        if "experiment_config" in expected_dataset_info:
+            stable_keys.append("experiment_config")
         for k in stable_keys:
             if k not in dataset_disk:
                 differences.append((k, "missing_on_disk", expected_dataset_info.get(k)))
@@ -375,6 +364,48 @@ class DatasetCreator:
         return orig_target_labels, orig_collate_fn
 
     def create(self) -> None:
+        """Generate into a sibling staging directory and publish atomically."""
+        destination = self.root.resolve()
+        if destination.exists() and not self.overwrite:
+            self._create_in_place()
+            return
+
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        staging = Path(tempfile.mkdtemp(prefix=f".{destination.name}.", suffix=".staging", dir=destination.parent))
+        original_root = self.root
+        original_dataset_info = self.dataset_info_filepath
+        original_writer_info = self.writer_info_filepath
+        try:
+            self.root = staging
+            self.dataset_info_filepath = staging / "dataset_info.yaml"
+            self.writer_info_filepath = staging / "writer_info.yaml"
+            self._create_in_place()
+            self._publish_staging(staging, destination)
+        finally:
+            self.root = original_root
+            self.dataset_info_filepath = original_dataset_info
+            self.writer_info_filepath = original_writer_info
+            if staging.exists():
+                shutil.rmtree(staging)
+
+    def _publish_staging(self, staging: Path, destination: Path) -> None:
+        """Publish ``staging`` while restoring an existing destination on failure."""
+        backup: Path | None = None
+        if destination.exists():
+            backup = Path(tempfile.mkdtemp(prefix=f".{destination.name}.", suffix=".backup", dir=destination.parent))
+            backup.rmdir()
+            destination.replace(backup)
+        try:
+            staging.replace(destination)
+        except Exception:
+            if backup is not None and backup.exists() and not destination.exists():
+                backup.replace(destination)
+            raise
+        else:
+            if backup is not None and backup.exists():
+                shutil.rmtree(backup)
+
+    def _create_in_place(self) -> None:
         """Creates the dataset on disk by writing batches to the file handler.
 
         This method generates the dataset in batches and saves it to disk. If the
@@ -385,7 +416,7 @@ class DatasetCreator:
         Raises:
             ValueError: If the dataset is already generated and `overwrite` is set to False.
         """
-        from torchsig.utils.yaml import write_dict_to_yaml
+        from torchsig.utils.yaml import write_dict_to_yaml  # noqa: PLC0415
 
         ds = self.dataloader.dataset
         orig_target_labels = getattr(ds, "target_labels", None)
@@ -451,17 +482,15 @@ class DatasetCreator:
                             writer.write(batch_idx, batch)
                         return len(batch) if hasattr(batch, "__len__") else 1
 
-                    batch_idx = 0
                     # Single executor; max_workers=1 is enough since writer calls are serialized
                     with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
-                        for batch in self.dataloader:
+                        for batch_idx, batch in enumerate(self.dataloader):
                             if remaining <= 0:
                                 break
                             if hasattr(batch, "__len__") and len(batch) > remaining:
                                 batch = batch[:remaining]
                             batch_len = len(batch) if hasattr(batch, "__len__") else 1
                             futures.append(executor.submit(submit_write, batch_idx, batch))
-                            batch_idx += 1
                             remaining -= batch_len
 
                             if len(futures) >= self.max_inflight_futures:
@@ -475,8 +504,7 @@ class DatasetCreator:
                             pbar.update(1)
 
                 else:  # single-threaded writing
-                    batch_idx = 0
-                    for batch in self.dataloader:
+                    for batch_idx, batch in enumerate(self.dataloader):
                         if remaining <= 0:
                             break
 
@@ -485,7 +513,6 @@ class DatasetCreator:
 
                         batch_len = len(batch) if hasattr(batch, "__len__") else 1
                         writer.write(batch_idx, batch)
-                        batch_idx += 1
                         remaining -= batch_len
 
                         self.items_written += batch_len

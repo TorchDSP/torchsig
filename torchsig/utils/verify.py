@@ -30,6 +30,7 @@ __all__ = [
 def verify_bounds(
     a: float,
     name: str,
+    *,
     low: float | None = None,
     high: float | None = None,
     clip_low: bool = False,
@@ -78,6 +79,7 @@ def verify_bounds(
 def verify_int(
     a: int,
     name: str,
+    *,
     low: int = 0,
     high: int | None = None,
     clip_low: bool = False,
@@ -121,6 +123,7 @@ def verify_int(
 def verify_float(
     f: float,
     name: str,
+    *,
     low: float = 0.0,
     high: float | None = None,
     clip_low: bool = False,
@@ -276,6 +279,7 @@ def verify_list(
 def verify_numpy_array(
     n: np.ndarray,
     name: str,
+    *,
     min_length: int | None = None,
     max_length: int | None = None,
     exact_length: int | None = None,
@@ -375,7 +379,7 @@ def verify_transforms(t: Transform) -> list[Transform | callable]:
     Returns:
         List[Transform | callable]: The verified list of transforms.
     """
-    from torchsig.transforms.base_transforms import Transform
+    from torchsig.transforms.base_transforms import Transform  # noqa: PLC0415
 
     if t is None:
         return []
@@ -406,7 +410,7 @@ def verify_metadata_transforms(
     Returns:
         List[MetadataTransform | callable]: The verified list of target transforms.
     """
-    from torchsig.transforms.metadata_transforms import MetadataTransform
+    from torchsig.transforms.metadata_transforms import MetadataTransform  # noqa: PLC0415
 
     if tt is None:
         return []

@@ -18,7 +18,7 @@ class TestPropagationConstants:
     def test_speed_of_light_value(self):
         """Test that SPEED_OF_LIGHT_M_PER_S is the correct value."""
         # Speed of light in vacuum is approximately 299,792,458 m/s
-        assert SPEED_OF_LIGHT_M_PER_S == pytest.approx(299_792_458.0, rel=1e-6)
+        assert pytest.approx(299_792_458.0, rel=1e-6) == SPEED_OF_LIGHT_M_PER_S
 
     def test_speed_of_light_is_positive(self):
         """Test that speed of light is positive."""

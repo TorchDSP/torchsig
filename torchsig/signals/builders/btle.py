@@ -11,7 +11,7 @@ Physical layer (Bluetooth Core Spec 5.x, Vol 6, Part B):
     * Occupied BW  : ~1 MHz
 
 Advertising packet structure:
-    8-bit preamble (0xAA) | 32-bit access address | PDU (2–39 bytes) | 24-bit CRC
+    8-bit preamble (0xAA) | 32-bit access address | PDU (2-39 bytes) | 24-bit CRC
 
 Toy simplifications:
     * Access address fixed to the advertising channel value (0x8E89BED6).
@@ -71,7 +71,7 @@ def build_btle_bit_stream(num_bits: int, rng: np.random.Generator) -> np.ndarray
 
     bits = []
     while sum(len(b) for b in bits) < num_bits:
-        # PDU: 2-byte header + random 0–37 byte payload
+        # PDU: 2-byte header + random 0-37 byte payload
         pdu_payload_bytes = int(rng.integers(0, 38))
         pdu_bytes = 2 + pdu_payload_bytes
         pdu_bits = np.unpackbits(rng.integers(0, 256, pdu_bytes, dtype=np.uint8)).astype(np.float64)

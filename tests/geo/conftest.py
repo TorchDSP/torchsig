@@ -16,8 +16,8 @@ import pytest
 
 from torchsig.datasets.datasets import TorchSigIterableDataset
 from torchsig.geo.datasets import Receiver, TorchSigGeoDataset, Transmitter
-from torchsig.geo.types import GeoPoint, GeoVelocity
 from torchsig.geo.transforms import PathLoss
+from torchsig.geo.types import GeoPoint
 from torchsig.signals.signal_types import Signal
 from torchsig.utils.defaults import TorchSigDefaults
 

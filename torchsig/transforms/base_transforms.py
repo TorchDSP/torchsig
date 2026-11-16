@@ -2,24 +2,20 @@
 
 from __future__ import annotations
 
-__all__ = [
-    "Compose",
-    "Lambda",
-    "Normalize",
-    "RandAugment",
-    "RandomApply",
-    "Transform",
-]
-
 from abc import ABC
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
-import torchsig.transforms.functional as F
+from torchsig.transforms import functional
 from torchsig.utils.printing import generate_repr_str
 from torchsig.utils.random import Seedable
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from torchsig.signals.signal_types import Signal
+
+
+__all__ = ["Compose", "Lambda", "Normalize", "RandAugment", "RandomApply", "Transform"]
 
 
 class Transform(ABC, Seedable):
@@ -29,19 +25,22 @@ class Transform(ABC, Seedable):
     All transforms should inherit from this class and implement the required methods.
     """
 
-    def __init__(self, required_metadata: list[str] = [], **kwargs):
+    def __init__(
+        self,
+        required_metadata: list[str] | None = None,
+        **kwargs: Any,
+    ) -> None:
         """Transform initialization as Seedable.
 
         Args:
             required_metadata: List of metadata fields required for the transform to be applied.
             **kwargs: Additional keyword arguments passed to the parent class.
         """
-        # what metadata fields are requried for target transform to be applied
-        self.required_metadata = required_metadata
+        self.required_metadata: list[str] = list(required_metadata) if required_metadata is not None else []
 
         Seedable.__init__(self, **kwargs)
 
-    def __validate__(self, signal):
+    def __validate__(self, signal: Signal) -> Signal:
         """Validates signal or metadata before applying transform.
 
         Args:
@@ -55,7 +54,7 @@ class Transform(ABC, Seedable):
         """
         raise NotImplementedError
 
-    def __update__(self, signal):
+    def __update__(self, signal: Signal) -> None:
         """Updates bookeeping for signals.
 
         Args:
@@ -67,7 +66,7 @@ class Transform(ABC, Seedable):
         if signal is None:
             raise ValueError(f"Invalid signal object to update in transform {self.__class__.__name__}. Signal is None: {signal}")
 
-    def __apply__(self, signal):
+    def __apply__(self, signal: Signal) -> Signal:
         """Performs transform.
 
         Args:
@@ -81,7 +80,7 @@ class Transform(ABC, Seedable):
         """
         raise NotImplementedError
 
-    def __call__(self, signal):
+    def __call__(self, signal: Signal) -> Signal:
         """Validate signal, performs transform, update bookeeping.
 
         Args:
@@ -123,7 +122,7 @@ class Compose(Transform):
         transforms: List of Transform objects to be applied sequentially.
     """
 
-    def __init__(self, transforms: list[Transform], **kwargs):
+    def __init__(self, transforms: list[Transform], **kwargs: Any) -> None:
         """Initialize the Compose transform.
 
         Args:
@@ -163,7 +162,7 @@ class Lambda(Transform):
         >>> transform = Lambda(lambda x: x**2)  # A transform that squares all inputs.
     """
 
-    def __init__(self, func: callable, **kwargs) -> None:
+    def __init__(self, func: Callable[[Any], Any], **kwargs: Any) -> None:
         """Initialize the Lambda transform.
 
         Args:
@@ -206,13 +205,14 @@ class Normalize(Transform):
         self,
         norm: float | Literal["fro", "nuc"] | None = 2,
         flatten: bool = False,
-        **kwargs,
+        **kwargs: Any,
     ) -> None:
         """Initialize the Normalize transform.
 
         Args:
             norm: Order of the norm (refer to numpy.linalg.norm). Defaults to 2.
-            flatten: Specifies if the norm should be calculated on the flattened representation of the input tensor. Defaults to False.
+            flatten: Whether to calculate the norm on the flattened input tensor.
+                Defaults to False.
             **kwargs: Additional keyword arguments passed to the parent class.
         """
         super().__init__(**kwargs)
@@ -231,7 +231,7 @@ class Normalize(Transform):
         if self.flatten:
             signal.data = signal.data.reshape(signal.data.size)
 
-        signal.data = F.normalize(signal.data, norm_order=self.norm, flatten=self.flatten)
+        signal.data = functional.normalize(signal.data, norm_order=self.norm, flatten=self.flatten)
         return signal
 
 
@@ -245,7 +245,7 @@ class RandomApply(Transform):
         probability: Probability to apply transform in range [0., 1.].
     """
 
-    def __init__(self, transform, probability: float, **kwargs):
+    def __init__(self, transform: Transform, probability: float, **kwargs: Any) -> None:
         """Initialize the RandomApply transform.
 
         Args:
@@ -291,8 +291,8 @@ class RandAugment(Transform):
         transforms: list[Transform],
         choose: int = 2,
         replace: bool = False,
-        **kwargs,
-    ):
+        **kwargs: Any,
+    ) -> None:
         """Initialize the RandAugment transform.
 
         Args:
@@ -323,6 +323,3 @@ class RandAugment(Transform):
             signal = t(signal)
 
         return signal
-
-
-__all__ = ["Compose", "Lambda", "Normalize", "RandAugment", "RandomApply", "Transform"]

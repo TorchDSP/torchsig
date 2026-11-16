@@ -96,11 +96,51 @@ def test_dvbs2_modulator_output(constellation):
 def test_dvbs2_modulator_invalid_args():
     """Invalid bandwidth and roll-off raise."""
     with pytest.raises(ValueError):
-        dvbs2_modulator("qpsk", "normal", False, 0.25, 0, 10_000_000, 8192)
+        dvbs2_modulator(
+            "qpsk",
+            "normal",
+            False,
+            0.25,
+            bandwidth=0,
+            sample_rate=10_000_000,
+            num_samples=8192,
+        )
+
+
+def test_dvbs2_modulator_invalid_args():
+    """Invalid bandwidth and roll-off raise."""
     with pytest.raises(ValueError):
-        dvbs2_modulator("qpsk", "normal", False, 0.25, 6_000_000, 10_000_000, 8192)
+        dvbs2_modulator(
+            "qpsk",
+            "normal",
+            False,
+            0.25,
+            bandwidth=0,
+            sample_rate=10_000_000,
+            num_samples=8192,
+        )
+
     with pytest.raises(ValueError):
-        dvbs2_modulator("qpsk", "normal", False, 1.5, 2_500_000, 10_000_000, 8192)
+        dvbs2_modulator(
+            "qpsk",
+            "normal",
+            False,
+            0.25,
+            bandwidth=6_000_000,
+            sample_rate=10_000_000,
+            num_samples=8192,
+        )
+
+    with pytest.raises(ValueError):
+        dvbs2_modulator(
+            "qpsk",
+            "normal",
+            False,
+            1.5,
+            bandwidth=2_500_000,
+            sample_rate=10_000_000,
+            num_samples=8192,
+        )
 
 
 def test_dvbs2_generator_generate():

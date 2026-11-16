@@ -64,10 +64,9 @@ class TrackingFileWriter(FileWriter):
         return len(self.written_batches)
 
 
-def test_file_writer_resolves_root_path(tmp_path):
-    writer = FileWriter(str(tmp_path))
-
-    assert writer.root == tmp_path.resolve()
+def test_incomplete_file_writer_cannot_be_instantiated(tmp_path):
+    with pytest.raises(TypeError, match="abstract"):
+        FileWriter(str(tmp_path))
 
 
 def test_file_writer_setup_resets_root_and_calls_setup_hook(tmp_path):
@@ -87,7 +86,7 @@ def test_file_writer_setup_resets_root_and_calls_setup_hook(tmp_path):
 
 def test_file_writer_exists_reflects_root_existence(tmp_path):
     root = tmp_path / "writer_root"
-    writer = FileWriter(str(root))
+    writer = TrackingFileWriter(str(root))
 
     assert writer.exists() is False
 
@@ -115,28 +114,14 @@ def test_file_writer_context_manager_does_not_suppress_exceptions(tmp_path):
         raise RuntimeError("boom")
 
 
-def test_file_writer_write_is_not_implemented(tmp_path):
-    writer = FileWriter(str(tmp_path))
-
-    with pytest.raises(NotImplementedError):
-        writer.write(0, {"data": 1})
-
-
-def test_file_writer_len_is_not_implemented(tmp_path):
-    writer = FileWriter(str(tmp_path))
-
-    with pytest.raises(NotImplementedError):
-        len(writer)
-
-
 def test_file_writer_str_returns_class_name(tmp_path):
-    writer = FileWriter(str(tmp_path))
+    writer = TrackingFileWriter(str(tmp_path))
 
-    assert str(writer) == "FileWriter"
+    assert str(writer) == "TrackingFileWriter"
 
 
 def test_file_writer_repr_uses_generate_repr_str(tmp_path, monkeypatch):
-    writer = FileWriter(str(tmp_path))
+    writer = TrackingFileWriter(str(tmp_path))
     mock_generate_repr = Mock(return_value="mock repr")
 
     monkeypatch.setattr(
@@ -161,34 +146,25 @@ class TrackingFileReader(FileReader):
 
 
 def test_file_reader_initializes_root_and_dataset_info_path(tmp_path):
-    reader = FileReader(str(tmp_path))
+    reader = TrackingFileReader(str(tmp_path))
 
     assert reader.root == tmp_path.resolve()
     assert reader.dataset_info_filepath == tmp_path.resolve() / "dataset_info.yaml"
 
 
-def test_file_reader_read_is_not_implemented(tmp_path):
-    reader = FileReader(str(tmp_path))
-
-    with pytest.raises(NotImplementedError):
-        reader.read(0)
-
-
-def test_file_reader_len_is_not_implemented(tmp_path):
-    reader = FileReader(str(tmp_path))
-
-    with pytest.raises(NotImplementedError):
-        len(reader)
+def test_incomplete_file_reader_cannot_be_instantiated(tmp_path):
+    with pytest.raises(TypeError, match="abstract"):
+        FileReader(str(tmp_path))
 
 
 def test_file_reader_str_returns_class_name(tmp_path):
-    reader = FileReader(str(tmp_path))
+    reader = TrackingFileReader(str(tmp_path))
 
-    assert str(reader) == "FileReader"
+    assert str(reader) == "TrackingFileReader"
 
 
 def test_file_reader_repr_uses_generate_repr_str(tmp_path, monkeypatch):
-    reader = FileReader(str(tmp_path))
+    reader = TrackingFileReader(str(tmp_path))
     mock_generate_repr = Mock(return_value="mock reader repr")
 
     monkeypatch.setattr(
@@ -227,6 +203,31 @@ def test_base_file_handler_create_writer_uses_writer_class(tmp_path, monkeypatch
 def test_base_file_handler_create_handler_rejects_invalid_mode(tmp_path):
     with pytest.raises(ValueError, match="Invalid File Handler mode: invalid"):
         BaseFileHandler.create_handler(mode="invalid", root=str(tmp_path))
+
+
+def test_subclass_factory_uses_its_own_reader_and_writer(tmp_path):
+    class TrackingHandler(BaseFileHandler):
+        reader_class = TrackingFileReader
+        writer_class = TrackingFileWriter
+
+    assert isinstance(TrackingHandler.create_handler("r", tmp_path), TrackingFileReader)
+    assert isinstance(TrackingHandler.create_handler("w", tmp_path), TrackingFileWriter)
+
+
+def test_file_reader_context_manager_and_close_are_idempotent(tmp_path):
+    class ClosingReader(TrackingFileReader):
+        def __init__(self, root):
+            super().__init__(root)
+            self.close_count = 0
+
+        def teardown(self):
+            self.close_count += 1
+
+    reader = ClosingReader(tmp_path)
+    with reader as entered:
+        assert entered is reader
+    reader.close()
+    assert reader.close_count == 2
 
 
 def test_base_file_handler_str_returns_class_name():

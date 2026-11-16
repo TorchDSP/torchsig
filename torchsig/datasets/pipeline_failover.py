@@ -1,4 +1,3 @@
-# ruff: noqa: PERF203
 import logging
 import sys
 import traceback
@@ -68,7 +67,7 @@ class PipelineFailOverEnabled:
         for attempt in range(retries):
             try:
                 return func(*args, **kwargs)
-            except Exception as exc:
+            except Exception as exc:  # noqa: PERF203 - retries handle each attempt independently
                 log.warning(f"Pipeline retry {attempt + 1}/{retries} failed: {type(exc).__name__}: {exc}\nTraceback:\n{traceback.format_exc()}")
 
                 if attempt == retries - 1:
@@ -78,6 +77,7 @@ class PipelineFailOverEnabled:
                         return self._fallback_action(fallback_raw_signal)
 
                     raise
+        return None
 
     def _fallback_action(self, raw_signal):
         """Return a safe tensor that does *not* depend on the broken transform.

@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING, Any
 from torchsig.utils.abstractions import HierarchicalMetadataObject
 
 if TYPE_CHECKING:
-    from torchsig.signals import Signal
+    from torchsig.signals.signal_types import Signal
 
 __all__ = ["BaseSignalGenerator", "ConcatSignalGenerator"]
 
@@ -80,13 +80,15 @@ class BaseSignalGenerator(HierarchicalMetadataObject):
             _ = self.required_metadata_fields
         except AttributeError:
             return
-        for key in self.required_metadata_fields:
+        required_keys = tuple(self.required_metadata_fields)
+        for key in required_keys:
             if not isinstance(key, str):
                 raise TypeError("Could not validate metadata; all required metadata field names should be strings")
-            try:
-                _ = self[key]
-            except AttributeError as err:
-                raise ValueError(f"{self.__class__.__name__} missing required metadata key: '{key}'") from err
+        try:
+            self.require_metadata(*required_keys)
+        except AttributeError as err:
+            missing_key = next(key for key in required_keys if not self.explain_metadata(key).found)
+            raise ValueError(f"{self.__class__.__name__} missing required metadata key: {missing_key!r}. Resolution: {err}") from err
 
     def __call__(self) -> Signal:
         """Generates a new signal and applies all transforms.
@@ -131,7 +133,7 @@ class BaseSignalGenerator(HierarchicalMetadataObject):
         Raises:
             NotImplementedError: If the method is not implemented by a subclass.
         """
-        raise NotImplementedError("Subclasses must implement 'build'")
+        raise NotImplementedError("Subclasses must implement 'generate'")
 
 
 class ConcatSignalGenerator(BaseSignalGenerator):

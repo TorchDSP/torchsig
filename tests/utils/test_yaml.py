@@ -84,6 +84,8 @@ def test_load_config_from_yaml_builds_dataset_config(tmp_path, monkeypatch):
             "fft_size": 256,
             "class_list": ["bpsk", "qpsk"],
         },
+        "file_writer_name": "legacy",
+        "file_writer_kwargs": {},
     }
 
 
@@ -101,6 +103,39 @@ def test_load_config_from_yaml_defaults_dataset_id_to_file_stem(tmp_path, monkey
     assert config.kwargs["dataset_id"] == "fallback_name"
 
 
+def test_load_config_from_yaml_includes_signal_generation_config(tmp_path, monkeypatch):
+    install_fake_datasets_module(monkeypatch)
+    cfg = make_valid_config_dict()
+    cfg["signals"] = {"qpsk": {"parameters": {"alpha": {"value": 0.35}}}}
+    path = tmp_path / "configured.yaml"
+    path.write_text(yaml.safe_dump(cfg))
+
+    config = load_config_from_yaml(path)
+
+    effective = config.kwargs["experiment_config"]
+    assert effective.parameter_value("qpsk", "alpha") == 0.35
+
+
+def test_load_config_from_yaml_includes_storage_config(tmp_path, monkeypatch):
+    """Storage backend and options are preserved in the dataset config."""
+    install_fake_datasets_module(monkeypatch)
+    cfg = make_valid_config_dict()
+    cfg["storage"] = {
+        "writer": "packed",
+        "options": {"compression": None, "shuffle": False},
+    }
+    path = tmp_path / "configured.yaml"
+    path.write_text(yaml.safe_dump(cfg))
+
+    config = load_config_from_yaml(path)
+
+    assert config.kwargs["file_writer_name"] == "packed"
+    assert config.kwargs["file_writer_kwargs"] == {
+        "compression": None,
+        "shuffle": False,
+    }
+
+
 @pytest.mark.parametrize(
     ("mutation", "expected_message"),
     [
@@ -108,6 +143,9 @@ def test_load_config_from_yaml_defaults_dataset_id_to_file_stem(tmp_path, monkey
         (lambda cfg: cfg.__setitem__("dataset_metadata", []), "dataset_metadata must be a dict"),
         (lambda cfg: cfg.__setitem__("output", ["not-a-dict"]), "output must be a dict"),
         (lambda cfg: cfg.__setitem__("signal_sampling", ["not-a-dict"]), "signal_sampling must be a dict"),
+        (lambda cfg: cfg.__setitem__("storage", ["not-a-dict"]), "storage must be a dict"),
+        (lambda cfg: cfg.__setitem__("storage", {"writer": "bad"}), "storage.writer must be"),
+        (lambda cfg: cfg.__setitem__("storage", {"options": []}), "storage.options must be a dict"),
         (
             lambda cfg: cfg.__setitem__("output", {"representation": "bad"}),
             "output.representation must be 'iq' or 'spectrogram'",

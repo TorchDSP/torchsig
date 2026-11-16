@@ -248,9 +248,8 @@ class TestDistanceCalculation:
         p1 = GeoPoint(lat=0.0, lon=0.0, alt=0.0)
         p2 = GeoPoint(lat=0.0, lon=0.0, alt=0.0)
 
-        with patch("torchsig.geo.types.ecef_distance", return_value=non_finite_value):
-            with pytest.raises(ValueError, match="computed non-finite distance"):
-                p1.distance_to(p2)
+        with patch("torchsig.geo.types.ecef_distance", return_value=non_finite_value), pytest.raises(ValueError, match="computed non-finite distance"):
+            p1.distance_to(p2)
 
 
 # =============================================================================

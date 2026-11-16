@@ -165,7 +165,7 @@ def test_packed_hdf5_rejects_missing_batch_at_teardown(tmp_path) -> None:
 
     with pytest.raises(ValueError, match="missing batch index 0"):
         writer.teardown()
-    assert writer._file is None  # noqa: SLF001
+    assert writer._file is None
     with h5py.File(tmp_path / "data.h5", "r") as handle:
         assert not bool(handle.attrs["complete"])
 
@@ -322,36 +322,36 @@ def test_packed_hdf5_invalid_batch_does_not_append_partial_data(
     writer.setup()
     writer.write(0, [valid])
     lengths_before = {
-        "records": len(writer._records),  # noqa: SLF001
-        "metadata": len(writer._metadata),  # noqa: SLF001
-        "shapes": len(writer._shapes),  # noqa: SLF001
-        "components": len(writer._components),  # noqa: SLF001
-        "index": len(writer._index),  # noqa: SLF001
-        "dtypes": len(writer._dtypes),  # noqa: SLF001
-        "parents": len(writer._parent_records),  # noqa: SLF001
+        "records": len(writer._records),
+        "metadata": len(writer._metadata),
+        "shapes": len(writer._shapes),
+        "components": len(writer._components),
+        "index": len(writer._index),
+        "dtypes": len(writer._dtypes),
+        "parents": len(writer._parent_records),
     }
-    data_streams_before = set(writer._data_group)  # noqa: SLF001
+    data_streams_before = set(writer._data_group)
 
     with pytest.raises(TypeError, match="Unsupported TorchSig metadata"):
         writer.write(1, [valid, invalid])
 
     lengths_after = {
-        "records": len(writer._records),  # noqa: SLF001
-        "metadata": len(writer._metadata),  # noqa: SLF001
-        "shapes": len(writer._shapes),  # noqa: SLF001
-        "components": len(writer._components),  # noqa: SLF001
-        "index": len(writer._index),  # noqa: SLF001
-        "dtypes": len(writer._dtypes),  # noqa: SLF001
-        "parents": len(writer._parent_records),  # noqa: SLF001
+        "records": len(writer._records),
+        "metadata": len(writer._metadata),
+        "shapes": len(writer._shapes),
+        "components": len(writer._components),
+        "index": len(writer._index),
+        "dtypes": len(writer._dtypes),
+        "parents": len(writer._parent_records),
     }
     assert lengths_after == lengths_before
-    assert set(writer._data_group) == data_streams_before  # noqa: SLF001
+    assert set(writer._data_group) == data_streams_before
     writer.teardown()
 
 
 @pytest.mark.parametrize("fail_on_append", [1, 3, 6, 9])
 def test_packed_hdf5_rolls_back_failed_batch_commit(tmp_path, monkeypatch, fail_on_append) -> None:
-    original_append = packed_hdf5._append  # noqa: SLF001
+    original_append = packed_hdf5._append
     append_count = 0
 
     def failing_append(dataset, values):
@@ -376,17 +376,17 @@ def test_packed_hdf5_rolls_back_failed_batch_commit(tmp_path, monkeypatch, fail_
     with pytest.raises(OSError, match="injected HDF5 append failure"):
         writer.write(0, [signal])
 
-    assert len(writer._dtypes) == 0  # noqa: SLF001
-    assert len(writer._records) == 0  # noqa: SLF001
-    assert len(writer._metadata) == 0  # noqa: SLF001
-    assert len(writer._shapes) == 0  # noqa: SLF001
-    assert len(writer._components) == 0  # noqa: SLF001
-    assert len(writer._index) == 0  # noqa: SLF001
-    assert len(writer._parent_records) == 0  # noqa: SLF001
-    assert len(writer._parent_metadata) == 0  # noqa: SLF001
-    assert not writer._data  # noqa: SLF001
-    assert not writer._dtype_ids  # noqa: SLF001
-    assert not writer._parent_ids  # noqa: SLF001
+    assert len(writer._dtypes) == 0
+    assert len(writer._records) == 0
+    assert len(writer._metadata) == 0
+    assert len(writer._shapes) == 0
+    assert len(writer._components) == 0
+    assert len(writer._index) == 0
+    assert len(writer._parent_records) == 0
+    assert len(writer._parent_metadata) == 0
+    assert not writer._data
+    assert not writer._dtype_ids
+    assert not writer._parent_ids
     with pytest.raises(RuntimeError, match="cannot continue"):
         writer.write(1, [signal])
 
@@ -399,7 +399,7 @@ def test_packed_hdf5_rollback_preserves_committed_batches(tmp_path, monkeypatch)
     writer = PackedHDF5Writer(tmp_path, max_batches_in_memory=1)
     writer.setup()
     writer.write(0, [Signal(data=np.ones(4, dtype=np.complex64))])
-    original_append = packed_hdf5._append  # noqa: SLF001
+    original_append = packed_hdf5._append
     append_count = 0
 
     def failing_append(dataset, values):
@@ -420,16 +420,16 @@ def test_packed_hdf5_rollback_preserves_committed_batches(tmp_path, monkeypatch)
     with pytest.raises(OSError, match="injected HDF5 append failure"):
         writer.write(1, [signal])
 
-    assert len(writer._dtypes) == 1  # noqa: SLF001
-    assert len(writer._records) == 1  # noqa: SLF001
-    assert len(writer._metadata) == 1  # noqa: SLF001
-    assert len(writer._shapes) == 1  # noqa: SLF001
-    assert len(writer._index) == 1  # noqa: SLF001
-    assert len(writer._parent_records) == 0  # noqa: SLF001
-    assert set(writer._data_group) == {"0"}  # noqa: SLF001
-    assert len(writer._data[0]) == 4  # noqa: SLF001
-    assert writer._dtype_ids == {np.dtype(np.complex64).str: 0}  # noqa: SLF001
-    assert not writer._parent_ids  # noqa: SLF001
+    assert len(writer._dtypes) == 1
+    assert len(writer._records) == 1
+    assert len(writer._metadata) == 1
+    assert len(writer._shapes) == 1
+    assert len(writer._index) == 1
+    assert len(writer._parent_records) == 0
+    assert set(writer._data_group) == {"0"}
+    assert len(writer._data[0]) == 4
+    assert writer._dtype_ids == {np.dtype(np.complex64).str: 0}
+    assert not writer._parent_ids
 
     writer.teardown()
 
@@ -445,8 +445,8 @@ def test_packed_hdf5_rejects_component_cycle_before_appending(
     with pytest.raises(ValueError, match="component signal cycle"):
         writer.write(0, [signal])
 
-    assert len(writer._records) == 0  # noqa: SLF001
-    assert len(writer._index) == 0  # noqa: SLF001
+    assert len(writer._records) == 0
+    assert len(writer._index) == 0
     writer.teardown()
 
 
@@ -460,8 +460,8 @@ def test_packed_hdf5_rejects_parent_cycle_before_appending(tmp_path) -> None:
     with pytest.raises(ValueError, match="parent metadata cycle"):
         writer.write(0, [signal])
 
-    assert len(writer._records) == 0  # noqa: SLF001
-    assert len(writer._index) == 0  # noqa: SLF001
+    assert len(writer._records) == 0
+    assert len(writer._index) == 0
     writer.teardown()
 
 
@@ -660,7 +660,7 @@ def test_packed_hdf5_reader_rejects_data_dataset_instead_of_group(
         del handle["data"]
         handle.create_dataset("data", data=np.ones(4, dtype=np.complex64))
 
-    with pytest.raises(ValueError, match="data path must be a group"):
+    with pytest.raises(TypeError, match="data path must be a group"):
         PackedHDF5Reader(tmp_path).read(0)
 
 

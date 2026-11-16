@@ -159,9 +159,8 @@ def test_load_row_type_conversion_errors(tmp_path: Path, bad_row, expected_msg):
         writer = csv.writer(f)
         writer.writerow(bad_row)
 
-    reader = MetadataReader(tmp_path)
     with pytest.raises(ValueError, match=expected_msg):
-        reader.load_row(0)
+        MetadataReader(tmp_path)
 
 
 def test_load_json_success(tmp_path: Path):
@@ -206,8 +205,8 @@ def test_repr_contains_root_and_size(dataset_dir: Path):
     rep = repr(reader)
     assert "MetadataReader" in rep
     assert str(dataset_dir) in rep
-    # Size comes from the (optional) JSON; default value is 0.
-    assert "size=0" in rep
+    # Size is inferred from metadata.csv when optional JSON is absent.
+    assert "size=3" in rep
 
 
 @pytest.mark.parametrize(
@@ -307,12 +306,10 @@ def test_load_row_missing_columns(tmp_path: Path, description, rows, expected_mi
     names.
     """
     write_csv(tmp_path, rows)
-    reader = MetadataReader(tmp_path)
-
     if expected_missing:
-        # Expect a missing-column error.
-        with pytest.raises(ValueError, match=r"is missing required columns") as excinfo:
-            reader.load_row(0)
+        # Expect a schema error during eager index construction.
+        with pytest.raises(ValueError) as excinfo:
+            MetadataReader(tmp_path)
         msg = str(excinfo.value)
         for col in expected_missing:
             assert col in msg, f"Missing column {col!r} not mentioned in error: {msg}"
@@ -320,7 +317,7 @@ def test_load_row_missing_columns(tmp_path: Path, description, rows, expected_mi
         assert str(tmp_path / "metadata.csv") in msg
     else:
         with pytest.raises(ValueError, match=r"is missing required columns"):
-            reader.load_row(0)
+            MetadataReader(tmp_path)
 
 
 def test_load_row_empty_value_raises_value_error(tmp_path: Path):
@@ -329,10 +326,8 @@ def test_load_row_empty_value_raises_value_error(tmp_path: Path):
     the conversion / class-index step.
     """
     write_csv(tmp_path, [(0, "", 0, 192_000.0)])  # empty label
-    reader = MetadataReader(tmp_path)
-
     with pytest.raises(ValueError, match=r"is missing required columns"):
-        reader.load_row(0)
+        MetadataReader(tmp_path)
 
 
 def test_load_row_no_rows(tmp_path: Path):
@@ -347,3 +342,86 @@ def test_load_row_no_rows(tmp_path: Path):
     msg = str(excinfo.value)
     assert "Metadata idx 0 is out of bounds" in msg
     assert "metadata.csv" in msg
+
+
+def test_header_based_csv_supports_reordered_and_extra_columns(tmp_path: Path):
+    """Header names, rather than positions, define the record schema."""
+    with (tmp_path / "metadata.csv").open("w", newline="") as csv_file:
+        writer = csv.writer(csv_file)
+        writer.writerow(["label", "snr_db", "sample_rate", "index", "modcod"])
+        writer.writerow(["QPSK", "12.5", "48000", "7", "2"])
+
+    reader = MetadataReader(tmp_path)
+    row = reader.load_row(0)
+
+    assert reader.metadata_has_header is True
+    assert reader.dataset_size == 1
+    assert reader.class_list == ["QPSK"]
+    assert row["index"] == 7
+    assert row["label"] == "QPSK"
+    assert row["modcod"] == 2
+    assert row["sample_rate"] == pytest.approx(48_000.0)
+    assert row["snr_db"] == "12.5"
+
+
+@pytest.mark.parametrize(
+    ("header", "message"),
+    [
+        (["index", "label", "modcod"], "missing required columns"),
+        (["index", "label", "modcod", "sample_rate", "label"], "duplicate columns"),
+        (["index", "label", "modcod", "sample_rate", ""], "empty column name"),
+    ],
+)
+def test_header_based_csv_rejects_invalid_headers(tmp_path: Path, header, message):
+    with (tmp_path / "metadata.csv").open("w", newline="") as csv_file:
+        csv.writer(csv_file).writerow(header)
+
+    with pytest.raises(ValueError, match=message):
+        MetadataReader(tmp_path)
+
+
+@pytest.mark.parametrize(
+    ("rows", "message"),
+    [
+        ([(0, "BPSK", 0, 48_000), (0, "QPSK", 1, 48_000)], "duplicate index"),
+        ([(-1, "BPSK", 0, 48_000)], "negative index"),
+    ],
+)
+def test_metadata_csv_rejects_invalid_indices(tmp_path: Path, rows, message):
+    write_csv(tmp_path, rows)
+
+    with pytest.raises(ValueError, match=message):
+        MetadataReader(tmp_path)
+
+
+def test_info_json_size_must_match_metadata_csv(tmp_path: Path):
+    write_csv(tmp_path, [(0, "BPSK", 0, 48_000)])
+    write_info_json(tmp_path, {"size": 2})
+
+    with pytest.raises(ValueError, match=r"reports 2 elements.*contains 1 rows"):
+        MetadataReader(tmp_path)
+
+
+def test_info_json_accepts_current_sidecar_schema_version(tmp_path: Path):
+    write_csv(tmp_path, [(0, "BPSK", 0, 48_000)])
+    write_info_json(tmp_path, {"size": 1, "sidecar_schema_version": "1.0"})
+
+    assert MetadataReader(tmp_path).dataset_size == 1
+
+
+def test_info_json_rejects_unsupported_sidecar_schema_version(tmp_path: Path):
+    write_csv(tmp_path, [(0, "BPSK", 0, 48_000)])
+    write_info_json(tmp_path, {"size": 1, "sidecar_schema_version": "2.0"})
+
+    with pytest.raises(ValueError, match=r"Unsupported sidecar schema version '2.0'"):
+        MetadataReader(tmp_path)
+
+
+def test_metadata_rows_are_indexed_once_for_random_access(tmp_path: Path):
+    rows = [(index, "BPSK", 0, 48_000) for index in range(1_000)]
+    write_csv(tmp_path, rows)
+    reader = MetadataReader(tmp_path)
+    (tmp_path / "metadata.csv").unlink()
+
+    assert reader.load_row(999)["index"] == 999
+    assert reader.load_row(0)["index"] == 0

@@ -7,12 +7,9 @@ root with either::
     python examples/scripts/train_hdf5.py --file-type homogeneous
 """
 
-# ruff: noqa: INP001
-
 from __future__ import annotations
 
 import argparse
-from collections.abc import Sequence
 from contextlib import nullcontext
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -141,9 +138,7 @@ def write_dataset(
     file_type: FileType,
 ) -> None:
     """Generate signals and write them using the selected HDF5 format."""
-    generators = [
-        lookup_signal_generator_by_string(name) for name in CLASS_NAMES
-    ]
+    generators = [lookup_signal_generator_by_string(name) for name in CLASS_NAMES]
     source = TorchSigIterableDataset(
         signal_generators=generators,
         metadata=dataset_metadata(),
@@ -197,10 +192,7 @@ def make_loaders(
         [train_size, validation_size, test_size],
         generator=torch.Generator().manual_seed(42),
     )
-    loaders = tuple(
-        DataLoader(split, batch_size=batch_size, shuffle=index == 0)
-        for index, split in enumerate(splits)
-    )
+    loaders = tuple(DataLoader(split, batch_size=batch_size, shuffle=index == 0) for index, split in enumerate(splits))
     return (*loaders, dataset)
 
 
@@ -269,10 +261,7 @@ def train(
                 model,
                 validation_loader,
             )
-            print(
-                f"epoch={epoch} validation_loss={validation_loss:.4f} "
-                f"validation_accuracy={validation_accuracy:.3f}"
-            )
+            print(f"epoch={epoch} validation_loss={validation_loss:.4f} validation_accuracy={validation_accuracy:.3f}")
 
         test_loss, test_accuracy = evaluate(model, test_loader)
         print(f"test_loss={test_loss:.4f} test_accuracy={test_accuracy:.3f}")
@@ -285,11 +274,7 @@ def main() -> None:
     args = parse_args()
     file_type: FileType = args.file_type
 
-    root_context = (
-        nullcontext(args.root)
-        if args.root is not None
-        else TemporaryDirectory(prefix=f"torchsig-{file_type}-training-")
-    )
+    root_context = nullcontext(args.root) if args.root is not None else TemporaryDirectory(prefix=f"torchsig-{file_type}-training-")
 
     with root_context as root:
         train(
