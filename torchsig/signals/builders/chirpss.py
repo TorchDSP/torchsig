@@ -5,7 +5,7 @@ from __future__ import annotations
 import numpy as np
 
 from torchsig.signals.builder import BaseSignalGenerator
-from torchsig.signals.builders.chirp import chirp
+from torchsig.signals.builders.chirp import chirp, draw_samples_per_symbol
 from torchsig.signals.signal_types import Signal
 from torchsig.signals.signal_utils import random_limiting_filter_design
 from torchsig.utils.dsp import (
@@ -32,6 +32,9 @@ def chirpss_modulator_baseband(
     max_num_samples: int,
     oversampling_rate_nominal: int,
     rng: np.random.Generator | None = None,
+    *,
+    samples_per_symbol_min: int | None = None,
+    samples_per_symbol_max: int | None = None,
 ) -> np.ndarray:
     """Chirp Spread Spectrum modulator at baseband.
 
@@ -39,12 +42,15 @@ def chirpss_modulator_baseband(
         max_num_samples: Maximum number of samples to be produced.
         oversampling_rate_nominal: The amount of oversampling (sampling_rate/bandwidth).
         rng: Random number generator for reproducibility. If None, creates a new default generator.
+        samples_per_symbol_min: Inclusive minimum sweep length in baseband samples.
+        samples_per_symbol_max: Inclusive maximum sweep length in baseband samples.
 
     Returns:
         np.ndarray: Chirp SS modulated signal at baseband.
 
     Raises:
         ValueError: If max_num_samples or oversampling_rate_nominal are not positive.
+        ValueError: If sweep bounds are incomplete, unordered, or outside [1, max_num_samples].
     """
     # Input validation
     if max_num_samples <= 0:
@@ -63,8 +69,8 @@ def chirpss_modulator_baseband(
     # Get symbol mapping
     const = get_symbol_map()
 
-    # Randomize number of samples per symbol
-    samples_per_symbol = rng.integers(low=128, high=4096)
+    # Choose the sweep length (randomized unless the bounds are equal)
+    samples_per_symbol = draw_samples_per_symbol(max_num_samples, rng, samples_per_symbol_min, samples_per_symbol_max)
 
     # Generate symbols
     symbol_nums = rng.integers(0, len(const), int(np.ceil(max_num_samples / samples_per_symbol)))
@@ -110,6 +116,9 @@ def chirpss_modulator(
     sample_rate: float,
     num_samples: int,
     rng: np.random.Generator | None = None,
+    *,
+    samples_per_symbol_min: int | None = None,
+    samples_per_symbol_max: int | None = None,
 ) -> np.ndarray:
     """Chirp Spread Spectrum modulator.
 
@@ -118,6 +127,8 @@ def chirpss_modulator(
         sample_rate: Sampling rate for the IQ signal (Hz).
         num_samples: Number of IQ samples to produce.
         rng: Random number generator for reproducibility. If None, creates a new default generator.
+        samples_per_symbol_min: Inclusive minimum sweep length in baseband samples.
+        samples_per_symbol_max: Inclusive maximum sweep length in baseband samples.
 
     Returns:
         np.ndarray: Chirp SS modulated signal at the appropriate bandwidth.
@@ -126,6 +137,7 @@ def chirpss_modulator(
         ValueError: If bandwidth or sample_rate are not positive.
         ValueError: If bandwidth exceeds sample_rate/2.
         ValueError: If num_samples is not positive.
+        ValueError: If sweep bounds are invalid for the baseband output length.
     """
     # Input validation
     if bandwidth <= 0:
@@ -150,7 +162,16 @@ def chirpss_modulator(
     num_samples_baseband = int(np.floor(num_samples / resample_rate_ideal))
 
     # Generate baseband signal
-    chirpss_signal_baseband = chirpss_modulator_baseband(num_samples_baseband, oversampling_rate_baseband, rng)
+    if samples_per_symbol_min is None and samples_per_symbol_max is None:
+        chirpss_signal_baseband = chirpss_modulator_baseband(num_samples_baseband, oversampling_rate_baseband, rng)
+    else:
+        chirpss_signal_baseband = chirpss_modulator_baseband(
+            num_samples_baseband,
+            oversampling_rate_baseband,
+            rng,
+            samples_per_symbol_min=samples_per_symbol_min,
+            samples_per_symbol_max=samples_per_symbol_max,
+        )
 
     # Apply resampling
     chirpss_mod_correct_bw = multistage_polyphase_resampler(chirpss_signal_baseband, resample_rate_ideal)
@@ -180,6 +201,8 @@ class ChirpSSSignalGenerator(BaseSignalGenerator):
                 - bandwidth_max: Maximum bandwidth (Hz)
                 - signal_duration_in_samples_min: Minimum signal duration (samples)
                 - signal_duration_in_samples_max: Maximum signal duration (samples)
+                - samples_per_symbol_min: Optional inclusive minimum sweep length (baseband samples)
+                - samples_per_symbol_max: Optional inclusive maximum sweep length (baseband samples)
 
         Raises:
             ValueError: If required metadata fields are missing or invalid.
@@ -212,6 +235,18 @@ class ChirpSSSignalGenerator(BaseSignalGenerator):
         bandwidth = self.random_generator.integers(low=self["bandwidth_min"], high=self["bandwidth_max"] + 1)
 
         # Generate signal
-        signal_data = chirpss_modulator(bandwidth, sample_rate, num_iq_samples_signal, self.random_generator)
+        try:
+            sweep_min = self["samples_per_symbol_min"]
+        except (AttributeError, KeyError):
+            sweep_min = None
+        try:
+            sweep_max = self["samples_per_symbol_max"]
+        except (AttributeError, KeyError):
+            sweep_max = None
+
+        modulator_kwargs = {}
+        if sweep_min is not None or sweep_max is not None:
+            modulator_kwargs = {"samples_per_symbol_min": sweep_min, "samples_per_symbol_max": sweep_max}
+        signal_data = chirpss_modulator(bandwidth, sample_rate, num_iq_samples_signal, self.random_generator, **modulator_kwargs)
 
         return Signal(data=signal_data, class_name="chirpss", center_freq=0, bandwidth=bandwidth)
