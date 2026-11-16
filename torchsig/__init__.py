@@ -13,7 +13,7 @@ if TYPE_CHECKING:
     from . import transforms as transforms
     from . import utils as utils
 
-__version__ = "3.0.0"
+__version__ = "2.2.0"
 __all__ = ["__version__", "datasets", "geo", "signals", "transforms", "utils"]
 _EXPORTS = {name: (f"{__name__}.{name}", None) for name in __all__ if name != "__version__"}
 

@@ -1,9 +1,131 @@
 """Unit tests for the chirp signal generator."""
 
+from unittest.mock import MagicMock, call, patch
+
 import numpy as np
 import pytest
 
 from torchsig.signals.builders.chirp import chirp
+from torchsig.signals.builders.chirpss import ChirpSSSignalGenerator, chirpss_modulator, chirpss_modulator_baseband
+from torchsig.signals.builders.lfm import LFMSignalGenerator, lfm_modulator, lfm_modulator_baseband
+
+
+@pytest.mark.parametrize("seed", [0, 42, 2026])
+@pytest.mark.parametrize(
+    ("modulator", "args"),
+    [
+        (lfm_modulator_baseband, ("radar", 8192, 4)),
+        (lfm_modulator_baseband, ("data", 8192, 4)),
+        (chirpss_modulator_baseband, (8192, 4)),
+    ],
+)
+def test_default_sweep_length_preserves_legacy_draw(modulator, args, seed):
+    """Unbounded calls retain the legacy length draw, waveform, and RNG state."""
+    rng = np.random.default_rng(seed)
+    legacy_rng = np.random.default_rng(seed)
+    legacy_length = legacy_rng.integers(low=128, high=4096)
+
+    expected = modulator(*args, rng=legacy_rng, samples_per_symbol_min=legacy_length, samples_per_symbol_max=legacy_length)
+    actual = modulator(*args, rng=rng)
+
+    np.testing.assert_array_equal(actual, expected)
+    assert rng.bit_generator.state == legacy_rng.bit_generator.state
+
+
+@pytest.mark.parametrize(
+    ("modulator", "args"),
+    [
+        (lfm_modulator_baseband, ("radar", 256, 4)),
+        (chirpss_modulator_baseband, (256, 4)),
+    ],
+)
+def test_pinned_sweep_length_does_not_draw_length(modulator, args):
+    """Equal bounds set the actual sweep period without consuming a length draw."""
+    rng = MagicMock(spec=np.random.Generator)
+    rng.integers.return_value = np.zeros((4,), dtype=int)
+    rng.uniform.return_value = 1.0
+
+    result = modulator(*args, rng=rng, samples_per_symbol_min=64, samples_per_symbol_max=64)
+
+    rng.integers.assert_called_once_with(0, 1 if modulator is lfm_modulator_baseband else 128, 4)
+    np.testing.assert_allclose(result[:64], result[64:128])
+
+
+@pytest.mark.parametrize(
+    ("modulator", "args"),
+    [
+        (lfm_modulator_baseband, ("radar", 256, 4)),
+        (chirpss_modulator_baseband, (256, 4)),
+    ],
+)
+def test_bounded_sweep_length_draws_inclusive_range(modulator, args):
+    """The upper bound must be reachable via NumPy's exclusive high argument."""
+    rng = MagicMock(spec=np.random.Generator)
+    rng.integers.side_effect = [65, np.zeros((4,), dtype=int)]
+    rng.uniform.return_value = 1.0
+
+    modulator(*args, rng=rng, samples_per_symbol_min=64, samples_per_symbol_max=65)
+
+    assert rng.integers.call_args_list[0] == call(low=64, high=66)
+
+
+@pytest.mark.parametrize("bounds", [(0, 64), (64, 257), (80, 64), (64, None), (None, 64), (1.5, 64), (True, 64)])
+@pytest.mark.parametrize(
+    ("modulator", "args"),
+    [
+        (lfm_modulator_baseband, ("radar", 256, 4)),
+        (chirpss_modulator_baseband, (256, 4)),
+    ],
+)
+def test_invalid_sweep_bounds_raise(modulator, args, bounds):
+    """Configured bounds must describe a whole sweep within the burst."""
+    with pytest.raises(ValueError, match="samples_per_symbol_min"):
+        modulator(*args, rng=np.random.default_rng(0), samples_per_symbol_min=bounds[0], samples_per_symbol_max=bounds[1])
+
+
+@pytest.mark.parametrize(
+    ("modulator", "args"),
+    [
+        (lfm_modulator, ("radar", 1, 8, 1024)),
+        (chirpss_modulator, (1, 8, 1024)),
+    ],
+)
+def test_output_sweep_period_scales_with_resampling(modulator, args):
+    """A 64-sample baseband sweep repeats after 128 output samples at 2x resampling."""
+    rng = MagicMock(spec=np.random.Generator)
+    rng.integers.side_effect = lambda _low, _high=None, size=None: np.zeros((size,), dtype=int)
+    rng.uniform.return_value = 1.0
+
+    signal = modulator(*args, rng=rng, samples_per_symbol_min=64, samples_per_symbol_max=64)
+    instantaneous_frequency = np.angle(signal[1:] * np.conj(signal[:-1]))
+
+    np.testing.assert_allclose(instantaneous_frequency[256:640], instantaneous_frequency[384:768], atol=1e-6)
+    assert np.mean(np.abs(instantaneous_frequency[256:640] - instantaneous_frequency[320:704])) > 0.1
+
+
+@pytest.mark.parametrize(
+    ("generator_class", "modulator_name", "extra_metadata"),
+    [
+        (LFMSignalGenerator, "torchsig.signals.builders.lfm.lfm_modulator", {"lfm_type": "radar"}),
+        (ChirpSSSignalGenerator, "torchsig.signals.builders.chirpss.chirpss_modulator", {}),
+    ],
+)
+def test_signal_generator_passes_sweep_bounds(generator_class, modulator_name, extra_metadata):
+    """Generator metadata must reach the authoritative modulator path."""
+    generator = generator_class(
+        sample_rate=8,
+        bandwidth_min=1,
+        bandwidth_max=1,
+        signal_duration_in_samples_min=256,
+        signal_duration_in_samples_max=256,
+        samples_per_symbol_min=32,
+        samples_per_symbol_max=64,
+        **extra_metadata,
+    )
+    with patch(modulator_name, return_value=np.ones(256, dtype=np.complex64)) as modulator:
+        generator.generate()
+
+    assert modulator.call_args.kwargs == {"samples_per_symbol_min": 32, "samples_per_symbol_max": 64}
 
 
 @pytest.mark.parametrize("samples_per_symbol", [0, -1, -100])
